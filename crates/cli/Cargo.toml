@@ -24,6 +24,18 @@ name = "qd"
 path = "src/bin/qd.rs"
 
 [dependencies]
+chrono.workspace = true
+clap.workspace = true
+quotadial-core.workspace = true
+quotadial-provider-claude.workspace = true
+quotadial-provider-codex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+async-trait.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true
