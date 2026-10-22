@@ -4,8 +4,21 @@ Progress and implementation notes. Update this file with every change.
 
 ## Current focus
 
-Kickoff is done. M1 issue #1 (Claude provider) waits for Matt's go-ahead on its plan before any
-provider code is written. Proposals P-001 to P-007 in `docs/DECISIONS.md` wait for the manager.
+M1 issue #1 (Claude provider) is built and in review on branch `feat/claude-provider`. Matt
+approved its plan and all five recommendations on 2026-10-22 (D-021 to D-025). Next: #2 (Codex
+provider). Proposals P-001 to P-009 in `docs/DECISIONS.md` wait for the manager; P-001 and P-002
+are approved by Matt and already in the code.
+
+## M1
+
+| Issue | Status | Notes |
+| --- | --- | --- |
+| #1 Claude provider | In review | Reads Claude Code's sign-in, fetches `/api/oauth/usage`, 5-minute floor and 429 backoff across processes; verified live on Matt's Mac |
+| #2 Codex provider | To do | |
+| #3 CLI `status`, `--json`, `watch` | Partly done | `status` and `status --json` work; `watch` to do |
+| #4 Redacted fixtures | To do | Claude fixtures are still synthetic (D-008) |
+| #5 Live endpoint check | Partly done | Claude usage request verified live on 2026-10-22 with the PRD's headers (below). Still to do: whether the User-Agent is required, `?cedar_ember=1`, idle buckets, the profile endpoint, 429 behaviour, and all of Codex |
+| #7 Signed remote schema file | To do | Split out of #1 (D-025) |
 
 ## Kickoff
 
@@ -91,6 +104,38 @@ P-006 lists the corrections. The ones that change the M1 plan:
 - The Claude request starts with `User-Agent: claude-cli/<version> (external, cli)` and
   `?cedar_ember=1`, retrying with `claude-code/<version>` and no query on 400, or on 403 without
   `user:profile`.
+
+### M1 #1: Claude provider
+
+Modules in `crates/providers/claude/src/`, each naming the CodexBar files it follows:
+
+| Module | Job |
+| --- | --- |
+| `environment.rs` | Where Claude Code keeps its sign-in: config dir, `.credentials.json`, the Keychain service name (`Claude Code-credentials`, plus `-<8 hex of SHA-256 of the NFC dir>` when `CLAUDE_CONFIG_DIR` or `CLAUDE_SECURESTORAGE_CONFIG_DIR` is set), the account config file |
+| `login.rs` | Finds the sign-in this shell would use (env token, then Keychain, then file) without reading any secret |
+| `keychain.rs`, `process.rs` | `/usr/bin/security` lookups with timeouts (5 s for attributes, 30 s for the secret) |
+| `credentials.rs`, `secret.rs` | Parses `claudeAiOauth` (also hex-encoded output); the token lives in a `Secret` whose `Debug` is redacted |
+| `identity.rs`, `plan.rs` | Account and plan from `oauthAccount`, or from `/api/oauth/profile` |
+| `api.rs` | The HTTP requests, response classification, `claude --version` for the User-Agent |
+| `usage.rs` | Response buckets to windows |
+| `gate.rs`, `state.rs` | The 5-minute floor, 429 backoff, replay from cache, the per-account state file and lock |
+| `advice.rs` | The one sentence shown when there are no numbers, naming the fix |
+
+- Checked against Claude Code 2.1.286 itself (the installed binary), not only CodexBar: the
+  Keychain read command, the service and account naming, the credentials file location, the
+  keychain-then-file order, the plain usage request and its headers, and the profile response
+  shape. Differences from CodexBar are proposals P-007 to P-009.
+- Live check on Matt's Mac, 2026-10-22 23:47Z, with the account Claude Code uses in the Brain's
+  shell: `quotadial status --json` exited 0 in 0.88 s with no macOS prompt and printed a Max
+  account with Session 2%, Weekly 5% and Weekly (Fable) 0% (the last from `limits[]`), each from
+  the API with its reset time. A second run (`qd status`) a minute later replayed the cache without
+  a request. The cache file is mode 0600 in a 0700 directory and holds no token.
+- Test count: 129 (core 9, Claude 103, Codex 3, CLI unit 10, CLI binaries 4). The Claude tests run
+  against a local HTTP server (wiremock) with a fake keychain, a manual clock and a temporary cache
+  directory, so no test touches the real Keychain, Claude Code's files or the network. The macOS
+  test that runs `security` looks up a made-up item by attributes only.
+- `fixtures/claude/oauth-usage-scoped.synthetic.json` uses a made-up key,
+  `seven_day_example_model`, to show an unknown bucket appearing by name.
 
 ### Step 4: findings that shape M1
 

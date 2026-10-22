@@ -69,6 +69,10 @@ Nothing is named `usage`, the PRD's old working name.
   synthetic fixtures are committed. See `fixtures/README.md`.
 - Poll Anthropic usage endpoints no more than once every 5 minutes per account. Enforce the floor in
   code.
+- QuotaDial's own cache lives in the OS cache directory under `quotadial/`, with private file
+  permissions. It holds derived data only (snapshots, times, counters), never a token.
+- Tests never touch the real Keychain, the official CLIs' files or the network. Inject fakes and a
+  local HTTP server instead.
 - `cargo fmt`, `cargo clippy -D warnings` and `cargo test` must pass on macOS, Windows and Linux
   before anything merges to `main`. CI enforces this and `main` is protected.
 
