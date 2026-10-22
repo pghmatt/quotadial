@@ -4,8 +4,8 @@ Progress and implementation notes. Update this file with every change.
 
 ## Current focus
 
-Kickoff (2026-10-22): GitHub setup, the CodexBar path check, then the plan for M1 issue #1 (Claude
-provider), which waits for Matt's go-ahead before any provider code is written.
+Kickoff is done. M1 issue #1 (Claude provider) waits for Matt's go-ahead on its plan before any
+provider code is written. Proposals P-001 to P-007 in `docs/DECISIONS.md` wait for the manager.
 
 ## Kickoff
 
@@ -14,8 +14,8 @@ provider), which waits for Matt's go-ahead before any provider code is written.
 | 1. Project setup | Done | Cargo workspace, licence, NOTICE, gitignore, toolchain, editor and lint config, AGENTS.md (CLAUDE.md is a symlink to it), README, CI and release workflows, issue templates, Code of Conduct |
 | Public PRD | Done | `docs/PRD.md` gitignored; `scripts/public-prd.sh` writes `docs/PRD-public.md`; `public-scope` CI job |
 | 2. Skeleton code | Done | Core model and `Provider` trait as in the PRD, Claude and Codex stubs, `quotadial status` and `status --json`; 23 tests |
-| 3. GitHub | In progress | Public repo `pghmatt/quotadial` created with topics and private vulnerability reporting; push, branch protection, milestones and M1 issues next |
-| 4. Prepare to build | In progress | CodexBar cloned to `../codexbar-ref` (HEAD `4654968e9`, 2026-10-22); CLI login check done; PRD path check and the M1 issue #1 plan pending |
+| 3. GitHub | Done | Public repo `pghmatt/quotadial` with topics and private vulnerability reporting; `main` pushed, CI green and protected (requires `ci-success`); milestones M1 to M6; M1 issues #1 to #5 |
+| 4. Prepare to build | Done | CodexBar path check (below; corrections proposed as P-006); CLI login check; plan for M1 issue #1 sent to Matt |
 
 ## Implementation notes
 
@@ -59,6 +59,38 @@ provider), which waits for Matt's go-ahead before any provider code is written.
   `CODEX_HOME` pointed at an empty directory.
 - Test count: 23 (core 6, Claude 3, Codex 3, CLI unit 7, CLI binaries 4). Release build: 766 KB per
   binary on aarch64 macOS.
+
+### Step 3: GitHub
+
+- Repo: https://github.com/pghmatt/quotadial (public), with the description and topics from the
+  brief. Private vulnerability reporting is on, for the issue chooser's security link.
+- Labels: `m1`, `provider:claude`, `provider:codex`, `provider-request`, plus `bug` and
+  `enhancement`, which the issue templates apply. The new repo started with no default labels.
+- Milestones M1 to M6 copy the PRD's deliverable and "done when" text; due dates per D-020.
+- M1 issues: #1 Claude provider, #2 Codex provider, #3 CLI, #4 redacted fixtures, #5 live endpoint
+  check. The provider stubs' TODOs reference #1 and #2.
+- Branch protection on `main`: required check `ci-success`, strict mode off, admins not enforced,
+  no force pushes or deletions (D-004). This tracker update was the first change merged through a
+  pull request under it.
+
+### Step 4: CodexBar path check
+
+Every file the PRD's "Leveraging CodexBar" table names exists at CodexBar `4654968e9`. Only
+`ClaudeConfigPaths.swift` is in a different folder: `Providers/Claude/`, not
+`Providers/Claude/ClaudeOAuth/`, and it has always been there. Several descriptions are out of date;
+P-006 lists the corrections. The ones that change the M1 plan:
+
+- `UsageFetcher.swift` no longer reads `~/.codex/sessions`. Since November 2025 it asks
+  `codex app-server` over JSON-RPC, so the Codex session-log fallback has nothing to port.
+- CodexBar never refreshes tokens owned by Claude Code or the Codex CLI. It hands refresh back to
+  those CLIs, which matches the PRD's rule.
+- CodexBar reads only the default `Claude Code-credentials` Keychain item, and only after the user
+  opts in, because Claude Code rewrites the item's access list on every refresh (P-007).
+- CodexBar has no generic pass-through for unknown Claude buckets. The PRD's "unknown buckets
+  appear by name" requirement is new work, not a port.
+- The Claude request starts with `User-Agent: claude-cli/<version> (external, cli)` and
+  `?cedar_ember=1`, retrying with `claude-code/<version>` and no query on 400, or on 403 without
+  `user:profile`.
 
 ### Step 4: findings that shape M1
 

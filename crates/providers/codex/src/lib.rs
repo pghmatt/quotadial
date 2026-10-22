@@ -52,8 +52,9 @@ impl Provider for CodexProvider {
     }
 
     fn fallback(&self, _account: &Account) -> Option<Snapshot> {
-        // TODO(M1 #2): the newest rate-limit event in `~/.codex/sessions`. Port:
-        //   UsageFetcher.swift
+        // TODO(M1 #2): the newest rate-limit event in `~/.codex/sessions` (PRD). CodexBar has no
+        // session-log reader to port: its UsageFetcher.swift asks `codex app-server` over JSON-RPC
+        // (`account/rateLimits/read`) instead, which the PRD lists as the other fallback.
         None
     }
 
