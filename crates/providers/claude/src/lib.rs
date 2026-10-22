@@ -152,14 +152,13 @@ impl ClaudeProvider {
 
     /// Sends the usage request and records the answer. `state` already says a request was sent.
     async fn request(
-        &self,
+        api: &Api,
         login: &Login,
         credentials: &Credentials,
         mut account: Account,
         state: &mut state::AccountState,
         now: DateTime<Utc>,
     ) -> std::result::Result<Snapshot, RequestFailure> {
-        let api = self.api().map_err(RequestFailure::Error)?;
         let response = api
             .usage(&credentials.access_token)
             .await
@@ -320,6 +319,7 @@ impl Provider for ClaudeProvider {
             ));
         }
 
+        let api = self.api()?;
         // Save the floor before sending, so it holds even if QuotaDial stops mid-request. If the
         // cache cannot be written, no request is sent.
         let before = state.clone();
@@ -328,10 +328,7 @@ impl Provider for ClaudeProvider {
             .save(&key, &state)
             .map_err(|error| cache_error(&store, &error))?;
 
-        match self
-            .request(&login, &credentials, account, &mut state, now)
-            .await
-        {
+        match Self::request(api, &login, &credentials, account, &mut state, now).await {
             Ok(snapshot) => {
                 // The floor is already saved, so a failure here only loses the answer's details.
                 let _ = store.save(&key, &state);
