@@ -1,0 +1,21 @@
+{
+  "account_id": "00000000-0000-0000-0000-000000000000",
+  "plan_type": "plus",
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 25,
+      "reset_at": 4070926800,
+      "limit_window_seconds": 18000
+    },
+    "secondary_window": {
+      "used_percent": 50,
+      "reset_at": 4071513600,
+      "limit_window_seconds": 604800
+    }
+  },
+  "credits": {
+    "has_credits": false,
+    "unlimited": false,
+    "balance": "0"
+  }
+}
