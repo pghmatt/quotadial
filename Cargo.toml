@@ -21,6 +21,13 @@ publish = false
 quotadial-core = { path = "crates/core" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
+async-trait = "0.1.92"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
+clap = { version = "4.6.7", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
