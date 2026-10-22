@@ -38,13 +38,32 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
-  # The single status check that branch protection on main requires, so the OS matrix can change
+  # docs/PUBLIC_SCOPE.md: the full PRD stays private; only the generated public copy is committed.
+  public-scope:
+    name: public-scope
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The private PRD is never tracked
+        run: |
+          if git ls-files | grep -qix 'docs/prd\.md'; then
+            echo "::error file=docs/PRD.md::docs/PRD.md is private and must never be committed. See docs/PUBLIC_SCOPE.md."
+            exit 1
+          fi
+      - name: Lint scripts
+        run: shellcheck scripts/*.sh
+      - name: The public PRD has no private content
+        run: scripts/public-prd.sh --check
+
+  # The single status check that branch protection on main requires, so the jobs above can change
   # without touching the protection rule.
   ci-success:
     name: ci-success
     if: always()
-    needs: [check]
+    needs: [check, public-scope]
     runs-on: ubuntu-latest
     steps:
-      - name: Every matrix job passed
-        run: test "${{ needs.check.result }}" = "success"
+      - name: Every job passed
+        run: |
+          test "${{ needs.check.result }}" = "success"
+          test "${{ needs.public-scope.result }}" = "success"
