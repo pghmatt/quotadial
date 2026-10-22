@@ -12,10 +12,6 @@
 //! setting and prompts after every token refresh. Its experimental `security` reader
 //! (`ClaudeOAuthCredentials+SecurityCLIReader.swift`) is the approach used here.
 
-use std::process::Command;
-use std::time::Duration;
-
-use crate::process::{self, RunError};
 use crate::secret::Secret;
 
 /// Read access to the keychain holding Claude Code's sign-in.
@@ -40,7 +36,7 @@ pub(crate) struct ItemInfo {
 pub(crate) fn system() -> Box<dyn Keychain> {
     #[cfg(target_os = "macos")]
     {
-        Box::new(SecurityCli)
+        Box::new(security_cli::SecurityCli)
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -62,97 +58,114 @@ impl Keychain for NoKeychain {
     }
 }
 
-/// The macOS login keychain, through `/usr/bin/security`.
+/// `/usr/bin/security`, used on macOS only. Elsewhere it is compiled, so its tests run on every
+/// platform, but never called.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub(crate) struct SecurityCli;
+mod security_cli {
+    use std::process::Command;
+    use std::time::Duration;
 
-const SECURITY: &str = "/usr/bin/security";
-const FIND_TIMEOUT: Duration = Duration::from_secs(5);
-const READ_TIMEOUT: Duration = Duration::from_secs(30);
-/// `security`'s exit status for errSecItemNotFound.
-const ITEM_NOT_FOUND: i32 = 44;
-/// `security`'s exit status when the keychain is locked or cannot ask the user.
-const INTERACTION_NOT_ALLOWED: i32 = 36;
+    use super::{ItemInfo, Keychain};
+    use crate::process::{self, RunError};
+    use crate::secret::Secret;
 
-impl Keychain for SecurityCli {
-    fn find(&self, service: &str, account: Option<&str>) -> Result<Option<ItemInfo>, String> {
-        let finished = process::run(find_command(service, account, false), FIND_TIMEOUT)
-            .map_err(|error| run_error(&error, FIND_TIMEOUT))?;
-        match finished.status.code() {
-            Some(0) => Ok(Some(ItemInfo {
-                modified: modified_attribute(&String::from_utf8_lossy(&finished.stdout)),
-            })),
-            Some(ITEM_NOT_FOUND) => Ok(None),
-            code => Err(exit_error(code)),
-        }
-    }
+    /// The macOS login keychain, through `/usr/bin/security`.
+    pub(super) struct SecurityCli;
 
-    fn read(&self, service: &str, account: Option<&str>) -> Result<Option<Secret>, String> {
-        let finished = process::run(find_command(service, account, true), READ_TIMEOUT)
-            .map_err(|error| run_error(&error, READ_TIMEOUT))?;
-        match finished.status.code() {
-            Some(0) => {
-                // The error would carry the bytes, so it is dropped unread.
-                let text = String::from_utf8(finished.stdout)
-                    .map_err(|_| "the item does not hold text".to_owned())?;
-                Ok(Some(Secret::new(text.trim_end_matches(['\r', '\n']))))
+    pub(super) const SECURITY: &str = "/usr/bin/security";
+    pub(super) const FIND_TIMEOUT: Duration = Duration::from_secs(5);
+    pub(super) const READ_TIMEOUT: Duration = Duration::from_secs(30);
+    /// `security`'s exit status for errSecItemNotFound.
+    pub(super) const ITEM_NOT_FOUND: i32 = 44;
+    /// `security`'s exit status when the keychain is locked or cannot ask the user.
+    pub(super) const INTERACTION_NOT_ALLOWED: i32 = 36;
+
+    impl Keychain for SecurityCli {
+        fn find(&self, service: &str, account: Option<&str>) -> Result<Option<ItemInfo>, String> {
+            let finished = process::run(find_command(service, account, false), FIND_TIMEOUT)
+                .map_err(|error| run_error(&error, FIND_TIMEOUT))?;
+            match finished.status.code() {
+                Some(0) => Ok(Some(ItemInfo {
+                    modified: modified_attribute(&String::from_utf8_lossy(&finished.stdout)),
+                })),
+                Some(ITEM_NOT_FOUND) => Ok(None),
+                code => Err(exit_error(code)),
             }
-            Some(ITEM_NOT_FOUND) => Ok(None),
-            code => Err(exit_error(code)),
+        }
+
+        fn read(&self, service: &str, account: Option<&str>) -> Result<Option<Secret>, String> {
+            let finished = process::run(find_command(service, account, true), READ_TIMEOUT)
+                .map_err(|error| run_error(&error, READ_TIMEOUT))?;
+            match finished.status.code() {
+                Some(0) => {
+                    // The error would carry the bytes, so it is dropped unread.
+                    let text = String::from_utf8(finished.stdout)
+                        .map_err(|_| "the item does not hold text".to_owned())?;
+                    Ok(Some(Secret::new(text.trim_end_matches(['\r', '\n']))))
+                }
+                Some(ITEM_NOT_FOUND) => Ok(None),
+                code => Err(exit_error(code)),
+            }
         }
     }
-}
 
-/// `security find-generic-password [-a <account>] [-w] -s <service>`, in Claude Code's argument
-/// order. Without `-w` it prints only the item's attributes.
-fn find_command(service: &str, account: Option<&str>, with_secret: bool) -> Command {
-    let mut command = Command::new(SECURITY);
-    command.arg("find-generic-password");
-    if let Some(account) = account {
-        command.args(["-a", account]);
+    /// `security find-generic-password [-a <account>] [-w] -s <service>`, in Claude Code's argument
+    /// order. Without `-w` it prints only the item's attributes.
+    pub(super) fn find_command(service: &str, account: Option<&str>, with_secret: bool) -> Command {
+        let mut command = Command::new(SECURITY);
+        command.arg("find-generic-password");
+        if let Some(account) = account {
+            command.args(["-a", account]);
+        }
+        if with_secret {
+            command.arg("-w");
+        }
+        command.args(["-s", service]);
+        command
     }
-    if with_secret {
-        command.arg("-w");
-    }
-    command.args(["-s", service]);
-    command
-}
 
-fn run_error(error: &RunError, timeout: Duration) -> String {
-    match error {
-        RunError::Launch(error) => format!("could not run {SECURITY}: {error}"),
-        RunError::TimedOut => format!(
-            "{SECURITY} did not answer within {} seconds",
-            timeout.as_secs()
-        ),
+    pub(super) fn run_error(error: &RunError, timeout: Duration) -> String {
+        match error {
+            RunError::Launch(error) => format!("could not run {SECURITY}: {error}"),
+            RunError::TimedOut => format!(
+                "{SECURITY} did not answer within {} seconds",
+                timeout.as_secs()
+            ),
+        }
     }
-}
 
-fn exit_error(code: Option<i32>) -> String {
-    match code {
-        Some(INTERACTION_NOT_ALLOWED) => format!(
-            "{SECURITY} exited with status {INTERACTION_NOT_ALLOWED}, which usually means the \
-             keychain is locked"
-        ),
-        Some(code) => format!("{SECURITY} exited with status {code}"),
-        None => format!("{SECURITY} was stopped by a signal"),
+    pub(super) fn exit_error(code: Option<i32>) -> String {
+        match code {
+            Some(INTERACTION_NOT_ALLOWED) => format!(
+                "{SECURITY} exited with status {INTERACTION_NOT_ALLOWED}, which usually means the \
+                 keychain is locked"
+            ),
+            Some(code) => format!("{SECURITY} exited with status {code}"),
+            None => format!("{SECURITY} was stopped by a signal"),
+        }
     }
-}
 
-/// Finds the modification time in `security`'s attribute listing, from a line such as
-/// `    "mdat"<timedate>=0x32303236…00  "20261022205736Z\000"`.
-fn modified_attribute(attributes: &str) -> Option<String> {
-    let line = attributes
-        .lines()
-        .find(|line| line.trim_start().starts_with("\"mdat\""))?;
-    let quoted = line.rsplit('"').nth(1)?;
-    let value = quoted.trim_end_matches("\\000");
-    (!value.is_empty()).then(|| value.to_owned())
+    /// Finds the modification time in `security`'s attribute listing, from a line such as
+    /// `    "mdat"<timedate>=0x32303236…00  "20261022205736Z\000"`.
+    pub(super) fn modified_attribute(attributes: &str) -> Option<String> {
+        let line = attributes
+            .lines()
+            .find(|line| line.trim_start().starts_with("\"mdat\""))?;
+        let quoted = line.rsplit('"').nth(1)?;
+        let value = quoted.trim_end_matches("\\000");
+        (!value.is_empty()).then(|| value.to_owned())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
+    use super::security_cli::{
+        READ_TIMEOUT, SECURITY, exit_error, find_command, modified_attribute, run_error,
+    };
     use super::*;
+    use crate::process::RunError;
 
     const ATTRIBUTES: &str = r#"keychain: "/Users/example/Library/Keychains/login.keychain-db"
 version: 512
@@ -234,7 +247,7 @@ attributes:
     #[cfg(target_os = "macos")]
     #[test]
     fn security_reports_a_missing_item_as_none() {
-        let found = SecurityCli.find(
+        let found = security_cli::SecurityCli.find(
             "QuotaDial test item that does not exist",
             Some("quotadial-test"),
         );
