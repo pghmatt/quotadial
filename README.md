@@ -7,7 +7,8 @@ system tray, in your terminal, behind a local HTTP API, and in front of your age
 server and a SKILL.md. It runs on macOS, Windows and Linux.
 
 **Status: pre-alpha.** Nothing works end to end yet. Progress is tracked in the
-[milestones](https://github.com/pghmatt/quotadial/milestones).
+[milestones](https://github.com/pghmatt/quotadial/milestones), and the product spec is in
+[docs/PRD-public.md](docs/PRD-public.md).
 
 ## Provider support
 
