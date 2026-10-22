@@ -1,0 +1,29 @@
+[package]
+name = "quotadial"
+description = "QuotaDial command-line interface: quotadial, alias qd."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+autobins = false
+default-run = "quotadial"
+
+[lib]
+name = "quotadial_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quotadial"
+path = "src/main.rs"
+
+[[bin]]
+name = "qd"
+path = "src/bin/qd.rs"
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,41 @@
+# Unredacted provider captures. These hold real tokens and account data and must never be committed.
+fixtures/**/raw/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tauri
+apps/tray/src-tauri/target/
+apps/tray/src-tauri/gen/schemas/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp

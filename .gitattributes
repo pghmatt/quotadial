@@ -1,0 +1,8 @@
+# LF everywhere, including Windows checkouts, so `cargo fmt --check` agrees on every OS.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.woff2 binary

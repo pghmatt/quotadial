@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/providers/claude",
+    "crates/providers/codex",
+    "crates/api",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Matt Fowkes"]
+repository = "https://github.com/pghmatt/quotadial"
+homepage = "https://quotadial.com"
+publish = false
+
+[workspace.dependencies]
+quotadial-core = { path = "crates/core" }
+quotadial-provider-claude = { path = "crates/providers/claude" }
+quotadial-provider-codex = { path = "crates/providers/codex" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+# The default clippy groups (correctness, suspicious, style, complexity, perf) stay on,
+# and CI runs clippy with `-D warnings`, so any warning fails the build.
+[workspace.lints.clippy]
+# Stray debug output is how tokens end up in logs.
+dbg_macro = "deny"
+# Unfinished code returns `Status::Unsupported`; it never panics.
+todo = "deny"
+unimplemented = "deny"
+# Libraries return data. Only the CLI prints, and it opts out at its crate root.
+print_stdout = "warn"
+print_stderr = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

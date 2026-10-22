@@ -1,0 +1,47 @@
+name: Provider request
+description: Ask for QuotaDial to track another AI subscription or coding tool.
+labels: ["provider-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        QuotaDial reads the login an official CLI or app already stores and calls the provider's
+        own usage endpoint. The more of that you can point to, the faster a provider lands.
+        **Never paste tokens, cookies or API keys.**
+  - type: input
+    id: provider
+    attributes:
+      label: Provider or tool
+      placeholder: e.g. Gemini CLI, GitHub Copilot, Cursor
+    validations:
+      required: true
+  - type: input
+    id: plans
+    attributes:
+      label: Plans with usage limits
+      description: Which subscription tiers have limits worth tracking?
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: What limits apply?
+      description: Session, daily, weekly or monthly windows, credits, per-model caps. Link the provider's docs if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: credentials
+    attributes:
+      label: Where does the official CLI or app store its login?
+      description: File path, keychain entry, or "don't know".
+  - type: textarea
+    id: endpoint
+    attributes:
+      label: Known usage endpoint or page
+      description: An API endpoint, a usage page in the web app, or an open-source tool that already reads it.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help?
+      options:
+        - label: I can capture and redact a sample usage response from my own account.
