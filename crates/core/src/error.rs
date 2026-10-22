@@ -37,4 +37,16 @@ pub enum Error {
         /// What was wrong with the response.
         reason: String,
     },
+
+    /// QuotaDial's own cache could not be used. Without it the provider cannot enforce its polling
+    /// limits across runs, so it sends no request.
+    #[error("{provider}: could not use QuotaDial's cache at {location}: {reason}")]
+    Cache {
+        /// The provider id, as in [`Provider::id`](crate::Provider::id).
+        provider: &'static str,
+        /// The cache directory.
+        location: String,
+        /// Why it could not be used.
+        reason: String,
+    },
 }

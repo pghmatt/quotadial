@@ -81,8 +81,8 @@ mod tests {
             provider: ID.into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
-            plan: "max".into(),
-            org: "00000000-0000-0000-0000-000000000002".into(),
+            plan: Some("max".into()),
+            org: Some("00000000-0000-0000-0000-000000000002".into()),
         }
     }
 
