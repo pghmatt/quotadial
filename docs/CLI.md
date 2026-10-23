@@ -99,9 +99,9 @@ service manager does. While it runs it is the only thing that asks providers for
 `watch`, the local API (next) and the MCP server read what it last found. The tray app runs the
 same daemon itself when none is running, so with the app open there is no need to start one.
 
-- It asks each account no more often than its provider's floor, and slows to every 10 minutes once
-  the account's numbers have been still for 10 minutes. A change in usage is what counts as
-  activity.
+- It asks each account no more often than its provider's floor, counted from when its last answer
+  came back, and slows to every 10 minutes once the account's numbers have been still for 10
+  minutes. A change in usage is what counts as activity.
 - Every snapshot that brings new data goes into a SQLite history (WAL mode), kept for 30 days, in
   `quotadial/history.db` in the OS data directory: `~/Library/Application Support` on macOS,
   `$XDG_DATA_HOME` or `~/.local/share` on Linux, `%APPDATA%` on Windows. Set `QUOTADIAL_DATA_DIR` to

@@ -19,7 +19,8 @@ M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). It
 - PR 2, the popover (PR #32);
 - PR 3, settings and notifications (PR #33);
 - PR 4, builds for macOS, Windows and Linux (PR #35);
-- PR 5, every stored Claude sign-in as its own account, added by the manager in #34 (PR #36).
+- PR 5, every stored Claude sign-in as its own account, added by the manager in #34 (PR #36);
+- a fix found during PR 5's live check: the daemon now polls a moving account at its floor (PR #37).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -65,7 +66,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 2: popover | Done (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
 | PR 3: settings and notifications | Done (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
 | PR 4: builds | Done (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
-| PR 5: every stored Claude sign-in (#34) | In review (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
+| PR 5: every stored Claude sign-in (#34) | Done (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
+| Fix: poll at the floor | In review (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
 
 ## Kickoff
 
@@ -251,6 +253,34 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3: polling at the floor (D-087)
+
+- Found during PR 5's live check. At the 5-minute mark every account showed "from cache": the
+  daemon's next poll for an account came a few seconds before the shared gate allowed a request.
+- **The cause:** `Poller::poll_due` read the time once, at the start of a round, and each account's
+  next poll was due a floor after that. But the gate counts the floor from when the request went
+  out, after the accounts asked earlier in the round and after finding the sign-in, which takes
+  longer the first time. So the next poll arrived early, was answered from the cache, and the real
+  request came a round later: every 10 minutes instead of 5.
+- **The fix:** `Poller::poll` takes the time when the account's answer comes back and counts the
+  next poll from it. The gate's request time is never later than that, so the next poll always
+  finds the floor passed. The interval grows by the length of a fetch, a second or two.
+- **The test:** `each_poll_comes_once_the_floor_since_the_request_has_passed` drives a provider that
+  keeps its own floor and finds its sign-in in 2 seconds the first time and 1 second after. Every
+  poll now sends a request: at 0, 5, 10 and 15 minutes. With the old timing it gave 0, 10 and 15,
+  checked by reverting the fix.
+- **Live check on Matt's Mac, 2026-10-23.** The app was quit and the fixed `quotadial daemon` ran on
+  its own from 18:20:50Z. The real fetch times in `history.db`:
+
+  | Account | Old poller (the app, before) | Fixed daemon |
+  | --- | --- | --- |
+  | Codex, 2-minute floor | every 4 minutes: 17:52, 17:56, 18:00, 18:04, 18:08 | every 2 minutes: 18:20:51, 18:22:51, 18:24:52, 18:26:52, 18:28:53, 18:30:53 |
+  | Each of 6 Claude accounts, 5-minute floor | every 10 minutes: 17:44, 17:54, 18:04 | 18:25:50 to 18:25:52, then 18:30:51 to 18:30:53 |
+
+  At 18:30:50 the old timing would have replayed the cache, since the 18:25:5x requests were not
+  yet 5 minutes old. The two accounts waiting for a sign-in send no request, as before. The app was
+  started again afterwards.
 
 ### M3 PR 5: every stored Claude sign-in (#34)
 
