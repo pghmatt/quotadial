@@ -20,6 +20,8 @@ pub enum Update {
     Problem(String),
     /// Where the numbers come from now.
     Role(Role),
+    /// An alert rule may have fired; the firings are in the daemon's history (D-093).
+    Fired,
 }
 
 /// Whether the app runs the daemon or follows one already running.
@@ -100,10 +102,24 @@ async fn host_until_quit(
     send(Update::Role(Role::Running { port: host.port() }));
     let latest = host.latest();
     let mut changes = latest.subscribe();
+    let mut fired = latest.subscribe_firings();
     send(Update::Report(latest.report()));
     let forward = async {
-        while changes.changed().await.is_ok() {
-            send(Update::Report(latest.report()));
+        loop {
+            tokio::select! {
+                changed = changes.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    send(Update::Report(latest.report()));
+                }
+                changed = fired.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    send(Update::Fired);
+                }
+            }
         }
     };
     let quitting = {
@@ -129,7 +145,11 @@ async fn follow(
     send(Update::Role(Role::Following));
     loop {
         match client::status(dir).await {
-            Ok(Some(report)) => send(Update::Report(report)),
+            Ok(Some(report)) => {
+                send(Update::Report(report));
+                // The daemon records its firings in the history, which the app reads itself.
+                send(Update::Fired);
+            }
             Ok(None) => return false,
             Err(unanswered) => send(Update::Problem(unanswered.to_string())),
         }
@@ -248,7 +268,7 @@ mod tests {
                         .first()
                         .and_then(|snapshot| snapshot.windows.first())
                         .map(|window| window.used_pct),
-                    Update::Problem(_) | Update::Role(_) => None,
+                    Update::Problem(_) | Update::Role(_) | Update::Fired => None,
                 })
         }
 
@@ -342,6 +362,33 @@ mod tests {
         quit.send(true).expect("running");
         app.await.expect("the feed stops");
         assert!(!Instance::is_running(&dir));
+    }
+
+    #[tokio::test]
+    async fn a_rule_that_fires_in_the_daemon_the_app_runs_reaches_the_app() {
+        let (_temp, dir) = data_dir();
+        let received = Received::default();
+        let (quit, quitting) = watch::channel(false);
+        let app = tokio::spawn(run(
+            dir.clone(),
+            fixed(95.0),
+            received.sender(),
+            quick(),
+            quitting,
+        ));
+
+        received.until(95.0).await;
+        let fired = async {
+            while !received.0.lock().expect("lock").contains(&Update::Fired) {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), fired)
+            .await
+            .expect("a new history's 90% rule fired");
+
+        quit.send(true).expect("running");
+        app.await.expect("the feed stops");
     }
 
     #[tokio::test]

@@ -149,7 +149,7 @@ impl Meter {
             meter.level = Level::of(used_pct);
             meter.headline = Some(format!(
                 "{} {}, {}",
-                provider_name(&snapshot.account.provider),
+                text::provider_name(&snapshot.account.provider),
                 window.label,
                 text::resets(window.resets_at, now)
             ));
@@ -225,7 +225,7 @@ impl Meter {
 
 fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
     let account = &snapshot.account;
-    let provider = provider_name(&account.provider).to_owned();
+    let provider = text::provider_name(&account.provider).to_owned();
     let windows = snapshot.windows_tightest_first();
     let mut summary = format!("{provider} {}", account.display_name);
     if let Some(plan) = &account.plan {
@@ -275,20 +275,11 @@ fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
         pace: window
             .pace
             .as_ref()
-            .map(|pace| text::pace(pace, window, now)),
+            .map(|pace| text::pace(pace, window.resets_at, now)),
         runs_out: window
             .pace
             .as_ref()
             .is_some_and(|pace| pace.runs_out_at.is_some()),
-    }
-}
-
-/// The name people know a provider by.
-pub(crate) fn provider_name(id: &str) -> &str {
-    match id {
-        "claude" => "Claude",
-        "codex" => "Codex",
-        other => other,
     }
 }
 

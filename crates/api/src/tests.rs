@@ -9,7 +9,7 @@ use quotadial_core::{
     Account, Provider, Result, Snapshot, Source, Status, StatusReport, Window, WindowKind,
 };
 use quotadial_daemon::{DataDir, History, Instance, Latest, Poller};
-use reqwest::header::{ALLOW, AUTHORIZATION, HOST, WWW_AUTHENTICATE};
+use reqwest::header::{ALLOW, AUTHORIZATION, CONTENT_TYPE, HOST, WWW_AUTHENTICATE};
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
 use tokio::sync::oneshot;
@@ -91,7 +91,7 @@ async fn daemon() -> Daemon {
     let instance = Instance::acquire(&dir).expect("holds the daemon lock");
     let token = Token::load_or_create(&dir).expect("makes a token");
     let history = Arc::new(History::open(&dir.history()).expect("opens history"));
-    let mut poller = Poller::new(vec![Arc::new(Fixed(40.0))], history);
+    let mut poller = Poller::new(vec![Arc::new(Fixed(40.0))], Arc::clone(&history));
     poller.poll_due().await;
     let latest = poller.latest();
     let listener = bind(0).await.expect("binds");
@@ -109,9 +109,15 @@ async fn daemon() -> Daemon {
     .write(&dir)
     .expect("writes the runtime file");
     let (stop, stopped) = oneshot::channel::<()>();
-    let server = tokio::spawn(serve(listener, latest.clone(), token.clone(), async {
-        let _ = stopped.await;
-    }));
+    let server = tokio::spawn(serve(
+        listener,
+        latest.clone(),
+        history,
+        token.clone(),
+        async {
+            let _ = stopped.await;
+        },
+    ));
     Daemon {
         _temp: temp,
         dir,
@@ -164,6 +170,31 @@ impl Daemon {
             .await
             .expect("the server answers")
             .status()
+    }
+
+    /// Sends `method path` with the token and `body` as JSON, if any. An empty answer reads as
+    /// `null`.
+    async fn change(&self, method: Method, path: &str, body: Option<Value>) -> (StatusCode, Value) {
+        let mut request = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("client")
+            .request(method, format!("http://127.0.0.1:{}{path}", self.port))
+            .header(AUTHORIZATION, format!("Bearer {}", self.token.expose()));
+        if let Some(body) = body {
+            request = request
+                .header(CONTENT_TYPE, "application/json")
+                .body(body.to_string());
+        }
+        let response = request.send().await.expect("the server answers");
+        let status = response.status();
+        let body = response.bytes().await.expect("a body");
+        let json = if body.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&body).expect("the body is JSON")
+        };
+        (status, json)
     }
 
     async fn get(&self, path: &str) -> (StatusCode, Value) {
@@ -291,6 +322,102 @@ async fn unknown_paths_and_writes_get_json_errors() {
     assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
     assert!(headers[ALLOW].to_str().expect("text").contains("GET"));
     assert!(body["error"].as_str().expect("an error").contains("GET"));
+
+    daemon.stop().await;
+}
+
+#[tokio::test]
+async fn alert_rules_are_listed_added_turned_off_and_removed() {
+    let daemon = daemon().await;
+
+    let (status, body) = daemon.get("/v1/alerts").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["rules"].as_array().expect("rules").len(),
+        2,
+        "the starting rules"
+    );
+    assert_eq!(body["firings"], serde_json::json!([]));
+
+    let (status, added) = daemon
+        .change(
+            Method::POST,
+            "/v1/alerts",
+            Some(serde_json::json!({ "rule": "warn me when claude's session passes 30%" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(added["kind"], "threshold");
+    assert_eq!(added["pct"], 30.0);
+    assert_eq!(added["provider"], "claude");
+    assert_eq!(added["window"], "session");
+    assert_eq!(added["enabled"], true);
+    let id = added["id"].as_i64().expect("an id");
+
+    let (status, unread) = daemon
+        .change(
+            Method::POST,
+            "/v1/alerts",
+            Some(serde_json::json!({ "rule": "make it stop" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        unread["error"]
+            .as_str()
+            .expect("an error")
+            .contains("warn me at 80%")
+    );
+    let (status, _) = daemon
+        .change(
+            Method::POST,
+            "/v1/alerts",
+            Some(serde_json::json!({ "text": 1 })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "not a rule's JSON");
+
+    let (status, off) = daemon
+        .change(
+            Method::PATCH,
+            &format!("/v1/alerts/{id}"),
+            Some(serde_json::json!({ "enabled": false })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(off["enabled"], false);
+
+    let (status, gone) = daemon
+        .change(Method::DELETE, &format!("/v1/alerts/{id}"), None)
+        .await;
+    assert_eq!((status, gone), (StatusCode::NO_CONTENT, Value::Null));
+    let (status, missing) = daemon
+        .change(Method::DELETE, &format!("/v1/alerts/{id}"), None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(
+        missing["error"]
+            .as_str()
+            .expect("an error")
+            .contains("GET /v1/alerts")
+    );
+    let (status, _) = daemon
+        .change(
+            Method::PATCH,
+            &format!("/v1/alerts/{id}"),
+            Some(serde_json::json!({ "enabled": true })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = daemon.change(Method::PUT, "/v1/alerts", None).await;
+    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    let (status, _, _) = daemon.send(Method::POST, "/v1/alerts", None, None).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "changes need the token too"
+    );
 
     daemon.stop().await;
 }

@@ -3,11 +3,10 @@
 //!
 //! - `get_usage`: the report `quotadial status --json` prints.
 //! - `get_account_headroom`: the ranking `GET /v1/headroom` serves.
-//! - `list_alerts`: the alerts QuotaDial has raised. QuotaDial has no alert rules yet, so the list is
-//!   empty until they arrive.
+//! - `list_alerts`: the alert rules, and what they told in the last week (D-093).
 //!
 //! The numbers come from the running daemon, or from a direct fetch when none runs, exactly as for
-//! `quotadial status`. Messages are JSON-RPC 2.0, one per line, as MCP's stdio transport defines.
+//! `quotadial status`. The alert rules come from the daemon's history, as for `quotadial alerts`. Messages are JSON-RPC 2.0, one per line, as MCP's stdio transport defines.
 //! Only the part of MCP that tools need is here (`initialize`, `ping`, `tools/list` and
 //! `tools/call`), which is small enough to need no SDK.
 
@@ -17,6 +16,8 @@ use quotadial_core::StatusReport;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
+
+use quotadial_daemon::Alerts;
 
 use crate::client::Unanswered;
 use crate::rank;
@@ -42,22 +43,26 @@ const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGP
     limits allow, so a number can be a few minutes old; its fetched_at says when it was fetched.";
 
 /// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the provider
-/// ids an agent may narrow an answer to; `report` gets the numbers.
+/// ids an agent may narrow an answer to; `report` gets the numbers, and `alerts` the alert rules
+/// and what they told, or why it could not.
 ///
 /// # Errors
 ///
 /// When `input` cannot be read or `output` written.
-pub async fn serve<R, W, F>(
+pub async fn serve<R, W, F, A>(
     input: R,
     mut output: W,
     providers: &[&str],
     report: F,
+    alerts: A,
 ) -> io::Result<()>
 where
     R: AsyncBufRead + Unpin,
     W: AsyncWrite + Unpin,
     F: AsyncFn() -> Result<StatusReport, Unanswered>,
+    A: AsyncFn() -> Result<Alerts, String>,
 {
+    let sources = Sources { report, alerts };
     let mut server = Server {
         providers,
         version: None,
@@ -69,7 +74,7 @@ where
         if line.trim_ascii().is_empty() {
             continue;
         }
-        if let Some(reply) = server.receive(&line, &report).await {
+        if let Some(reply) = server.receive(&line, &sources).await {
             // Compact JSON escapes every newline, so each reply is exactly one line.
             let mut text = serde_json::to_string(&reply)?;
             text.push('\n');
@@ -78,6 +83,12 @@ where
         }
     }
     Ok(())
+}
+
+/// Where the tools' answers come from.
+struct Sources<F, A> {
+    report: F,
+    alerts: A,
 }
 
 struct Server<'a> {
@@ -91,9 +102,10 @@ type Failure = (i64, String);
 
 impl Server<'_> {
     /// The reply to one line, if it needs one: notifications and responses get none.
-    async fn receive<F>(&mut self, line: &[u8], report: &F) -> Option<Value>
+    async fn receive<F, A>(&mut self, line: &[u8], sources: &Sources<F, A>) -> Option<Value>
     where
         F: AsyncFn() -> Result<StatusReport, Unanswered>,
+        A: AsyncFn() -> Result<Alerts, String>,
     {
         let Ok(message) = serde_json::from_slice::<Value>(line) else {
             return Some(failure(
@@ -110,17 +122,18 @@ impl Server<'_> {
             Value::Array(batch) => {
                 let mut replies = Vec::new();
                 for message in batch {
-                    replies.extend(self.handle(message, report).await);
+                    replies.extend(self.handle(message, sources).await);
                 }
                 (!replies.is_empty()).then_some(Value::Array(replies))
             }
-            message => self.handle(message, report).await,
+            message => self.handle(message, sources).await,
         }
     }
 
-    async fn handle<F>(&mut self, message: Value, report: &F) -> Option<Value>
+    async fn handle<F, A>(&mut self, message: Value, sources: &Sources<F, A>) -> Option<Value>
     where
         F: AsyncFn() -> Result<StatusReport, Unanswered>,
+        A: AsyncFn() -> Result<Alerts, String>,
     {
         let invalid =
             |message: &str| Some(failure(Value::Null, (INVALID_REQUEST, message.to_owned())));
@@ -147,7 +160,7 @@ impl Server<'_> {
             "initialize" => Ok(self.initialize(params)),
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({ "tools": tools(self.providers) })),
-            "tools/call" => self.call(params, report).await,
+            "tools/call" => self.call(params, sources).await,
             _ => Err((
                 METHOD_NOT_FOUND,
                 format!("QuotaDial's MCP server has no method {method:?}."),
@@ -176,9 +189,10 @@ impl Server<'_> {
         })
     }
 
-    async fn call<F>(&self, params: &Value, report: &F) -> Result<Value, Failure>
+    async fn call<F, A>(&self, params: &Value, sources: &Sources<F, A>) -> Result<Value, Failure>
     where
         F: AsyncFn() -> Result<StatusReport, Unanswered>,
+        A: AsyncFn() -> Result<Alerts, String>,
     {
         let Some(name) = params.get("name").and_then(Value::as_str) else {
             return Err((
@@ -217,9 +231,12 @@ impl Server<'_> {
             Err(message) => return Ok(tool_error(&message)),
         };
         if name == "list_alerts" {
-            return Ok(self.tool_result(&json!({ "alerts": [] })));
+            return Ok(match (sources.alerts)().await {
+                Ok(alerts) => self.tool_result(&alerts),
+                Err(message) => tool_error(&message),
+            });
         }
-        let report = match report().await {
+        let report = match (sources.report)().await {
             Ok(report) => only(report, provider),
             Err(unanswered) => return Ok(tool_error(&unanswered.to_string())),
         };
@@ -341,9 +358,10 @@ fn tools(providers: &[&str]) -> Value {
         },
         {
             "name": "list_alerts",
-            "description": "Alerts QuotaDial has raised about these limits, such as a window \
-                            passing a threshold. QuotaDial has no alert rules yet, so the list is \
-                            empty until they arrive.",
+            "description": "The alert rules the user set, each with the words it was written \
+                            in, what QuotaDial read it as (kind, pct, minutes, provider, window) \
+                            and whether it is on, and what the rules told in the last week: each \
+                            firing's title, text, account, window and time.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
             "annotations": read_only,
         },
@@ -424,6 +442,7 @@ mod tests {
             &mut output,
             &["claude", "codex"],
             async || answer.clone(),
+            async || Ok(alerts()),
         )
         .await
         .expect("serves");
@@ -571,13 +590,37 @@ mod tests {
         assert_eq!(headroom["errors"][0]["provider"], "codex");
     }
 
+    /// One rule, as the history keeps it, and nothing told.
+    fn alerts() -> Alerts {
+        Alerts {
+            rules: vec![quotadial_daemon::StoredRule {
+                id: 1,
+                written: "warn me at 80%".into(),
+                enabled: true,
+                rule: quotadial_core::Rule::parse("warn me at 80%").expect("reads"),
+                created_at: at("2099-01-01T00:00:00Z"),
+            }],
+            firings: Vec::new(),
+        }
+    }
+
     #[tokio::test]
-    async fn list_alerts_is_empty_until_quotadial_has_alert_rules() {
+    async fn list_alerts_gives_the_rules_and_what_they_told() {
         let replies = exchange(&[call(1, "list_alerts", json!({}))]).await;
 
         assert_eq!(
             replies[0]["result"]["structuredContent"],
-            json!({ "alerts": [] })
+            json!({
+                "rules": [{
+                    "id": 1,
+                    "written": "warn me at 80%",
+                    "enabled": true,
+                    "kind": "threshold",
+                    "pct": 80.0,
+                    "created_at": "2099-01-01T00:00:00Z",
+                }],
+                "firings": [],
+            })
         );
     }
 
@@ -691,9 +734,13 @@ mod tests {
         ]
         .concat();
 
-        serve(input.as_slice(), &mut output, &["claude"], async || {
-            Ok(report())
-        })
+        serve(
+            input.as_slice(),
+            &mut output,
+            &["claude"],
+            async || Ok(report()),
+            async || Ok(alerts()),
+        )
         .await
         .expect("serves");
 

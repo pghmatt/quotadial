@@ -254,6 +254,10 @@ button {
   font-size: 12px;
 }
 
+button:disabled {
+  opacity: 0.5;
+}
+
 button:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--focus);
@@ -310,7 +314,8 @@ footer button + button {
   font-size: 12px;
 }
 
-.name-choice input {
+.name-choice input,
+.add-alert input {
   padding: 3px 6px;
   border: 1px solid var(--rule);
   border-radius: 5px;
@@ -319,4 +324,33 @@ footer button + button {
   font: inherit;
   font-size: 13px;
   user-select: text;
+}
+
+.alert-choice {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.alert-choice + .alert-choice {
+  margin-top: 6px;
+}
+
+.alert-choice .read-as {
+  grid-column: 1 / -1;
+  margin: 0 0 0 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.add-alert {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.add-alert input {
+  flex: 1;
+  min-width: 0;
 }

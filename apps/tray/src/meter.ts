@@ -58,11 +58,21 @@ export interface Window {
 export interface Settings {
   /** Whether QuotaDial opens when you log in, as the system says. */
   launch_at_login: boolean;
-  notify_sign_in: boolean;
-  notify_high: boolean;
+  /** The alert rules, oldest first; they change through `add_alert`, `set_alert` and
+   * `remove_alert`. */
+  alerts: AlertChoice[];
   providers: ProviderChoice[];
   /** Every account QuotaDial knows now, with the name the user gave it. */
   accounts: AccountChoice[];
+}
+
+export interface AlertChoice {
+  id: number;
+  /** The words it was written in. */
+  written: string;
+  /** What QuotaDial read it as, such as "when any window reaches 80%". */
+  read_as: string;
+  enabled: boolean;
 }
 
 export interface AccountChoice {

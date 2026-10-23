@@ -357,3 +357,68 @@ fn mcp_answers_an_agent_on_standard_input_and_output() {
         json!({ "accounts": [], "errors": [] })
     );
 }
+
+#[test]
+fn alert_rules_are_added_listed_turned_off_and_removed_in_plain_words() {
+    let home = empty_home("alerts");
+    let quotadial = env!("CARGO_BIN_EXE_quotadial");
+
+    let added = run(
+        quotadial,
+        &["alerts", "add", "warn", "me", "at", "80%"],
+        &home,
+    );
+    assert!(added.status.success(), "{added:?}");
+    assert_eq!(
+        stdout(&added),
+        "Added alert rule 3. QuotaDial reads it as: when any window reaches 80%.\n",
+        "after the two rules every history starts with"
+    );
+
+    let listed = stdout(&run(quotadial, &["alerts"], &home));
+    let expected = [
+        "Alert rules:",
+        "    1  on   warn me when a window passes 90%",
+        "             read as: when any window reaches 90%",
+        "    2  on   tell me when an account needs to sign in again",
+        "             read as: when an account needs to sign in again",
+        "    3  on   warn me at 80%",
+        "             read as: when any window reaches 80%",
+        "",
+        "Nothing told in the last week.",
+        "",
+    ];
+    assert_eq!(listed, expected.join("\n"));
+
+    let unread = run(quotadial, &["alerts", "add", "make it stop"], &home);
+    assert_eq!(unread.status.code(), Some(1));
+    assert!(
+        String::from_utf8(unread.stderr)
+            .expect("UTF-8")
+            .contains("Write it like one of these: \"warn me at 80%\"")
+    );
+
+    let off = run(quotadial, &["alerts", "off", "1"], &home);
+    assert_eq!(
+        stdout(&off),
+        "Alert rule 1 is off: warn me when a window passes 90%.\n"
+    );
+    let removed = run(quotadial, &["alerts", "remove", "3"], &home);
+    assert_eq!(stdout(&removed), "Removed alert rule 3.\n");
+    let missing = run(quotadial, &["alerts", "remove", "3"], &home);
+    assert_eq!(missing.status.code(), Some(1));
+
+    let json: Value = serde_json::from_str(&stdout(&run(
+        quotadial,
+        &["alerts", "list", "--json"],
+        &home,
+    )))
+    .expect("JSON");
+    let rules = json["rules"].as_array().expect("rules");
+    assert_eq!(rules.len(), 2);
+    assert_eq!(rules[0]["enabled"], false);
+    assert_eq!(rules[0]["kind"], "threshold");
+    assert_eq!(rules[1]["kind"], "sign_in");
+    assert_eq!(json["firings"], json!([]));
+    std::fs::remove_dir_all(&home).expect("cleans up");
+}
