@@ -9,9 +9,10 @@ ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branc
 self-review, live check, PR, merge when CI is green. #10 is done (PR #16), #2 (PR #17, with the
 Codex halves of #4 and #5), #3 (PR #18), #11, #12, #14 and #15 (PR #19), and the PRD's
 unconfirmed-0% rule, #20 (PR #21), and #13 with P-012 (PR #22). M1 is done but the captures that
-cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008). M2 is
-next, in three PRs: the daemon and its SQLite store, the local API and its token, then the MCP
-server and SKILL.md. P-001 to P-009 are accepted and in the PRD,
+cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008).
+
+M2 (manager's go-ahead, 2026-10-23) comes in three PRs: the daemon and its store (#23, PR #26), the
+local API and its token (#24), then the MCP server and SKILL.md (#25). P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -32,6 +33,14 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | #14 Test gaps: two orgs, bounded profile requests, no token in the cache | Done (PR #19) | The profile is now asked once per token (D-049); the three tests added, the one that could not fail removed |
 | #15 Zeroize secrets, fixed `JoinError` message | Done (PR #19) | Secrets wiped on drop, no copies of the refresh token, fixed message (D-050) |
 | #20 Unconfirmed 0% (P-005) | Done (PR #21) | A sudden 0% before the reset is flagged until a second fetch agrees, in the shared gate (D-051) |
+
+## M2
+
+| Issue | Status | Notes |
+| --- | --- | --- |
+| #23 Daemon with one shared poller and SQLite history | Done (PR #26) | `quotadial daemon`; adaptive interval; WAL history in the OS data directory; one daemon at a time (D-053, D-054) |
+| #24 Local API on 127.0.0.1 with a bearer token; the CLI asks the daemon | To do | Next |
+| #25 MCP server and SKILL.md | To do | |
 
 ## Kickoff
 
@@ -217,6 +226,24 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M2 #23: the daemon and its history
+
+- `crates/daemon` (`quotadial-daemon`): `DataDir` (the OS data directory or `QUOTADIAL_DATA_DIR`,
+  0700), `Instance` (a lock on `daemon.lock`, so one daemon runs), `History` (SQLite in WAL mode,
+  0600, one row per snapshot with new data, pruned after 30 days, `user_version` 1) and `Poller`.
+- The poller rediscovers accounts every minute (discovery runs off the async runtime, since it may
+  run `/usr/bin/security`). It asks a moving account at its provider's floor and a still one every
+  10 minutes, uses the provider's fallback when a fetch fails, and keeps a `Latest` report for
+  consumers. A restarted daemon shows its stored numbers, marked as cache, until its first poll.
+- `StatusReport`, `ProviderError` and `collect` moved to core (D-055).
+- `quotadial daemon` prints how often it asks each provider and where its history is, and stops
+  on Ctrl-C.
+- Live check, 2026-10-23 13:16Z: the daemon polled both accounts at once (Claude Session 7%, Codex
+  Weekly 59%), stored one row each in `~/Library/Application Support/quotadial/history.db` (WAL,
+  folder 0700, files 0600), and stopped cleanly on Ctrl-C, checkpointing the WAL.
+- Test count: 252 (core 20, poll 36, daemon 16, Claude 101 plus the opt-in Keychain test, Codex
+  54, CLI unit 18, CLI binaries 7).
 
 ### M1 #13 and P-012: unknown buckets and the credit balance
 
