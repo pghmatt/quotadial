@@ -10,6 +10,7 @@ mod provider;
 mod redact;
 mod report;
 mod secret;
+pub mod text;
 
 pub use error::{Error, Result};
 pub use model::{Account, ExtraUsage, Snapshot, Source, Status, Window, WindowKind};
