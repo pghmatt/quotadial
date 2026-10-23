@@ -132,12 +132,18 @@ impl StateStore {
         &self.dir
     }
 
-    /// The error for a cache that cannot be used, naming where it is.
+    /// The error for a cache that cannot be read or written, naming where it is and the fix.
     pub fn error(&self, reason: &dyn fmt::Display) -> Error {
+        self.cache_error(format!(
+            "{reason}; check that you can read and write that folder"
+        ))
+    }
+
+    fn cache_error(&self, reason: String) -> Error {
         Error::Cache {
             provider: self.provider,
             location: self.dir.display().to_string(),
-            reason: reason.to_string(),
+            reason,
         }
     }
 
@@ -151,8 +157,15 @@ impl StateStore {
         let (store, key) = (self.clone(), key.to_owned());
         tokio::task::spawn_blocking(move || store.lock(&key, LOCK_WAIT))
             .await
-            .map_err(|_| self.error(&"the task waiting for the account's lock stopped"))?
-            .map_err(|error| self.error(&error))
+            .map_err(|_| {
+                self.cache_error("the task waiting for the account's lock stopped".to_owned())
+            })?
+            .map_err(|error| match error.kind() {
+                io::ErrorKind::TimedOut => {
+                    self.cache_error(format!("{error}; try again once it finishes"))
+                }
+                _ => self.error(&error),
+            })
     }
 
     /// Takes an account's lock, waiting up to `wait` while another QuotaDial process holds it.

@@ -113,7 +113,12 @@ impl CodexProvider {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(SignIn::Missing);
             }
-            Err(error) => return Err(credentials_error(&path, error.to_string())),
+            Err(error) => {
+                return Err(credentials_error(
+                    &path,
+                    format!("{error}; check that you can read it"),
+                ));
+            }
         };
         match Auth::parse(text.expose()) {
             Ok(auth) => Ok(SignIn::ChatGpt {
@@ -144,7 +149,7 @@ impl CodexProvider {
             Ok(response) => response,
             Err(UsageError::NotSent(reason)) => {
                 return Err(RequestFailure::NotSent(format!(
-                    "Could not reach ChatGPT: {reason}."
+                    "Could not reach ChatGPT: {reason}. Check the internet connection."
                 )));
             }
             // ChatGPT may have counted it, so it is recorded like any answer QuotaDial cannot use.

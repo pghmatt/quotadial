@@ -129,7 +129,8 @@ mod security_cli {
         match error {
             RunError::Launch(error) => format!("could not run {SECURITY}: {error}"),
             RunError::TimedOut => format!(
-                "{SECURITY} did not answer within {} seconds",
+                "{SECURITY} did not answer within {} seconds; if macOS is asking whether to allow \
+                 access, answer it and try again",
                 timeout.as_secs()
             ),
         }
@@ -139,7 +140,7 @@ mod security_cli {
         match code {
             Some(INTERACTION_NOT_ALLOWED) => format!(
                 "{SECURITY} exited with status {INTERACTION_NOT_ALLOWED}, which usually means the \
-                 keychain is locked"
+                 keychain is locked; unlock it and try again"
             ),
             Some(code) => format!("{SECURITY} exited with status {code}"),
             None => format!("{SECURITY} was stopped by a signal"),
@@ -226,7 +227,8 @@ attributes:
     fn failures_name_the_exit_status() {
         assert_eq!(
             exit_error(Some(36)),
-            "/usr/bin/security exited with status 36, which usually means the keychain is locked"
+            "/usr/bin/security exited with status 36, which usually means the keychain is locked; \
+             unlock it and try again"
         );
         assert_eq!(
             exit_error(Some(1)),
@@ -234,7 +236,8 @@ attributes:
         );
         assert_eq!(
             run_error(&RunError::TimedOut, READ_TIMEOUT),
-            "/usr/bin/security did not answer within 30 seconds"
+            "/usr/bin/security did not answer within 30 seconds; if macOS is asking whether to \
+             allow access, answer it and try again"
         );
     }
 

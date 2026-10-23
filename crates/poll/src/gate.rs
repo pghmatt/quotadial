@@ -198,7 +198,7 @@ impl AccountState {
     }
 
     /// Records an answer QuotaDial could not use, such as an HTTP 503. Returns the last numbers,
-    /// marked stale, or the message when there are none.
+    /// marked stale, or else the message with when the next request goes out.
     pub fn record_failure(
         &mut self,
         policy: &Policy,
@@ -206,7 +206,8 @@ impl AccountState {
         now: DateTime<Utc>,
     ) -> Result<Snapshot, String> {
         let next_request = now + policy.floor;
-        let shown = stale(self, &message, next_request).ok_or_else(|| message.clone());
+        let shown = stale(self, &message, next_request)
+            .ok_or_else(|| format!("{message} {}", policy.next_request(next_request)));
         self.last_result = Some(LastResult::Failed { message });
         shown
     }
@@ -355,7 +356,14 @@ mod tests {
         state.start_request(&codex, t0(), None);
         let shown = state.record_failure(&codex, "OpenAI answered HTTP 503.".into(), t0());
 
-        assert_eq!(shown, Err("OpenAI answered HTTP 503.".to_owned()));
+        assert_eq!(
+            shown,
+            Err(
+                "OpenAI answered HTTP 503. QuotaDial asks OpenAI at most every 2 minutes, so the \
+                 next request is after 2099-01-01T00:02:00Z."
+                    .to_owned()
+            )
+        );
         assert_eq!(
             decide(&codex, &state, &account(), None, t0() + minutes(1)),
             Decision::Wait(
@@ -594,7 +602,14 @@ mod tests {
         state.start_request(&POLICY, t0(), None);
         let shown = state.record_failure(&POLICY, "Anthropic answered HTTP 503.".into(), t0());
 
-        assert_eq!(shown, Err("Anthropic answered HTTP 503.".to_owned()));
+        assert_eq!(
+            shown,
+            Err(
+                "Anthropic answered HTTP 503. QuotaDial asks Anthropic at most every 5 minutes, \
+                 so the next request is after 2099-01-01T00:05:00Z."
+                    .to_owned()
+            )
+        );
         assert_eq!(
             decide(&POLICY, &state, &account(), None, t0() + minutes(2)),
             Decision::Wait(

@@ -38,9 +38,11 @@ pub(crate) enum ParseError {
 impl ParseError {
     pub(crate) fn describe(self) -> &'static str {
         match self {
-            Self::NotJson => "it is not valid JSON",
-            Self::NoClaudeLogin => "it holds no Claude sign-in",
-            Self::NoAccessToken => "its claudeAiOauth object has no access token",
+            Self::NotJson => "it is not valid JSON; run `claude` to sign in again",
+            Self::NoClaudeLogin => "it holds no Claude sign-in; run `claude` to sign in",
+            Self::NoAccessToken => {
+                "its claudeAiOauth object has no access token; run `claude` to sign in again"
+            }
         }
     }
 }
