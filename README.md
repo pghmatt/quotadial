@@ -7,7 +7,9 @@ system tray, in your terminal, behind a local HTTP API, and in front of your age
 server and a SKILL.md. It runs on macOS, Windows and Linux.
 
 **Status: pre-alpha.** `quotadial status` and `quotadial watch` show Claude and ChatGPT/Codex
-usage; see [docs/CLI.md](docs/CLI.md) for the output and exit codes.
+usage. `quotadial daemon` polls for every consumer and serves a local HTTP API, and `quotadial mcp`
+is an MCP server for agents, with [a skill](skills/quotadial/SKILL.md) that tells them how to use
+it. See [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the
 product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 
@@ -38,6 +40,14 @@ cargo build --workspace --release
 ./target/release/quotadial status          # or the short alias: qd status
 ./target/release/quotadial status --json
 ./target/release/quotadial watch           # refreshes every minute; Ctrl-C to stop
+./target/release/quotadial daemon          # one poller for everything, and the local API
+```
+
+To give Claude Code or Codex the MCP tools, with `quotadial` on your `PATH`:
+
+```sh
+claude mcp add quotadial -- quotadial mcp
+codex mcp add quotadial -- quotadial mcp
 ```
 
 Run the checks CI runs:

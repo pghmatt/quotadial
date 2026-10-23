@@ -1,5 +1,5 @@
 //! QuotaDial's local HTTP API: the server the daemon runs on `127.0.0.1`, and the client the CLI
-//! and the MCP server use to ask it.
+//! and the MCP server use to ask it. Also the MCP server itself, `quotadial mcp`.
 //!
 //! - `GET /v1/status` returns the same report as `quotadial status --json`.
 //! - `GET /v1/headroom` ranks the accounts by the room their tightest window leaves.
@@ -10,6 +10,7 @@
 
 pub mod client;
 mod headroom;
+pub mod mcp;
 mod runtime;
 mod server;
 mod token;

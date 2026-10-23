@@ -27,7 +27,7 @@ const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
 
 /// Why a running daemon gave no answer, naming the fix.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Unanswered(String);
+pub struct Unanswered(pub(crate) String);
 
 impl fmt::Display for Unanswered {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

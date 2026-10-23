@@ -47,6 +47,9 @@ enum Command {
         #[arg(long, default_value_t = DEFAULT_PORT)]
         port: u16,
     },
+    /// Run the MCP server named quotadial on standard input and output, for agents such as Claude
+    /// Code and Codex. Like `status`, it asks the daemon while one runs.
+    Mcp,
 }
 
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
@@ -60,6 +63,7 @@ pub fn run() -> ExitCode {
         Command::Status { json } => status(json),
         Command::Watch { json } => watch(json),
         Command::Daemon { port } => daemon(port),
+        Command::Mcp => mcp(),
     }
 }
 
@@ -154,6 +158,31 @@ fn watch(json: bool) -> ExitCode {
             tokio::time::sleep(WATCH_EVERY).await;
         }
     })
+}
+
+/// Serves MCP on standard input and output until the agent closes them.
+fn mcp() -> ExitCode {
+    let Some(runtime) = runtime() else {
+        return ExitCode::FAILURE;
+    };
+    let providers = providers();
+    let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
+    let dir = DataDir::from_env();
+    let served = runtime.block_on(quotadial_api::mcp::serve(
+        tokio::io::BufReader::new(tokio::io::stdin()),
+        tokio::io::stdout(),
+        &ids,
+        async || report(&providers, dir.as_ref()).await,
+    ));
+    match served {
+        Ok(()) => ExitCode::SUCCESS,
+        // The agent went away mid-answer. Nothing is left to say.
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("quotadial: the MCP server stopped: {error}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
