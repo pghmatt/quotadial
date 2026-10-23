@@ -16,7 +16,7 @@ local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR 
 
 M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its four PRs:
 - PR 1, the scaffold with the daemon running inside the app (PR #31);
-- PR 2, the popover;
+- PR 2, the popover (PR #32);
 - PR 3, settings and notifications;
 - PR 4, builds for macOS, Windows and Linux. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
@@ -52,7 +52,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 
 | Step | Status | Notes |
 | --- | --- | --- |
-| PR 1: scaffold, the daemon in the app, the bundled CLI | In review (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
+| PR 1: scaffold, the daemon in the app, the bundled CLI | Done (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
 | PR 2: popover | In review (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
 | PR 3: settings and notifications | To do | Two fixed notifications: sign-in needed, a window passed 90% (D-065) |
 | PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
@@ -241,6 +241,40 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3 PR 2: the popover
+
+- The window became a popover (D-072):
+  - It has no frame, stays out of the taskbar and above other windows.
+  - It opens beside the tray icon through `tauri-plugin-positioner`.
+  - It hides on blur, on Escape or on a second click of the icon.
+  - It fits its content through a `fit` command fed by a `ResizeObserver`.
+  - On macOS it sits on the system popover material with rounded corners, via `windowEffects`
+    and the macOS private API (D-073).
+  - Reopening QuotaDial on macOS, or a second launch elsewhere, opens it.
+- The view is built in Rust (`meter.rs`) with the shared wording:
+  - the headline (what the tightest number is);
+  - each account with its plan, its status and the fix when not ok;
+  - each window, tightest first, with a `<meter>`, its reset, its source and age, and the
+    unconfirmed badge;
+  - extra usage, "How QuotaDial reads this sign-in", problems, and where the numbers come from;
+  - a Quit button.
+  - The feed now reports whether the app runs or follows the daemon (`Update::Role`).
+- P-015 (`Account.sign_in`) is asked on #29. Until it is decided, the sign-in text lists the places
+  QuotaDial checks.
+- Live check, 2026-10-23 15:50Z, release build on Matt's Mac:
+  - **Shape:** reopening the app showed the popover at 360 by 513 points, fitted to its content.
+    It sat on the macOS popover material and was centred, since no tray event had placed it yet.
+  - **Content:** "75%" in amber over "Codex Weekly, resets in 6 d 1 h". Claude's three windows
+    came tightest first with blue bars, each with its reset and "from cache 3 min ago", because
+    the floor was still holding from the previous run. Codex's Weekly showed an amber bar at 75%,
+    with credits under extra usage. Both sign-in disclosures were there, and the footer read
+    "Running the daemon, port 47115" beside Quit.
+  - **Hiding:** the popover hid when it lost focus.
+  - **Not seen here:** placement beside the tray icon and opening by a click of it. The menu bar
+    auto-hides on this Mac, and macOS 14 and later do not let an app activate itself unless the
+    user clicked it.
+- Test count: tray app 14 (feed 3, meter 6, icons 5); the core workspace is unchanged at 292.
 
 ### M3 PR 1: the scaffold, the daemon in the app, the bundled CLI
 

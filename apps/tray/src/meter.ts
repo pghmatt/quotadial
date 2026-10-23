@@ -8,7 +8,7 @@ export interface Meter {
   accounts: Account[];
   /** What needs the user's attention and belongs to no account, each naming the fix. */
   problems: string[];
-  /** Where the numbers come from, such as "QuotaDial runs the daemon, on port 47115". */
+  /** Where the numbers come from, such as "Running the daemon, port 47115". */
   origin: string | null;
 }
 

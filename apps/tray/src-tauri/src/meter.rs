@@ -50,7 +50,7 @@ pub struct Meter {
     pub accounts: Vec<AccountView>,
     /// What needs the user's attention and belongs to no account, each naming the fix.
     pub problems: Vec<String>,
-    /// Where the numbers come from, such as "QuotaDial runs the daemon, on port 47115".
+    /// Where the numbers come from, such as "Running the daemon, port 47115".
     pub origin: Option<String>,
 }
 
@@ -109,10 +109,8 @@ impl Meter {
             accounts: Vec::new(),
             problems: problem.map(str::to_owned).into_iter().collect(),
             origin: role.map(|role| match role {
-                Role::Running { port } => {
-                    format!("QuotaDial runs the daemon, on port {port}")
-                }
-                Role::Following => "Reading the daemon started with `quotadial daemon`".to_owned(),
+                Role::Running { port } => format!("Running the daemon, port {port}"),
+                Role::Following => "Reading `quotadial daemon`".to_owned(),
             }),
         };
         let Some(report) = report else {
@@ -465,13 +463,13 @@ mod tests {
         let running = Meter::new(None, None, Some(Role::Running { port: 47_115 }), now());
         assert_eq!(
             running.origin.as_deref(),
-            Some("QuotaDial runs the daemon, on port 47115")
+            Some("Running the daemon, port 47115")
         );
 
         let following = Meter::new(None, None, Some(Role::Following), now());
         assert_eq!(
             following.origin.as_deref(),
-            Some("Reading the daemon started with `quotadial daemon`")
+            Some("Reading `quotadial daemon`")
         );
     }
 }
