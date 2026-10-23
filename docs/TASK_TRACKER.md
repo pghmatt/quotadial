@@ -12,7 +12,16 @@ unconfirmed-0% rule, #20 (PR #21), and #13 with P-012 (PR #22). M1 is done but t
 cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008).
 
 M2 (manager's go-ahead, 2026-10-23) came in three PRs: the daemon and its store (#23, PR #26), the
-local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR #28). M2 is done. P-001 to P-009 are accepted and in the PRD,
+local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR #28). M2 is done.
+
+M3, the tray app, waits for the manager's approval of the plan in #29. The plan has four PRs:
+- the scaffold, with the daemon running inside the app;
+- the popover;
+- settings and notifications;
+- builds for macOS, Windows and Linux.
+
+It needs four decisions: signing, which notifications belong in M3 rather than M4, one process,
+and no UI kit. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
