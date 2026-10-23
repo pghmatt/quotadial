@@ -8,7 +8,7 @@ use std::process::ExitCode;
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use clap::{Parser, Subcommand};
-use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status};
+use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status, redact_secrets};
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
 use serde::Serialize;
@@ -49,7 +49,7 @@ impl ProviderError {
     fn new(provider: &dyn Provider, error: &quotadial_core::Error) -> Self {
         Self {
             provider: provider.id(),
-            message: error.to_string(),
+            message: redact_secrets(&error.to_string()).into_owned(),
         }
     }
 }
@@ -102,7 +102,8 @@ fn status(json: bool) -> ExitCode {
 }
 
 /// Asks every provider for its accounts, then fetches each account, using the provider's local
-/// fallback when the fetch fails.
+/// fallback when the fetch fails. Error text is checked for tokens here, whichever provider wrote
+/// it, so none reaches the output.
 async fn collect(providers: &[Box<dyn Provider>]) -> StatusReport {
     let mut report = StatusReport::default();
     for provider in providers {
@@ -117,9 +118,9 @@ async fn collect(providers: &[Box<dyn Provider>]) -> StatusReport {
         };
         for account in accounts {
             match provider.fetch(&account).await {
-                Ok(snapshot) => report.snapshots.push(snapshot),
+                Ok(snapshot) => report.snapshots.push(without_secrets(snapshot)),
                 Err(error) => match provider.fallback(&account) {
-                    Some(snapshot) => report.snapshots.push(snapshot),
+                    Some(snapshot) => report.snapshots.push(without_secrets(snapshot)),
                     None => report
                         .errors
                         .push(ProviderError::new(provider.as_ref(), &error)),
@@ -128,6 +129,14 @@ async fn collect(providers: &[Box<dyn Provider>]) -> StatusReport {
         }
     }
     report
+}
+
+/// `snapshot` with any token blanked out of its error text.
+fn without_secrets(mut snapshot: Snapshot) -> Snapshot {
+    snapshot.error = snapshot
+        .error
+        .map(|error| redact_secrets(&error).into_owned());
+    snapshot
 }
 
 fn write_json(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
@@ -258,6 +267,45 @@ mod tests {
 
         fn fallback(&self, _account: &Account) -> Option<Snapshot> {
             self.fallback.clone()
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
+    /// A fake Anthropic token, never a real one.
+    const LEAKED_TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-TOKEN-0123456789";
+
+    /// A provider that passes a token through in its error text, as a server's error message
+    /// quoting the token might.
+    struct LeakyProvider {
+        fetch_fails: bool,
+    }
+
+    #[async_trait]
+    impl Provider for LeakyProvider {
+        fn id(&self) -> &'static str {
+            "leaky"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(vec![account()])
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            let message = format!("the server said: invalid token {LEAKED_TOKEN}");
+            if self.fetch_fails {
+                return Err(Error::Request {
+                    provider: "leaky",
+                    reason: message,
+                });
+            }
+            Ok(Snapshot::auth_required(account.clone(), message))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
         }
 
         fn min_poll_interval(&self) -> Duration {
@@ -438,6 +486,27 @@ mod tests {
             report.errors[0].message,
             "scripted: request failed: connection refused"
         );
+    }
+
+    #[tokio::test]
+    async fn a_token_in_provider_error_text_never_reaches_the_output() {
+        let providers: Vec<Box<dyn Provider>> = vec![
+            Box::new(LeakyProvider { fetch_fails: false }),
+            Box::new(LeakyProvider { fetch_fails: true }),
+        ];
+        let report = collect(&providers).await;
+        assert_eq!(report.snapshots.len(), 1);
+        assert_eq!(report.errors.len(), 1);
+
+        for json in [false, true] {
+            let output = render(&report, json);
+            assert!(!output.contains("sk-ant-"), "a token reached: {output}");
+            assert_eq!(
+                output.matches(quotadial_core::REDACTED).count(),
+                2,
+                "both messages keep their text around the blanked token: {output}"
+            );
+        }
     }
 
     #[tokio::test]

@@ -1142,3 +1142,46 @@ async fn an_answer_that_cannot_be_saved_fails_the_fetch() {
     );
     assert_eq!(harness.requests().await, 1);
 }
+
+/// Everything QuotaDial wrote to its cache directory, as text.
+fn cache_contents(harness: &Harness) -> String {
+    let dir = harness.cache.path().join("claude");
+    std::fs::read_dir(dir)
+        .expect("cache dir")
+        .map(|entry| std::fs::read_to_string(entry.expect("entry").path()).expect("reads"))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_token_quoted_in_anthropics_error_is_never_shown_or_saved() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    let quoting = |status| {
+        ResponseTemplate::new(status).set_body_json(json!({
+            "type": "error",
+            "error": { "type": "authentication_error", "message": format!("invalid token: {TOKEN}") }
+        }))
+    };
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    // A 401 is judged by its status alone, so its message is never read.
+    harness.mount_usage(quoting(401)).await;
+    let rejected = provider.fetch(&account).await;
+    assert_no_token(&printed(&rejected));
+    assert_eq!(rejected.expect("snapshot").status, Status::AuthRequired);
+
+    // Any other status passes the message on, with the token blanked out.
+    harness.server.reset().await;
+    harness.mount_usage(quoting(400)).await;
+    harness.advance(5);
+    let failed = provider.fetch(&account).await;
+    assert_no_token(&printed(&failed));
+    assert_eq!(
+        failed.expect_err("fails").to_string(),
+        "claude: request failed: Anthropic's usage endpoint answered HTTP 400: invalid token: \
+         [redacted token]."
+    );
+    assert_eq!(harness.usage_requests().await, 1);
+    assert_no_token(&cache_contents(&harness));
+}
