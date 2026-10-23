@@ -134,7 +134,12 @@ impl ClaudeProvider {
                     keychain.read(&service, account.as_deref())
                 })
                 .await
-                .map_err(|error| credentials_error(&login.source, error.to_string()))?;
+                .map_err(|_| {
+                    credentials_error(
+                        &login.source,
+                        "reading it stopped unexpectedly; try again".to_owned(),
+                    )
+                })?;
                 match read {
                     Ok(Some(secret)) => secret,
                     Ok(None) => return Ok(Stored::SignedOut),
@@ -437,11 +442,14 @@ fn same_account(a: &Account, b: &Account) -> bool {
     a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
 }
 
-/// The account Anthropic named for this environment token on an earlier request. The state is
-/// kept per token (its account id is a hash of the token), so it cannot name another token's
-/// account. Other sign-ins without a known account are always asked about again.
+/// The account Anthropic named for this sign-in on an earlier request, so the profile is asked once
+/// per token rather than on every request. An environment token's state is kept per token (its
+/// account id is a hash of the token), so it cannot name another token's account. A Keychain or
+/// file sign-in counts only while its token is the one that earlier request used.
 fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Option<Account> {
-    if !matches!(login.source, LoginSource::Environment(_)) {
+    let same_token = matches!(login.source, LoginSource::Environment(_))
+        || (login.generation.is_some() && login.generation == state.last_good_generation);
+    if !same_token {
         return None;
     }
     let known = &state.last_good.as_ref()?.account;

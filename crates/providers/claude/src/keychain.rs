@@ -66,6 +66,7 @@ mod security_cli {
     use std::time::Duration;
 
     use quotadial_core::Secret;
+    use zeroize::Zeroize;
 
     use super::{ItemInfo, Keychain};
     use crate::process::{self, RunError};
@@ -99,10 +100,17 @@ mod security_cli {
                 .map_err(|error| run_error(&error, READ_TIMEOUT))?;
             match finished.status.code() {
                 Some(0) => {
-                    // The error would carry the bytes, so it is dropped unread.
-                    let text = String::from_utf8(finished.stdout)
-                        .map_err(|_| "the item does not hold text".to_owned())?;
-                    Ok(Some(Secret::new(text.trim_end_matches(['\r', '\n']))))
+                    let mut text = match String::from_utf8(finished.stdout) {
+                        Ok(text) => text,
+                        Err(error) => {
+                            error.into_bytes().zeroize();
+                            return Err("the item does not hold text".to_owned());
+                        }
+                    };
+                    // Trimmed in place, so no copy of the secret is left behind.
+                    let length = text.trim_end_matches(['\r', '\n']).len();
+                    text.truncate(length);
+                    Ok(Some(Secret::new(text)))
                 }
                 Some(ITEM_NOT_FOUND) => Ok(None),
                 code => Err(exit_error(code)),
@@ -244,7 +252,10 @@ attributes:
     #[test]
     fn platforms_without_a_keychain_find_nothing() {
         assert_eq!(NoKeychain.find("Claude Code-credentials", None), Ok(None));
-        assert_eq!(NoKeychain.read("Claude Code-credentials", None), Ok(None));
+        assert!(matches!(
+            NoKeychain.read("Claude Code-credentials", None),
+            Ok(None)
+        ));
     }
 
     /// Looks up an item that cannot exist with the real `/usr/bin/security`. An attribute lookup

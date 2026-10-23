@@ -6,14 +6,17 @@
 //! QuotaDial reads the access token and the ChatGPT account id, and from the JWT claims of the
 //! access and ID tokens the user id, the email, the plan and when the access token expires. The
 //! claims are decoded, not verified: they only name the account, and ChatGPT checks the token
-//! itself. The refresh token is never read and the file is never written, because refreshing is
-//! the Codex CLI's job.
+//! itself. The refresh token is skipped by the parser without being copied, text holding a token
+//! is wiped from memory once used, and the file is never written, because refreshing is the Codex
+//! CLI's job.
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use quotadial_core::Secret;
+use serde::Deserialize;
 use serde_json::{Map, Value};
+use zeroize::Zeroizing;
 
 /// The JWT claim OpenAI keeps the ChatGPT account, user and plan in.
 const AUTH_CLAIM: &str = "https://api.openai.com/auth";
@@ -56,22 +59,42 @@ impl ParseError {
     }
 }
 
+/// The parts of `auth.json` that QuotaDial reads. Fields not named here, such as the refresh
+/// token, are skipped without being copied.
+#[derive(Deserialize)]
+struct AuthFile {
+    auth_mode: Option<String>,
+    #[serde(rename = "OPENAI_API_KEY")]
+    api_key: Option<Zeroizing<String>>,
+    tokens: Option<Tokens>,
+}
+
+#[derive(Deserialize)]
+struct Tokens {
+    #[serde(alias = "accessToken")]
+    access_token: Option<Zeroizing<String>>,
+    #[serde(alias = "idToken")]
+    id_token: Option<Zeroizing<String>>,
+    #[serde(alias = "accountId")]
+    account_id: Option<String>,
+}
+
 impl Auth {
     pub(crate) fn parse(contents: &str) -> Result<Self, ParseError> {
-        let root: Map<String, Value> =
-            serde_json::from_str(contents).map_err(|_| ParseError::NotJson)?;
-        let api_key_mode = root
-            .get("auth_mode")
-            .and_then(Value::as_str)
+        let file: AuthFile = serde_json::from_str(contents).map_err(|_| ParseError::NotJson)?;
+        let api_key_mode = file
+            .auth_mode
+            .as_deref()
             .is_some_and(|mode| mode.eq_ignore_ascii_case("apikey"));
-        let tokens = root.get("tokens").and_then(Value::as_object);
+        let tokens = file.tokens.as_ref();
         let access_token = tokens
-            .and_then(|tokens| field(tokens, "access_token", "accessToken"))
-            .filter(|_| !api_key_mode);
+            .and_then(|tokens| tokens.access_token.as_deref())
+            .map(|token| token.trim())
+            .filter(|token| !token.is_empty() && !api_key_mode);
         let Some(access_token) = access_token else {
-            let has_api_key = root
-                .get("OPENAI_API_KEY")
-                .and_then(Value::as_str)
+            let has_api_key = file
+                .api_key
+                .as_deref()
                 .is_some_and(|key| !key.trim().is_empty());
             return Err(if api_key_mode || has_api_key {
                 ParseError::ApiKey
@@ -80,10 +103,10 @@ impl Auth {
             });
         };
 
-        let access = claims(&access_token);
+        let access = claims(access_token);
         let id = tokens
-            .and_then(|tokens| field(tokens, "id_token", "idToken"))
-            .and_then(|token| claims(&token));
+            .and_then(|tokens| tokens.id_token.as_deref())
+            .and_then(|token| claims(token));
         // The access token is refreshed most often, so its claims come first.
         let claimed = |pick: fn(&Map<String, Value>) -> Option<String>| {
             access
@@ -93,7 +116,10 @@ impl Auth {
         };
         Ok(Self {
             account_id: tokens
-                .and_then(|tokens| field(tokens, "account_id", "accountId"))
+                .and_then(|tokens| tokens.account_id.as_deref())
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned)
                 .or_else(|| claimed(account_id_claim)),
             user_id: claimed(user_id_claim),
             email: id
@@ -148,11 +174,6 @@ fn auth_text(claims: &Map<String, Value>, key: &str) -> Option<String> {
         .get(AUTH_CLAIM)?
         .as_object()
         .and_then(|auth| text(auth, key))
-}
-
-/// A field in snake_case or camelCase.
-fn field(map: &Map<String, Value>, snake: &str, camel: &str) -> Option<String> {
-    text(map, snake).or_else(|| text(map, camel))
 }
 
 /// A non-blank string field.

@@ -16,7 +16,9 @@ chrono.workspace = true
 quotadial-core.workspace = true
 quotadial-poll.workspace = true
 reqwest.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

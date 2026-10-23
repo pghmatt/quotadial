@@ -156,6 +156,7 @@ impl AccountState {
         self.rate_limit_strikes = 0;
         self.blocked_until = None;
         self.last_good = (snapshot.status == Status::Ok).then(|| snapshot.clone());
+        self.last_good_generation = self.last_good.as_ref().and(self.login_generation.clone());
         self.last_result = Some(LastResult::Snapshot {
             snapshot: Box::new(snapshot.clone()),
         });
@@ -637,6 +638,16 @@ mod tests {
             unanswered(&AccountState::default(), "Could not reach Anthropic."),
             Err("Could not reach Anthropic.".to_owned())
         );
+    }
+
+    #[test]
+    fn good_numbers_remember_the_sign_in_they_came_from() {
+        let mut state = after_success();
+        assert_eq!(state.last_good_generation.as_deref(), Some("gen-1"));
+
+        state.start_request(&POLICY, t0() + minutes(5), Some("gen-2".into()));
+        state.record_usage(&Snapshot::unsupported(account(), "No limits."));
+        assert_eq!(state.last_good_generation, None);
     }
 
     #[test]

@@ -1313,3 +1313,153 @@ async fn a_redirect_is_never_followed() {
         "only the usage request was sent"
     );
 }
+
+/// Requests to the profile endpoint.
+async fn profile_requests(harness: &Harness) -> usize {
+    harness
+        .server
+        .received_requests()
+        .await
+        .map_or(0, |requests| {
+            requests
+                .iter()
+                .filter(|request| request.url.path() == "/api/oauth/profile")
+                .count()
+        })
+}
+
+#[tokio::test]
+async fn one_account_in_two_organizations_keeps_two_sets_of_numbers() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let personal = discovered(&provider).await;
+    provider.fetch(&personal).await.expect("first fetch");
+
+    // The same account, now signed in to another organization.
+    std::fs::write(
+        harness.home.path().join(".claude.json"),
+        json!({ "oauthAccount": {
+            "accountUuid": "00000000-0000-0000-0000-000000000001",
+            "emailAddress": "user@example.com",
+            "organizationUuid": "00000000-0000-0000-0000-000000000005",
+            "organizationType": "claude_max"
+        } })
+        .to_string(),
+    )
+    .expect("writes account config");
+    let work = discovered(&provider).await;
+    harness.advance(1);
+    let snapshot = provider.fetch(&work).await.expect("fetches");
+
+    assert_eq!(work.account_id, personal.account_id);
+    assert_ne!(work.org, personal.org);
+    assert_ne!(
+        quotadial_poll::account_key(&work),
+        quotadial_poll::account_key(&personal)
+    );
+    assert_eq!(
+        snapshot.windows[0].source,
+        Source::Api,
+        "not the other organization's cached numbers"
+    );
+    assert_eq!(harness.usage_requests().await, 2);
+}
+
+#[tokio::test]
+async fn an_unnamed_sign_in_is_named_once_per_token() {
+    let harness = Harness::new().await;
+    // A Keychain item but no account config, so only the profile endpoint can name the account.
+    harness.keychain.put(
+        SERVICE,
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    Mock::given(method("GET"))
+        .and(path("/api/oauth/profile"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(PROFILE_FIXTURE, "application/json"))
+        .mount(&harness.server)
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    for _ in 0..3 {
+        let snapshot = provider.fetch(&account).await.expect("fetches");
+        assert_eq!(snapshot.account.display_name, "user@example.com");
+        harness.advance(5);
+    }
+    assert_eq!(harness.usage_requests().await, 3);
+    assert_eq!(
+        profile_requests(&harness).await,
+        1,
+        "named once for this token"
+    );
+
+    // A new token may belong to another account, so it is named again.
+    harness.keychain.put(
+        SERVICE,
+        "20990101001500Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    provider.fetch(&account).await.expect("fetches");
+    assert_eq!(profile_requests(&harness).await, 2);
+}
+
+#[tokio::test]
+async fn no_cache_file_holds_the_token_after_keychain_and_file_fetches() {
+    let hex = |text: &str| -> String { text.bytes().map(|byte| format!("{byte:02x}")).collect() };
+    let refresh = "sk-ant-ort01-QUOTADIAL-TEST-REFRESH-0123456789";
+    for from_file in [false, true] {
+        let harness = Harness::new().await;
+        if from_file {
+            let config_dir = harness.home.path().join(".claude");
+            std::fs::create_dir_all(&config_dir).expect("config dir");
+            std::fs::write(
+                config_dir.join(".credentials.json"),
+                json!({ "claudeAiOauth": oauth() }).to_string(),
+            )
+            .expect("writes");
+            harness.write_account_config("00000000-0000-0000-0000-000000000001");
+        } else {
+            harness.sign_in(oauth());
+        }
+        harness.mount_usage(usage_ok()).await;
+        let provider = harness.provider();
+        let account = discovered(&provider).await;
+
+        provider.fetch(&account).await.expect("fetches");
+
+        let saved = cache_contents(&harness);
+        assert!(saved.contains("\"used_pct\""), "the numbers were saved");
+        for secret in [TOKEN, refresh, &hex(TOKEN), &hex(refresh), "sk-ant-"] {
+            assert!(
+                !saved.contains(secret),
+                "a token reached the cache (from file: {from_file})"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_keychain_read_that_stops_never_reports_what_it_held() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    harness
+        .keychain
+        .on_read(|| panic!("a panic whose message holds secrets"));
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let error = provider.fetch(&account).await.expect_err("fails");
+
+    let message = error.to_string();
+    assert!(
+        message.ends_with("reading it stopped unexpectedly; try again"),
+        "{message}"
+    );
+    assert!(!message.contains("secrets"), "{message}");
+    assert_eq!(harness.usage_requests().await, 0);
+}
