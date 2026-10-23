@@ -7,8 +7,9 @@ Progress and implementation notes. Update this file with every change.
 The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10, then the
 ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branch off `main`,
 self-review, live check, PR, merge when CI is green. #10 is done (PR #16), #2 (PR #17, with the
-Codex halves of #4 and #5), #3 (PR #18), and #11, #12, #14 and #15 (PR #19). #13 waits for the
-manager's choice, asked on the issue: a new `other` window kind (P-014) or a note in the error. P-001 to P-009 are accepted and in the PRD,
+Codex halves of #4 and #5), #3 (PR #18), #11, #12, #14 and #15 (PR #19), and the PRD's
+unconfirmed-0% rule, #20 (PR #21). #13 waits for the manager's choice, asked on the issue: a new
+`other` window kind (P-014) or a note in the error. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -28,6 +29,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | #13 Surface unknown buckets without a known prefix | Waiting for the manager | Asked on the issue: a new `other` window kind (P-014, recommended) or a note in the error |
 | #14 Test gaps: two orgs, bounded profile requests, no token in the cache | Done (PR #19) | The profile is now asked once per token (D-049); the three tests added, the one that could not fail removed |
 | #15 Zeroize secrets, fixed `JoinError` message | Done (PR #19) | Secrets wiped on drop, no copies of the refresh token, fixed message (D-050) |
+| #20 Unconfirmed 0% (P-005) | Done (PR #21) | A sudden 0% before the reset is flagged until a second fetch agrees, in the shared gate (D-051) |
 
 ## Kickoff
 
@@ -213,6 +215,20 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M1 #20: the unconfirmed-0% rule (P-005)
+
+- The PRD accepted P-005 as an M1 follow-up: "the model gains `unconfirmed: bool` on `Window`", and
+  "a 0% that follows a non-zero reading is held as unconfirmed until a second fetch agrees". #20
+  was opened for it, since no issue existed.
+- `Window.unconfirmed` (left out of JSON when false). `AccountState::record_usage` now takes the
+  snapshot and returns it marked: a window reading 0% where the same window read more on the last
+  good fetch, with that reading's reset still ahead, is unconfirmed. The next fetch confirms an
+  agreeing 0%. A window whose reset passed or is unknown is never flagged (D-051).
+- The CLI prints "unconfirmed until the next fetch agrees"; `docs/CLI.md` documents the field. The
+  PRD's grey badge is the M3 UI's job.
+- Test count: 234 (core 20, poll 36, Claude 101 plus the opt-in Keychain test, Codex 54, CLI unit
+  17, CLI binaries 6).
 
 ### M1 #11, #12, #14 and #15: the review follow-ups
 

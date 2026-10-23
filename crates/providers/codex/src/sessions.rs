@@ -391,6 +391,7 @@ pub(crate) mod tests {
                 scope_model: None,
                 source: Source::LocalLog,
                 fetched_at: ts("2026-10-23T09:15:00Z"),
+                unconfirmed: false,
             }]
         );
         assert_eq!(reading.plan.as_deref(), Some("pro"));

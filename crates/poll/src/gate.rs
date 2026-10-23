@@ -151,8 +151,13 @@ impl AccountState {
         self.login_generation = generation;
     }
 
-    /// Records usage numbers, or an answer that the plan reports none.
-    pub fn record_usage(&mut self, snapshot: &Snapshot) {
+    /// Records usage numbers, or an answer that the plan reports none, and returns the snapshot to
+    /// show. A window that reads 0% where it read more on the last fetch, before its reset, is
+    /// marked unconfirmed until a second fetch agrees (the PRD's unconfirmed-0% rule).
+    pub fn record_usage(&mut self, mut snapshot: Snapshot) -> Snapshot {
+        if let Some(previous) = &self.last_good {
+            mark_unconfirmed_zeros(previous, &mut snapshot);
+        }
         self.rate_limit_strikes = 0;
         self.blocked_until = None;
         self.last_good = (snapshot.status == Status::Ok).then(|| snapshot.clone());
@@ -160,6 +165,7 @@ impl AccountState {
         self.last_result = Some(LastResult::Snapshot {
             snapshot: Box::new(snapshot.clone()),
         });
+        snapshot
     }
 
     /// Records that the provider rejected the sign-in.
@@ -211,6 +217,24 @@ impl AccountState {
             .ok_or_else(|| format!("{message} {}", policy.next_request(next_request)));
         self.last_result = Some(LastResult::Failed { message });
         shown
+    }
+}
+
+/// Marks each window of `snapshot` that reads 0% where the same window in `previous` read more and
+/// had not reset by this fetch. A window that has reset, or whose reset is unknown, may well be
+/// empty, and a 0% that follows an unconfirmed 0% agrees with it.
+fn mark_unconfirmed_zeros(previous: &Snapshot, snapshot: &mut Snapshot) {
+    for window in &mut snapshot.windows {
+        window.unconfirmed = window.used_pct <= 0.0
+            && previous.windows.iter().any(|before| {
+                before.kind == window.kind
+                    && before.label == window.label
+                    && before.scope_model == window.scope_model
+                    && before.used_pct > 0.0
+                    && before
+                        .resets_at
+                        .is_some_and(|resets_at| resets_at > window.fetched_at)
+            });
     }
 }
 
@@ -331,6 +355,7 @@ mod tests {
                 scope_model: None,
                 source: Source::Api,
                 fetched_at: t0(),
+                unconfirmed: false,
             }],
             extra_usage: None,
             status: Status::Ok,
@@ -342,7 +367,7 @@ mod tests {
     fn after_success() -> AccountState {
         let mut state = AccountState::default();
         state.start_request(&POLICY, t0(), Some("gen-1".into()));
-        state.record_usage(&good_snapshot());
+        state.record_usage(good_snapshot());
         state
     }
 
@@ -646,14 +671,68 @@ mod tests {
         assert_eq!(state.last_good_generation.as_deref(), Some("gen-1"));
 
         state.start_request(&POLICY, t0() + minutes(5), Some("gen-2".into()));
-        state.record_usage(&Snapshot::unsupported(account(), "No limits."));
+        state.record_usage(Snapshot::unsupported(account(), "No limits."));
         assert_eq!(state.last_good_generation, None);
+    }
+
+    /// The good snapshot with its window at `used_pct`, fetched `minutes_later` after `t0`.
+    fn reading(used_pct: f64, minutes_later: i64) -> Snapshot {
+        let mut snapshot = good_snapshot();
+        snapshot.windows[0].used_pct = used_pct;
+        snapshot.windows[0].fetched_at = t0() + minutes(minutes_later);
+        snapshot
+    }
+
+    #[test]
+    fn a_sudden_zero_is_unconfirmed_until_a_second_fetch_agrees() {
+        let mut state = after_success();
+
+        state.start_request(&POLICY, t0() + minutes(5), Some("gen-1".into()));
+        let first = state.record_usage(reading(0.0, 5));
+        assert!(first.windows[0].unconfirmed, "42% then 0% before the reset");
+        let Decision::Replay(replayed) = decide(
+            &POLICY,
+            &state,
+            &account(),
+            Some("gen-1"),
+            t0() + minutes(7),
+        ) else {
+            panic!("expected a replay");
+        };
+        assert!(replayed.windows[0].unconfirmed, "replays keep the flag");
+
+        let second = state.record_usage(reading(0.0, 10));
+        assert!(!second.windows[0].unconfirmed, "the second 0% agrees");
+
+        let rise = state.record_usage(reading(3.0, 15));
+        assert!(!rise.windows[0].unconfirmed);
+    }
+
+    #[test]
+    fn a_zero_after_a_reset_or_with_no_known_reset_is_trusted() {
+        // The session window reset at 05:00.
+        let mut after_reset = after_success();
+        let shown = after_reset.record_usage(reading(0.0, 6 * 60));
+        assert!(!shown.windows[0].unconfirmed);
+
+        let mut unknown = AccountState::default();
+        let mut no_reset = good_snapshot();
+        no_reset.windows[0].resets_at = None;
+        unknown.record_usage(no_reset);
+        let shown = unknown.record_usage(reading(0.0, 5));
+        assert!(!shown.windows[0].unconfirmed);
+
+        // Another window's earlier reading says nothing about this one.
+        let mut other = after_success();
+        let mut weekly = reading(0.0, 5);
+        weekly.windows[0].label = "Weekly".into();
+        assert!(!other.record_usage(weekly).windows[0].unconfirmed);
     }
 
     #[test]
     fn an_unsupported_answer_clears_the_cached_numbers() {
         let mut state = after_success();
-        state.record_usage(&Snapshot::unsupported(account(), "No limits."));
+        state.record_usage(Snapshot::unsupported(account(), "No limits."));
 
         assert_eq!(state.last_good, None);
     }

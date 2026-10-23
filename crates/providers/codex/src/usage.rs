@@ -132,6 +132,7 @@ pub(crate) fn classified(measured: Measured<'_>) -> Option<Window> {
         scope_model: measured.model.map(str::to_lowercase),
         source: measured.source,
         fetched_at: measured.fetched_at,
+        unconfirmed: false,
     })
 }
 
@@ -216,6 +217,7 @@ mod tests {
                 scope_model: None,
                 source: Source::Api,
                 fetched_at: now(),
+                unconfirmed: false,
             }]
         );
         assert_eq!(reading.plan.as_deref(), Some("pro"));

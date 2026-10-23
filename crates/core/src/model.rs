@@ -3,7 +3,8 @@
 //! ```text
 //! Account { provider, account_id, display_name, plan, org }
 //! Window  { kind: session | weekly | model_weekly | daily | credits, label, used_pct, resets_at,
-//!           window_seconds, scope_model?, source: api | local_log | cache, fetched_at }
+//!           window_seconds, scope_model?, source: api | local_log | cache, fetched_at,
+//!           unconfirmed }
 //! Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required |
 //!            rate_limited | unsupported, error? }
 //! ```
@@ -57,6 +58,11 @@ pub struct Window {
     pub source: Source,
     /// When the number was fetched. Every number QuotaDial shows carries its age.
     pub fetched_at: DateTime<Utc>,
+    /// The window reads 0% where it read more on the last fetch, before its reset, so QuotaDial
+    /// holds the reading as unconfirmed until a second fetch agrees (the PRD's unconfirmed-0% rule,
+    /// P-005). Left out of JSON when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unconfirmed: bool,
 }
 
 /// The kinds of limit windows providers report.
@@ -213,6 +219,7 @@ mod tests {
             scope_model: scope_model.map(Into::into),
             source,
             fetched_at: ts("2099-01-01T00:00:00Z"),
+            unconfirmed: false,
         }
     }
 
@@ -370,6 +377,24 @@ mod tests {
         assert_eq!(snapshot.account.org, None);
         assert_eq!(snapshot.windows[0].resets_at, None);
         assert_eq!(snapshot.windows[0].scope_model, None);
+        assert!(!snapshot.windows[0].unconfirmed);
+    }
+
+    #[test]
+    fn unconfirmed_appears_in_json_only_when_true() {
+        let confirmed = serde_json::to_value(window(WindowKind::Session, None, Source::Api))
+            .expect("serializes");
+        assert!(confirmed.get("unconfirmed").is_none());
+
+        let unconfirmed = Window {
+            used_pct: 0.0,
+            unconfirmed: true,
+            ..window(WindowKind::Session, None, Source::Api)
+        };
+        let value = serde_json::to_value(&unconfirmed).expect("serializes");
+        assert_eq!(value["unconfirmed"], json!(true));
+        let read_back: Window = serde_json::from_value(value).expect("deserializes");
+        assert_eq!(read_back, unconfirmed);
     }
 
     #[test]

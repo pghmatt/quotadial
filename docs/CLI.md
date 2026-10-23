@@ -45,6 +45,9 @@ codex user@example.com (pro): stale
 - Each window shows the share used, when it resets, where the number came from (`the API`, `cache`
   or `local logs`) and how long ago it was fetched. The window closest to its limit comes first. A
   window whose numbers predate its reset says `reset 3 min ago`.
+- A window that suddenly reads 0% before its reset, where it read more last time, says
+  `unconfirmed until the next fetch agrees`. A provider sometimes answers 0% by mistake, so
+  QuotaDial waits for a second fetch before trusting it.
 - A status other than `ok` is followed by one sentence that says why and names the fix, such as
   "Run `claude` to sign in again."
 - A provider that produced nothing at all shows as `error: <provider>: <what happened>`, which also
@@ -101,6 +104,7 @@ the last, without escape codes.
 | `windows[].scope_model` | For a per-model limit, the model it covers. Left out otherwise |
 | `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the CLI's own logs) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
+| `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
 | `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |

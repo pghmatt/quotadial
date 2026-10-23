@@ -256,6 +256,32 @@ async fn fetches_usage_with_the_headers_the_codex_cli_sends() {
 }
 
 #[tokio::test]
+async fn a_sudden_zero_is_unconfirmed_until_the_next_fetch_agrees() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider);
+    let first = provider.fetch(&account).await.expect("first fetch");
+    assert!(!first.windows[0].unconfirmed);
+
+    // ChatGPT says 0% although the weekly window does not reset until 2026-10-29.
+    let zero = LIVE_FIXTURE.replace("\"used_percent\": 54", "\"used_percent\": 0");
+    harness.server.reset().await;
+    harness
+        .mount_usage(ResponseTemplate::new(200).set_body_raw(zero, "application/json"))
+        .await;
+    harness.advance(2);
+    let suspect = provider.fetch(&account).await.expect("fetches");
+    assert_eq!(suspect.windows[0].used_pct, 0.0);
+    assert!(suspect.windows[0].unconfirmed);
+
+    harness.advance(2);
+    let agreed = provider.fetch(&account).await.expect("fetches");
+    assert!(!agreed.windows[0].unconfirmed, "the second 0% agrees");
+}
+
+#[tokio::test]
 async fn within_two_minutes_a_fetch_replays_from_the_cache_then_asks_again() {
     let harness = Harness::new().await;
     harness.sign_in("pro", FAR_FUTURE);
