@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/core",
     "crates/poll",
+    "crates/daemon",
     "crates/providers/claude",
     "crates/providers/codex",
     "crates/api",
@@ -21,6 +22,7 @@ publish = false
 [workspace.dependencies]
 quotadial-core = { path = "crates/core" }
 quotadial-poll = { path = "crates/poll" }
+quotadial-daemon = { path = "crates/daemon" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
 async-trait = "0.1.92"
@@ -29,6 +31,8 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 clap = { version = "4.6.7", features = ["derive"] }
 dirs = "7.0.0"
 # rustls with the operating system's certificate store; no OpenSSL to install on Linux.
+# SQLite compiled in, so no system library is needed on any platform.
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "system-proxy"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

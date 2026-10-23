@@ -5,14 +5,15 @@
 
 use std::io::{self, IsTerminal, Write};
 use std::process::ExitCode;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status, Window, redact_secrets};
+use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, Window, collect};
+use quotadial_daemon::{DataDir, History, Instance, InstanceError, Poller};
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
-use serde::Serialize;
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -37,34 +38,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Run the daemon until Ctrl-C: the one poller every consumer shares, with history.
+    Daemon,
 }
 
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
 /// is asked more often than its own limit (5 minutes for Anthropic).
 const WATCH_EVERY: Duration = Duration::from_secs(60);
-
-/// What `quotadial status` reports: a snapshot per account, plus any provider that failed outright.
-#[derive(Debug, Default, Serialize)]
-struct StatusReport {
-    snapshots: Vec<Snapshot>,
-    errors: Vec<ProviderError>,
-}
-
-/// A provider that produced no snapshot, for example because its credentials were unreadable.
-#[derive(Debug, Serialize)]
-struct ProviderError {
-    provider: &'static str,
-    message: String,
-}
-
-impl ProviderError {
-    fn new(provider: &dyn Provider, error: &quotadial_core::Error) -> Self {
-        Self {
-            provider: provider.id(),
-            message: redact_secrets(&error.to_string()).into_owned(),
-        }
-    }
-}
 
 /// Runs the CLI and returns the process exit code.
 #[must_use]
@@ -72,6 +52,7 @@ pub fn run() -> ExitCode {
     match Cli::parse().command {
         Command::Status { json } => status(json),
         Command::Watch { json } => watch(json),
+        Command::Daemon => daemon(),
     }
 }
 
@@ -142,6 +123,77 @@ fn watch(json: bool) -> ExitCode {
     })
 }
 
+/// Runs the daemon until Ctrl-C.
+fn daemon() -> ExitCode {
+    let Some(dir) = DataDir::from_env() else {
+        eprintln!(
+            "quotadial: the operating system names no data directory; set QUOTADIAL_DATA_DIR."
+        );
+        return ExitCode::FAILURE;
+    };
+    let _instance = match Instance::acquire(&dir) {
+        Ok(instance) => instance,
+        Err(error @ InstanceError::AlreadyRunning) => {
+            eprintln!("quotadial: {error}.");
+            return ExitCode::FAILURE;
+        }
+        Err(error) => {
+            eprintln!(
+                "quotadial: could not use {}: {error}; check that you can write to it.",
+                dir.path().display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    let history = match History::open(&dir.history()) {
+        Ok(history) => Arc::new(history),
+        Err(error) => {
+            eprintln!(
+                "quotadial: could not open the history at {}: {error}",
+                dir.history().display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    let Some(runtime) = runtime() else {
+        return ExitCode::FAILURE;
+    };
+    let providers: Vec<Arc<dyn Provider>> = providers().into_iter().map(Arc::from).collect();
+    println!(
+        "QuotaDial daemon running. It asks {}, keeps history in {}, and is the only thing that \
+         polls while it runs. Press Ctrl-C to stop.",
+        limits(&providers),
+        dir.history().display()
+    );
+    let poller = Poller::new(providers, history);
+    runtime.block_on(poller.run(async {
+        // If Ctrl-C cannot be caught, the daemon runs until it is stopped some other way.
+        if tokio::signal::ctrl_c().await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    }));
+    println!("QuotaDial daemon stopped.");
+    ExitCode::SUCCESS
+}
+
+/// For example `claude at most every 5 min and codex at most every 2 min`.
+fn limits<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
+    providers
+        .iter()
+        .map(|provider| {
+            let provider = provider.as_ref();
+            format!(
+                "{} at most every {}",
+                provider.id(),
+                duration(
+                    TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
+                )
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" and ")
+}
+
 fn write_failed(error: &io::Error) -> ExitCode {
     // The reader went away, as in `quotadial status | head`. Nothing is left to say.
     if error.kind() == io::ErrorKind::BrokenPipe {
@@ -149,44 +201,6 @@ fn write_failed(error: &io::Error) -> ExitCode {
     }
     eprintln!("quotadial: could not write the status: {error}");
     ExitCode::FAILURE
-}
-
-/// Asks every provider for its accounts, then fetches each account, using the provider's local
-/// fallback when the fetch fails. Error text is checked for tokens here, whichever provider wrote
-/// it, so none reaches the output.
-async fn collect(providers: &[Box<dyn Provider>]) -> StatusReport {
-    let mut report = StatusReport::default();
-    for provider in providers {
-        let accounts = match provider.discover_accounts() {
-            Ok(accounts) => accounts,
-            Err(error) => {
-                report
-                    .errors
-                    .push(ProviderError::new(provider.as_ref(), &error));
-                continue;
-            }
-        };
-        for account in accounts {
-            match provider.fetch(&account).await {
-                Ok(snapshot) => report.snapshots.push(without_secrets(snapshot)),
-                Err(error) => match provider.fallback(&account) {
-                    Some(snapshot) => report.snapshots.push(without_secrets(snapshot)),
-                    None => report
-                        .errors
-                        .push(ProviderError::new(provider.as_ref(), &error)),
-                },
-            }
-        }
-    }
-    report
-}
-
-/// `snapshot` with any token blanked out of its error text.
-fn without_secrets(mut snapshot: Snapshot) -> Snapshot {
-    snapshot.error = snapshot
-        .error
-        .map(|error| redact_secrets(&error).into_owned());
-    snapshot
 }
 
 fn write_json(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
@@ -214,23 +228,11 @@ fn write_frame(
         write!(out, "\x1b[2J\x1b[H")?;
     }
     write_text(report, now, out)?;
-    let limits: Vec<String> = providers
-        .iter()
-        .map(|provider| {
-            format!(
-                "{} at most every {}",
-                provider.id(),
-                duration(
-                    TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
-                )
-            )
-        })
-        .collect();
     writeln!(
         out,
         "\nUpdated {}. Refreshes every minute and asks {}. Press Ctrl-C to stop.",
         timestamp(now),
-        limits.join(" and ")
+        limits(providers)
     )
 }
 
@@ -365,7 +367,7 @@ mod tests {
 
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
-    use quotadial_core::{Account, Error, Result, Window, WindowKind};
+    use quotadial_core::{Account, Error, Result, Snapshot, WindowKind};
     use serde_json::{Value, json};
 
     use super::*;

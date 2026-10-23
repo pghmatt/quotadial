@@ -12,6 +12,7 @@ CLI already store and never writes them.
 | `quotadial status --json` | The same, as JSON, for scripts and agents |
 | `quotadial watch` | Keeps showing the status, refreshing every minute, until Ctrl-C |
 | `quotadial watch --json` | One line of JSON per refresh, the same report as `status --json` |
+| `quotadial daemon` | Runs the daemon until Ctrl-C: the one poller every consumer shares, with history |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -26,6 +27,22 @@ When a provider answers 429, QuotaDial waits as long as the `Retry-After` header
 10, 20, 40 and then 60 minutes as 429s repeat, and keeps the last numbers on screen meanwhile.
 When ChatGPT cannot be reached and nothing is cached, the newest numbers from the Codex CLI's own
 session logs stand in, marked as coming from them.
+
+## The daemon
+
+`quotadial daemon` runs until Ctrl-C. While it runs it is the only thing that asks providers for
+usage, and the local API (next) and the MCP server read what it last found.
+
+- It asks each account no more often than its provider's floor, and slows to every 10 minutes once
+  the account's numbers have been still for 10 minutes. A change in usage is what counts as
+  activity.
+- Every snapshot that brings new data goes into a SQLite history (WAL mode), kept for 30 days, in
+  `quotadial/history.db` in the OS data directory: `~/Library/Application Support` on macOS,
+  `$XDG_DATA_HOME` or `~/.local/share` on Linux, `%APPDATA%` on Windows. Set `QUOTADIAL_DATA_DIR` to
+  put it elsewhere. The folder and its files are private to the user.
+- Only one daemon runs at a time; a second one says so and exits with status 1.
+- A restarted daemon shows the numbers it stored last, marked as coming from the cache, until its
+  first poll.
 
 ## Text output
 
