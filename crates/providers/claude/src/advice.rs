@@ -26,6 +26,15 @@ pub(crate) fn different_account(login: &Login) -> String {
     )
 }
 
+/// The Keychain could not be listed, so its items were looked up folder by folder.
+pub(crate) fn unlisted(reason: &str) -> String {
+    format!(
+        "claude: could not list the Claude Code items in the macOS Keychain: {reason}. Each \
+         folder's item was looked up by name instead, so a Keychain item whose folder QuotaDial \
+         does not know is left out until the listing works."
+    )
+}
+
 /// No sign-in for the account was found, and nothing is known about where it was.
 pub(crate) fn not_found(account: &Account) -> String {
     match &account.sign_in {

@@ -1833,7 +1833,7 @@ async fn one_subscription_reached_through_two_sign_ins_is_asked_once_per_floor()
 }
 
 #[tokio::test]
-async fn a_keychain_that_cannot_be_listed_is_an_error_not_a_sign_out() {
+async fn a_keychain_that_cannot_be_listed_still_finds_each_folders_sign_in() {
     let harness = Harness::new().await;
     harness.sign_in(oauth());
     sign_in_folder(
@@ -1842,27 +1842,55 @@ async fn a_keychain_that_cannot_be_listed_is_an_error_not_a_sign_out() {
         "00000000-0000-0000-0000-00000000000a",
         &oauth(),
     );
+    // An item whose folder is gone: only a listing finds it.
+    harness.keychain.put(
+        "Claude Code-credentials-deadbeef",
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
     harness.mount_usage(usage_ok()).await;
     let provider = harness.provider();
-    let accounts = provider.discover_accounts().expect("discovers");
-    assert_eq!(accounts.len(), 2);
+    assert_eq!(provider.discover_accounts().expect("discovers").len(), 3);
+    assert!(provider.discovery_warnings().is_empty());
 
     harness.keychain.listing_fails.store(true, Ordering::SeqCst);
-    let error = provider
-        .discover_accounts()
-        .expect_err("the listing failed");
-    assert_eq!(
-        error.to_string(),
-        "claude: could not read credentials from the macOS Keychain's list of Claude Code items: \
-         /usr/bin/security did not answer within 5 seconds"
-    );
+    let accounts = provider.discover_accounts().expect("still discovers");
 
-    // The accounts found before are still read, each through its own item.
+    let ids: Vec<&str> = accounts
+        .iter()
+        .map(|account| account.account_id.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "00000000-0000-0000-0000-000000000001",
+            "00000000-0000-0000-0000-00000000000a"
+        ],
+        "this shell's own sign-in and the folder's, each found by name"
+    );
+    assert_eq!(
+        provider.discovery_warnings(),
+        [
+            "claude: could not list the Claude Code items in the macOS Keychain: /usr/bin/security \
+          did not answer within 5 seconds. Each folder's item was looked up by name instead, so a \
+          Keychain item whose folder QuotaDial does not know is left out until the listing works."
+        ]
+    );
     for account in &accounts {
         let snapshot = provider.fetch(account).await.expect("fetch");
         assert_eq!(snapshot.status, Status::Ok, "{:?}", snapshot.error);
     }
     assert_eq!(harness.usage_requests().await, 2);
+
+    harness
+        .keychain
+        .listing_fails
+        .store(false, Ordering::SeqCst);
+    assert_eq!(provider.discover_accounts().expect("discovers").len(), 3);
+    assert!(
+        provider.discovery_warnings().is_empty(),
+        "gone once the listing works"
+    );
 }
 
 #[tokio::test]

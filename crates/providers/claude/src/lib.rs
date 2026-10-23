@@ -76,6 +76,8 @@ pub struct ClaudeProvider {
     max_accounts: Option<usize>,
     /// The sign-ins the last discovery found, so a fetch looks up only its own account's.
     logins: Mutex<Vec<Login>>,
+    /// What the last discovery could not look at.
+    warnings: Mutex<Vec<String>>,
 }
 
 impl ClaudeProvider {
@@ -93,6 +95,7 @@ impl ClaudeProvider {
             extra_dirs: Vec::new(),
             max_accounts: None,
             logins: Mutex::default(),
+            warnings: Mutex::default(),
         }
     }
 
@@ -117,7 +120,8 @@ impl ClaudeProvider {
             .as_deref()
             .map(NotAccounts::load)
             .unwrap_or_default();
-        let mut logins = login::locate_all(&self.env, self.keychain.as_ref(), &self.extra_dirs)?;
+        let found = login::locate_all(&self.env, self.keychain.as_ref(), &self.extra_dirs)?;
+        let mut logins = found.logins;
         logins.retain(|login| !not_accounts.excludes(login));
         if let Some(max) = self.max_accounts {
             logins.truncate(max);
@@ -126,6 +130,11 @@ impl ClaudeProvider {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone_from(&logins);
+        *self.warnings.lock().unwrap_or_else(PoisonError::into_inner) = found
+            .unlisted
+            .iter()
+            .map(|reason| advice::unlisted(reason))
+            .collect();
         Ok(logins)
     }
 
@@ -171,12 +180,13 @@ impl ClaudeProvider {
                 Arc::clone(&self.keychain),
                 self.extra_dirs.clone(),
             );
-            let logins = tokio::task::spawn_blocking(move || {
+            let found = tokio::task::spawn_blocking(move || {
                 login::locate_all(&env, keychain.as_ref(), &extra)
             })
             .await
             .map_err(|_| stopped())??;
-            return Ok(logins
+            return Ok(found
+                .logins
                 .into_iter()
                 .find(|login| login.account().same_as(account))
                 .ok_or_else(|| advice::not_found(account)));
@@ -668,6 +678,13 @@ impl Provider for ClaudeProvider {
         Ok(self.locate_all()?.iter().map(Login::account).collect())
     }
 
+    fn discovery_warnings(&self) -> Vec<String> {
+        self.warnings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     async fn fetch(&self, account: &Account) -> Result<Snapshot> {
         let store = self.store()?;
         let key = quotadial_poll::account_key(account);
@@ -875,6 +892,7 @@ impl ClaudeProvider {
             extra_dirs: Vec::new(),
             max_accounts: None,
             logins: Mutex::default(),
+            warnings: Mutex::default(),
         }
     }
 

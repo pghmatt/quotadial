@@ -43,8 +43,8 @@ current shell would use. Each account has its own floor, cache and history.
   - On macOS, every Keychain item named `Claude Code-credentials`, or that, a dash and 8 hex
     characters, as Claude Code names them. QuotaDial lists them by name without reading them, and
     reads an item's token only when it asks about that account. If the Keychain cannot be listed,
-    QuotaDial says so rather than show the accounts as signed out, and a running daemon keeps the
-    accounts it found last.
+    QuotaDial looks up each folder's item by its name instead and says so in `errors`. Only an
+    item whose folder it does not know is missing until the listing works.
   - Claude Code names each item after the folder it was made for, so QuotaDial matches the items to
     folders: other `~/.claude…` folders, the folders in `~/.codus/accounts`, and those in
     `extra_config_dirs` (see Settings below). A link to a folder counts as the folder.
@@ -288,7 +288,7 @@ the last, without escape codes.
 | `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`, or `balance`, the credits left in the provider's own units. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
-| `errors[]` | Providers or accounts that produced no snapshot, each with a message that names the fix |
+| `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts, each with a message that names the fix |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 
@@ -297,7 +297,7 @@ Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the outpu
 | Code | `status` | `watch` |
 | --- | --- | --- |
 | 0 | Every account produced a snapshot, whatever its status. Check each snapshot's `status` | Its output was closed, as when piped into `head` |
-| 1 | At least one provider or account produced none (see `errors`), the daemon is running but its API did not answer, or the output could not be written | The output could not be written |
+| 1 | At least one provider or account produced none, or a provider could not look everywhere for accounts (see `errors`), the daemon is running but its API did not answer, or the output could not be written | The output could not be written |
 | 2 | The arguments were not understood | The same |
 
 `mcp` exits with 0 when the agent closes its input, and 1 if it cannot read its input or write

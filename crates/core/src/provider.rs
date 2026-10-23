@@ -32,6 +32,13 @@ pub trait Provider: Send + Sync {
     /// cannot be read. Finding no credentials is not an error: it returns an empty list.
     fn discover_accounts(&self) -> Result<Vec<Account>>;
 
+    /// What the last [`Provider::discover_accounts`] could not look at, each a sentence naming what
+    /// may be missing and why, such as a keychain that could not be listed. They are shown beside
+    /// the accounts it did find. None by default.
+    fn discovery_warnings(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Fetches the account's current usage from the provider.
     ///
     /// # Errors

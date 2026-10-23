@@ -18,7 +18,7 @@ use quotadial_core::{Account, Error, Result, Secret};
 use crate::ID;
 use crate::environment::{Environment, KEYCHAIN_SERVICE, sha256_hex};
 use crate::identity::{self, Identity};
-use crate::keychain::{Item, Keychain};
+use crate::keychain::{Item, Keychain, NoKeychain};
 
 /// Where a sign-in's token lives.
 #[derive(Debug, Clone)]
@@ -329,33 +329,43 @@ fn modified(metadata: &std::fs::Metadata) -> Option<String> {
         .map(|modified| DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Nanos, true))
 }
 
+/// What [`locate_all`] found.
+#[derive(Debug)]
+pub(crate) struct Found {
+    /// One sign-in per account.
+    pub(crate) logins: Vec<Login>,
+    /// Why the Keychain could not be listed, when it could not. Each folder's item was then looked
+    /// up by its name, and an item whose folder is unknown could not be found.
+    pub(crate) unlisted: Option<String>,
+}
+
 /// Finds every Claude Code sign-in stored on this machine, one per account (#34): this shell's
 /// own first (D-023), then the sign-in Claude Code keeps for this shell's folder when a token in
 /// the environment comes first, then Claude Code's default folder, then the sign-ins kept for
 /// other config folders, then any Keychain item no folder accounts for. `extra_dirs` adds
 /// folders, and a folder ending in `*` adds every folder inside it.
 ///
+/// The Keychain is listed once, by attributes, so every folder can be matched to its item without
+/// reading a secret. If it cannot be listed, as when `security` takes too long on a large
+/// keychain, each folder's item is looked up by its name instead, and the reason comes back in
+/// [`Found::unlisted`].
+///
 /// # Errors
 ///
-/// When this shell's own sign-in cannot be read, or the Keychain cannot be listed. Treating a
-/// listing that failed as an empty one would make every other account look signed out. Other
-/// folders whose sign-in cannot be read are skipped.
+/// When this shell's own sign-in cannot be read. Other folders whose sign-in cannot be read are
+/// skipped.
 pub(crate) fn locate_all(
     env: &Environment,
     keychain: &dyn Keychain,
     extra_dirs: &[PathBuf],
-) -> Result<Vec<Login>> {
+) -> Result<Found> {
     let own = locate(env, keychain)?;
     let has_own = own.is_some();
     let mut logins: Vec<Login> = own.into_iter().collect();
-    // Listed once by attributes, so every folder can be matched without reading a secret.
-    let items = keychain
-        .list(KEYCHAIN_SERVICE)
-        .map_err(|reason| Error::Credentials {
-            provider: ID,
-            location: "the macOS Keychain's list of Claude Code items".to_owned(),
-            reason,
-        })?;
+    let (items, unlisted) = match keychain.list(KEYCHAIN_SERVICE) {
+        Ok(items) => (Some(items), None),
+        Err(reason) => (None, Some(reason)),
+    };
     let mut scoped = Vec::new();
     // With a token in the environment, the sign-in Claude Code keeps for this shell's folder is
     // another account.
@@ -373,12 +383,21 @@ pub(crate) fn locate_all(
             .filter(|dir| Some(dir) != own_dir.as_ref())
             .map(|dir| env.for_config_dir(&dir)),
     );
+    // Without the listing, a keychain that fails one lookup is not asked again, so a keychain
+    // that has stopped answering costs one lookup's wait, not one per folder.
+    let mut keychain_answers = true;
     for env in &scoped {
-        if let Some(login) = stored(env, &items) {
-            logins.push(login);
-        }
+        let found = match &items {
+            Some(items) => stored(env, items),
+            None if keychain_answers => locate(env, keychain).unwrap_or_else(|_| {
+                keychain_answers = false;
+                locate(env, &NoKeychain).ok().flatten()
+            }),
+            None => locate(env, &NoKeychain).ok().flatten(),
+        };
+        logins.extend(found);
     }
-    for item in &items {
+    for item in items.iter().flatten() {
         if !logins
             .iter()
             .any(|login| login.service() == Some(&item.service))
@@ -395,7 +414,10 @@ pub(crate) fn locate_all(
             ));
         }
     }
-    Ok(one_per_account(logins, has_own))
+    Ok(Found {
+        logins: one_per_account(logins, has_own),
+        unlisted,
+    })
 }
 
 /// The sign-in stored for `env`'s folder, found among the listed Keychain `items` or as its
@@ -707,16 +729,51 @@ mod tests {
         assert_eq!(login.account().org, None);
     }
 
-    /// A keychain with no items whose listing fails, as `security dump-keychain` does on a timeout.
-    struct UnlistableKeychain;
+    /// A keychain whose listing fails, as `security dump-keychain` does when it takes too long,
+    /// holding items by service. Lookups by name work until `lookups_answered` have been made,
+    /// then fail, as a keychain that stops answering does.
+    struct UnlistableKeychain {
+        services: Vec<String>,
+        lookups_answered: usize,
+        lookups: std::sync::atomic::AtomicUsize,
+    }
+
+    impl UnlistableKeychain {
+        fn holding(services: &[&str]) -> Self {
+            Self {
+                services: services
+                    .iter()
+                    .map(|service| (*service).to_owned())
+                    .collect(),
+                lookups_answered: usize::MAX,
+                lookups: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+
+        fn lookups(&self) -> usize {
+            self.lookups.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
 
     impl Keychain for UnlistableKeychain {
         fn find(
             &self,
-            _service: &str,
+            service: &str,
             _account: Option<&str>,
         ) -> std::result::Result<Option<ItemInfo>, String> {
-            Ok(None)
+            let made = self
+                .lookups
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if made >= self.lookups_answered {
+                return Err("/usr/bin/security did not answer within 5 seconds".to_owned());
+            }
+            Ok(self
+                .services
+                .iter()
+                .any(|known| known == service)
+                .then(|| ItemInfo {
+                    modified: Some("20991231000000Z".to_owned()),
+                }))
         }
 
         fn read(
@@ -728,7 +785,7 @@ mod tests {
         }
 
         fn list(&self, _prefix: &str) -> std::result::Result<Vec<Item>, String> {
-            Err("/usr/bin/security did not answer within 5 seconds".to_owned())
+            Err("/usr/bin/security did not answer within 20 seconds".to_owned())
         }
     }
 
@@ -796,7 +853,7 @@ mod tests {
             ..env_in(home.path())
         };
 
-        let logins = locate_all(&env, &NoKeychain, &[]).expect("locates");
+        let logins = locate_all(&env, &NoKeychain, &[]).expect("locates").logins;
 
         let accounts: Vec<String> = logins
             .iter()
@@ -888,18 +945,58 @@ mod tests {
     }
 
     #[test]
-    fn a_keychain_that_cannot_be_listed_fails_the_search() {
+    fn a_keychain_that_cannot_be_listed_is_searched_folder_by_folder() {
         let home = tempfile::tempdir().expect("temp dir");
+        write_account_config(home.path());
+        let work = home.path().join(".claude-work");
+        std::fs::create_dir_all(&work).expect("makes the folder");
+        let env = env_in(home.path());
+        let work_item = env
+            .for_config_dir(&work.display().to_string())
+            .keychain_service();
+        let keychain = UnlistableKeychain::holding(&[
+            "Claude Code-credentials",
+            &work_item,
+            // An item whose folder is gone, which only a listing can find.
+            "Claude Code-credentials-deadbeef",
+        ]);
 
-        let error = locate_all(&env_in(home.path()), &UnlistableKeychain, &[])
-            .expect_err("no listing, no search");
+        let found = locate_all(&env, &keychain, &[]).expect("still searches");
 
-        assert!(
-            error
-                .to_string()
-                .ends_with("did not answer within 5 seconds"),
-            "{error}"
+        let services: Vec<Option<&str>> = found.logins.iter().map(Login::service).collect();
+        assert_eq!(
+            services,
+            [Some("Claude Code-credentials"), Some(work_item.as_str())],
+            "this shell's own sign-in and the folder's, found by name"
         );
+        assert_eq!(found.logins[1].folder, Folder::Named(work));
+        assert_eq!(
+            found.unlisted.as_deref(),
+            Some("/usr/bin/security did not answer within 20 seconds")
+        );
+    }
+
+    #[test]
+    fn a_keychain_that_stops_answering_is_not_asked_again() {
+        let home = tempfile::tempdir().expect("temp dir");
+        for name in [".claude-one", ".claude-two", ".claude-three"] {
+            signed_in_folder(home.path(), name, "00000000-0000-0000-0000-00000000000d");
+        }
+        let keychain = UnlistableKeychain {
+            // This shell's own lookup is answered; the next one fails.
+            lookups_answered: 1,
+            ..UnlistableKeychain::holding(&[])
+        };
+
+        let found = locate_all(&env_in(home.path()), &keychain, &[]).expect("still searches");
+
+        assert_eq!(keychain.lookups(), 2, "one failed lookup, then none");
+        assert_eq!(
+            found.logins.len(),
+            1,
+            "the folders' credentials files are still read: one subscription"
+        );
+        assert!(matches!(found.logins[0].source, LoginSource::File(_)));
     }
 
     #[test]

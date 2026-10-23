@@ -456,6 +456,38 @@ mod tests {
         }
     }
 
+    /// A provider whose discovery found its account but could not look everywhere.
+    struct PartlyLookedProvider;
+
+    #[async_trait]
+    impl Provider for PartlyLookedProvider {
+        fn id(&self) -> &'static str {
+            "scripted"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(vec![account()])
+        }
+
+        fn discovery_warnings(&self) -> Vec<String> {
+            vec![format!(
+                "scripted: could not list every sign-in, near the token {LEAKED_TOKEN}."
+            )]
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(snapshot(account.clone(), Source::Api))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
     fn data_dir() -> (tempfile::TempDir, DataDir) {
         let temp = tempfile::tempdir().expect("temp dir");
         let dir = DataDir::new(temp.path().join("quotadial"));
@@ -697,6 +729,24 @@ mod tests {
 
         assert_eq!(report.snapshots, vec![snapshot(account(), Source::Api)]);
         assert!(report.errors.is_empty());
+    }
+
+    #[tokio::test]
+    async fn what_discovery_could_not_look_at_shows_beside_the_accounts_found() {
+        let providers: Vec<Box<dyn Provider>> = vec![Box::new(PartlyLookedProvider)];
+
+        let report = collect(&providers).await;
+
+        assert_eq!(report.snapshots, vec![snapshot(account(), Source::Api)]);
+        assert_eq!(report.errors.len(), 1);
+        assert_eq!(report.errors[0].provider, "scripted");
+        assert_eq!(
+            report.errors[0].message,
+            format!(
+                "scripted: could not list every sign-in, near the token {}.",
+                quotadial_core::REDACTED
+            )
+        );
     }
 
     #[tokio::test]

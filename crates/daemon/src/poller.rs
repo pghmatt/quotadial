@@ -45,8 +45,9 @@ struct Shared {
 
 #[derive(Debug, Clone)]
 struct ProviderState {
-    /// Why the provider's accounts could not be discovered, if they could not.
-    error: Option<ProviderError>,
+    /// Why the provider's accounts could not be discovered, or what its discovery could not look
+    /// at.
+    problems: Vec<ProviderError>,
     accounts: Vec<(Account, Result<Snapshot, ProviderError>)>,
 }
 
@@ -61,7 +62,7 @@ impl Latest {
             .unwrap_or_else(PoisonError::into_inner);
         let mut report = StatusReport::default();
         for provider in providers.iter() {
-            report.errors.extend(provider.error.clone());
+            report.errors.extend(provider.problems.iter().cloned());
             for (_, result) in &provider.accounts {
                 match result {
                     Ok(snapshot) => report.snapshots.push(snapshot.clone()),
@@ -133,7 +134,7 @@ impl Poller {
             *states = providers
                 .iter()
                 .map(|provider| ProviderState {
-                    error: None,
+                    problems: Vec::new(),
                     accounts: stored
                         .iter()
                         .filter(|snapshot| snapshot.account.provider == provider.id())
@@ -236,10 +237,15 @@ impl Poller {
                 Err(error) => {
                     let error = ProviderError::new(provider.id(), &error);
                     self.latest
-                        .update(|states| states[index].error = Some(error));
+                        .update(|states| states[index].problems = vec![error]);
                     continue;
                 }
             };
+            let warnings: Vec<ProviderError> = provider
+                .discovery_warnings()
+                .iter()
+                .map(|warning| ProviderError::warning(provider.id(), warning))
+                .collect();
             self.tracked.retain(|key, _| {
                 key.0 != index
                     || accounts.iter().any(|account| {
@@ -261,7 +267,7 @@ impl Poller {
             }
             self.latest.update(|states| {
                 let state = &mut states[index];
-                state.error = None;
+                state.problems = warnings;
                 state
                     .accounts
                     .retain(|(known, _)| accounts.iter().any(|account| account.same_as(known)));
@@ -383,6 +389,8 @@ mod tests {
         fetches: AtomicUsize,
         /// Every account asked about, in order.
         fetched: Mutex<Vec<Account>>,
+        /// What discovery says it could not look at.
+        warnings: Mutex<Vec<String>>,
         /// How long each fetch takes.
         delay: Duration,
     }
@@ -397,6 +405,7 @@ mod tests {
                 fallback: None,
                 fetches: AtomicUsize::new(0),
                 fetched: Mutex::default(),
+                warnings: Mutex::default(),
                 delay: Duration::ZERO,
             }
         }
@@ -430,6 +439,10 @@ mod tests {
                     location: "the sign-in".into(),
                     reason,
                 })
+        }
+
+        fn discovery_warnings(&self) -> Vec<String> {
+            self.warnings.lock().expect("lock").clone()
         }
 
         async fn fetch(&self, account: &Account) -> Result<Snapshot> {
@@ -732,6 +745,35 @@ mod tests {
         tokio::time::advance(DISCOVER_EVERY).await;
         poller.poll_due().await;
         assert_eq!(poller.latest().report(), StatusReport::default());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn what_discovery_could_not_look_at_shows_beside_the_accounts_it_found() {
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        *claude.warnings.lock().expect("lock") =
+            vec!["claude: could not list the Claude Code items in the macOS Keychain.".into()];
+        let mut poller = poller(vec![Arc::clone(&claude)], history);
+
+        poller.poll_due().await;
+        let report = poller.latest().report();
+        assert_eq!(report.snapshots.len(), 1, "the accounts found still show");
+        assert_eq!(
+            report.errors,
+            [ProviderError {
+                provider: "claude".into(),
+                message: "claude: could not list the Claude Code items in the macOS Keychain."
+                    .into(),
+            }]
+        );
+
+        claude.warnings.lock().expect("lock").clear();
+        tokio::time::advance(DISCOVER_EVERY).await;
+        poller.poll_due().await;
+        assert!(
+            poller.latest().report().errors.is_empty(),
+            "gone once a discovery looks everywhere"
+        );
     }
 
     #[tokio::test(start_paused = true)]
