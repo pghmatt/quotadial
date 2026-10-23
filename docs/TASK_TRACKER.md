@@ -247,7 +247,10 @@ so they became #10.
 - The window became a popover (D-072):
   - It has no frame, stays out of the taskbar and above other windows.
   - It opens beside the tray icon through `tauri-plugin-positioner`.
-  - It hides on blur, on Escape or on a second click of the icon.
+  - A click on the icon toggles it, and Escape hides it. Opened by a click, it also hides on
+    blur, as a menu does. Opened by reopening the app or launching it again, it stays until
+    dismissed. Logging showed that macOS takes the focus back 0.25 to 1.8 s after such an open,
+    which would close it at once.
   - It fits its content through a `fit` command fed by a `ResizeObserver`.
   - On macOS it sits on the system popover material with rounded corners, via `windowEffects`
     and the macOS private API (D-073).
@@ -270,7 +273,8 @@ so they became #10.
     the floor was still holding from the previous run. Codex's Weekly showed an amber bar at 75%,
     with credits under extra usage. Both sign-in disclosures were there, and the footer read
     "Running the daemon, port 47115" beside Quit.
-  - **Hiding:** the popover hid when it lost focus.
+  - **Hiding:** a reopened popover stays (checked for 4 s after a fresh launch). Another app
+    taking focus closes one opened by a click.
   - **Not seen here:** placement beside the tray icon and opening by a click of it. The menu bar
     auto-hides on this Mac, and macOS 14 and later do not let an app activate itself unless the
     user clicked it.

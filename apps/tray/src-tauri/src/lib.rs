@@ -33,6 +33,9 @@ const EXIT_WAIT: Duration = Duration::from_secs(3);
 const POPOVER_WIDTH: f64 = 360.0;
 /// A tray click this soon after the popover hid on losing focus is the click that hid it.
 const CLICK_AFTER_HIDE: Duration = Duration::from_millis(300);
+/// A focus loss this soon after the popover opens from a click on the icon is the system settling
+/// which app is active, not the user clicking elsewhere, so the popover stays.
+const FOCUS_SETTLE: Duration = Duration::from_millis(600);
 /// How long a second launch has to exit before the first instance opens its popover.
 const SECOND_LAUNCH_SETTLE: Duration = Duration::from_millis(400);
 
@@ -45,6 +48,20 @@ struct AppState {
     stopped: watch::Receiver<bool>,
     /// When the popover last hid because it lost focus.
     hidden_at: Mutex<Option<Instant>>,
+    /// When the popover last opened, and how.
+    opened: Mutex<Option<(Instant, Opened)>>,
+}
+
+/// How the popover was opened, which decides whether losing focus closes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Opened {
+    /// By a click on the tray icon or its menu: it closes when the user clicks elsewhere, as a
+    /// menu does.
+    ByClick,
+    /// By reopening the app or launching it again. macOS may not let an app opened that way stay
+    /// active, and takes the focus back on its own, so the popover stays until the icon is clicked
+    /// again or Escape is pressed.
+    Otherwise,
 }
 
 #[derive(Default)]
@@ -106,7 +123,7 @@ pub fn run() {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(SECOND_LAUNCH_SETTLE).await;
-                    show_popover(&app);
+                    show_popover(&app, Opened::Otherwise);
                 });
             },
         ))
@@ -120,12 +137,21 @@ pub fn run() {
             }
             // Like a menu, the popover goes away when you click elsewhere.
             WindowEvent::Focused(false) if window.is_visible().unwrap_or(false) => {
-                let _ = window.hide();
                 let state = window.state::<AppState>();
-                *state
-                    .hidden_at
+                let closes = state
+                    .opened
                     .lock()
-                    .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_none_or(|(at, opened)| {
+                        opened == Opened::ByClick && at.elapsed() >= FOCUS_SETTLE
+                    });
+                if closes {
+                    let _ = window.hide();
+                    *state
+                        .hidden_at
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+                }
             }
             _ => {}
         })
@@ -139,6 +165,7 @@ pub fn run() {
                 quit,
                 stopped,
                 hidden_at: Mutex::default(),
+                opened: Mutex::default(),
             });
             build_tray(app.handle())?;
             start_feed(app.handle().clone(), quitting, stopped_tx);
@@ -168,7 +195,7 @@ pub fn run() {
         RunEvent::Exit => stop_before_exit(app),
         // Opening QuotaDial again on macOS, from Finder or Spotlight, opens the popover.
         #[cfg(target_os = "macos")]
-        RunEvent::Reopen { .. } => show_popover(app),
+        RunEvent::Reopen { .. } => show_popover(app, Opened::Otherwise),
         _ => {}
     });
 }
@@ -262,7 +289,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => show_popover(app),
+            "open" => show_popover(app, Opened::ByClick),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -333,8 +360,12 @@ fn tray_menu(app: &AppHandle, meter: &Meter) -> tauri::Result<Menu<Wry>> {
 }
 
 /// Opens the popover beside the tray icon.
-fn show_popover(app: &AppHandle) {
+fn show_popover(app: &AppHandle, how: Opened) {
     if let Some(window) = app.get_webview_window(WINDOW) {
+        *app.state::<AppState>()
+            .opened
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some((Instant::now(), how));
         place(&window);
         let _ = window.show();
         let _ = window.set_focus();
@@ -354,7 +385,7 @@ fn toggle_popover(app: &AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else if !just_hidden {
-        show_popover(app);
+        show_popover(app, Opened::ByClick);
     }
 }
 
