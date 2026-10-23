@@ -2,8 +2,8 @@
 //!
 //! ```text
 //! Account { provider, account_id, display_name, plan, org }
-//! Window  { kind: session | weekly | model_weekly | daily | credits, label, used_pct, resets_at,
-//!           window_seconds, scope_model?, source: api | local_log | cache, fetched_at,
+//! Window  { kind: session | weekly | model_weekly | daily | credits | other, label, used_pct,
+//!           resets_at, window_seconds, scope_model?, source: api | local_log | cache, fetched_at,
 //!           unconfirmed }
 //! Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required |
 //!            rate_limited | unsupported, error? }
@@ -79,6 +79,9 @@ pub enum WindowKind {
     Daily,
     /// A credit balance.
     Credits,
+    /// A limit QuotaDial does not know yet, shown by the name its provider gives it. Its length is
+    /// unknown, so [`Window::window_seconds`] is 0.
+    Other,
 }
 
 /// Where a [`Window`]'s numbers came from.
@@ -186,6 +189,10 @@ pub struct ExtraUsage {
     /// The ISO 4217 currency code of `used` and `limit`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
+    /// Credits left to spend beyond the plan's limits, in the provider's own credit units rather
+    /// than `currency`, when the provider reports a balance instead of a spending limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<f64>,
 }
 
 #[cfg(test)]
@@ -245,6 +252,7 @@ mod tests {
                 used: Some(2.0),
                 limit: Some(20.0),
                 currency: Some("USD".into()),
+                balance: None,
             }),
             status: Status::Stale,
             error: Some("Showing the last numbers fetched.".into()),
@@ -282,6 +290,7 @@ mod tests {
             (WindowKind::ModelWeekly, "model_weekly"),
             (WindowKind::Daily, "daily"),
             (WindowKind::Credits, "credits"),
+            (WindowKind::Other, "other"),
         ];
         for (kind, expected) in kinds {
             assert_eq!(

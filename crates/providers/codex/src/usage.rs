@@ -150,16 +150,24 @@ fn length(seconds: u64) -> String {
     format!("{count}-{unit} window")
 }
 
-/// `credits { has_credits, unlimited, balance }`: whether usage beyond the plan's limits can go on.
-/// The balance has no field in the model yet (P-012).
+/// `credits { has_credits, unlimited, balance }`: whether usage beyond the plan's limits can go on,
+/// and the credits left (P-012). ChatGPT sends the balance as a decimal string, such as
+/// `"1056.4363750000"`.
 pub(crate) fn credits(value: &Value) -> Option<ExtraUsage> {
     let flag = |key| value.get(key).and_then(Value::as_bool).unwrap_or(false);
+    let balance = value.get("balance").and_then(|balance| {
+        balance
+            .as_f64()
+            .or_else(|| balance.as_str()?.trim().parse().ok())
+            .filter(|balance: &f64| balance.is_finite())
+    });
     value.is_object().then(|| ExtraUsage {
         enabled: flag("has_credits") || flag("unlimited"),
         used_pct: None,
         used: None,
         limit: None,
         currency: None,
+        balance,
     })
 }
 
@@ -229,6 +237,7 @@ mod tests {
                 used: None,
                 limit: None,
                 currency: None,
+                balance: Some(1_056.436_375),
             })
         );
     }
@@ -256,7 +265,9 @@ mod tests {
             Some(ts("2099-01-01T05:00:00Z"))
         );
         assert_eq!(reading.plan.as_deref(), Some("plus"));
-        assert_eq!(reading.extra_usage.map(|extra| extra.enabled), Some(false));
+        let extra = reading.extra_usage.expect("credits");
+        assert!(!extra.enabled);
+        assert_eq!(extra.balance, Some(0.0));
     }
 
     #[test]

@@ -322,7 +322,7 @@ fn duration(length: TimeDelta) -> String {
     }
 }
 
-/// For example `on, 12.50 of 50.00 USD used (25%)`, or `off`.
+/// For example `on, 12.50 of 50.00 USD used (25%)`, `on, 1056.44 credits left`, or `off`.
 fn extra_usage_text(extra: &ExtraUsage) -> String {
     if !extra.enabled {
         return "off".to_owned();
@@ -334,6 +334,9 @@ fn extra_usage_text(extra: &ExtraUsage) -> String {
     }
     if let Some(used_pct) = extra.used_pct {
         text.push_str(&format!(" ({used_pct:.0}%)"));
+    }
+    if let Some(balance) = extra.balance {
+        text.push_str(&format!(", {balance:.2} credits left"));
     }
     text
 }
@@ -574,6 +577,7 @@ mod tests {
             used: Some(12.5),
             limit: Some(50.0),
             currency: Some("USD".into()),
+            balance: None,
         });
         snapshot.error = Some("Anthropic is rate-limiting usage requests.".into());
         let report = StatusReport {
@@ -713,9 +717,24 @@ mod tests {
             used: None,
             limit: None,
             currency: None,
+            balance: None,
         };
 
         assert_eq!(extra_usage_text(&extra), "off");
+    }
+
+    #[test]
+    fn a_credit_balance_is_shown() {
+        let extra = ExtraUsage {
+            enabled: true,
+            used_pct: None,
+            used: None,
+            limit: None,
+            currency: None,
+            balance: Some(1_056.436_375),
+        };
+
+        assert_eq!(extra_usage_text(&extra), "on, 1056.44 credits left");
     }
 
     #[tokio::test]
