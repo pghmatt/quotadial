@@ -17,7 +17,7 @@ local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR 
 M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its four PRs:
 - PR 1, the scaffold with the daemon running inside the app (PR #31);
 - PR 2, the popover (PR #32);
-- PR 3, settings and notifications;
+- PR 3, settings and notifications (PR #33);
 - PR 4, builds for macOS, Windows and Linux. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
@@ -54,7 +54,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | --- | --- | --- |
 | PR 1: scaffold, the daemon in the app, the bundled CLI | Done (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
 | PR 2: popover | In review (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
-| PR 3: settings and notifications | To do | Two fixed notifications: sign-in needed, a window passed 90% (D-065) |
+| PR 3: settings and notifications | In review (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
 | PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
 
 ## Kickoff
