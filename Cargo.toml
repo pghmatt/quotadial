@@ -1,11 +1,15 @@
 [workspace]
 resolver = "3"
+# The tray app in apps/tray/src-tauri is its own workspace, so this one builds without Node or a
+# webview toolkit.
+exclude = ["apps/tray/src-tauri"]
 members = [
     "crates/core",
     "crates/poll",
     "crates/daemon",
     "crates/providers/claude",
     "crates/providers/codex",
+    "crates/providers/all",
     "crates/api",
     "crates/cli",
 ]
@@ -26,6 +30,7 @@ quotadial-daemon = { path = "crates/daemon" }
 quotadial-api = { path = "crates/api" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
+quotadial-providers = { path = "crates/providers/all" }
 async-trait = "0.1.92"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 base64 = "0.22.1"

@@ -5,7 +5,6 @@
 
 use std::io::{self, IsTerminal, Write};
 use std::process::ExitCode;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
@@ -14,8 +13,6 @@ use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, collect};
 use quotadial_daemon::DataDir;
-use quotadial_provider_claude::ClaudeProvider;
-use quotadial_provider_codex::CodexProvider;
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -67,14 +64,6 @@ pub fn run() -> ExitCode {
     }
 }
 
-/// Every provider QuotaDial ships, in display order.
-fn providers() -> Vec<Box<dyn Provider>> {
-    vec![
-        Box::new(ClaudeProvider::new()),
-        Box::new(CodexProvider::new()),
-    ]
-}
-
 fn runtime() -> Option<tokio::runtime::Runtime> {
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -107,7 +96,8 @@ fn status(json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let report = match runtime.block_on(report(&providers(), DataDir::from_env().as_ref())) {
+    let providers = quotadial_providers::all();
+    let report = match runtime.block_on(report(&providers, DataDir::from_env().as_ref())) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("quotadial: {error}");
@@ -133,7 +123,7 @@ fn watch(json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = providers();
+    let providers = quotadial_providers::all();
     let dir = DataDir::from_env();
     // The Windows console shows escape codes as text unless a program turns them on, which needs
     // unsafe code, so on Windows each refresh simply follows the last.
@@ -165,7 +155,7 @@ fn mcp() -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = providers();
+    let providers = quotadial_providers::all();
     let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
     let dir = DataDir::from_env();
     let served = runtime.block_on(quotadial_api::mcp::serve(
@@ -196,7 +186,7 @@ fn daemon(port: u16) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers: Vec<Arc<dyn Provider>> = providers().into_iter().map(Arc::from).collect();
+    let providers = quotadial_providers::all();
     runtime.block_on(async {
         let limits = limits(&providers);
         let host = match Host::start(dir, providers, port).await {
@@ -304,9 +294,9 @@ fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()
 
 /// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated
 /// and how often each provider is asked. `redraw` clears the terminal first.
-fn write_frame(
+fn write_frame<P: AsRef<dyn Provider>>(
     report: Result<&StatusReport, &Unanswered>,
-    providers: &[Box<dyn Provider>],
+    providers: &[P],
     now: DateTime<Utc>,
     redraw: bool,
     out: &mut impl Write,
@@ -442,6 +432,7 @@ fn source_label(source: Source) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 

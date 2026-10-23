@@ -29,8 +29,7 @@ clap.workspace = true
 quotadial-api.workspace = true
 quotadial-core.workspace = true
 quotadial-daemon.workspace = true
-quotadial-provider-claude.workspace = true
-quotadial-provider-codex.workspace = true
+quotadial-providers.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "rt", "time", "signal", "sync", "macros"] }

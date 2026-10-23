@@ -1,0 +1,18 @@
+[package]
+name = "quotadial-providers"
+description = "Every usage provider QuotaDial ships, in display order."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+quotadial-core.workspace = true
+quotadial-provider-claude.workspace = true
+quotadial-provider-codex.workspace = true
+
+[lints]
+workspace = true
