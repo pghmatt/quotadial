@@ -306,9 +306,13 @@ impl Provider for ClaudeProvider {
             ));
         }
 
-        let mut state = store.load(&key);
         let now = self.clock.now();
-        let mut changed = state.reanchor(now);
+        let (mut state, damaged) = store
+            .load(&key, now)
+            .map_err(|error| cache_error(&store, &error))?;
+        // A damaged file is saved again at once, so the hold it now records cannot restart.
+        let mut changed = damaged;
+        changed |= state.reanchor(now);
         if login.identity.is_none() && !matches!(login.source, LoginSource::Environment(_)) {
             changed |= state.forget_numbers_after_new_sign_in(login.generation.as_deref());
         }

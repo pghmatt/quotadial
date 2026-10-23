@@ -12,7 +12,7 @@ Build a cross-platform usage tracker for AI coding subscriptions that reads limi
 
 The core is a provider-plugin service with its own store, alert engine and loopback API; UI shells (tray app, TUI, web dashboard, later iOS) are thin consumers of that API. Claude Code builds it from the plan in the last section.
 
-Decisions so far: the product is QuotaDial (quotadial.com, quotadial.app); v1 providers are Anthropic (Claude) and OpenAI (ChatGPT/Codex); this is a product to use and to sell, so licensing, a free tier and a paid tier are in scope from the start. Still open: whether the first shell is a Tauri tray app (Mac, Windows, Linux from one codebase) or a web dashboard behind the core service.
+Decisions so far: the product is QuotaDial (quotadial.com, quotadial.app); v1 providers are Anthropic (Claude) and OpenAI (ChatGPT/Codex); this is a product to use and to sell, so licensing, a free tier and a paid tier are in scope from the start. First shell is the Tauri tray app. Status Oct 22 evening: repo pghmatt/quotadial is live; the Claude provider (M1 #1) is in PR #8 with CI green on all three platforms, reviewed, merging after three small fixes; the Codex provider (M1 #2) is next.
 
 ## Provider data sources
 
@@ -42,6 +42,18 @@ Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required 
 ```
 
 Every snapshot carries `fetched_at` and `source`, so the UI can always say "fetched 4 min ago from the API" or "from Codex's last session log" rather than showing a number that silently stopped moving.
+
+**Corrections from the build (Oct 22, from the builder's P-001 to P-009, accepted)**
+
+- `Window.resets_at`, `Account.plan` and `Account.org` are optional. Credits windows have no reset; Claude's credentials blob and profile, and Codex's `plan_type`, can all omit these.
+- **Codex response shape is `rate_limit` (singular)** with `primary_window` and `secondary_window`, each `{used_percent, reset_at (Unix seconds), limit_window_seconds}`, plus `account_id`, `plan_type` and `credits{has_credits, unlimited, balance}`. The `rate_limits{primary{…window_minutes…}}` form in the table above is wrong. CodexBar stopped reading `~/.codex/sessions` in Nov 2025; its fallback is `codex app-server` (`account/rateLimits/read`), returning `rateLimits.primary{usedPercent, windowDurationMins, resetsAt}`. The live check (issue #5) settles the rollout-log shape.
+- Codex `account_id` comes from `tokens.account_id` in `auth.json`; the `chatgpt_account_id` JWT claim is only a fallback.
+- On macOS, Claude Code keeps one Keychain item per `CLAUDE_CONFIG_DIR`: `Claude Code-credentials-` + first 8 hex of SHA-256 of the directory path. `Claude Code-credentials` alone is only the default profile. Claude Code also honours `CLAUDE_SECURESTORAGE_CONFIG_DIR`.
+- Claude Code rewrites the Keychain item's access list on every token refresh, so "Always Allow" does not stick for a third-party reader. M1 reads via `/usr/bin/security find-generic-password` (the same binary Claude Code trusts, so no prompt in practice, verified on Matt's Mac); the first-run experience is an M3 item.
+- On Windows, Claude Code 2.1.286 can store the sign-in in Credential Manager (`tengu_windows_credman` flag or `CLAUDE_CODE_FORCE_WINDOWS_CREDMAN=1`); M1 reads only `.credentials.json` there, so Credential Manager support is an M1 follow-up issue.
+- Claude account identity comes from `oauthAccount` in Claude Code's account config (`.config.json` or `.claude.json`); `GET /api/oauth/profile` is the fallback and returns `{ account: { uuid, email }, organization: { uuid, plan_display_name } }`.
+- The Claude usage response also carries `iguana_necktie` (cloud credits), `cedar_ember` (reset credits) and `limits[]` (scoped weekly limits, kind `weekly_scoped`, by display name); `extra_usage` amounts are in cents. Claude Code's own plain read sends `GET /api/oauth/usage` with no query and `User-Agent: claude-code/<version>`.
+- The unconfirmed-0% rule needs a field; the model gains `unconfirmed: bool` on `Window` (M1 follow-up).
 
 ## Product requirements
 
@@ -134,6 +146,8 @@ CodexBar's MIT core already encodes every provider contract v1 needs, so Claude 
 **What not to copy:** the 40+ web-cookie providers, the PTY driver that scrapes the CLI's screen, and the AppKit UI. Those are where CodexBar's complexity lives and none of it is on the v1 path.
 
 **Fastest route:** point Claude Code at the cloned repo and have it write the Rust `Provider` implementations as a translation of the two OAuth fetchers, keeping CodexBar's field names in the fixture tests so a diff against upstream catches endpoint drift later.
+
+**Table corrections (Oct 22, checked by the builder against CodexBar `4654968e9`):** `ClaudeConfigPaths.swift` is at `Providers/Claude/`, not `ClaudeOAuth/`. The Claude retry fires on 400, and on 403 only when the body lacks `user:profile`; the first attempt sends `User-Agent: claude-cli/<version> (external, cli)`. CodexBar's rate gate exempts user-initiated refreshes; QuotaDial's floor exempts nothing. CodexBar no longer refreshes CLI-owned tokens in production (`CodexTokenRefresher.swift` is dead code); it hands them back to `claude` and `codex`. The status fetcher tries the incident.io proxy for every host, then `summary.json` + `components.json`. There are six fetch kinds including `webDashboard`. Codex fixtures do exist at `Tests/CodexBarTests/Fixtures/` (one level above `Providers/`); the Claude folder holds 7 terminal captures and 2 JSON files, with OAuth usage responses only inline in tests.
 
 ## Handling every complaint and gap
 

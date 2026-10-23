@@ -9,6 +9,7 @@
 use std::process::Command;
 use std::time::Duration;
 
+use quotadial_core::redact_secrets;
 use reqwest::header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER, USER_AGENT};
 use reqwest::{Client, Response, StatusCode, redirect};
 use serde_json::Value;
@@ -227,10 +228,13 @@ fn classify(
     }
 }
 
-/// Anthropic's `{ "error": { "message": … } }`, shortened to one line.
+/// Anthropic's `{ "error": { "message": … } }`, with any token blanked out, shortened to one line.
+/// The message is shown and saved, and an upstream message could quote the token that was sent.
 fn error_message(body: &[u8]) -> Option<String> {
     let value: Value = serde_json::from_slice(body).ok()?;
     let message = value.get("error")?.get("message")?.as_str()?;
+    // Blanked before shortening, so a token cut off at the end cannot slip through in part.
+    let message = redact_secrets(message);
     let line = message.split_whitespace().collect::<Vec<_>>().join(" ");
     if line.is_empty() {
         return None;
@@ -354,5 +358,28 @@ mod tests {
         assert_eq!(message.chars().count(), 201);
         assert_eq!(error_message(b"not json"), None);
         assert_eq!(error_message(br#"{"error":{"message":"  "}}"#), None);
+    }
+
+    #[test]
+    fn error_messages_never_carry_a_token() {
+        let quoted = json!({ "error": { "message": "invalid token: sk-ant-oat01-FAKE_0123-abc" } });
+        assert_eq!(
+            error_message(quoted.to_string().as_bytes()).as_deref(),
+            Some("invalid token: [redacted token]")
+        );
+
+        // A token that would straddle the 200-character cut is blanked before the cut.
+        let at_the_cut = format!("{} sk-ant-oat01-{}", "x".repeat(195), "A".repeat(60));
+        let long = json!({ "error": { "message": at_the_cut } });
+        let message = error_message(long.to_string().as_bytes()).expect("message");
+        assert!(!message.contains("sk-ant-"), "{message}");
+        assert!(!message.contains("AAAA"), "{message}");
+
+        let forbidden = json!({ "error": { "message": "token sk-ant-oat01-FAKE is not allowed" } });
+        assert!(matches!(
+            classify(StatusCode::FORBIDDEN, None, Ok(forbidden.to_string().into_bytes())),
+            UsageResponse::Failed { status: 403, message: Some(message) }
+                if message == "token [redacted token] is not allowed"
+        ));
     }
 }
