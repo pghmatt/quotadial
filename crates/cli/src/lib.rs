@@ -11,9 +11,9 @@ use std::time::Duration;
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
-use quotadial_api::{DEFAULT_PORT, Runtime, Token};
+use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, collect};
-use quotadial_daemon::{DataDir, History, Instance, InstanceError, Poller};
+use quotadial_daemon::DataDir;
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
 
@@ -193,134 +193,45 @@ fn daemon(port: u16) -> ExitCode {
         );
         return ExitCode::FAILURE;
     };
-    let _instance = match Instance::acquire(&dir) {
-        Ok(instance) => instance,
-        Err(error @ InstanceError::AlreadyRunning) => {
-            eprintln!("quotadial: {error}.");
-            return ExitCode::FAILURE;
-        }
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not use {}: {error}; check that you can write to it.",
-                dir.path().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    // A daemon that crashed left its port behind, and another program may hold that port now.
-    Runtime::remove(&dir);
-    let history = match History::open(&dir.history()) {
-        Ok(history) => Arc::new(history),
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not open the history at {}: {error}",
-                dir.history().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    let token = match Token::load_or_create(&dir) {
-        Ok(token) => token,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not create the API token at {}: {error}; check that you can \
-                 write to it.",
-                dir.token().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
     let providers: Vec<Arc<dyn Provider>> = providers().into_iter().map(Arc::from).collect();
-    let code = runtime.block_on(serve_daemon(&dir, providers, history, token, port));
-    Runtime::remove(&dir);
-    code
-}
-
-/// Listens on `port`, says where, then polls and serves until stopped.
-async fn serve_daemon(
-    dir: &DataDir,
-    providers: Vec<Arc<dyn Provider>>,
-    history: Arc<History>,
-    token: Token,
-    port: u16,
-) -> ExitCode {
-    let listener = match quotadial_api::bind(port).await {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not listen on 127.0.0.1:{port}: {error}; another program may \
-                 be using the port, so choose another with --port."
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    let announced = listener.local_addr().and_then(|address| {
-        let runtime = Runtime {
-            pid: std::process::id(),
-            port: address.port(),
-            started_at: Utc::now(),
-        };
-        runtime.write(dir).map(|()| runtime)
-    });
-    let port = match announced {
-        Ok(runtime) => runtime.port,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not write {}: {error}; check that you can write to it.",
-                dir.runtime().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    say(format_args!(
-        "QuotaDial daemon running. It asks {}, keeps history in {}, and is the only thing that \
-         polls while it runs.",
-        limits(&providers),
-        dir.history().display()
-    ));
-    say(format_args!(
-        "Its API is at http://127.0.0.1:{port}, for requests with the token in {}. Press Ctrl-C \
-         to stop.",
-        dir.token().display()
-    ));
-    let poller = Poller::new(providers, history);
-    let latest = poller.latest();
-    let (stop, stopped) = tokio::sync::watch::channel(false);
-    let until_stopped = |mut stopped: tokio::sync::watch::Receiver<bool>| async move {
-        // A closed channel also means stop.
-        let _ = stopped.wait_for(|stop| *stop).await;
-    };
-    let serve = async {
-        let served =
-            quotadial_api::serve(listener, latest, token, until_stopped(stopped.clone())).await;
-        // A daemon whose API has stopped serves no one, so it stops polling too, and consumers
-        // fetch for themselves again.
-        let _ = stop.send(true);
-        served
-    };
-    let signalled = async {
-        tokio::select! {
-            () = shutdown_signal() => {
-                let _ = stop.send(true);
+    runtime.block_on(async {
+        let limits = limits(&providers);
+        let host = match Host::start(dir, providers, port).await {
+            Ok(host) => host,
+            Err(error @ HostError::Listen { .. }) => {
+                eprintln!("quotadial: {error}, so choose another with --port.");
+                return ExitCode::FAILURE;
             }
-            () = until_stopped(stopped.clone()) => {}
+            Err(error) => {
+                eprintln!("quotadial: {error}.");
+                return ExitCode::FAILURE;
+            }
+        };
+        say(format_args!(
+            "QuotaDial daemon running. It asks {limits}, keeps history in {}, and is the only thing \
+             that polls while it runs.",
+            host.dir().history().display()
+        ));
+        say(format_args!(
+            "Its API is at http://127.0.0.1:{}, for requests with the token in {}. Press Ctrl-C \
+             to stop.",
+            host.port(),
+            host.dir().token().display()
+        ));
+        match host.run(shutdown_signal()).await {
+            Ok(()) => {
+                say(format_args!("QuotaDial daemon stopped."));
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("quotadial: the API stopped: {error}");
+                ExitCode::FAILURE
+            }
         }
-    };
-    let (served, (), ()) =
-        tokio::join!(serve, poller.run(until_stopped(stopped.clone())), signalled);
-    match served {
-        Ok(()) => {
-            say(format_args!("QuotaDial daemon stopped."));
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            eprintln!("quotadial: the API stopped: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }
 
 /// Prints a line from the daemon, which keeps running when nothing reads its output any more.
@@ -536,7 +447,9 @@ mod tests {
 
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
+    use quotadial_api::{Runtime, Token};
     use quotadial_core::{Account, Error, Result, Snapshot, Window, WindowKind};
+    use quotadial_daemon::{History, Instance, Poller};
     use serde_json::{Value, json};
 
     use super::*;
@@ -1050,6 +963,47 @@ mod tests {
 
         report(&providers, None).await.expect("fetches");
         assert_eq!(cli.fetches(), 2, "with no data directory at all");
+    }
+
+    #[tokio::test]
+    async fn when_the_daemon_quits_mid_answer_the_cli_fetches_for_itself() {
+        use tokio::io::AsyncReadExt;
+
+        let (_temp, dir) = data_dir();
+        let instance = Instance::acquire(&dir).expect("holds the daemon lock");
+        Token::load_or_create(&dir).expect("makes a token");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binds");
+        Runtime {
+            pid: std::process::id(),
+            port: listener.local_addr().expect("address").port(),
+            started_at: Utc::now(),
+        }
+        .write(&dir)
+        .expect("writes the runtime file");
+        // The tray app takes the question and quits before answering; its lock goes a moment
+        // after its connection, as a process's do.
+        let quitting = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accepts");
+            let _ = stream.read(&mut [0_u8; 4096]).await;
+            drop(stream);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            drop(instance);
+        });
+        let cli = Arc::new(CountingProvider::default());
+
+        let shown = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+            .await
+            .expect("no error reaches the user");
+
+        assert_eq!(
+            cli.fetches(),
+            1,
+            "the CLI fetched for itself once the daemon was gone"
+        );
+        assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
+        quitting.await.expect("the daemon quit");
     }
 
     #[tokio::test]

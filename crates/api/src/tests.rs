@@ -15,7 +15,7 @@ use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
-use crate::{HeadroomReport, Runtime, Token, bind, client, rank, serve};
+use crate::{HeadroomReport, Host, HostError, Runtime, Token, bind, client, rank, serve};
 
 /// A provider with one account at a fixed share used.
 struct Fixed(f64);
@@ -384,4 +384,153 @@ async fn a_running_daemon_that_does_not_answer_is_an_error_not_a_reason_to_poll(
 
     drop(instance);
     assert_eq!(client::status(&dir).await, Ok(None), "it has stopped");
+}
+
+/// A daemon that takes a request and quits before answering, as the tray app might when the user
+/// quits it. Its lock goes a moment after its connection, as a process's do.
+async fn quits_mid_answer(dir: &DataDir) -> JoinHandle<()> {
+    use tokio::io::AsyncReadExt;
+
+    let instance = Instance::acquire(dir).expect("holds the daemon lock");
+    Token::load_or_create(dir).expect("makes a token");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("binds");
+    Runtime {
+        pid: std::process::id(),
+        port: listener.local_addr().expect("address").port(),
+        started_at: Utc::now(),
+    }
+    .write(dir)
+    .expect("writes the runtime file");
+    tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accepts");
+        let mut request = [0_u8; 4096];
+        let _ = stream.read(&mut request).await;
+        drop(stream);
+        drop(listener);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        drop(instance);
+    })
+}
+
+#[tokio::test]
+async fn a_daemon_that_quits_mid_answer_hands_over_to_a_direct_fetch() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    let quitting = quits_mid_answer(&dir).await;
+
+    assert_eq!(
+        client::status(&dir).await,
+        Ok(None),
+        "no daemon is left, so the consumer fetches for itself"
+    );
+    quitting.await.expect("the daemon quit");
+}
+
+fn fixed() -> Vec<Arc<dyn Provider>> {
+    vec![Arc::new(Fixed(40.0))]
+}
+
+#[tokio::test]
+async fn a_host_serves_until_stopped_then_leaves_nothing_behind() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+    let (port, latest) = (host.port(), host.latest());
+    assert_eq!(Runtime::read(&dir).map(|runtime| runtime.port), Some(port));
+    assert!(Instance::is_running(&dir));
+    let (stop, stopped) = oneshot::channel::<()>();
+    let running = tokio::spawn(host.run(async {
+        let _ = stopped.await;
+    }));
+
+    // Discovery shows the account before its first poll does, so wait for the numbers.
+    let mut changes = latest.subscribe();
+    while latest.report().snapshots.is_empty() {
+        changes.changed().await.expect("the poller runs");
+    }
+    let answered = client::status(&dir)
+        .await
+        .expect("answers")
+        .expect("a report");
+    assert_eq!(answered.snapshots.len(), 1);
+
+    stop.send(()).expect("running");
+    running.await.expect("joins").expect("stops cleanly");
+
+    assert_eq!(Runtime::read(&dir), None, "daemon.json is gone");
+    assert!(!Instance::is_running(&dir), "the lock is released");
+    assert_eq!(client::status(&dir).await, Ok(None));
+    Host::start(dir, fixed(), 0)
+        .await
+        .expect("a new daemon can start");
+}
+
+#[tokio::test]
+async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+    let (stop, stopped) = oneshot::channel::<()>();
+    let running = tokio::spawn(host.run(async {
+        let _ = stopped.await;
+    }));
+    let questions: Vec<_> = (0..20_u64)
+        .map(|i| {
+            let dir = dir.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(10 * i)).await;
+                client::status(&dir).await
+            })
+        })
+        .collect();
+
+    tokio::time::sleep(Duration::from_millis(80)).await;
+    stop.send(()).expect("running");
+    running.await.expect("joins").expect("stops cleanly");
+
+    let mut answers = Vec::new();
+    for question in questions {
+        let answer = question.await.expect("joins");
+        assert!(
+            answer.is_ok(),
+            "never an error while the daemon stops: {answer:?}"
+        );
+        answers.push(answer.expect("checked"));
+    }
+    assert!(answers[0].is_some(), "the first question had an answer");
+    assert!(
+        answers[answers.len() - 1].is_none(),
+        "the last was handed over to a direct fetch"
+    );
+}
+
+#[tokio::test]
+async fn a_second_host_and_a_taken_port_are_refused_with_the_reason() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    let first = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+
+    let second = Host::start(dir.clone(), fixed(), 0)
+        .await
+        .expect_err("one daemon at a time");
+    assert!(matches!(second, HostError::AlreadyRunning));
+    assert_eq!(second.to_string(), "a QuotaDial daemon is already running");
+    drop(first);
+
+    let taken = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let port = taken.local_addr().expect("address").port();
+    let refused = Host::start(dir.clone(), fixed(), port)
+        .await
+        .expect_err("the port is taken");
+    assert!(matches!(refused, HostError::Listen { .. }), "{refused}");
+    assert!(
+        refused
+            .to_string()
+            .starts_with(&format!("could not listen on 127.0.0.1:{port}: ")),
+        "{refused}"
+    );
+    assert!(!Instance::is_running(&dir), "a failed start keeps no lock");
+    assert_eq!(Runtime::read(&dir), None);
 }

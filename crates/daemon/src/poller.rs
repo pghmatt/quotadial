@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use chrono::Utc;
 use quotadial_core::{Account, Provider, ProviderError, Snapshot, StatusReport};
+use tokio::sync::watch;
 use tokio::time::Instant;
 
 use crate::History;
@@ -31,7 +32,14 @@ const PRUNE_EVERY: Duration = Duration::from_secs(60 * 60);
 
 /// What the poller last found, shared with every consumer.
 #[derive(Debug, Clone, Default)]
-pub struct Latest(Arc<RwLock<Vec<ProviderState>>>);
+pub struct Latest(Arc<Shared>);
+
+#[derive(Debug, Default)]
+struct Shared {
+    providers: RwLock<Vec<ProviderState>>,
+    /// Told whenever the report changes, so a consumer such as the tray app need not ask.
+    changed: watch::Sender<()>,
+}
 
 #[derive(Debug, Clone)]
 struct ProviderState {
@@ -44,7 +52,11 @@ impl Latest {
     /// The report every consumer shows: the same shape as `quotadial status --json`.
     #[must_use]
     pub fn report(&self) -> StatusReport {
-        let providers = self.0.read().unwrap_or_else(PoisonError::into_inner);
+        let providers = self
+            .0
+            .providers
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
         let mut report = StatusReport::default();
         for provider in providers.iter() {
             report.errors.extend(provider.error.clone());
@@ -58,8 +70,22 @@ impl Latest {
         report
     }
 
+    /// A receiver whose `changed()` completes each time the report may have changed. It reports
+    /// an error once the poller and every other holder of this `Latest` are gone.
+    #[must_use]
+    pub fn subscribe(&self) -> watch::Receiver<()> {
+        self.0.changed.subscribe()
+    }
+
     fn update(&self, change: impl FnOnce(&mut Vec<ProviderState>)) {
-        change(&mut self.0.write().unwrap_or_else(PoisonError::into_inner));
+        change(
+            &mut self
+                .0
+                .providers
+                .write()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        self.0.changed.send_replace(());
     }
 }
 
@@ -136,11 +162,15 @@ impl Poller {
         self.latest.clone()
     }
 
-    /// Polls until `shutdown` completes.
+    /// Polls until `shutdown` completes. A poll in progress then is abandoned: providers save the
+    /// floor before they send a request, so it holds for whoever asks next.
     pub async fn run(mut self, shutdown: impl Future<Output = ()>) {
         tokio::pin!(shutdown);
         loop {
-            let wake = self.poll_due().await;
+            let wake = tokio::select! {
+                wake = self.poll_due() => wake,
+                () = &mut shutdown => return,
+            };
             tokio::select! {
                 () = tokio::time::sleep_until(wake) => {}
                 () = &mut shutdown => return,
@@ -339,6 +369,8 @@ mod tests {
         used_pct: Mutex<std::result::Result<f64, String>>,
         fallback: Option<f64>,
         fetches: AtomicUsize,
+        /// How long each fetch takes.
+        delay: Duration,
     }
 
     impl Scripted {
@@ -350,6 +382,7 @@ mod tests {
                 used_pct: Mutex::new(Ok(10.0)),
                 fallback: None,
                 fetches: AtomicUsize::new(0),
+                delay: Duration::ZERO,
             }
         }
 
@@ -386,6 +419,7 @@ mod tests {
 
         async fn fetch(&self, account: &Account) -> Result<Snapshot> {
             let count = self.fetches.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(self.delay).await;
             let used_pct = self
                 .used_pct
                 .lock()
@@ -616,6 +650,39 @@ mod tests {
         assert_eq!(report.snapshots.len(), 1);
         assert_eq!(report.snapshots[0].windows[0].used_pct, 33.0);
         assert_eq!(report.snapshots[0].windows[0].source, Source::Cache);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn consumers_are_told_when_the_report_changes() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let mut poller = poller(vec![Arc::clone(&codex)], history);
+        let mut changes = poller.latest().subscribe();
+
+        assert!(!changes.has_changed().expect("open"), "nothing new yet");
+        poller.poll_due().await;
+
+        assert!(changes.has_changed().expect("open"));
+        changes.mark_unchanged();
+        assert_eq!(poller.latest().report().snapshots.len(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stopping_abandons_a_poll_in_progress() {
+        let (_dir, history) = history();
+        let mut slow = Scripted::new("claude", 5);
+        slow.delay = Duration::from_secs(3600);
+        let slow = Arc::new(slow);
+        let poller = poller(vec![Arc::clone(&slow)], history);
+        let started = Instant::now();
+
+        poller.run(tokio::time::sleep(Duration::from_secs(1))).await;
+
+        assert_eq!(slow.fetches(), 1, "the fetch had started");
+        assert!(
+            Instant::now().duration_since(started) < Duration::from_secs(2),
+            "it did not wait for the fetch to finish"
+        );
     }
 
     #[test]
