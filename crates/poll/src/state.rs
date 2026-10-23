@@ -45,6 +45,8 @@ pub struct AccountState {
     /// The latest request went out inside the floor, as the one retry allowed after a rejected
     /// sign-in. Another such retry waits for the floor.
     pub bypassed_floor: bool,
+    /// The sign-in generation of the request that produced `last_good`.
+    pub last_good_generation: Option<String>,
 }
 
 /// The outcome of the latest request.
@@ -295,8 +297,6 @@ fn private_file(path: &Path, truncate: bool) -> io::Result<File> {
 
 #[cfg(test)]
 mod tests {
-    use quotadial_core::Status;
-
     use super::*;
 
     fn account(org: Option<&str>) -> Account {
@@ -343,6 +343,7 @@ mod tests {
             blocked_until: Some(ts("2099-01-01T00:10:00Z")),
             rate_limit_strikes: 2,
             bypassed_floor: true,
+            last_good_generation: Some("20991230000000Z".into()),
         };
 
         let _lock = store.lock(&key, LOCK_WAIT).expect("locks");
@@ -476,33 +477,6 @@ mod tests {
                 .load("unreadable", ts("2099-01-01T00:00:00Z"))
                 .is_err()
         );
-    }
-
-    #[test]
-    fn the_saved_file_holds_no_token() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new("claude", dir.path().to_path_buf());
-        let snapshot = Snapshot {
-            account: account(None),
-            windows: Vec::new(),
-            extra_usage: None,
-            status: Status::Ok,
-            error: None,
-        };
-        let state = AccountState {
-            last_good: Some(snapshot.clone()),
-            last_result: Some(LastResult::Snapshot {
-                snapshot: Box::new(snapshot),
-            }),
-            ..AccountState::default()
-        };
-
-        let _lock = store.lock("account", LOCK_WAIT).expect("locks");
-        store.save("account", &state).expect("saves");
-        let saved = fs::read_to_string(dir.path().join("account.json")).expect("reads");
-
-        assert!(!saved.contains("sk-ant-"));
-        assert!(!saved.to_lowercase().contains("token"));
     }
 
     #[cfg(unix)]

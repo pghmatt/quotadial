@@ -2,11 +2,14 @@
 //! macOS Keychain item or in `.credentials.json`.
 //!
 //! Ported from CodexBar's `Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentialModels.swift`. Only
-//! what QuotaDial needs is kept. The refresh token is never read: refreshing is Claude Code's job.
+//! what QuotaDial needs is read: the refresh token is skipped by the parser without being copied,
+//! and refreshing is Claude Code's job. Text holding a token is wiped from memory once used.
 
 use chrono::{DateTime, Utc};
 use quotadial_core::Secret;
+use serde::Deserialize;
 use serde_json::Value;
+use zeroize::Zeroizing;
 
 use crate::plan;
 
@@ -62,24 +65,18 @@ impl Credentials {
     /// Parses Claude Code's credentials JSON. `security -w` prints a payload with bytes it cannot
     /// show as text in hex instead, so hex-encoded JSON is accepted too.
     pub(crate) fn parse(payload: &str) -> Result<Self, ParseError> {
-        let root = json_object(payload.trim()).ok_or(ParseError::NotJson)?;
-        let oauth = root
-            .get("claudeAiOauth")
-            .filter(|oauth| oauth.is_object())
-            .ok_or(ParseError::NoClaudeLogin)?;
-        let access_token = text(oauth, "accessToken").ok_or(ParseError::NoAccessToken)?;
+        let stored = stored(payload.trim()).ok_or(ParseError::NotJson)?;
+        let oauth = stored.claude_ai_oauth.ok_or(ParseError::NoClaudeLogin)?;
+        let access_token = oauth
+            .access_token
+            .filter(|token| !token.trim().is_empty())
+            .ok_or(ParseError::NoAccessToken)?;
         Ok(Self {
-            access_token: Secret::new(access_token),
-            expires_at: oauth.get("expiresAt").and_then(timestamp_millis),
-            scopes: oauth.get("scopes").and_then(Value::as_array).map(|scopes| {
-                scopes
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect()
-            }),
-            subscription_type: text(oauth, "subscriptionType"),
-            rate_limit_tier: text(oauth, "rateLimitTier"),
+            access_token: Secret::new(access_token.trim()),
+            expires_at: oauth.expires_at.as_ref().and_then(timestamp_millis),
+            scopes: oauth.scopes,
+            subscription_type: nonblank(oauth.subscription_type),
+            rate_limit_tier: nonblank(oauth.rate_limit_tier),
         })
     }
 
@@ -110,33 +107,49 @@ impl Credentials {
     }
 }
 
-fn json_object(payload: &str) -> Option<Value> {
-    serde_json::from_str::<Value>(payload)
-        .ok()
-        .or_else(|| serde_json::from_slice::<Value>(&hex_decode(payload)?).ok())
-        .filter(Value::is_object)
+/// The parts of Claude Code's credentials JSON that QuotaDial reads. Fields not named here, such as
+/// `refreshToken` and the MCP sign-ins, are skipped without being copied.
+#[derive(Deserialize)]
+struct Stored {
+    #[serde(rename = "claudeAiOauth")]
+    claude_ai_oauth: Option<OAuth>,
 }
 
-fn hex_decode(text: &str) -> Option<Vec<u8>> {
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OAuth {
+    access_token: Option<Zeroizing<String>>,
+    expires_at: Option<Value>,
+    scopes: Option<Vec<String>>,
+    subscription_type: Option<String>,
+    rate_limit_tier: Option<String>,
+}
+
+fn stored(payload: &str) -> Option<Stored> {
+    serde_json::from_str(payload)
+        .ok()
+        .or_else(|| serde_json::from_slice(&hex_decode(payload)?).ok())
+}
+
+/// Decodes hex text, into memory that is wiped once parsed.
+fn hex_decode(text: &str) -> Option<Zeroizing<Vec<u8>>> {
     if text.is_empty()
         || !text.len().is_multiple_of(2)
         || !text.bytes().all(|b| b.is_ascii_hexdigit())
     {
         return None;
     }
-    text.as_bytes()
-        .chunks(2)
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok())
-        .collect()
+    let mut bytes = Zeroizing::new(Vec::with_capacity(text.len() / 2));
+    for pair in text.as_bytes().chunks(2) {
+        bytes.push(u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?);
+    }
+    Some(bytes)
 }
 
-fn text(object: &Value, key: &str) -> Option<String> {
-    object
-        .get(key)
-        .and_then(Value::as_str)
-        .map(str::trim)
+fn nonblank(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
-        .map(str::to_owned)
 }
 
 /// `expiresAt` is milliseconds since the Unix epoch.

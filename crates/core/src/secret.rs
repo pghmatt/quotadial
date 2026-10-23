@@ -2,11 +2,14 @@
 
 use std::fmt;
 
+use zeroize::Zeroize;
+
 /// A token or credential file's contents. `Debug` prints `Secret(redacted)` and there is
 /// deliberately no `Display`, so formatting a struct that holds one never reveals it. The value
 /// comes out only through [`Secret::expose`], at the one place it is used, such as the
-/// `Authorization` header.
-#[derive(Clone, PartialEq, Eq)]
+/// `Authorization` header. It is wiped from memory when the `Secret` is dropped, and there is no
+/// equality, so it is never compared in a way that could leak it through timing.
+#[derive(Clone)]
 pub struct Secret(String);
 
 impl Secret {
@@ -19,6 +22,12 @@ impl Secret {
     #[must_use]
     pub fn expose(&self) -> &str {
         &self.0
+    }
+}
+
+impl Drop for Secret {
+    fn drop(&mut self) {
+        self.0.zeroize();
     }
 }
 

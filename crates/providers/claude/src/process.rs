@@ -36,7 +36,9 @@ pub(crate) fn run(mut command: Command, timeout: Duration) -> Result<Finished, R
     let (sender, output) = mpsc::channel();
     if let Some(mut stdout) = child.stdout.take() {
         thread::spawn(move || {
-            let mut bytes = Vec::new();
+            // Room for a credentials payload, so the buffer holding it is never reallocated and
+            // a partial copy left behind.
+            let mut bytes = Vec::with_capacity(64 * 1024);
             // A read error leaves whatever arrived; the exit status still decides the outcome.
             let _ = stdout.read_to_end(&mut bytes);
             // The receiver is gone only if `run` already gave up, so there is no one to tell.

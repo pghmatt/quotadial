@@ -1164,6 +1164,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]
@@ -1196,6 +1197,7 @@ dependencies = [
  "tokio",
  "unicode-normalization",
  "wiremock",
+ "zeroize",
 ]
 
 [[package]]
@@ -1208,10 +1210,12 @@ dependencies = [
  "quotadial-core",
  "quotadial-poll",
  "reqwest",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "wiremock",
+ "zeroize",
 ]
 
 [[package]]
@@ -2248,6 +2252,9 @@ name = "zeroize"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "zerotrie"

@@ -62,7 +62,6 @@ pub struct ClaudeProvider {
     clock: Arc<dyn Clock>,
     state_dir: Option<PathBuf>,
     base_url: String,
-    claude_code_version: OnceLock<Option<String>>,
     request_timeout: Duration,
     api: OnceLock<std::result::Result<Api, String>>,
 }
@@ -77,7 +76,6 @@ impl ClaudeProvider {
             clock: Arc::new(SystemClock),
             state_dir: StateStore::default_dir(ID),
             base_url: api::DEFAULT_BASE_URL.to_owned(),
-            claude_code_version: OnceLock::new(),
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
         }
@@ -87,20 +85,23 @@ impl ClaudeProvider {
         login::locate(&self.env, self.keychain.as_ref())
     }
 
-    /// The HTTP client, built on first use. Claude Code's version is detected only then, because
-    /// it is needed only for a request.
+    /// The same, without blocking the async runtime: on macOS the lookup runs `/usr/bin/security`
+    /// for up to 5 seconds.
+    async fn locate_without_blocking(&self) -> Result<Option<Login>> {
+        let (env, keychain) = (self.env.clone(), Arc::clone(&self.keychain));
+        tokio::task::spawn_blocking(move || login::locate(&env, keychain.as_ref()))
+            .await
+            .map_err(|_| Error::Credentials {
+                provider: ID,
+                location: "Claude Code's sign-in".to_owned(),
+                reason: "looking it up stopped unexpectedly; try again".to_owned(),
+            })?
+    }
+
+    /// The HTTP client, built on first use.
     fn api(&self) -> Result<&Api> {
         self.api
-            .get_or_init(|| {
-                let version = self
-                    .claude_code_version
-                    .get_or_init(api::detect_claude_code_version);
-                Api::new(
-                    &self.base_url,
-                    api::user_agent(version.as_deref()),
-                    self.request_timeout,
-                )
-            })
+            .get_or_init(|| Api::new(&self.base_url, self.request_timeout))
             .as_ref()
             .map_err(|reason| Error::Request {
                 provider: ID,
@@ -133,7 +134,12 @@ impl ClaudeProvider {
                     keychain.read(&service, account.as_deref())
                 })
                 .await
-                .map_err(|error| credentials_error(&login.source, error.to_string()))?;
+                .map_err(|_| {
+                    credentials_error(
+                        &login.source,
+                        "reading it stopped unexpectedly; try again".to_owned(),
+                    )
+                })?;
                 match read {
                     Ok(Some(secret)) => secret,
                     Ok(None) => return Ok(Stored::SignedOut),
@@ -299,7 +305,7 @@ impl Provider for ClaudeProvider {
         // and the answer saved belong to one moment, and two processes send one request.
         let _lock = store.lock_account(&key).await?;
 
-        let Some(login) = self.locate()? else {
+        let Some(login) = self.locate_without_blocking().await? else {
             return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT));
         };
         if !same_account(&login.account(), account) {
@@ -347,7 +353,7 @@ impl Provider for ClaudeProvider {
         };
         // Claude Code may have switched accounts while the token was read. A token read during a
         // switch must not be counted as this account's.
-        match self.locate()? {
+        match self.locate_without_blocking().await? {
             Some(current) if same_account(&current.account(), account) => {}
             Some(_) => {
                 return Ok(Snapshot::auth_required(
@@ -436,11 +442,14 @@ fn same_account(a: &Account, b: &Account) -> bool {
     a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
 }
 
-/// The account Anthropic named for this environment token on an earlier request. The state is
-/// kept per token (its account id is a hash of the token), so it cannot name another token's
-/// account. Other sign-ins without a known account are always asked about again.
+/// The account Anthropic named for this sign-in on an earlier request, so the profile is asked once
+/// per token rather than on every request. An environment token's state is kept per token (its
+/// account id is a hash of the token), so it cannot name another token's account. A Keychain or
+/// file sign-in counts only while its token is the one that earlier request used.
 fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Option<Account> {
-    if !matches!(login.source, LoginSource::Environment(_)) {
+    let same_token = matches!(login.source, LoginSource::Environment(_))
+        || (login.generation.is_some() && login.generation == state.last_good_generation);
+    if !same_token {
         return None;
     }
     let known = &state.last_good.as_ref()?.account;
@@ -505,7 +514,6 @@ impl ClaudeProvider {
             clock,
             state_dir: Some(state_dir),
             base_url: base_url.to_owned(),
-            claude_code_version: OnceLock::from(Some("2.1.286".to_owned())),
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
         }
