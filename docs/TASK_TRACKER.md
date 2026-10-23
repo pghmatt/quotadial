@@ -129,11 +129,29 @@ Modules in `crates/providers/claude/src/`, each naming the CodexBar files it fol
   shell: `quotadial status --json` exited 0 in 0.88 s with no macOS prompt and printed a Max
   account with Session 2%, Weekly 5% and Weekly (Fable) 0% (the last from `limits[]`), each from
   the API with its reset time. A second run (`qd status`) a minute later replayed the cache without
-  a request. The cache file is mode 0600 in a 0700 directory and holds no token.
-- Test count: 129 (core 9, Claude 103, Codex 3, CLI unit 10, CLI binaries 4). The Claude tests run
+  a request. The cache file is mode 0600 in a 0700 directory and holds no token. Re-checked after
+  the security review fixes (2026-10-23 00:12Z): fresh numbers from the API in 0.8 s, then a cached
+  replay in 0.06 s.
+- Test count: 148 (core 9, Claude 122, Codex 3, CLI unit 10, CLI binaries 4). The Claude tests run
   against a local HTTP server (wiremock) with a fake keychain, a manual clock and a temporary cache
   directory, so no test touches the real Keychain, Claude Code's files or the network. The macOS
   test that runs `security` looks up a made-up item by attributes only.
+- Linux and Windows lints are checked locally by building with the macOS-only Keychain code
+  switched off (a simulated non-macOS `cfg`), because CI is the only real non-macOS build.
+- Security review (an independent agent, read-only, 2026-10-22). It found no token leakage, no
+  credential writes and no subprocess injection, and judged the locking correct on all three
+  platforms. It found eight floor and account-separation gaps, all fixed with tests:
+  1. A timed-out or unreadable answer gave the floor back. Now only a failure to connect does, and
+     a 429 or 401 is judged before its body is read.
+  2. Every environment token shared one account id, so two shells with different tokens shared
+     saved numbers. Fixed with a token hash (D-031). Its other half, separate floors for an
+     environment token and a stored sign-in to the same account, is a known limit until M2.
+  3. A first request stopped midway did not hold the floor.
+  4. The account was read before the lock, and not re-checked after the token was read.
+  5. A clock moved back skipped the floor and the 429 block. Saved times are now re-anchored.
+  6. The early retry after a rejected sign-in had no cap. Now once per floor.
+  7. A failed save after an answer was ignored. Now it is retried, then fails the fetch.
+  8. Two waits had no deadline: a subprocess's output, and the account lock (now 2 minutes).
 - `fixtures/claude/oauth-usage-scoped.synthetic.json` uses a made-up key,
   `seven_day_example_model`, to show an unknown bucket appearing by name.
 
