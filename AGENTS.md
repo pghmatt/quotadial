@@ -44,6 +44,7 @@ Nothing is named `usage`, the PRD's old working name.
 | Path | Contents |
 | --- | --- |
 | `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`) and the `Provider` trait |
+| `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
 | `crates/api` (`quotadial-api`) | Local HTTP API and the MCP server |
@@ -67,8 +68,9 @@ Nothing is named `usage`, the PRD's old working name.
   CLIs store. Refreshing or re-authenticating is the CLI's job.
 - Never print, log or commit tokens, cookies or API keys. That includes error messages, `Debug`
   output, test snapshots and fixtures. Redact before a value leaves the function that read it.
-  Text from outside, such as a server's error message, goes through
-  `quotadial_core::redact_secrets` before it reaches a `Snapshot`, and the CLI applies it again.
+  Text from outside, such as a server's error message or a model's name, goes through
+  `quotadial_core::outside_text` before it reaches a `Snapshot`, and the CLI applies
+  `redact_secrets` again.
 - Unredacted captures live under `fixtures/**/raw/`, which is gitignored. Only redacted or
   synthetic fixtures are committed. See `fixtures/README.md`.
 - Poll Anthropic usage endpoints no more than once every 5 minutes per account. Enforce the floor in

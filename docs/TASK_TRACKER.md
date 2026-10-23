@@ -4,24 +4,24 @@ Progress and implementation notes. Update this file with every change.
 
 ## Current focus
 
-The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10 (the PR #8
-review fixes, a blocker) first, then the ChatGPT/Codex provider (#2), then `watch` (#3), then #11
-to #15. Each one: branch off `main`, self-review, live check, PR, merge when CI is green. "Stay on
-claude" meant the model, not the task. P-001 to P-009 are accepted and in the PRD, P-010 is decided
-(D-034), and P-011 and #7 are deferred (D-035). The manager's instructions arrive as GitHub issues,
-PR reviews and comments, checked at the start of every turn.
+The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10, then the
+ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branch off `main`,
+self-review, live check, PR, merge when CI is green. #10 is done (PR #16), and so is #2 (PR #17),
+with the Codex halves of #4 and #5. `watch` (#3) is next. P-001 to P-009 are accepted and in the PRD,
+P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
+manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
 ## M1
 
 | Issue | Status | Notes |
 | --- | --- | --- |
 | #1 Claude provider | Done (PR #8) | Reads Claude Code's sign-in, fetches `/api/oauth/usage`, 5-minute floor and 429 backoff across processes; verified live on Matt's Mac |
-| #2 Codex provider | To do | |
+| #2 Codex provider | Done (PR #17) | Reads `auth.json`, fetches `wham/usage`, windows by length, session-log fallback, 2-minute floor through the shared gate; verified live on Matt's Mac |
 | #3 CLI `status`, `--json`, `watch` | Partly done | `status` and `status --json` work; `watch` to do |
-| #4 Redacted fixtures | Claude done (PR #9) | Live usage and redacted profile captures committed (D-033); Codex to do |
-| #5 Live endpoint check | Claude done (PR #9) | Claude checked live on 2026-10-23 (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011). A 429 was not provoked on purpose. Codex to do |
+| #4 Redacted fixtures | Nearly done (PR #9, PR #17) | Claude: live usage and redacted profile (D-033). Codex: redacted live Pro response and session log (D-039, D-042). A test fails if a committed fixture holds a token-like string or an email outside `example.com`. Left: a Plus capture (there is no Plus account to capture, so its shape stays synthetic) and Claude's 429 and 401 (not provoked on purpose) |
+| #5 Live endpoint check | Done but one check (PR #9, PR #17) | Claude (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011); a 429 was not provoked on purpose. Codex (D-039): headers, the response shape (P-003 confirmed, P-013), Pro's single weekly window, the 401 body |
 | #7 Signed remote schema file | Deferred (D-035) | Split out of #1 (D-025) |
-| #10 Review fixes from PR #8 | In review | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
+| #10 Review fixes from PR #8 | Done (PR #16) | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
 | #11 `spawn_blocking` for version detection and Keychain find | To do | After #2 and #3 |
 | #12 No `claude` spawn for the User-Agent version | To do | After #2 and #3 |
 | #13 Surface unknown buckets without a known prefix | To do | After #2 and #3; coordinate with #7 |
@@ -212,6 +212,60 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M1 #2: ChatGPT/Codex provider
+
+Modules in `crates/providers/codex/src/`, each naming the CodexBar files it follows:
+
+| Module | Job |
+| --- | --- |
+| `environment.rs` | `$CODEX_HOME` or `~/.codex`: `auth.json` and `sessions/` |
+| `auth.rs` | Parses `auth.json`: the access token, the ChatGPT account id, and from the JWT claims (decoded, not verified) the user id, email, plan and expiry. The refresh token is never read |
+| `api.rs` | `GET /backend-api/wham/usage` with `ChatGPT-Account-Id` and the Codex CLI's User-Agent (D-038); no redirects, no cookies, 30 s timeout, 1 MiB cap |
+| `usage.rs` | Windows by length (D-041), per-model `additional_rate_limits`, credits as extra usage |
+| `sessions.rs` | The fallback: the newest rate-limit event in the account's own session logs (D-042) |
+| `advice.rs` | The one sentence shown when there are no fresh numbers, naming the fix |
+
+- Shared gate (D-043): the Claude provider's floor, 429 backoff, replay, damaged-state hold and
+  state files moved to `crates/poll` (`quotadial-poll`), parameterized by a `Policy`. Codex uses a
+  2-minute floor and Claude 5 minutes. Claude's messages and cache files are unchanged, and its
+  tests pass as before. `Secret` moved to `quotadial-core` and the `Clock` trait to the poll crate.
+- Identity (D-040): the ChatGPT user in the ChatGPT account (workspace), so one person in two
+  workspaces is two accounts. `redact_secrets` now also blanks JWTs (D-044).
+- Live check on Matt's Mac, 2026-10-23 11:56Z: `quotadial status --json` exited 0 in 1.4 s with
+  Claude (Session 3%, Weekly 7%, Weekly (Fable) 0%) and Codex (Pro, Weekly 54%, credits on), each
+  from the API. A second run replayed both from the cache in 0.06 s. No token appeared in the
+  output, and the cache holds `quotadial/claude` and `quotadial/codex`, both private. Re-checked
+  after the review fixes (12:18Z, HTTPS only): 1.2 s from the API, then a cached replay in 0.06 s.
+- Real-data fallback check, 2026-10-23 12:18Z: with ChatGPT made unreachable (a dead proxy) and a
+  fresh cache, `quotadial status --json` answered in 0.13 s from the session log: Weekly 54%,
+  `local_log`, written 4 minutes earlier. The newest log is a 445 MB file in a folder dated ten days
+  earlier, which is why files are chosen by when they were written.
+- Not built in M1 (D-045): `chatgpt_base_url` from `config.toml`, environment tokens, and the
+  response fields whose shape has not been seen with values (`code_review_rate_limit`,
+  `model_usage`, `spend_control`, the reset credits). The credit balance waits for P-012.
+- `crates/core/tests/fixtures.rs` fails if any committed fixture (`fixtures/**/*.json*`, not `raw/`)
+  holds `eyJ`, `sk-`, `bearer` or an email address outside `example.com` (#4).
+- Security review (an independent agent, read-only, 2026-10-23). It found no token leakage, no
+  credential writes and no hole in the Codex floor or backoff, and confirmed the Claude refactor
+  changes no behaviour or cache file name. It found six smaller problems, all fixed with tests:
+  1. The fallback trusted who created a session, but a session resumed after `codex login` to
+     another account keeps writing to the same file. Events must now postdate the current sign-in,
+     and events naming another plan are skipped (D-042).
+  2. A line longer than a chunk was copied again for every chunk, so a 31 MiB pasted line cost
+     4 seconds. Lines over 256 KiB are now skipped without being kept. Files are still chosen by
+     when they were written, not by folder date, because a session started weeks ago can be
+     written to today.
+  3. An absurd `reset_after_seconds` could overflow and panic. It is now dropped.
+  4. JWT redaction matched inside words and file paths, and missed padded tokens, opaque tokens
+     and OpenAI keys; plan and limit names went unredacted (D-044).
+  5. An answer naming another user or workspace was not checked. It is now refused (D-040).
+  6. Two tests could not fail. Both now fail when the code they guard is broken (checked by
+     breaking it), and new tests cover redirects (both providers), two workspaces, a body over
+     1 MiB and chunk boundaries at every offset.
+  Both providers now speak HTTPS only outside tests (D-046).
+- Test count: 220 (core 19, poll 34, Claude 99 plus the opt-in Keychain test, Codex 53, CLI unit
+  11, CLI binaries 4).
 
 ### Step 4: findings that shape M1
 
