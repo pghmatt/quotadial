@@ -18,9 +18,17 @@ M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). It
 - PR 1, the scaffold with the daemon running inside the app (PR #31);
 - PR 2, the popover (PR #32);
 - PR 3, settings and notifications (PR #33);
-- PR 4, builds for macOS, Windows and Linux. P-001 to P-009 are accepted and in the PRD,
-P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
-manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
+- PR 4, builds for macOS, Windows and Linux (PR #35).
+
+Proposals:
+- P-001 to P-009 are accepted and in the PRD.
+- P-010 is decided (D-034).
+- P-011 and #7 are deferred (D-035).
+- P-012 and P-014 are in the code.
+- P-013 is the manager's PRD edit.
+- P-015 (`Account.sign_in`) is asked on #29.
+
+The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
 ## M1
 
@@ -54,8 +62,8 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | --- | --- | --- |
 | PR 1: scaffold, the daemon in the app, the bundled CLI | Done (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
 | PR 2: popover | Done (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
-| PR 3: settings and notifications | In review (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
-| PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
+| PR 3: settings and notifications | Done (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
+| PR 4: builds | In review (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
 
 ## Kickoff
 
@@ -241,6 +249,42 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3 PR 4: builds
+
+- `.github/workflows/release.yml` (D-076) replaces the stub.
+  - `cli` builds the CLI for Linux x64, macOS Apple silicon and Intel, and Windows x64, as
+    `quotadial-<version>-<target>.tar.gz` (`.zip` on Windows).
+  - `app` builds the tray app as a universal dmg on `macos-latest`, an msi on `windows-latest`, and
+    a deb and an AppImage on `ubuntu-22.04`.
+  - `publish` drafts a pre-release with every file, and runs only for a `v*` tag.
+  - A manual run uses `dev-<sha>` as the version and keeps the files as workflow artifacts.
+- `prepare-cli.mjs` builds a universal Mac CLI. Tauri wants three files: the arm64 and x86_64 CLIs
+  for its per-architecture compiles, and one joined by `lipo` for the bundle.
+- `tauri.<system>.conf.json` sets each system's installers: app and dmg on macOS, msi on Windows,
+  deb and AppImage on Linux. The deb has a long description.
+- `docs/INSTALL.md` has a Download section with each system's file, and says where the bundled
+  CLI goes on Windows and Linux.
+- Live check, 2026-10-23 16:40Z:
+  - **Local universal build:** a 16.3 MB dmg; both binaries are x86_64 plus arm64, the Intel side
+    runs under Rosetta, and `codesign --verify --deep --strict` passes.
+  - **The release workflow on the branch** (run 39986123385, started by hand): every job passed and
+    the publish step was skipped.
+  - **What it produced:**
+
+    | File | Size | Checked |
+    | --- | --- | --- |
+    | `QuotaDial_0.1.0_universal.dmg` | 17.1 MB | Mounted read-only: the app and an Applications link; both binaries universal; ad hoc signature valid; the CLI runs |
+    | `QuotaDial_0.1.0_x64_en-US.msi` | 8.7 MB | Its cabinet holds the app and `quotadial.exe` |
+    | `QuotaDial_0.1.0_amd64.deb` | 9.4 MB | Installs `/usr/bin/quotadial-tray` and `/usr/bin/quotadial`, plus icons and a `.desktop` entry, and depends on WebKitGTK 4.1 and Ayatana AppIndicator |
+    | `QuotaDial_0.1.0_amd64.AppImage` | 87 MB | WebKitGTK inside |
+    | Four CLI archives, 8 to 9 MB each | | Each holds `quotadial`, `qd`, the README, the licence and the notice |
+
+  - **Fixed after that run:** the publish step now uploads the files rather than their folders.
+- Not done: tagging a release. A `v0.1.0` tag would draft a public pre-release, so it waits for a
+  go-ahead.
+- The deb's package name is `quota-dial`, because Tauri makes it from the product name. It works,
+  but a later PR may want `quotadial`.
 
 ### M3 PR 3: settings and notifications
 

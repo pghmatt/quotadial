@@ -48,6 +48,7 @@
       "minimumSystemVersion": "11.0",
       "signingIdentity": "-",
       "hardenedRuntime": false
-    }
+    },
+    "longDescription": "QuotaDial shows how much of your Claude and ChatGPT/Codex plan limits you have used, and when they reset, so a long agent run does not stop halfway. It runs the QuotaDial daemon and carries the quotadial command."
   }
 }

@@ -5,6 +5,21 @@ Claude or ChatGPT/Codex limit in the menu bar or system tray. It also runs the Q
 so the `quotadial` command, the local API and the MCP server all read its numbers. The app carries
 the `quotadial` command inside it.
 
+## Download
+
+Each release on the repository's [Releases page](https://github.com/pghmatt/quotadial/releases)
+has these files:
+
+| System | File |
+| --- | --- |
+| macOS (Apple silicon and Intel) | `QuotaDial_<version>_universal.dmg` |
+| Windows | `QuotaDial_<version>_x64_en-US.msi` |
+| Debian or Ubuntu | `QuotaDial_<version>_amd64.deb` |
+| Other Linux | `QuotaDial_<version>_amd64.AppImage` |
+
+The command alone, without the tray app, comes as `quotadial-<version>-<platform>.tar.gz` (or
+`.zip` on Windows). Each archive holds `quotadial` and its short alias `qd`.
+
 ## Open a build that is not signed yet
 
 Until the M5 release, QuotaDial's builds are not signed or notarized. Each operating system warns
@@ -46,7 +61,8 @@ it for the menu.
   ./QuotaDial_*.AppImage
   ```
 
-- **Debian or Ubuntu:** `sudo apt install ./quotadial_*.deb`
+- **Debian or Ubuntu:** `sudo apt install ./QuotaDial_*.deb`. This also puts the `quotadial`
+  command in `/usr/bin`.
 
 The dial and number appear in the panel's tray area. GNOME needs the AppIndicator extension for
 that; Ubuntu has it on already.
@@ -76,8 +92,11 @@ sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/
 sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/qd
 ```
 
-The links keep working when you replace the app with a newer build. See [CLI.md](CLI.md) for what
-the command does.
+The links keep working when you replace the app with a newer build.
+
+On Windows, the installer puts `quotadial.exe` beside the app, in `C:\Program Files\QuotaDial`; add
+that folder to your `PATH` to type `quotadial`. On Linux, the deb installs `quotadial` in
+`/usr/bin`, so it is ready to use. See [CLI.md](CLI.md) for what the command does.
 
 ## Build it yourself
 
