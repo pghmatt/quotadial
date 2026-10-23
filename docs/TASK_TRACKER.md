@@ -29,9 +29,17 @@ M3 is done. Both parts of its test pass on Matt's Mac:
 - a first launch with an empty data folder shows a number in the tray after 1.0 second, with no
   typing.
 
-The review's six smaller items are #39, done in PR #42. The M4 plan, alerts and history, is #40
-and waits for the manager's approval. A `v0.1.0` tag, which drafts the first release, waits for
-Matt's go-ahead.
+The review's six smaller items (#39) are done in PR #42. With Matt's go-ahead, `v0.1.0` (M1 to M3)
+is tagged at 00291e5. The Release workflow built its draft pre-release with the dmg, the msi, the
+deb, the AppImage and the CLI for four platforms; publishing it is Matt's click.
+
+M4, alerts and history: the manager approved the plan in #40 on 2026-10-23, with six decisions and
+two additions (D-090, D-091). Its PRs, in order:
+- PR 1, the pace of every window (P-016, D-092), in review;
+- PR 2, alert rules, with rules written in plain language and the one `tier()` check;
+- PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view;
+- PR 4, the providers' status pages and an incident badge;
+- PR 5, the week's API-equivalent cost, from a bundled price table.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -40,6 +48,7 @@ Proposals:
 - P-012 and P-014 are in the code.
 - P-013 is the manager's PRD edit.
 - P-015 (`Account.sign_in`) is accepted (#29, #34) and in the code (D-079).
+- P-016 (`Window.pace`) is accepted (#40) and in the code (D-092).
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -80,7 +89,13 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 5: every stored Claude sign-in (#34) | Done (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
 | Fix: poll at the floor | Done (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
 | Fix: the review of #36 | Done (PR #38) | A failed Keychain listing keeps this shell's own sign-in and finds each folder's item by name, with a warning in `errors`; the listing gets a 20-second timeout (D-088) |
-| Follow-ups from the review of #36 (#39) | In review (PR #42) | The named account kept before the request; relative extra folders left out with a warning; folders matched however they were written; `max_accounts` counts subscriptions; items with no time never left out; the two-items test (D-089) |
+| Follow-ups from the review of #36 (#39) | Done (PR #42) | The named account kept before the request; relative extra folders left out with a warning; folders matched however they were written; `max_accounts` counts subscriptions; items with no time never left out; the two-items test (D-089) |
+
+## M4
+
+| Step | Status | Notes |
+| --- | --- | --- |
+| PR 1: pace | In review (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
 
 ## Kickoff
 
@@ -266,6 +281,63 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M4 PR 1: pace (P-016, D-092)
+
+- **Model:** `Window.pace: Option<Pace>`, with `Pace { pct_per_hour, runs_out_at? }`, each left out
+  of JSON when absent. Providers never set it; every `Window` built in code says `pace: None`.
+- **The fit** (`crates/core/src/pace.rs`): `Pace::of(window, readings)` keeps the readings from
+  before the window's own and since `Pace::since(window)`, its reset less its length. It adds the
+  window's own reading, then drops everything up to the last fall of more than a point. Below 3
+  readings or 30 minutes there is no pace, nor for a full window or an unconfirmed 0%. The slope is
+  least squares in points per hour, never below 0, rounded to hundredths. `runs_out_at` counts
+  from the window's own reading at the rounded rate, to the second, and is kept only before the
+  reset and within 366 days. `text::pace` words it for the CLI and the app.
+- **History, schema 2:** a `readings` table beside `snapshots`, `WITHOUT ROWID`, keyed by account,
+  label, scope model and fetch time, with the kind, share used, reset, length, source and the
+  unconfirmed flag.
+  - `record` writes a snapshot's readings in the same transaction as the snapshot, with
+    `INSERT OR IGNORE`, whether or not the snapshot itself is new.
+  - Opening a schema-1 database creates the table and fills it from the stored snapshots, in one
+    transaction with the version bump.
+  - `readings(account, window, since)` returns the confirmed readings, oldest first.
+    `with_pace(snapshot)` paces an `ok` snapshot's windows. `prune` drops readings older than 30
+    days too.
+- **Poller:** after each answer, one `spawn_blocking` records the snapshot and then paces it, and
+  the paced snapshot is served. What history shows at start has no pace until its first poll, which
+  comes at once.
+- **CLI:** `report` says where a report came from (`Origin`). The text has a line under each window
+  that has a pace. A report fetched directly ends with "Pace needs the daemon: ..." once, when it
+  has windows. The JSON gains only the field.
+- **MCP:** the instructions and the descriptions of `get_usage` and `get_account_headroom` explain
+  pace.
+- **The app:** `WindowView` has `pace` and `runs_out`. The popover shows the pace under each
+  window's detail line, in the warning colour when the window runs out before it resets.
+- **Tests:** 19 more in the workspace (345): the fit's rules (10), its wording, its JSON, the
+  readings table (kept once, the filters, the upgrade from schema 1, pace for `ok` snapshots only,
+  pruning), a window gaining its pace in the poller, and the CLI's line and note. The app has 25.
+  Breaking each of 14 rules in turn fails a test: the window's start, the fall, its tolerance, the
+  reset, the window's own reading, the half hour, the year, `ok` only, writing readings, the
+  upgrade, unconfirmed readings, pruning, the poller's pace and the note.
+- **Live check on Matt's Mac**, with a daemon from this branch on a copy of the data folder. The
+  floor state lives in `~/Library/Caches/quotadial` whatever the data folder, so no provider was
+  asked early.
+  - Opening the copy, schema 1 with 376 snapshots from 13:16 to 21:49 UTC, upgraded it and filled
+    837 readings.
+  - `status` showed a pace for 19 windows of 7 accounts. Full windows and the two expired
+    sign-ins showed none.
+  - Recomputing every pace in Python from the copied readings matched all 19 rates and run-out
+    times exactly.
+  - Codex's weekly window began about 5 hours earlier and was 41% used. At 10.27%/h it runs out in
+    under 6 hours, 6 days before it resets.
+  - A session that began 50 minutes earlier had 3 readings over 10 minutes, so it had no pace yet.
+  - A network outage from 21:11 to 21:37 UTC made every account stale at once. Stale numbers get
+    no pace, and readings resumed with the network.
+  - With no daemon, `status` printed no pace and the note once, and `--json` had no pace.
+  - `/v1/headroom` and the MCP server's `get_usage` carry the pace.
+  - The app, built under another name and identifier so it ran beside Matt's with its notifications
+    off, followed the test daemon. Its popover showed the pace under each window, with the 99%
+    weekly window (2 h 16 min to run out) and Codex's (5 h 40 min) in the warning colour.
 
 ### M3: the review's follow-ups, #39 (D-089)
 

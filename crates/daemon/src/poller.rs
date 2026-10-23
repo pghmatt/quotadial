@@ -9,7 +9,8 @@
 //! in usage is the activity, so no process watching is needed. The interval counts from when an
 //! account's answer came back, never from before its request went out, so the next poll cannot
 //! come before the gate allows a request. Accounts are rediscovered every minute, so a new sign-in
-//! appears and a removed one goes.
+//! appears and a removed one goes. Every answer goes to the history, and each window of an `ok`
+//! answer gets its pace from it (P-016).
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -311,12 +312,12 @@ impl Poller {
         // when the round began, would bring the next poll a little before the floor allows, and it
         // would only replay the cache.
         let answered = Instant::now();
-        match &result {
+        let result = match result {
             Ok(snapshot) => {
                 if tracked
                     .last
                     .as_ref()
-                    .is_none_or(|last| numbers_moved(last, snapshot))
+                    .is_none_or(|last| numbers_moved(last, &snapshot))
                 {
                     tracked.moved_at = now;
                 }
@@ -324,13 +325,22 @@ impl Poller {
                 let active = now.duration_since(tracked.moved_at) < ACTIVE_FOR;
                 tracked.due = answered + if active { floor } else { IDLE_EVERY.max(floor) };
                 // Written off the async runtime, so a slow disk never holds up the API. A failed
-                // write loses one history point; the numbers are still served.
-                let (history, stored) = (Arc::clone(&self.history), snapshot.clone());
-                let _ =
-                    tokio::task::spawn_blocking(move || history.record(&stored, Utc::now())).await;
+                // write loses one history point; the numbers are still served. Each window's pace
+                // is then fitted to what history holds, this reading included.
+                let history = Arc::clone(&self.history);
+                let unpaced = snapshot.clone();
+                Ok(tokio::task::spawn_blocking(move || {
+                    let _ = history.record(&snapshot, Utc::now());
+                    history.with_pace(snapshot)
+                })
+                .await
+                .unwrap_or(unpaced))
             }
-            Err(_) => tracked.due = answered + floor,
-        }
+            Err(error) => {
+                tracked.due = answered + floor;
+                Err(error)
+            }
+        };
         let (index, account) = (tracked.provider, tracked.account.clone());
         self.latest.update(|states| {
             let state = &mut states[index];
@@ -375,7 +385,7 @@ mod tests {
 
     use async_trait::async_trait;
     use chrono::{DateTime, TimeDelta};
-    use quotadial_core::{Error, Result, Source, Status, Window, WindowKind};
+    use quotadial_core::{Error, Pace, Result, Source, Status, Window, WindowKind};
 
     use super::*;
 
@@ -561,6 +571,7 @@ mod tests {
                 source,
                 fetched_at: base() + TimeDelta::minutes(i64::try_from(fetch).expect("small")),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,
@@ -793,6 +804,37 @@ mod tests {
             claude.fetched.lock().expect("lock").last(),
             Some(&moved),
             "the account as last found, not as first found"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_window_gets_its_pace_once_history_has_enough_to_go_on() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let mut poller = poller(vec![Arc::clone(&codex)], history);
+        let pace = |poller: &Poller| {
+            poller.latest().report().snapshots[0].windows[0]
+                .pace
+                .clone()
+        };
+
+        // A point more with each fetch, and the fetch time moves on a minute: 60 points an hour.
+        while codex.fetches() < 31 {
+            codex.set_used(Ok(10.0 + codex.fetches() as f64));
+            let wake = poller.poll_due().await;
+            if codex.fetches() < 31 {
+                assert_eq!(pace(&poller), None, "under half an hour of readings");
+            }
+            tokio::time::sleep_until(wake).await;
+        }
+
+        // 40% at minute 30, so 60 points to go take an hour, and the window has no reset time.
+        assert_eq!(
+            pace(&poller),
+            Some(Pace {
+                pct_per_hour: 60.0,
+                runs_out_at: Some(base() + TimeDelta::minutes(90)),
+            })
         );
     }
 

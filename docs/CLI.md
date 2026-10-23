@@ -170,7 +170,7 @@ processes can list.
 | --- | --- |
 | `accounts[]` | Every account with a snapshot, the most headroom first. Equal headroom goes to the account whose tightest window resets sooner. Accounts without windows come last, and so do accounts that cannot be used now, whose status is `auth_required` or `unsupported` |
 | `headroom_pct` | 100 minus the tightest window's `used_pct`, from 0 to 100. Left out when the account has no windows or cannot be used now: a sign-in that expired keeps its last numbers on show, but their room is not there to use |
-| `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length and when it was fetched. For an account that cannot be used now, the last one known. Left out when the account has no windows |
+| `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length, when it was fetched and its pace. For an account that cannot be used now, the last one known. Left out when the account has no windows |
 | `status`, `error` | As in `status --json` |
 | `errors[]` | As in `status --json` |
 
@@ -209,8 +209,10 @@ and how, including the HTTP API's shape. Copy its folder into `~/.claude/skills/
 
 ```text
 claude user@example.com (max): ok
-  Session: 42% used, resets in 2 h 10 min, from the API 4 min ago
+  Session: 72% used, resets in 2 h 10 min, from the API 4 min ago
+    at 18%/h, runs out in 1 h 29 min, 40 min before it resets
   Weekly: 7% used, resets in 3 d 10 h, from the API 4 min ago
+    at 0.4%/h, lasts until it resets
   Extra usage: off
 codex user@example.com (pro): stale
   Weekly: 54% used, resets in 6 d 5 h, from local logs 2 min ago
@@ -226,6 +228,16 @@ codex user@example.com (pro): stale
 - A window that suddenly reads 0% before its reset, where it read more last time, says
   `unconfirmed until the next fetch agrees`. A provider sometimes answers 0% by mistake, so
   QuotaDial waits for a second fetch before trusting it.
+- With the daemon running, a window shows its pace on the line below: the share used per hour,
+  and whether it runs out before it resets. Pace needs at least 3 readings over 30 minutes since
+  the window last reset, so a window gets one about half an hour after it starts to be read. A
+  snapshot whose status is not `ok` shows none, because its numbers are not current.
+- With no daemon running, `status` and `watch` fetch for themselves, which gives no pace, and end
+  with one line that says so:
+
+  ```text
+  Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each window also shows how fast it fills.
+  ```
 - A status other than `ok` is followed by one sentence that says why and names the fix, such as
   "Run `claude` to sign in again."
 - A provider that produced nothing at all shows as `error: <provider>: <what happened>`, which also
@@ -259,7 +271,8 @@ the last, without escape codes.
           "resets_at": "2099-01-01T05:00:00Z",
           "window_seconds": 18000,
           "source": "api",
-          "fetched_at": "2099-01-01T00:00:00Z"
+          "fetched_at": "2099-01-01T00:00:00Z",
+          "pace": { "pct_per_hour": 12.0, "runs_out_at": "2099-01-01T04:50:00Z" }
         }
       ],
       "extra_usage": { "enabled": false },
@@ -285,6 +298,7 @@ the last, without escape codes.
 | `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the CLI's own logs) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
 | `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
+| `windows[].pace` | How fast the window is filling, from the daemon's history: `pct_per_hour`, the share used per hour, from a straight line fitted through the window's readings since it last reset; and `runs_out_at`, when it reaches 100% at that pace, given only when that comes before it resets. Left out with no daemon running, for a window with fewer than 3 readings over 30 minutes since it reset, for a full window or an unconfirmed 0%, and for a snapshot whose status is not `ok`. A window that is not filling has a `pct_per_hour` of 0 |
 | `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`, or `balance`, the credits left in the provider's own units. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
@@ -307,4 +321,5 @@ status, or with `--json` prints it on standard error and keeps refreshing.
 
 An agent deciding whether to start a long job can read `status --json`, find the tightest window
 with `"status": "ok"` and a fresh `fetched_at`, and compare its `used_pct` and `resets_at` with the
-job's needs. With the daemon running, `GET /v1/headroom` does that ranking for it.
+job's needs. With the daemon running, `GET /v1/headroom` does that ranking for it, and a window's
+`pace.runs_out_at` says when it runs out if nothing changes.

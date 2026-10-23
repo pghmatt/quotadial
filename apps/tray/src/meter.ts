@@ -47,6 +47,11 @@ export interface Window {
   /** Such as "from the API 4 min ago". */
   fetched: string;
   unconfirmed: boolean;
+  /** Such as "at 8.5%/h, runs out in 1 h 30 min, 40 min before it resets", once there is enough
+   * history to go on. */
+  pace: string | null;
+  /** Whether, at that pace, the window runs out before it resets. */
+  runs_out: boolean;
 }
 
 /** The settings, as `settings` returns them and `set_settings` takes them. */

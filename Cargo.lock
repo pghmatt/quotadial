@@ -1301,6 +1301,7 @@ dependencies = [
  "dirs",
  "quotadial-core",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

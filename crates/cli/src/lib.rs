@@ -77,19 +77,26 @@ fn runtime() -> Option<tokio::runtime::Runtime> {
     }
 }
 
+/// Where a report came from. Only the daemon keeps the history a window's pace is fitted to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Origin {
+    Daemon,
+    Direct,
+}
+
 /// What the running daemon last found or, when no daemon is running, a direct fetch, which still
 /// keeps every provider's floor through the shared gate. While a daemon runs it is the only thing
 /// that polls, so one that does not answer is an error, not a reason to poll around it.
 async fn report<P: AsRef<dyn Provider>>(
     providers: &[P],
     dir: Option<&DataDir>,
-) -> Result<StatusReport, Unanswered> {
+) -> Result<(StatusReport, Origin), Unanswered> {
     if let Some(dir) = dir
         && let Some(report) = quotadial_api::client::status(dir).await?
     {
-        return Ok(report);
+        return Ok((report, Origin::Daemon));
     }
-    Ok(collect(providers).await)
+    Ok((collect(providers).await, Origin::Direct))
 }
 
 fn status(json: bool) -> ExitCode {
@@ -97,8 +104,9 @@ fn status(json: bool) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let providers = quotadial_providers::all();
-    let report = match runtime.block_on(report(&providers, DataDir::from_env().as_ref())) {
-        Ok(report) => report,
+    let (report, origin) = match runtime.block_on(report(&providers, DataDir::from_env().as_ref()))
+    {
+        Ok(shown) => shown,
         Err(error) => {
             eprintln!("quotadial: {error}");
             return ExitCode::FAILURE;
@@ -109,7 +117,7 @@ fn status(json: bool) -> ExitCode {
     let written = if json {
         write_json(&report, &mut stdout)
     } else {
-        write_text(&report, Utc::now(), &mut stdout)
+        write_text(&report, origin, Utc::now(), &mut stdout)
     };
     match written {
         Ok(()) if report.errors.is_empty() => ExitCode::SUCCESS,
@@ -133,13 +141,19 @@ fn watch(json: bool) -> ExitCode {
             let report = report(&providers, dir.as_ref()).await;
             let mut stdout = io::stdout().lock();
             let written = match &report {
-                Ok(report) if json => write_json_line(report, &mut stdout),
+                Ok((report, _)) if json => write_json_line(report, &mut stdout),
                 // The JSON lines stay reports; why a refresh has none goes to standard error.
                 Err(error) if json => {
                     eprintln!("quotadial: {error}");
                     Ok(())
                 }
-                _ => write_frame(report.as_ref(), &providers, Utc::now(), redraw, &mut stdout),
+                _ => write_frame(
+                    report.as_ref().map(|(report, origin)| (report, *origin)),
+                    &providers,
+                    Utc::now(),
+                    redraw,
+                    &mut stdout,
+                ),
             };
             if let Err(error) = written.and_then(|()| stdout.flush()) {
                 return write_failed(&error);
@@ -162,7 +176,11 @@ fn mcp() -> ExitCode {
         tokio::io::BufReader::new(tokio::io::stdin()),
         tokio::io::stdout(),
         &ids,
-        async || report(&providers, dir.as_ref()).await,
+        async || {
+            report(&providers, dir.as_ref())
+                .await
+                .map(|(report, _)| report)
+        },
     ));
     match served {
         Ok(()) => ExitCode::SUCCESS,
@@ -295,7 +313,7 @@ fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()
 /// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated
 /// and how often each provider is asked. `redraw` clears the terminal first.
 fn write_frame<P: AsRef<dyn Provider>>(
-    report: Result<&StatusReport, &Unanswered>,
+    report: Result<(&StatusReport, Origin), &Unanswered>,
     providers: &[P],
     now: DateTime<Utc>,
     redraw: bool,
@@ -306,7 +324,7 @@ fn write_frame<P: AsRef<dyn Provider>>(
         write!(out, "\x1b[2J\x1b[H")?;
     }
     match report {
-        Ok(report) => write_text(report, now, out)?,
+        Ok((report, origin)) => write_text(report, origin, now, out)?,
         Err(error) => writeln!(out, "error: {error}")?,
     }
     writeln!(
@@ -317,8 +335,14 @@ fn write_frame<P: AsRef<dyn Provider>>(
     )
 }
 
-/// The report as text, with every time relative to `now`.
-fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -> io::Result<()> {
+/// The report as text, with every time relative to `now`. A report fetched directly has no pace,
+/// which it says once.
+fn write_text(
+    report: &StatusReport,
+    origin: Origin,
+    now: DateTime<Utc>,
+    out: &mut impl Write,
+) -> io::Result<()> {
     if report.snapshots.is_empty() && report.errors.is_empty() {
         return writeln!(out, "no accounts found");
     }
@@ -344,6 +368,9 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
                 text::source_label(window.source),
                 text::ago(window.fetched_at, now),
             )?;
+            if let Some(pace) = &window.pace {
+                writeln!(out, "    {}", text::pace(pace, window, now))?;
+            }
         }
         if let Some(extra) = &snapshot.extra_usage {
             writeln!(out, "  Extra usage: {}", text::extra_usage(extra))?;
@@ -354,6 +381,17 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
     }
     for error in &report.errors {
         writeln!(out, "error: {}", error.message)?;
+    }
+    let windows = report
+        .snapshots
+        .iter()
+        .any(|snapshot| !snapshot.windows.is_empty());
+    if origin == Origin::Direct && windows {
+        writeln!(
+            out,
+            "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
+             window also shows how fast it fills."
+        )?;
     }
     Ok(())
 }
@@ -563,6 +601,7 @@ mod tests {
                 source,
                 fetched_at: ts("2099-01-01T00:00:00Z"),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,
@@ -580,7 +619,7 @@ mod tests {
         if json {
             write_json(report, &mut out).expect("writes");
         } else {
-            write_text(report, now(), &mut out).expect("writes");
+            write_text(report, Origin::Daemon, now(), &mut out).expect("writes");
         }
         String::from_utf8(out).expect("UTF-8")
     }
@@ -612,6 +651,61 @@ mod tests {
             render(&report, false),
             "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
              from the API 4 min ago\n"
+        );
+    }
+
+    #[test]
+    fn text_shows_each_windows_pace_under_it() {
+        let mut snapshot = snapshot(account(), Source::Api);
+        snapshot.windows[0].pace = Some(quotadial_core::Pace {
+            pct_per_hour: 30.0,
+            runs_out_at: Some(ts("2099-01-01T02:59:00Z")),
+        });
+        let report = StatusReport {
+            snapshots: vec![snapshot],
+            errors: Vec::new(),
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
+             from the API 4 min ago\n    at 30%/h, runs out in 2 h 55 min, 2 h 1 min before it \
+             resets\n"
+        );
+    }
+
+    #[test]
+    fn numbers_fetched_directly_say_once_that_pace_needs_the_daemon() {
+        let report = StatusReport {
+            snapshots: vec![
+                snapshot(account(), Source::Api),
+                snapshot(account(), Source::Api),
+            ],
+            errors: Vec::new(),
+        };
+        let text = |report: &StatusReport| {
+            let mut out = Vec::new();
+            write_text(report, Origin::Direct, now(), &mut out).expect("writes");
+            String::from_utf8(out).expect("UTF-8")
+        };
+
+        let shown = text(&report);
+        assert_eq!(shown.matches("Pace needs the daemon").count(), 1);
+        assert!(shown.ends_with(
+            "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
+             window also shows how fast it fills.\n"
+        ));
+
+        let expired = StatusReport {
+            snapshots: vec![Snapshot::auth_required(
+                account(),
+                "Run `claude` to sign in again.",
+            )],
+            errors: Vec::new(),
+        };
+        assert!(
+            !text(&expired).contains("Pace"),
+            "nothing to say with no windows to show"
         );
     }
 
@@ -688,7 +782,14 @@ mod tests {
         };
         let frame = |redraw| {
             let mut out = Vec::new();
-            write_frame(Ok(&report), &providers, now(), redraw, &mut out).expect("writes");
+            write_frame(
+                Ok((&report, Origin::Daemon)),
+                &providers,
+                now(),
+                redraw,
+                &mut out,
+            )
+            .expect("writes");
             String::from_utf8(out).expect("UTF-8")
         };
 
@@ -850,10 +951,11 @@ mod tests {
         ));
         let cli = Arc::new(CountingProvider::default());
 
-        let shown = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+        let (shown, origin) = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
             .await
             .expect("the daemon answers");
 
+        assert_eq!(origin, Origin::Daemon);
         assert_eq!(shown, latest.report());
         assert_eq!(shown.snapshots.len(), 1);
         assert_eq!(cli.fetches(), 0, "the CLI did not poll");
@@ -868,7 +970,8 @@ mod tests {
         let cli = Arc::new(CountingProvider::default());
         let providers = [Arc::clone(&cli) as Arc<dyn Provider>];
 
-        let shown = report(&providers, Some(&dir)).await.expect("fetches");
+        let (shown, origin) = report(&providers, Some(&dir)).await.expect("fetches");
+        assert_eq!(origin, Origin::Direct);
         assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
         assert_eq!(cli.fetches(), 1);
 
@@ -904,7 +1007,7 @@ mod tests {
         });
         let cli = Arc::new(CountingProvider::default());
 
-        let shown = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+        let (shown, _) = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
             .await
             .expect("no error reaches the user");
 

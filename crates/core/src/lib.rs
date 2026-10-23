@@ -6,6 +6,7 @@
 
 mod error;
 mod model;
+mod pace;
 mod provider;
 mod redact;
 mod report;
@@ -13,7 +14,8 @@ mod secret;
 pub mod text;
 
 pub use error::{Error, Result};
-pub use model::{Account, ExtraUsage, Snapshot, Source, Status, Window, WindowKind};
+pub use model::{Account, ExtraUsage, Pace, Snapshot, Source, Status, Window, WindowKind};
+pub use pace::{MIN_READINGS, MIN_SPAN, Reading};
 pub use provider::Provider;
 pub use redact::{REDACTED, outside_text, redact_secrets};
 pub use report::{ProviderError, StatusReport, collect};

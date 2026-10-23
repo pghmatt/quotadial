@@ -357,6 +357,7 @@ mod tests {
                 source: Source::Api,
                 fetched_at: t0(),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,

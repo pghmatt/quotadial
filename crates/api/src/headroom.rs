@@ -122,6 +122,7 @@ mod tests {
                     source: Source::Api,
                     fetched_at: ts("2099-01-01T00:00:00Z"),
                     unconfirmed: false,
+                    pace: None,
                 })
                 .collect(),
             extra_usage: None,

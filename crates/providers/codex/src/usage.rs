@@ -133,6 +133,7 @@ pub(crate) fn classified(measured: Measured<'_>) -> Option<Window> {
         source: measured.source,
         fetched_at: measured.fetched_at,
         unconfirmed: false,
+        pace: None,
     })
 }
 
@@ -226,6 +227,7 @@ mod tests {
                 source: Source::Api,
                 fetched_at: now(),
                 unconfirmed: false,
+                pace: None,
             }]
         );
         assert_eq!(reading.plan.as_deref(), Some("pro"));

@@ -93,7 +93,8 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
           "resets_at": "2099-01-01T05:00:00Z",
           "window_seconds": 18000,
           "source": "api",
-          "fetched_at": "2099-01-01T00:00:00Z"
+          "fetched_at": "2099-01-01T00:00:00Z",
+          "pace": { "pct_per_hour": 12.0, "runs_out_at": "2099-01-01T04:50:00Z" }
         }
       ],
       "extra_usage": { "enabled": false },
@@ -114,6 +115,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the Codex CLI's own logs) |
 | `windows[].fetched_at` | When the number was fetched, in UTC |
 | `windows[].unconfirmed` | `true` on a sudden 0% that a second fetch has not confirmed yet. Do not trust that 0% |
+| `windows[].pace` | How fast the window is filling, only while the daemon runs: `pct_per_hour`, the share used per hour since the window last reset, and `runs_out_at`, when it reaches 100% at that pace, given only if that comes before it resets. Left out until the daemon has half an hour of readings since the reset, and for a snapshot whose status is not `ok` |
 | `extra_usage` | Pay-as-you-go use beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit`, `currency`, or `balance` (credits left) |
 | `status` | `ok`; `stale` or `rate_limited` (older numbers shown again); `auth_required` (the user must sign in again); `unsupported` |
 | `error` | Why the status is not `ok`, naming the fix, such as "Run `claude` to sign in again." |
@@ -155,6 +157,10 @@ The ranking from `GET /v1/headroom` and `get_account_headroom`:
 - Suppose the tightest window is above about 80% used and resets hours from now. Tell the user
   before starting a long job, with when it resets (`resets_at`), so they can choose to wait, narrow
   the job, or use another account. A near-empty window needs no comment.
+- A window with `pace.runs_out_at` runs out before it resets if use goes on as it has since the
+  reset. If that time comes before your job would finish, say so, with both times. Pace is a
+  straight line through past use, not a promise: a long job usually fills a window faster than
+  the window's average so far.
 - Say how old the numbers are when it matters. `fetched_at` can be minutes ago.
 - QuotaDial only reads. Never write to its files, and never touch the Claude Code or Codex sign-ins
   it reads.

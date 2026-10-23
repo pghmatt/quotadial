@@ -50,6 +50,7 @@ impl Provider for Fixed {
                 source: Source::Api,
                 fetched_at: at("2099-01-01T00:00:00Z"),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,
