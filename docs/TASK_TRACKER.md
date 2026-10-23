@@ -53,7 +53,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | Step | Status | Notes |
 | --- | --- | --- |
 | PR 1: scaffold, the daemon in the app, the bundled CLI | In review (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
-| PR 2: popover | To do | |
+| PR 2: popover | In review (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
 | PR 3: settings and notifications | To do | Two fixed notifications: sign-in needed, a window passed 90% (D-065) |
 | PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
 

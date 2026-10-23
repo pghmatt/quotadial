@@ -2,7 +2,8 @@
 
 The tray app puts the share used of your tightest Claude or ChatGPT/Codex limit in the menu bar or
 system tray. On macOS and Linux it shows a dial with the number beside it. On Windows it shows the
-number drawn into the icon. Its menu, its tooltip and its window list every account.
+number drawn into the icon. Its menu and tooltip list every account. Clicking it opens a popover
+beside it with every window: a bar, the reset, where each number came from and how old it is.
 
 When no QuotaDial daemon is running, the app runs one itself, through the same code as
 `quotadial daemon`. The `quotadial` command and the MCP server then read the app's numbers, and
@@ -13,11 +14,11 @@ it stops. The app carries the `quotadial` command inside it; see [INSTALL.md](..
 
 | Path | Contents |
 | --- | --- |
-| `src/` | The window: Preact and TypeScript, plain CSS, under 150 KB of JavaScript |
+| `src/` | The popover: Preact and TypeScript, plain CSS, under 150 KB of JavaScript |
 | `src-tauri/src/feed.rs` | Runs the daemon, or follows one already running |
-| `src-tauri/src/meter.rs` | What the tray shows: the tightest share used, its level, a line per account |
+| `src-tauri/src/meter.rs` | What the tray and the popover show, built from the shared wording |
 | `src-tauri/src/icon.rs` | The tray icons, drawn in code: the dial, and the Windows number |
-| `src-tauri/src/lib.rs` | The Tauri app: tray, menu, window and quitting cleanly |
+| `src-tauri/src/lib.rs` | The Tauri app: tray, menu, the popover's placing and hiding, and quitting cleanly |
 | `scripts/prepare-cli.mjs` | Builds the CLI the app bundles |
 | `scripts/check-size.mjs` | Fails the build when the window's JavaScript passes 150 KB |
 | `app-icon.svg` | The app icon; `npx tauri icon app-icon.svg -o src-tauri/icons` makes the sizes |

@@ -14,16 +14,20 @@
       {
         "label": "main",
         "title": "QuotaDial",
-        "width": 440,
-        "height": 360,
+        "width": 360,
+        "height": 420,
         "resizable": false,
         "visible": false,
-        "center": true
+        "decorations": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self'; img-src 'self' data:"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
@@ -35,7 +39,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/quotadial"],
+    "externalBin": [
+      "binaries/quotadial"
+    ],
     "category": "DeveloperTool",
     "shortDescription": "Claude and ChatGPT/Codex usage limits in your menu bar or tray.",
     "macOS": {
