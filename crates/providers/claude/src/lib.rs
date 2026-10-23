@@ -203,9 +203,7 @@ impl ClaudeProvider {
                         },
                     };
                 }
-                let snapshot = snapshot_from(account, usage::read(&body, now));
-                state.record_usage(&snapshot);
-                snapshot
+                state.record_usage(snapshot_from(account, usage::read(&body, now)))
             }
             UsageResponse::Unauthorized => {
                 auth_failure(state, account, advice::rejected(&login.source))

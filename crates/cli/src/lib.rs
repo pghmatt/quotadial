@@ -247,9 +247,14 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
         }
         writeln!(out, ": {}", status_label(snapshot.status))?;
         for window in tightest_first(&snapshot.windows) {
+            let unconfirmed = if window.unconfirmed {
+                ", unconfirmed until the next fetch agrees"
+            } else {
+                ""
+            };
             writeln!(
                 out,
-                "  {}: {:.0}% used, {}, from {} {}",
+                "  {}: {:.0}% used{unconfirmed}, {}, from {} {}",
                 window.label,
                 window.used_pct,
                 resets(window.resets_at, now),
@@ -472,6 +477,7 @@ mod tests {
                 scope_model: None,
                 source,
                 fetched_at: ts("2099-01-01T00:00:00Z"),
+                unconfirmed: false,
             }],
             extra_usage: None,
             status: Status::Ok,
@@ -521,6 +527,23 @@ mod tests {
             render(&report, false),
             "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
              from the API 4 min ago\n"
+        );
+    }
+
+    #[test]
+    fn text_marks_an_unconfirmed_zero() {
+        let mut snapshot = snapshot(account(), Source::Api);
+        snapshot.windows[0].used_pct = 0.0;
+        snapshot.windows[0].unconfirmed = true;
+        let report = StatusReport {
+            snapshots: vec![snapshot],
+            errors: Vec::new(),
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "scripted user@example.com (max): ok\n  Session: 0% used, unconfirmed until the next \
+             fetch agrees, resets in 4 h 56 min, from the API 4 min ago\n"
         );
     }
 
@@ -614,6 +637,7 @@ mod tests {
             scope_model: None,
             source: Source::Api,
             fetched_at: ts("2099-01-01T00:00:00Z"),
+            unconfirmed: false,
         };
         let windows = [
             window("Session", 10.0, Some("2099-01-01T05:00:00Z")),

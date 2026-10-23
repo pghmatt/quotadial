@@ -176,9 +176,7 @@ impl CodexProvider {
                 if let Some(plan) = &reading.plan {
                     account.plan = Some(plan.clone());
                 }
-                let snapshot = snapshot_from(account, reading);
-                state.record_usage(&snapshot);
-                snapshot
+                state.record_usage(snapshot_from(account, reading))
             }
             UsageResponse::Unauthorized => {
                 let snapshot = Snapshot::auth_required(account, advice::REJECTED);
