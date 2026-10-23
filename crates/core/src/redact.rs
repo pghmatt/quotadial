@@ -14,6 +14,22 @@ const TOKENS: &[Token] = &[
         any_case: true,
         dotted: false,
     },
+    // OpenAI API keys. QuotaDial never sends one, but `auth.json` can hold one.
+    Token {
+        prefix: "sk-proj-",
+        any_case: false,
+        dotted: false,
+    },
+    Token {
+        prefix: "sk-svcacct-",
+        any_case: false,
+        dotted: false,
+    },
+    Token {
+        prefix: "sk-admin-",
+        any_case: false,
+        dotted: false,
+    },
     // A JSON Web Token, such as a ChatGPT access token: base64url parts joined by dots, the first
     // always starting `eyJ` (`{"`).
     Token {
@@ -27,8 +43,7 @@ struct Token {
     prefix: &'static str,
     /// Whether the prefix matches in any case.
     any_case: bool,
-    /// Whether the token is made of dot-separated parts. Such a token counts only if it has a dot,
-    /// so a word that merely starts with the prefix is left alone.
+    /// Whether the token is a JSON Web Token, with at least three dot-separated parts.
     dotted: bool,
 }
 
@@ -52,10 +67,12 @@ impl Token {
                 while end > body && bytes[end - 1] == b'.' {
                     end -= 1;
                 }
-                if !text[body..end].contains('.') {
-                    search = body;
-                    continue;
-                }
+            }
+            // A token is a word of its own, and a JSON Web Token has at least three parts.
+            let starts_a_word = start == 0 || !self.is_token_byte(bytes[start - 1]);
+            if !starts_a_word || (self.dotted && text[body..end].matches('.').count() < 2) {
+                search = body;
+                continue;
             }
             return Some((start, end));
         }
@@ -63,12 +80,16 @@ impl Token {
     }
 
     fn is_token_byte(&self, byte: u8) -> bool {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_') || (self.dotted && byte == b'.')
+        byte.is_ascii_alphanumeric()
+            || matches!(byte, b'-' | b'_')
+            || (self.dotted && matches!(byte, b'.' | b'='))
     }
 }
 
 /// `text` with every token replaced by [`REDACTED`]: Anthropic tokens (`sk-ant-` in any case and
-/// the token characters after it) and JSON Web Tokens (`eyJ…` with at least one dot).
+/// the token characters after it), OpenAI API keys (`sk-proj-`, `sk-svcacct-`, `sk-admin-`) and
+/// JSON Web Tokens (`eyJ` with at least three dot-separated parts). A token starts a word, so a
+/// word that merely contains a prefix is left alone.
 #[must_use]
 pub fn redact_secrets(text: &str) -> Cow<'_, str> {
     // ASCII lowercasing keeps every byte where it was, so offsets found in `lower` index `text`.
@@ -89,6 +110,23 @@ pub fn redact_secrets(text: &str) -> Cow<'_, str> {
     }
     redacted.push_str(&text[copied..]);
     Cow::Owned(redacted)
+}
+
+/// Text from outside that QuotaDial shows or saves, such as a server's error message or a model's
+/// name: tokens blanked out, whitespace collapsed to single spaces, and cut to `max` characters
+/// with an ellipsis. Tokens are blanked first, so one cut off at the end cannot slip through in
+/// part. `None` when nothing is left.
+#[must_use]
+pub fn outside_text(text: &str, max: usize) -> Option<String> {
+    let redacted = redact_secrets(text);
+    let line = redacted.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.is_empty() {
+        return None;
+    }
+    Some(match line.char_indices().nth(max) {
+        Some((cut, _)) => format!("{}…", &line[..cut]),
+        None => line,
+    })
 }
 
 #[cfg(test)]
@@ -144,9 +182,52 @@ mod tests {
             "a sentence's last dot stays"
         );
         assert_eq!(
-            redact_secrets("eyJ without dots, EYJA.B or eyJ."),
+            redact_secrets("padded eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0=.c2lnbmF0dXJl=="),
+            "padded [redacted token]",
+            "base64 padding is part of the token"
+        );
+    }
+
+    #[test]
+    fn words_that_only_look_like_tokens_are_left_alone() {
+        for text in [
             "eyJ without dots, EYJA.B or eyJ.",
-            "only the exact prefix with a dotted body counts"
+            "eyJhbGci.only-two-parts",
+            "call keyJSON.parse.now",
+            r"C:\Users\JoeyJ.Smith.Jr\.codex\auth.json",
+            "a task-ant-farm and a desk-proj-plan",
+        ] {
+            assert_eq!(redact_secrets(text), text);
+        }
+    }
+
+    #[test]
+    fn openai_api_keys_are_replaced() {
+        assert_eq!(
+            redact_secrets("key sk-proj-AbC123_x, sk-svcacct-1 and sk-admin-2"),
+            "key [redacted token], [redacted token] and [redacted token]"
+        );
+    }
+
+    #[test]
+    fn outside_text_is_one_short_line_without_tokens() {
+        assert_eq!(
+            outside_text("  invalid\n token: sk-ant-oat01-x  ", 200).as_deref(),
+            Some("invalid token: [redacted token]")
+        );
+        let long = format!("a\nb {}", "x".repeat(300));
+        let line = outside_text(&long, 200).expect("text");
+        assert!(line.starts_with("a b "));
+        assert!(line.ends_with('…'));
+        assert_eq!(line.chars().count(), 201);
+        assert_eq!(outside_text(" \n ", 10), None);
+
+        // A token straddling the cut is blanked before the cut.
+        let at_the_cut = format!("{} sk-ant-oat01-{}", "x".repeat(195), "A".repeat(60));
+        let line = outside_text(&at_the_cut, 200).expect("text");
+        assert!(
+            !line.contains("sk-ant-") && !line.contains("AAAA"),
+            "{line}"
         );
     }
 }

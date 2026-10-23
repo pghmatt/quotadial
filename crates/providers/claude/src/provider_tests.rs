@@ -1283,3 +1283,29 @@ async fn a_state_file_that_no_longer_parses_keeps_its_floor_and_block() {
     assert_eq!(fresh.status, Status::Ok);
     assert_eq!(harness.usage_requests().await, 2);
 }
+
+#[tokio::test]
+async fn a_redirect_is_never_followed() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(ResponseTemplate::new(302).insert_header(
+            "location",
+            format!("{}/elsewhere", harness.server.uri()).as_str(),
+        ))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let result = provider.fetch(&account).await;
+
+    assert_eq!(
+        result.expect_err("fails").to_string(),
+        "claude: request failed: Anthropic's usage endpoint answered HTTP 302."
+    );
+    assert_eq!(
+        harness.requests().await,
+        1,
+        "only the usage request was sent"
+    );
+}

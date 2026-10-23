@@ -4,12 +4,13 @@
 //! against Claude Code 2.1.286, whose plain usage read is `GET /api/oauth/usage` with no query
 //! string, `anthropic-beta: oauth-2025-04-20` and `User-Agent: claude-code/<version>`. QuotaDial
 //! sends exactly that, so it needs none of CodexBar's `?cedar_ember=1` first attempt and retry.
-//! Redirects are never followed, so the bearer token only ever goes to the configured host.
+//! Redirects are never followed and only HTTPS is spoken outside tests, so the bearer token only
+//! ever goes to the configured host.
 
 use std::process::Command;
 use std::time::Duration;
 
-use quotadial_core::{Secret, redact_secrets};
+use quotadial_core::{Secret, outside_text};
 use reqwest::header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER, USER_AGENT};
 use reqwest::{Client, Response, StatusCode, redirect};
 use serde_json::Value;
@@ -83,6 +84,8 @@ impl Api {
             .timeout(timeout)
             .connect_timeout(CONNECT_TIMEOUT.min(timeout))
             .redirect(redirect::Policy::none())
+            // Tests stand in for Anthropic with a plain-HTTP local server.
+            .https_only(!cfg!(test))
             .build()
             .map_err(|error| format!("could not set up the HTTP client: {error}"))?;
         Ok(Self {
@@ -231,17 +234,7 @@ fn classify(
 /// The message is shown and saved, and an upstream message could quote the token that was sent.
 fn error_message(body: &[u8]) -> Option<String> {
     let value: Value = serde_json::from_slice(body).ok()?;
-    let message = value.get("error")?.get("message")?.as_str()?;
-    // Blanked before shortening, so a token cut off at the end cannot slip through in part.
-    let message = redact_secrets(message);
-    let line = message.split_whitespace().collect::<Vec<_>>().join(" ");
-    if line.is_empty() {
-        return None;
-    }
-    Some(match line.char_indices().nth(200) {
-        Some((cut, _)) => format!("{}…", &line[..cut]),
-        None => line,
-    })
+    outside_text(value.get("error")?.get("message")?.as_str()?, 200)
 }
 
 /// `claude-code/<version>`, the User-Agent Claude Code sends.

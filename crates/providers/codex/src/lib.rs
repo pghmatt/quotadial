@@ -118,7 +118,7 @@ impl CodexProvider {
         match Auth::parse(text.expose()) {
             Ok(auth) => Ok(SignIn::ChatGpt {
                 auth,
-                generation: modified(&path),
+                written: written(&path),
             }),
             Err(ParseError::ApiKey) => Ok(SignIn::ApiKey),
             Err(error) => Err(credentials_error(&path, error.describe().to_owned())),
@@ -158,6 +158,16 @@ impl CodexProvider {
         let snapshot = match response {
             UsageResponse::Usage(body) => {
                 let reading = usage::read(&body, now);
+                if let Some(reason) = foreign_answer(&reading, auth) {
+                    return state
+                        .record_failure(&POLICY, reason, now)
+                        .map_err(|reason| {
+                            RequestFailure::Error(Error::InvalidResponse {
+                                provider: ID,
+                                reason,
+                            })
+                        });
+                }
                 if let Some(plan) = &reading.plan {
                     account.plan = Some(plan.clone());
                 }
@@ -218,10 +228,11 @@ enum SignIn {
     Missing,
     /// An OpenAI API key, which has no ChatGPT plan limits.
     ApiKey,
-    /// A ChatGPT sign-in. `generation` changes whenever the Codex CLI rewrites the file.
+    /// A ChatGPT sign-in, and when the Codex CLI last wrote the file: when it signed in or
+    /// refreshed the token.
     ChatGpt {
         auth: Auth,
-        generation: Option<String>,
+        written: Option<DateTime<Utc>>,
     },
 }
 
@@ -278,8 +289,11 @@ impl Provider for CodexProvider {
                     advice::DIFFERENT_ACCOUNT,
                 ));
             }
-            SignIn::ChatGpt { auth, generation } => (auth, generation),
+            SignIn::ChatGpt { auth, written } => (auth, written),
         };
+        // Changes whenever the Codex CLI rewrites the file, which allows one early retry after a
+        // rejected sign-in.
+        let generation = generation.map(|at| at.to_rfc3339_opts(SecondsFormat::Nanos, true));
         if !same_account(&account_for(&auth), account) {
             return Ok(Snapshot::auth_required(
                 account.clone(),
@@ -292,7 +306,7 @@ impl Provider for CodexProvider {
         // A damaged file is saved again at once, so the hold it now records cannot restart.
         let mut changed = damaged;
         changed |= state.reanchor(now);
-        if owner(&auth).is_none() {
+        if auth.account_id.is_none() {
             changed |= state.forget_numbers_after_new_sign_in(&POLICY, generation.as_deref());
         }
         if changed {
@@ -350,13 +364,19 @@ impl Provider for CodexProvider {
     }
 
     fn fallback(&self, account: &Account) -> Option<Snapshot> {
-        let SignIn::ChatGpt { auth, .. } = self.sign_in().ok()? else {
+        let SignIn::ChatGpt { auth, written } = self.sign_in().ok()? else {
             return None;
         };
         if !same_account(&account_for(&auth), account) {
             return None;
         }
-        let reading = sessions::newest(&self.env.sessions_dir()?, owner(&auth)?, self.clock.now())?;
+        let owner = Owner {
+            account_id: auth.account_id.as_deref()?,
+            user_id: auth.user_id.as_deref(),
+            plan: auth.plan.as_deref(),
+            since: written,
+        };
+        let reading = sessions::newest(&self.env.sessions_dir()?, owner, self.clock.now())?;
         if reading.windows.is_empty() {
             return None;
         }
@@ -408,12 +428,16 @@ fn api_key_account() -> Account {
     }
 }
 
-/// Who the Codex CLI's session logs must name as their creator, when the sign-in says.
-fn owner(auth: &Auth) -> Option<Owner<'_>> {
-    Some(Owner {
-        account_id: auth.account_id.as_deref()?,
-        user_id: auth.user_id.as_deref(),
-    })
+/// Why an answer cannot be this sign-in's: ChatGPT named another user or workspace than the token
+/// says. Its numbers are not used, so they can never be saved under the wrong account.
+fn foreign_answer(reading: &Reading, auth: &Auth) -> Option<String> {
+    let differs = |answered: &Option<String>, expected: &Option<String>| matches!((answered, expected), (Some(answered), Some(expected)) if answered != expected);
+    (differs(&reading.user_id, &auth.user_id) || differs(&reading.account_id, &auth.account_id))
+        .then(|| {
+            "ChatGPT's answer names another account than the Codex CLI's sign-in, so it was not \
+             used."
+                .to_owned()
+        })
 }
 
 /// The same account, as `Account` identity is defined: provider, organization and account id.
@@ -421,10 +445,10 @@ fn same_account(a: &Account, b: &Account) -> bool {
     a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
 }
 
-/// When the file was last written, which changes whenever the Codex CLI signs in or refreshes.
-fn modified(path: &Path) -> Option<String> {
+/// When the file was last written.
+fn written(path: &Path) -> Option<DateTime<Utc>> {
     let modified = std::fs::metadata(path).ok()?.modified().ok()?;
-    Some(DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Nanos, true))
+    Some(DateTime::<Utc>::from(modified))
 }
 
 fn credentials_error(path: &Path, reason: String) -> Error {

@@ -3,12 +3,12 @@
 //! Ported from CodexBar's `Providers/Codex/CodexOAuth/CodexOAuthUsageFetcher.swift` and
 //! `CodexAuthenticatedHTTPTransport.swift`: `GET https://chatgpt.com/backend-api/wham/usage` with
 //! the bearer token and `ChatGPT-Account-Id`. QuotaDial sends the Codex CLI's User-Agent where
-//! CodexBar sends its own name (D-038). Redirects are never followed and cookies are never kept,
-//! so the token only ever goes to the configured host.
+//! CodexBar sends its own name (D-038). Redirects are never followed, cookies are never kept and
+//! only HTTPS is spoken outside tests, so the token only ever goes to the configured host.
 
 use std::time::Duration;
 
-use quotadial_core::{Secret, redact_secrets};
+use quotadial_core::{REDACTED, Secret, outside_text};
 use reqwest::header::{ACCEPT, RETRY_AFTER, USER_AGENT};
 use reqwest::{Client, Response, StatusCode, redirect};
 use serde_json::Value;
@@ -66,6 +66,8 @@ impl Api {
             .timeout(timeout)
             .connect_timeout(CONNECT_TIMEOUT.min(timeout))
             .redirect(redirect::Policy::none())
+            // Tests stand in for ChatGPT with a plain-HTTP local server.
+            .https_only(!cfg!(test))
             .build()
             .map_err(|error| format!("could not set up the HTTP client: {error}"))?;
         Ok(Self {
@@ -115,7 +117,7 @@ impl Api {
         } else {
             self.read_body(response).await
         };
-        Ok(classify(status, retry_after, body))
+        Ok(classify(status, retry_after, body, token.expose()))
     }
 
     async fn read_body(&self, mut response: Response) -> Result<Vec<u8>, String> {
@@ -154,11 +156,13 @@ impl Api {
     }
 }
 
-/// Classifies an answer. `body` is an error when the body did not arrive in full.
+/// Classifies an answer to a request sent with `sent_token`. `body` is an error when the body did
+/// not arrive in full.
 fn classify(
     status: StatusCode,
     retry_after: Option<String>,
     body: Result<Vec<u8>, String>,
+    sent_token: &str,
 ) -> UsageResponse {
     match status {
         StatusCode::TOO_MANY_REQUESTS => UsageResponse::RateLimited { retry_after },
@@ -174,31 +178,27 @@ fn classify(
         },
         _ => UsageResponse::Failed {
             status: status.as_u16(),
-            message: error_message(&body.unwrap_or_default()),
+            message: error_message(&body.unwrap_or_default(), sent_token),
         },
     }
 }
 
-/// ChatGPT's error message, `{ "detail": … }` (or `{ "error": { "message": … } }`), with any token
-/// blanked out, shortened to one line. The message is shown and saved, and an upstream message
-/// could quote the token that was sent.
-fn error_message(body: &[u8]) -> Option<String> {
+/// ChatGPT's error message, `{ "detail": … }` (or `{ "error": { "message": … } }`), shortened to
+/// one line, with the token that was sent and anything else token-like blanked out. The message is
+/// shown and saved, and an upstream message could quote the token, whatever its format.
+fn error_message(body: &[u8], sent_token: &str) -> Option<String> {
     let value: Value = serde_json::from_slice(body).ok()?;
     let message = value
         .get("detail")
         .and_then(Value::as_str)
         .or_else(|| value.get("error")?.get("message")?.as_str())
         .or_else(|| value.get("message")?.as_str())?;
-    // Blanked before shortening, so a token cut off at the end cannot slip through in part.
-    let message = redact_secrets(message);
-    let line = message.split_whitespace().collect::<Vec<_>>().join(" ");
-    if line.is_empty() {
-        return None;
-    }
-    Some(match line.char_indices().nth(200) {
-        Some((cut, _)) => format!("{}…", &line[..cut]),
-        None => line,
-    })
+    let message = if sent_token.is_empty() {
+        message.to_owned()
+    } else {
+        message.replace(sent_token, REDACTED)
+    };
+    outside_text(&message, 200)
 }
 
 #[cfg(test)]
@@ -207,6 +207,8 @@ mod tests {
 
     use super::*;
 
+    const SENT: &str = "opaque-token-0123456789";
+
     fn body(value: &Value) -> Result<Vec<u8>, String> {
         Ok(value.to_string().into_bytes())
     }
@@ -214,32 +216,37 @@ mod tests {
     #[test]
     fn answers_are_classified_by_status() {
         assert!(matches!(
-            classify(StatusCode::OK, None, body(&json!({ "plan_type": "pro" }))),
+            classify(StatusCode::OK, None, body(&json!({ "plan_type": "pro" })), SENT),
             UsageResponse::Usage(value) if value["plan_type"] == "pro"
         ));
         assert!(matches!(
-            classify(StatusCode::OK, None, body(&json!([1, 2]))),
+            classify(StatusCode::OK, None, body(&json!([1, 2])), SENT),
             UsageResponse::Invalid(_)
         ));
         assert!(matches!(
-            classify(StatusCode::OK, None, Err("connection reset".into())),
+            classify(StatusCode::OK, None, Err("connection reset".into()), SENT),
             UsageResponse::Invalid(reason) if reason.contains("did not arrive in full")
         ));
         assert!(matches!(
-            classify(StatusCode::UNAUTHORIZED, None, Err("never read".into())),
+            classify(
+                StatusCode::UNAUTHORIZED,
+                None,
+                Err("never read".into()),
+                SENT
+            ),
             UsageResponse::Unauthorized
         ));
         assert!(matches!(
-            classify(StatusCode::TOO_MANY_REQUESTS, Some("60".into()), Err("never read".into())),
+            classify(StatusCode::TOO_MANY_REQUESTS, Some("60".into()), Err("never read".into()), SENT),
             UsageResponse::RateLimited { retry_after: Some(value) } if value == "60"
         ));
         assert!(matches!(
-            classify(StatusCode::FORBIDDEN, None, body(&json!({ "detail": "Workspace is deactivated." }))),
+            classify(StatusCode::FORBIDDEN, None, body(&json!({ "detail": "Workspace is deactivated." })), SENT),
             UsageResponse::Failed { status: 403, message: Some(message) }
                 if message == "Workspace is deactivated."
         ));
         assert!(matches!(
-            classify(StatusCode::BAD_GATEWAY, None, Ok(b"<html>".to_vec())),
+            classify(StatusCode::BAD_GATEWAY, None, Ok(b"<html>".to_vec()), SENT),
             UsageResponse::Failed {
                 status: 502,
                 message: None
@@ -254,22 +261,29 @@ mod tests {
             "detail": "Could not parse your authentication token. Please try signing in again."
         });
         assert_eq!(
-            error_message(live.to_string().as_bytes()).as_deref(),
+            error_message(live.to_string().as_bytes(), SENT).as_deref(),
             Some("Could not parse your authentication token. Please try signing in again.")
         );
 
         let quoted =
             json!({ "error": { "message": "bad token eyJhbGciOiJIUzI1NiJ9.eyJ4IjoxfQ.c2ln" } });
         assert_eq!(
-            error_message(quoted.to_string().as_bytes()).as_deref(),
+            error_message(quoted.to_string().as_bytes(), SENT).as_deref(),
             Some("bad token [redacted token]")
         );
 
         let long = json!({ "detail": format!("a\nb {}", "x".repeat(300)) });
-        let message = error_message(long.to_string().as_bytes()).expect("message");
+        let message = error_message(long.to_string().as_bytes(), SENT).expect("message");
         assert!(message.starts_with("a b "));
         assert_eq!(message.chars().count(), 201);
-        assert_eq!(error_message(b"not json"), None);
-        assert_eq!(error_message(br#"{"detail":"  "}"#), None);
+        assert_eq!(error_message(b"not json", SENT), None);
+
+        // The token that was sent is blanked whatever its format, even an opaque one.
+        let echoed = json!({ "detail": format!("Token {SENT} expired") });
+        assert_eq!(
+            error_message(echoed.to_string().as_bytes(), SENT).as_deref(),
+            Some("Token [redacted token] expired")
+        );
+        assert_eq!(error_message(br#"{"detail":"  "}"#, SENT), None);
     }
 }

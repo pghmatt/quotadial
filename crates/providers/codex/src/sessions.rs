@@ -7,15 +7,23 @@
 //! `rate_limits { limit_id, primary, secondary, credits, plan_type }`, each window
 //! `{ used_percent, window_minutes, resets_at }`. CodexBar stopped reading these files in November
 //! 2025 (it asks `codex app-server` instead), so this follows the files the Codex CLI 0.162 and
-//! 0.163 wrote on Matt's Mac (D-040).
+//! 0.163 wrote on Matt's Mac (D-042).
 //!
-//! Only sessions created by the same ChatGPT account and user are read, so another account's
-//! numbers never stand in. Only files written in the last week are read, because no window is
-//! longer, and a window that has reset since is left out. Files can be hundreds of megabytes, so
-//! each is read backwards from its end, at most [`MAX_SCAN_BYTES`] of it.
+//! Another account's numbers must never stand in, and a session names only who created it: a
+//! session resumed after `codex login` to another account keeps writing to the same file. So a
+//! file counts only if the same ChatGPT account and user created it, an event counts only if it
+//! was written after the current sign-in (`auth.json`'s modification time), and an event naming
+//! another plan than the sign-in's is skipped. Only files written in the last week are read,
+//! because no window is longer, and a window that has reset since is left out. A session started
+//! more than a week ago can still be written to today, so files are chosen by when they were
+//! written, not by their folder's date.
+//!
+//! Files can be hundreds of megabytes, so each is read backwards from its end, at most 32 MiB of
+//! it, and a line too long to be a rate-limit event is skipped without being kept in memory.
 
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -24,19 +32,41 @@ use serde_json::Value;
 
 use crate::usage::{self, Measured};
 
-/// How far back from a file's end to look for a rate-limit event. One follows every model turn.
-const MAX_SCAN_BYTES: u64 = 32 * 1024 * 1024;
-const CHUNK_BYTES: u64 = 64 * 1024;
 /// A `session_meta` line longer than this is not read.
 const MAX_META_BYTES: u64 = 1024 * 1024;
 /// No window is longer than a week, so older files cannot hold current numbers.
 const HORIZON: TimeDelta = TimeDelta::days(7);
 
-/// Who created a session: the ChatGPT account (workspace) and, when known, the user.
+/// How much of a file is read, looking for its last rate-limit event.
+#[derive(Debug, Clone, Copy)]
+struct Limits {
+    /// Bytes read at a time, backwards from the end.
+    chunk: u64,
+    /// How far back from the end to look. A rate-limit event follows every model turn.
+    max_scan: u64,
+    /// Longer lines are skipped: a `token_count` event is a few hundred bytes.
+    max_line: usize,
+}
+
+const LIMITS: Limits = Limits {
+    chunk: 64 * 1024,
+    max_scan: 32 * 1024 * 1024,
+    max_line: 256 * 1024,
+};
+
+/// What a session log must show before its numbers stand in for an account.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Owner<'a> {
+    /// The ChatGPT account (workspace) that must have created the session.
     pub(crate) account_id: &'a str,
+    /// The ChatGPT user that must have created it. When the sign-in names no user, the account is
+    /// the whole workspace, so any of its users' sessions count.
     pub(crate) user_id: Option<&'a str>,
+    /// The sign-in's plan. An event naming another plan is someone else's.
+    pub(crate) plan: Option<&'a str>,
+    /// When the current sign-in was written. An earlier event may come from another sign-in that
+    /// resumed the session, so only later ones count.
+    pub(crate) since: Option<DateTime<Utc>>,
 }
 
 /// The newest rate-limit numbers in the session logs.
@@ -49,17 +79,29 @@ pub(crate) struct LogReading {
     pub(crate) at: DateTime<Utc>,
 }
 
-/// The newest rate-limit event in `owner`'s sessions under `sessions_dir`, as of `now`.
+/// The newest rate-limit event for `owner` in the sessions under `sessions_dir`, as of `now`.
 pub(crate) fn newest(
     sessions_dir: &Path,
     owner: Owner<'_>,
     now: DateTime<Utc>,
 ) -> Option<LogReading> {
+    newest_within(sessions_dir, owner, now, LIMITS)
+}
+
+fn newest_within(
+    sessions_dir: &Path,
+    owner: Owner<'_>,
+    now: DateTime<Utc>,
+    limits: Limits,
+) -> Option<LogReading> {
+    let oldest = owner
+        .since
+        .map_or(now - HORIZON, |since| since.max(now - HORIZON));
     let mut files: Vec<(DateTime<Utc>, PathBuf)> = rollout_files(sessions_dir)
         .into_iter()
         .filter_map(|path| {
             let modified = DateTime::<Utc>::from(fs::metadata(&path).ok()?.modified().ok()?);
-            (modified >= now - HORIZON).then_some((modified, path))
+            (modified >= oldest).then_some((modified, path))
         })
         .collect();
     files.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
@@ -73,7 +115,7 @@ pub(crate) fn newest(
         if !created_by(&path, owner) {
             continue;
         }
-        if let Some((at, rate_limits)) = last_rate_limits(&path)
+        if let Some((at, rate_limits)) = last_rate_limits(&path, owner, limits)
             && best.as_ref().is_none_or(|(best_at, _)| at > *best_at)
         {
             best = Some((at, rate_limits));
@@ -83,7 +125,7 @@ pub(crate) fn newest(
     Some(LogReading {
         windows: log_windows(&rate_limits, at, now),
         extra_usage: rate_limits.get("credits").and_then(usage::credits),
-        plan: usage::text(&rate_limits, "plan_type"),
+        plan: usage::name(&rate_limits, "plan_type"),
         at,
     })
 }
@@ -136,36 +178,92 @@ fn created_by(path: &Path, owner: Owner<'_>) -> bool {
             .is_none_or(|user_id| payload["creator_user_id"].as_str() == Some(user_id))
 }
 
-/// The last `token_count` event in the file with rate limits for the Codex limit itself, with its
-/// time. Events for other limits (`limit_id: "premium"`) are skipped.
-fn last_rate_limits(path: &Path) -> Option<(DateTime<Utc>, Value)> {
+/// The last `token_count` event in the file that counts for `owner`, with its time. Events for
+/// other limits (`limit_id: "premium"`) and for another plan are skipped, and the search stops at
+/// the first event older than the sign-in.
+fn last_rate_limits(
+    path: &Path,
+    owner: Owner<'_>,
+    limits: Limits,
+) -> Option<(DateTime<Utc>, Value)> {
+    lines_backwards(path, limits, |line| {
+        let Some((at, rate_limits)) = rate_limit_event(line) else {
+            return ControlFlow::Continue(());
+        };
+        if owner.since.is_some_and(|since| at < since) {
+            return ControlFlow::Break(None);
+        }
+        let plan = rate_limits.get("plan_type").and_then(Value::as_str);
+        if let (Some(expected), Some(plan)) = (owner.plan, plan)
+            && !expected.eq_ignore_ascii_case(plan)
+        {
+            return ControlFlow::Continue(());
+        }
+        ControlFlow::Break(Some((at, rate_limits)))
+    })
+}
+
+/// Calls `visit` with each line in the last `limits.max_scan` bytes of the file, newest first,
+/// until it breaks, and returns what it broke with. Lines longer than `limits.max_line` are
+/// skipped.
+fn lines_backwards<T>(
+    path: &Path,
+    limits: Limits,
+    mut visit: impl FnMut(&[u8]) -> ControlFlow<Option<T>>,
+) -> Option<T> {
     let mut file = File::open(path).ok()?;
     let length = file.metadata().ok()?.len();
-    let floor = length.saturating_sub(MAX_SCAN_BYTES);
+    let floor = length.saturating_sub(limits.max_scan);
     let mut end = length;
-    // The start of a line whose beginning lies before the part read so far.
-    let mut carry: Vec<u8> = Vec::new();
+    // The part already read of a line that starts before `end`, or `None` once that line has
+    // grown too long to keep.
+    let mut tail: Option<Vec<u8>> = Some(Vec::new());
     while end > floor {
-        let start = end.saturating_sub(CHUNK_BYTES).max(floor);
-        let mut buffer = vec![0; usize::try_from(end - start).ok()?];
+        let start = end.saturating_sub(limits.chunk).max(floor);
+        let mut chunk = vec![0; usize::try_from(end - start).ok()?];
         file.seek(SeekFrom::Start(start)).ok()?;
-        file.read_exact(&mut buffer).ok()?;
-        buffer.extend_from_slice(&carry);
-        let mut lines = buffer.split(|byte| *byte == b'\n');
-        // Unless this is the file's start, the first piece continues a line from before `start`.
-        let first = if start > 0 { lines.next() } else { None };
-        let complete: Vec<&[u8]> = lines.collect();
-        if let Some(event) = complete
+        file.read_exact(&mut chunk).ok()?;
+        // Newest first. The first piece ends the tail's line; the last starts before `start`,
+        // unless `start` is the file's start.
+        let pieces: Vec<&[u8]> = chunk.split(|byte| *byte == b'\n').rev().collect();
+        let (newest_piece, older) = pieces.split_first()?;
+        let tail_line = tail.and_then(|tail| joined(newest_piece, &tail, limits.max_line));
+        let Some((oldest_piece, middle)) = older.split_last() else {
+            // No line break in this chunk: the tail's line goes on before it.
+            if start == 0 {
+                return tail_line
+                    .and_then(|line| visit(&line).break_value())
+                    .flatten();
+            }
+            tail = tail_line;
+            end = start;
+            continue;
+        };
+        let complete = tail_line
             .iter()
-            .rev()
-            .find_map(|line| rate_limit_event(line))
-        {
-            return Some(event);
+            .map(Vec::as_slice)
+            .chain(middle.iter().copied())
+            .filter(|line| line.len() <= limits.max_line);
+        for line in complete {
+            if let ControlFlow::Break(found) = visit(line) {
+                return found;
+            }
         }
-        carry = first.map(<[u8]>::to_vec).unwrap_or_default();
+        if start == 0 {
+            return (oldest_piece.len() <= limits.max_line)
+                .then(|| visit(oldest_piece).break_value())
+                .flatten()
+                .flatten();
+        }
+        tail = (oldest_piece.len() <= limits.max_line).then(|| oldest_piece.to_vec());
         end = start;
     }
     None
+}
+
+/// `head` followed by `tail`, unless together they are longer than `max`.
+fn joined(head: &[u8], tail: &[u8], max: usize) -> Option<Vec<u8>> {
+    (head.len() + tail.len() <= max).then(|| [head, tail].concat())
 }
 
 fn rate_limit_event(line: &[u8]) -> Option<(DateTime<Utc>, Value)> {
@@ -238,13 +336,15 @@ pub(crate) mod tests {
             .expect("sets the time");
     }
 
-    /// A redacted session log from the Codex CLI (D-040).
+    /// A redacted session log from the Codex CLI (D-042).
     pub(crate) const ROLLOUT_FIXTURE: &str =
         include_str!("../../../../fixtures/codex/rollout.jsonl");
 
     const OWNER: Owner<'static> = Owner {
         account_id: "00000000-0000-0000-0000-000000000002",
         user_id: Some("user-000000000000000000000001"),
+        plan: Some("pro"),
+        since: None,
     };
 
     fn ts(rfc3339: &str) -> DateTime<Utc> {
@@ -402,6 +502,155 @@ pub(crate) mod tests {
         let reading = newest(dir.path(), OWNER, now()).expect("a reading");
 
         assert_eq!(reading.at, ts("2026-10-23T09:15:00Z"));
+    }
+
+    #[test]
+    fn events_written_before_the_current_sign_in_never_stand_in() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        write_log(
+            &dir,
+            "rollout-a.jsonl",
+            ROLLOUT_FIXTURE,
+            ts("2026-10-23T09:30:00Z"),
+        );
+        let since = |at: &str| Owner {
+            since: Some(ts(at)),
+            ..OWNER
+        };
+
+        let reading = newest(dir.path(), since("2026-10-23T09:10:00Z"), now());
+        assert_eq!(reading.map(|r| r.at), Some(ts("2026-10-23T09:15:00Z")));
+        // Written to after the sign-in, but its last event is from before it.
+        assert_eq!(
+            newest(dir.path(), since("2026-10-23T09:16:00Z"), now()),
+            None
+        );
+        // Not written to at all since the sign-in.
+        assert_eq!(
+            newest(dir.path(), since("2026-10-23T09:31:00Z"), now()),
+            None
+        );
+    }
+
+    #[test]
+    fn events_for_another_plan_are_skipped() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mixed = ROLLOUT_FIXTURE.replacen("\"plan_type\":\"pro\"", "\"plan_type\":\"plus\"", 1);
+        write_log(&dir, "rollout-a.jsonl", &mixed, ts("2026-10-23T09:15:02Z"));
+
+        let plus = Owner {
+            plan: Some("plus"),
+            ..OWNER
+        };
+        let reading = newest(dir.path(), plus, now()).expect("the older plus event");
+        assert_eq!(reading.at, ts("2026-10-23T09:05:00Z"));
+        assert_eq!(reading.windows[0].used_pct, 50.0);
+
+        let team = Owner {
+            plan: Some("team"),
+            ..OWNER
+        };
+        assert_eq!(newest(dir.path(), team, now()), None);
+        let unknown = Owner {
+            plan: None,
+            ..OWNER
+        };
+        assert_eq!(
+            newest(dir.path(), unknown, now()).map(|r| r.at),
+            Some(ts("2026-10-23T09:15:00Z"))
+        );
+    }
+
+    #[test]
+    fn the_newest_event_is_found_whatever_the_chunk_boundaries() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let unix = write_log(
+            &dir,
+            "rollout-a.jsonl",
+            ROLLOUT_FIXTURE,
+            ts("2026-10-23T09:15:02Z"),
+        );
+        let windows = ROLLOUT_FIXTURE.replace('\n', "\r\n");
+        let crlf = write_log(
+            &dir,
+            "rollout-b.jsonl",
+            &windows,
+            ts("2026-10-23T09:15:02Z"),
+        );
+        let unterminated = ROLLOUT_FIXTURE.trim_end().to_owned();
+        let no_final_newline = write_log(
+            &dir,
+            "rollout-c.jsonl",
+            &unterminated,
+            ts("2026-10-23T09:15:02Z"),
+        );
+
+        for path in [unix, crlf, no_final_newline] {
+            for chunk in 1..=80 {
+                let limits = Limits {
+                    chunk,
+                    max_scan: 1024 * 1024,
+                    max_line: 4096,
+                };
+                let found = last_rate_limits(&path, OWNER, limits).map(|(at, _)| at);
+                assert_eq!(
+                    found,
+                    Some(ts("2026-10-23T09:15:00Z")),
+                    "{} with {chunk}-byte chunks",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn long_lines_are_skipped_without_losing_the_event_before_them() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut contents = ROLLOUT_FIXTURE.to_owned();
+        contents.push_str(&format!("{{\"pasted\":\"{}\"}}\n", "x".repeat(10_000)));
+        let path = write_log(
+            &dir,
+            "rollout-a.jsonl",
+            &contents,
+            ts("2026-10-23T09:30:00Z"),
+        );
+        let limits = |max_line| Limits {
+            chunk: 1024,
+            max_scan: 1024 * 1024,
+            max_line,
+        };
+
+        assert_eq!(
+            last_rate_limits(&path, OWNER, limits(2048)).map(|(at, _)| at),
+            Some(ts("2026-10-23T09:15:00Z"))
+        );
+        // A rate-limit event longer than the limit is skipped as well.
+        assert_eq!(last_rate_limits(&path, OWNER, limits(100)), None);
+    }
+
+    #[test]
+    fn events_further_back_than_the_scan_limit_are_not_read() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let filler = json!({ "type": "response_item", "payload": { "text": "x".repeat(200) } });
+        let mut contents = ROLLOUT_FIXTURE.to_owned();
+        for _ in 0..25 {
+            contents.push_str(&filler.to_string());
+            contents.push('\n');
+        }
+        let path = write_log(
+            &dir,
+            "rollout-a.jsonl",
+            &contents,
+            ts("2026-10-23T09:30:00Z"),
+        );
+        let limits = |max_scan| Limits {
+            chunk: 512,
+            max_scan,
+            max_line: 4096,
+        };
+
+        assert_eq!(last_rate_limits(&path, OWNER, limits(2048)), None);
+        assert!(last_rate_limits(&path, OWNER, limits(64 * 1024)).is_some());
     }
 
     #[test]

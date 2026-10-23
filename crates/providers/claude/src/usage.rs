@@ -12,11 +12,13 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{ExtraUsage, Source, Window, WindowKind};
+use quotadial_core::{ExtraUsage, Source, Window, WindowKind, outside_text};
 use serde_json::{Map, Value};
 
 const FIVE_HOURS: u64 = 5 * 60 * 60;
 const SEVEN_DAYS: u64 = 7 * 24 * 60 * 60;
+/// The longest model or bucket name shown, from Anthropic's text.
+const MAX_NAME_CHARS: usize = 64;
 
 /// A bucket QuotaDial knows by name.
 struct Bucket {
@@ -198,11 +200,8 @@ fn scoped_weekly_limits(body: &Value, shown: &[Window], fetched_at: DateTime<Utc
         .filter_map(|limit| {
             let used_pct = number(limit.get("percent")?)?;
             let model = limit.get("scope")?.get("model")?;
-            let name = model
-                .get("display_name")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|name| !name.is_empty())?;
+            let name = outside_text(model.get("display_name")?.as_str()?, MAX_NAME_CHARS)?;
+            let name = name.as_str();
             let id = model.get("id").and_then(Value::as_str).map(str::trim);
             if is_all_models(name, id) || !seen.insert(slug(name)) {
                 return None;
@@ -243,13 +242,13 @@ fn slug(text: &str) -> String {
     slug.trim_matches('-').to_owned()
 }
 
-/// `"example_model"` → `"Example model"`.
+/// `"example_model"` → `"Example model"`. The key is Anthropic's text, so it is cleaned like any.
 fn humanize(key: &str) -> String {
-    let words = key.replace('_', " ");
-    let mut chars = words.trim().chars();
+    let words = outside_text(&key.replace('_', " "), MAX_NAME_CHARS).unwrap_or_default();
+    let mut chars = words.chars();
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => key.to_owned(),
+        None => words,
     }
 }
 

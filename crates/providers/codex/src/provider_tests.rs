@@ -116,6 +116,17 @@ impl Harness {
         self.clock.advance(TimeDelta::minutes(minutes));
     }
 
+    /// Writes a Codex CLI session log, last written at `written`.
+    fn write_log(&self, contents: &str, written: &str) -> PathBuf {
+        let day = self.codex_home.path().join("sessions/2026/10/23");
+        fs::create_dir_all(&day).expect("creates");
+        let log =
+            day.join("rollout-2026-10-23T09-00-00-00000000-0000-0000-0000-000000000010.jsonl");
+        fs::write(&log, contents).expect("writes");
+        set_modified(&log, ts(written));
+        log
+    }
+
     /// Everything QuotaDial wrote to its cache directory, as text.
     fn cache_contents(&self) -> String {
         fs::read_dir(self.cache.path().join("codex"))
@@ -464,14 +475,47 @@ async fn another_account_signed_in_is_never_blended_with_this_one() {
     let provider = harness.provider();
     let account = discovered(&provider);
 
-    let other = auth_json_for("user-000000000000000000000009", "plus", FAR_FUTURE);
+    let other = auth_json_for("user-000000000000000000000009", "pro", FAR_FUTURE);
     fs::write(harness.auth_file(), other).expect("writes auth.json");
+    set_modified(&harness.auth_file(), ts("2026-10-23T08:00:00Z"));
+    // A session of the account signed in now, which must not stand in for the old one either.
+    harness.write_log(
+        &ROLLOUT_FIXTURE.replace(USER_ID, "user-000000000000000000000009"),
+        "2026-10-23T09:15:02Z",
+    );
     let snapshot = provider.fetch(&account).await.expect("snapshot");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
     assert_eq!(snapshot.error.as_deref(), Some(advice::DIFFERENT_ACCOUNT));
     assert_eq!(harness.usage_requests().await, 0);
     assert_eq!(provider.fallback(&account), None);
+    let current = discovered(&provider);
+    assert!(
+        provider.fallback(&current).is_some(),
+        "the log is the current account's"
+    );
+}
+
+#[tokio::test]
+async fn one_user_in_two_workspaces_is_two_accounts() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    let provider = harness.provider();
+    let personal = discovered(&provider);
+
+    let team =
+        auth_json("team", FAR_FUTURE).replace(WORKSPACE, "00000000-0000-0000-0000-000000000005");
+    fs::write(harness.auth_file(), team).expect("writes auth.json");
+    let work = discovered(&provider);
+
+    assert_eq!(personal.account_id, work.account_id, "the same user");
+    assert_ne!(personal, work);
+    assert_ne!(
+        quotadial_poll::account_key(&personal),
+        quotadial_poll::account_key(&work)
+    );
+    let snapshot = provider.fetch(&personal).await.expect("snapshot");
+    assert_eq!(snapshot.error.as_deref(), Some(advice::DIFFERENT_ACCOUNT));
 }
 
 #[tokio::test]
@@ -555,12 +599,9 @@ async fn a_plan_without_limits_is_unsupported_with_a_reason_instead_of_zero() {
 async fn the_session_log_stands_in_when_chatgpt_cannot_be_asked() {
     let harness = Harness::new().await;
     harness.sign_in("pro", FAR_FUTURE);
-    let day = harness.codex_home.path().join("sessions/2026/10/23");
-    fs::create_dir_all(&day).expect("creates");
-    let log = day.join("rollout-2026-10-23T09-00-00-00000000-0000-0000-0000-000000000010.jsonl");
+    set_modified(&harness.auth_file(), ts("2026-10-23T08:00:00Z"));
     // The fixture's session was created by this account's workspace and user.
-    fs::write(&log, ROLLOUT_FIXTURE).expect("writes");
-    set_modified(&log, ts("2026-10-23T09:15:02Z"));
+    let log = harness.write_log(ROLLOUT_FIXTURE, "2026-10-23T09:15:02Z");
     let provider = harness.provider();
     let account = discovered(&provider);
 
@@ -608,5 +649,91 @@ async fn the_saved_files_hold_no_token() {
     assert!(
         !saved.contains("quotadial-test-refresh-token"),
         "the refresh token was never read"
+    );
+}
+
+#[tokio::test]
+async fn session_log_events_from_before_the_current_sign_in_never_stand_in() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    harness.write_log(ROLLOUT_FIXTURE, "2026-10-23T09:30:00Z");
+    let provider = harness.provider();
+    let account = discovered(&provider);
+
+    // `codex login` at 09:20, after the log's last event: another sign-in may have written it.
+    set_modified(&harness.auth_file(), ts("2026-10-23T09:20:00Z"));
+    assert_eq!(provider.fallback(&account), None);
+
+    set_modified(&harness.auth_file(), ts("2026-10-23T09:00:00Z"));
+    assert!(provider.fallback(&account).is_some());
+}
+
+#[tokio::test]
+async fn an_answer_for_another_account_is_never_used() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    let foreign = LIVE_FIXTURE.replace(
+        "user-000000000000000000000001",
+        "user-000000000000000000000009",
+    );
+    harness
+        .mount_usage(ResponseTemplate::new(200).set_body_raw(foreign, "application/json"))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider);
+
+    let result = provider.fetch(&account).await;
+
+    assert_eq!(
+        result.expect_err("refused").to_string(),
+        "codex: unexpected response: ChatGPT's answer names another account than the Codex CLI's \
+         sign-in, so it was not used."
+    );
+    assert!(
+        !harness.cache_contents().contains("used_pct"),
+        "no numbers were saved"
+    );
+}
+
+#[tokio::test]
+async fn a_redirect_is_never_followed() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    harness
+        .mount_usage(ResponseTemplate::new(302).insert_header(
+            "location",
+            format!("{}/elsewhere", harness.server.uri()).as_str(),
+        ))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider);
+
+    let result = provider.fetch(&account).await;
+
+    assert_eq!(
+        result.expect_err("fails").to_string(),
+        "codex: request failed: ChatGPT's usage endpoint answered HTTP 302."
+    );
+    let requests = harness.server.received_requests().await.expect("recorded");
+    assert_eq!(requests.len(), 1, "only the usage request was sent");
+}
+
+#[tokio::test]
+async fn an_answer_over_a_mebibyte_is_not_read() {
+    let harness = Harness::new().await;
+    harness.sign_in("pro", FAR_FUTURE);
+    let huge = format!("{{\"padding\":\"{}\"}}", "x".repeat(1024 * 1024));
+    harness
+        .mount_usage(ResponseTemplate::new(200).set_body_raw(huge, "application/json"))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider);
+
+    let result = provider.fetch(&account).await;
+
+    assert_eq!(
+        result.expect_err("refused").to_string(),
+        "codex: unexpected response: ChatGPT's answer could not be read: the usage response did not \
+         arrive in full (the response is larger than 1 MiB)."
     );
 }

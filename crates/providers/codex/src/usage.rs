@@ -14,9 +14,11 @@
 //! reset credits) are left out until their shape is seen live.
 
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{ExtraUsage, Source, Window, WindowKind};
+use quotadial_core::{ExtraUsage, Source, Window, WindowKind, outside_text};
 use serde_json::Value;
 
+/// The longest plan or limit name shown, from ChatGPT's text.
+const MAX_NAME_CHARS: usize = 64;
 const SESSION_SECONDS: u64 = 5 * 60 * 60;
 const DAY_SECONDS: u64 = 24 * 60 * 60;
 const WEEK_SECONDS: u64 = 7 * DAY_SECONDS;
@@ -28,6 +30,9 @@ pub(crate) struct Reading {
     pub(crate) windows: Vec<Window>,
     pub(crate) extra_usage: Option<ExtraUsage>,
     pub(crate) plan: Option<String>,
+    /// Who ChatGPT says the numbers belong to, to compare with the sign-in. Never shown.
+    pub(crate) user_id: Option<String>,
+    pub(crate) account_id: Option<String>,
 }
 
 /// Maps a `wham/usage` response fetched at `fetched_at`.
@@ -42,7 +47,7 @@ pub(crate) fn read(body: &Value, fetched_at: DateTime<Utc>) -> Reading {
         .into_iter()
         .flatten()
     {
-        let Some(model) = text(limit, "limit_name").or_else(|| text(limit, "metered_feature"))
+        let Some(model) = name(limit, "limit_name").or_else(|| name(limit, "metered_feature"))
         else {
             continue;
         };
@@ -53,7 +58,9 @@ pub(crate) fn read(body: &Value, fetched_at: DateTime<Utc>) -> Reading {
     Reading {
         windows,
         extra_usage: body.get("credits").and_then(credits),
-        plan: text(body, "plan_type"),
+        plan: name(body, "plan_type"),
+        user_id: text(body, "user_id"),
+        account_id: text(body, "account_id"),
     }
 }
 
@@ -71,7 +78,7 @@ fn api_windows(rate_limit: &Value, model: Option<&str>, fetched_at: DateTime<Utc
                 .and_then(|at| DateTime::from_timestamp(at, 0))
                 .or_else(|| {
                     let after = window.get("reset_after_seconds")?.as_i64()?;
-                    Some(fetched_at + TimeDelta::try_seconds(after)?)
+                    fetched_at.checked_add_signed(TimeDelta::try_seconds(after)?)
                 });
             classified(Measured {
                 seconds,
@@ -153,6 +160,12 @@ pub(crate) fn credits(value: &Value) -> Option<ExtraUsage> {
         limit: None,
         currency: None,
     })
+}
+
+/// A name from ChatGPT's text that QuotaDial shows, such as a plan or a limit: on one line, with
+/// any token blanked out, at most 64 characters.
+pub(crate) fn name(value: &Value, key: &str) -> Option<String> {
+    outside_text(value.get(key)?.as_str()?, MAX_NAME_CHARS)
 }
 
 /// A non-blank string field.
@@ -326,6 +339,48 @@ mod tests {
         let windows = read(&body, now()).windows;
 
         assert_eq!(windows[0].resets_at, Some(now() + TimeDelta::hours(1)));
+    }
+
+    #[test]
+    fn an_absurd_reset_time_is_dropped_instead_of_overflowing() {
+        let body = json!({ "rate_limit": { "primary_window": {
+            "used_percent": 5, "limit_window_seconds": 18_000,
+            "reset_after_seconds": 9_000_000_000_000_i64
+        } } });
+
+        let windows = read(&body, now()).windows;
+
+        assert_eq!(windows[0].resets_at, None);
+    }
+
+    #[test]
+    fn names_from_chatgpt_are_cleaned_before_they_are_shown() {
+        let body = json!({
+            "plan_type": format!("pro\n{}", "x".repeat(100)),
+            "additional_rate_limits": [{
+                "limit_name": "GPT sk-proj-NOT-A-REAL-KEY",
+                "rate_limit": { "primary_window": { "used_percent": 1, "limit_window_seconds": 604_800 } }
+            }],
+            "user_id": "user-000000000000000000000001",
+            "account_id": "00000000-0000-0000-0000-000000000002"
+        });
+
+        let reading = read(&body, now());
+
+        let plan = reading.plan.expect("plan");
+        assert!(
+            plan.starts_with("pro x") && plan.chars().count() == 65,
+            "{plan}"
+        );
+        assert_eq!(reading.windows[0].label, "Weekly (GPT [redacted token])");
+        assert_eq!(
+            reading.user_id.as_deref(),
+            Some("user-000000000000000000000001")
+        );
+        assert_eq!(
+            reading.account_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000002")
+        );
     }
 
     #[test]
