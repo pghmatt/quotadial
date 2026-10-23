@@ -6,9 +6,11 @@
 //! snapshots, times and counters, never a token. A lock file beside it keeps two processes from
 //! both deciding to send a request. M2's SQLite store replaces this.
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use quotadial_core::{Account, Snapshot};
@@ -17,6 +19,10 @@ use serde::{Deserialize, Serialize};
 use crate::environment::sha256_hex;
 
 const FORMAT_VERSION: u32 = 1;
+
+/// How long a process waits for another to finish with an account before giving up. The holder
+/// needs at most a Keychain read (30 s), `claude --version` (5 s) and two requests (30 s each).
+pub(crate) const LOCK_WAIT: Duration = Duration::from_secs(120);
 
 /// One account's saved state.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -35,6 +41,9 @@ pub(crate) struct AccountState {
     pub(crate) blocked_until: Option<DateTime<Utc>>,
     /// 429 answers in a row, for the exponential backoff.
     pub(crate) rate_limit_strikes: u32,
+    /// The latest request went out inside the floor, as the one retry allowed after a rejected
+    /// sign-in. Another such retry waits for the floor.
+    pub(crate) bypassed_floor: bool,
 }
 
 /// The outcome of the latest request.
@@ -91,13 +100,31 @@ impl StateStore {
         &self.dir
     }
 
-    /// Takes an account's lock, waiting while another QuotaDial process holds it. Creating the lock
-    /// file also proves the directory is writable before any request is sent.
-    pub(crate) fn lock(&self, key: &str) -> io::Result<StateLock> {
+    /// Takes an account's lock, waiting up to `wait` while another QuotaDial process holds it.
+    /// Creating the lock file also proves the directory is writable before any request is sent.
+    pub(crate) fn lock(&self, key: &str, wait: Duration) -> io::Result<StateLock> {
         create_private_dir(&self.dir)?;
         let file = private_file(&self.dir.join(format!("{key}.lock")), false)?;
-        file.lock()?;
-        Ok(StateLock { _file: file })
+        let deadline = Instant::now() + wait;
+        loop {
+            match file.try_lock() {
+                Ok(()) => return Ok(StateLock { _file: file }),
+                Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                Err(TryLockError::WouldBlock) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!(
+                            "another QuotaDial process has been using this account for over {} \
+                             seconds",
+                            wait.as_secs_f32()
+                        ),
+                    ));
+                }
+                Err(TryLockError::Error(error)) => return Err(error),
+            }
+        }
     }
 
     /// The account's saved state. A missing, unreadable or outdated file starts afresh.
@@ -197,9 +224,10 @@ mod tests {
             login_generation: Some("20991231000000Z".into()),
             blocked_until: Some(ts("2099-01-01T00:10:00Z")),
             rate_limit_strikes: 2,
+            bypassed_floor: true,
         };
 
-        let _lock = store.lock(&key).expect("locks");
+        let _lock = store.lock(&key, LOCK_WAIT).expect("locks");
         store.save(&key, &state).expect("saves");
 
         assert_eq!(store.load(&key), state);
@@ -248,7 +276,7 @@ mod tests {
             ..AccountState::default()
         };
 
-        let _lock = store.lock("account").expect("locks");
+        let _lock = store.lock("account", LOCK_WAIT).expect("locks");
         store.save("account", &state).expect("saves");
         let saved = fs::read_to_string(dir.path().join("account.json")).expect("reads");
 
@@ -263,7 +291,7 @@ mod tests {
 
         let dir = tempfile::tempdir().expect("temp dir");
         let store = StateStore::new(dir.path().join("claude"));
-        let _lock = store.lock("account").expect("locks");
+        let _lock = store.lock("account", LOCK_WAIT).expect("locks");
         store
             .save("account", &AccountState::default())
             .expect("saves");
@@ -276,15 +304,32 @@ mod tests {
     }
 
     #[test]
+    fn a_lock_held_too_long_is_given_up_on() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let store = StateStore::new(dir.path().to_path_buf());
+        let _held = store.lock("account", LOCK_WAIT).expect("locks");
+
+        let error = store
+            .lock("account", Duration::from_millis(200))
+            .expect_err("gives up");
+
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(
+            error.to_string(),
+            "another QuotaDial process has been using this account for over 0.2 seconds"
+        );
+    }
+
+    #[test]
     fn a_second_lock_waits_for_the_first() {
         let dir = tempfile::tempdir().expect("temp dir");
         let store = StateStore::new(dir.path().to_path_buf());
-        let first = store.lock("account").expect("locks");
+        let first = store.lock("account", LOCK_WAIT).expect("locks");
 
         let other = store.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
         let waiter = std::thread::spawn(move || {
-            let _second = other.lock("account").expect("locks");
+            let _second = other.lock("account", LOCK_WAIT).expect("locks");
             sender.send(()).expect("sends");
         });
 

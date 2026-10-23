@@ -40,11 +40,15 @@ impl Clock for ManualClock {
     }
 }
 
+/// Something a test does while the token is being read, such as switching accounts.
+type ReadHook = Box<dyn Fn() + Send + Sync>;
+
 /// Keychain items by service name: (modification time, secret).
 #[derive(Default)]
 struct FakeKeychain {
     items: Mutex<HashMap<String, (String, String)>>,
     reads: AtomicUsize,
+    on_read: Mutex<Option<ReadHook>>,
 }
 
 impl FakeKeychain {
@@ -61,6 +65,10 @@ impl FakeKeychain {
 
     fn reads(&self) -> usize {
         self.reads.load(Ordering::SeqCst)
+    }
+
+    fn on_read(&self, hook: impl Fn() + Send + Sync + 'static) {
+        *self.on_read.lock().expect("hook lock") = Some(Box::new(hook));
     }
 }
 
@@ -82,10 +90,16 @@ impl Keychain for FakeKeychain {
         _account: Option<&str>,
     ) -> std::result::Result<Option<Secret>, String> {
         self.reads.fetch_add(1, Ordering::SeqCst);
-        let items = self.items.lock().expect("keychain lock");
-        Ok(items
+        let secret = self
+            .items
+            .lock()
+            .expect("keychain lock")
             .get(service)
-            .map(|(_, secret)| Secret::new(secret.clone())))
+            .map(|(_, secret)| Secret::new(secret.clone()));
+        if let Some(hook) = self.on_read.lock().expect("hook lock").as_ref() {
+            hook();
+        }
+        Ok(secret)
     }
 }
 
@@ -170,6 +184,16 @@ impl Harness {
             .received_requests()
             .await
             .map_or(0, |requests| requests.len())
+    }
+
+    /// Requests to the usage endpoint only, which is what the floor limits.
+    async fn usage_requests(&self) -> usize {
+        self.server.received_requests().await.map_or(0, |requests| {
+            requests
+                .iter()
+                .filter(|request| request.url.path() == "/api/oauth/usage")
+                .count()
+        })
     }
 
     fn advance(&self, minutes: i64) {
@@ -534,7 +558,8 @@ async fn an_environment_token_is_named_by_the_profile_endpoint() {
     let provider = harness.provider_with(env, &harness.server.uri());
 
     let account = discovered(&provider).await;
-    assert_eq!(account.account_id, "CLAUDE_CODE_OAUTH_TOKEN");
+    assert!(account.account_id.starts_with("env:"));
+    assert_eq!(account.display_name, "CLAUDE_CODE_OAUTH_TOKEN");
     let result = provider.fetch(&account).await;
 
     assert_no_token(&printed(&result));
@@ -851,4 +876,270 @@ fn debug_output_shows_no_token() {
 #[test]
 fn never_polls_anthropic_more_than_once_every_five_minutes() {
     assert!(ClaudeProvider::new().min_poll_interval() >= std::time::Duration::from_secs(300));
+}
+
+fn oversized_body() -> String {
+    format!("{{\"padding\": \"{}\"}}", "x".repeat(1024 * 1024 + 1))
+}
+
+#[tokio::test]
+async fn an_answer_too_large_to_read_still_counts_against_the_floor() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(ResponseTemplate::new(200).set_body_raw(oversized_body(), "application/json"))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let first = provider.fetch(&account).await;
+    assert!(
+        matches!(first, Err(Error::InvalidResponse { .. })),
+        "{first:?}"
+    );
+
+    harness.advance(1);
+    let second = provider.fetch(&account).await;
+    assert!(
+        second
+            .expect_err("waits")
+            .to_string()
+            .contains("next request is after 2099-01-01T00:05:00Z")
+    );
+    assert_eq!(harness.requests().await, 1);
+}
+
+#[tokio::test]
+async fn a_429_is_honoured_even_when_its_body_is_unreadable() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(
+            ResponseTemplate::new(429)
+                .insert_header("retry-after", "3600")
+                .set_body_raw(oversized_body(), "application/json"),
+        )
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let limited = provider.fetch(&account).await.expect("fetch");
+    assert_eq!(limited.status, Status::RateLimited);
+
+    harness.advance(30);
+    let still = provider.fetch(&account).await.expect("fetch");
+    assert_eq!(still.status, Status::RateLimited);
+    assert_eq!(harness.requests().await, 1);
+}
+
+#[tokio::test]
+async fn a_request_that_times_out_still_counts_against_the_floor() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(usage_ok().set_delay(std::time::Duration::from_secs(3)))
+        .await;
+    let provider = harness
+        .provider()
+        .with_request_timeout(std::time::Duration::from_millis(300));
+    let account = discovered(&provider).await;
+
+    let first = provider.fetch(&account).await;
+    assert!(first.expect_err("times out").to_string().starts_with(
+        "claude: request failed: Anthropic did not answer: no answer within 0.3 seconds"
+    ));
+
+    harness.advance(2);
+    assert!(provider.fetch(&account).await.is_err());
+    assert_eq!(harness.requests().await, 1);
+}
+
+#[tokio::test]
+async fn two_environment_tokens_never_share_numbers() {
+    let harness = Harness::new().await;
+    harness.mount_usage(usage_ok()).await;
+    let shell = |token: &str| {
+        harness.provider_with(
+            Environment {
+                oauth_token: Some(Secret::new(token)),
+                ..harness.env()
+            },
+            &harness.server.uri(),
+        )
+    };
+    let (first, second) = (
+        shell(TOKEN),
+        shell("sk-ant-oat01-QUOTADIAL-OTHER-TOKEN-987654321"),
+    );
+    let (first_account, second_account) = (discovered(&first).await, discovered(&second).await);
+    assert_ne!(first_account.account_id, second_account.account_id);
+
+    first.fetch(&first_account).await.expect("first shell");
+    harness.advance(1);
+    let other = second.fetch(&second_account).await.expect("second shell");
+
+    // The second shell's token was sent, and its numbers are its own.
+    assert_eq!(harness.usage_requests().await, 2);
+    assert!(
+        other
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Api)
+    );
+}
+
+#[tokio::test]
+async fn an_environment_token_is_named_once_and_remembered() {
+    let harness = Harness::new().await;
+    harness.mount_usage(usage_ok()).await;
+    Mock::given(method("GET"))
+        .and(path("/api/oauth/profile"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(PROFILE_FIXTURE, "application/json"))
+        .expect(1)
+        .mount(&harness.server)
+        .await;
+    let env = Environment {
+        oauth_token: Some(Secret::new(TOKEN)),
+        ..harness.env()
+    };
+    let provider = harness.provider_with(env, &harness.server.uri());
+    let account = discovered(&provider).await;
+
+    let first = provider.fetch(&account).await.expect("first fetch");
+    harness.advance(6);
+    let second = provider.fetch(&account).await.expect("second fetch");
+
+    assert_eq!(first.account.display_name, "user@example.com");
+    assert_eq!(second.account, first.account);
+    assert!(
+        second
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Api)
+    );
+    // Two usage requests and one profile request.
+    assert_eq!(harness.requests().await, 3);
+}
+
+#[tokio::test]
+async fn a_switch_to_another_account_while_reading_the_token_is_not_counted() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    let home = harness.home.path().to_path_buf();
+    harness.keychain.on_read(move || {
+        std::fs::write(
+            home.join(".claude.json"),
+            json!({ "oauthAccount": {
+                "accountUuid": "00000000-0000-0000-0000-000000000009",
+                "emailAddress": "other@example.com",
+                "organizationUuid": "00000000-0000-0000-0000-000000000002"
+            } })
+            .to_string(),
+        )
+        .expect("switches account");
+    });
+
+    let snapshot = provider.fetch(&account).await.expect("fetch");
+
+    assert_eq!(snapshot.status, Status::AuthRequired);
+    assert_eq!(snapshot.error.as_deref(), Some(advice::DIFFERENT_ACCOUNT));
+    assert_eq!(harness.requests().await, 0);
+}
+
+#[tokio::test]
+async fn a_clock_moved_back_does_not_let_a_request_through() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    provider.fetch(&account).await.expect("first fetch");
+
+    harness.clock.advance(TimeDelta::hours(-3));
+    let replayed = provider.fetch(&account).await.expect("replay");
+    assert!(
+        replayed
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Cache)
+    );
+    assert_eq!(harness.requests().await, 1);
+
+    harness.advance(5);
+    provider.fetch(&account).await.expect("fetch");
+    assert_eq!(harness.requests().await, 2);
+}
+
+#[tokio::test]
+async fn an_unnamed_sign_in_does_not_show_old_numbers_after_a_new_token() {
+    let harness = Harness::new().await;
+    // A Keychain item but no account config, so the account is unnamed until Anthropic names it.
+    harness.keychain.put(
+        SERVICE,
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    assert_eq!(account.account_id, SERVICE);
+    provider.fetch(&account).await.expect("first fetch");
+
+    // Claude Code writes a new token, possibly for another account.
+    harness.keychain.put(
+        SERVICE,
+        "20990101000200Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    harness.advance(2);
+    let waiting = provider.fetch(&account).await;
+
+    assert!(
+        waiting
+            .expect_err("waits")
+            .to_string()
+            .contains("Claude Code's sign-in changed since QuotaDial last asked Anthropic.")
+    );
+    assert_eq!(harness.usage_requests().await, 1);
+}
+
+/// Replaces the cache directory with a file while Anthropic answers 429, so the answer cannot be
+/// saved even by root.
+#[cfg(unix)]
+struct BreakCacheThen429(PathBuf);
+
+#[cfg(unix)]
+impl wiremock::Respond for BreakCacheThen429 {
+    fn respond(&self, _request: &wiremock::Request) -> ResponseTemplate {
+        std::fs::remove_dir_all(&self.0).expect("removes the cache");
+        std::fs::write(&self.0, "").expect("puts a file in its place");
+        ResponseTemplate::new(429).insert_header("retry-after", "3600")
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_answer_that_cannot_be_saved_fails_the_fetch() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    Mock::given(method("GET"))
+        .and(path("/api/oauth/usage"))
+        .respond_with(BreakCacheThen429(harness.cache.path().join("claude")))
+        .mount(&harness.server)
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let result = provider.fetch(&account).await;
+
+    assert!(
+        result
+            .expect_err("fails")
+            .to_string()
+            .starts_with("claude: could not use QuotaDial's cache at ")
+    );
+    assert_eq!(harness.requests().await, 1);
 }

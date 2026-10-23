@@ -11,7 +11,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use quotadial_core::{Account, Error, Result};
 
 use crate::ID;
-use crate::environment::Environment;
+use crate::environment::{Environment, sha256_hex};
 use crate::identity::{self, Identity};
 use crate::keychain::Keychain;
 use crate::secret::Secret;
@@ -40,12 +40,25 @@ impl LoginSource {
         }
     }
 
-    /// A short name for the sign-in, which stands in for the account until Anthropic names it.
-    fn label(&self) -> String {
+    /// What stands in for the account until Anthropic names it: an id that keeps different
+    /// sign-ins apart, and a name to show.
+    ///
+    /// An environment token's id is a one-way hash of the token, so two shells holding different
+    /// tokens never share saved numbers. The hash cannot be turned back into the token.
+    fn stand_in(&self) -> (String, String) {
         match self {
-            Self::Environment(_) => "CLAUDE_CODE_OAUTH_TOKEN".to_owned(),
-            Self::Keychain { service, .. } => service.clone(),
-            Self::File(path) => path.display().to_string(),
+            Self::Environment(token) => (
+                format!(
+                    "env:{}",
+                    &sha256_hex(&format!(
+                        "quotadial:claude-env-token:v1\0{}",
+                        token.expose()
+                    ))[..16]
+                ),
+                "CLAUDE_CODE_OAUTH_TOKEN".to_owned(),
+            ),
+            Self::Keychain { service, .. } => (service.clone(), service.clone()),
+            Self::File(path) => (path.display().to_string(), path.display().to_string()),
         }
     }
 }
@@ -67,13 +80,16 @@ impl Login {
     pub(crate) fn account(&self) -> Account {
         match &self.identity {
             Some(identity) => account_for(identity),
-            None => Account {
-                provider: ID.to_owned(),
-                account_id: self.source.label(),
-                display_name: self.source.label(),
-                plan: None,
-                org: None,
-            },
+            None => {
+                let (account_id, display_name) = self.source.stand_in();
+                Account {
+                    provider: ID.to_owned(),
+                    account_id,
+                    display_name,
+                    plan: None,
+                    org: None,
+                }
+            }
         }
     }
 }
@@ -251,10 +267,42 @@ mod tests {
 
         assert!(matches!(login.source, LoginSource::Environment(_)));
         assert_eq!(login.identity, None);
-        assert_eq!(login.account().account_id, "CLAUDE_CODE_OAUTH_TOKEN");
+        let account = login.account();
+        assert!(
+            account.account_id.starts_with("env:"),
+            "{}",
+            account.account_id
+        );
+        assert_eq!(account.account_id.len(), "env:".len() + 16);
+        assert!(!account.account_id.contains("QUOTADIAL-TEST-TOKEN"));
+        assert_eq!(account.display_name, "CLAUDE_CODE_OAUTH_TOKEN");
         assert_eq!(
             login.source.location(),
             "the CLAUDE_CODE_OAUTH_TOKEN environment variable"
+        );
+    }
+
+    #[test]
+    fn different_environment_tokens_are_different_accounts() {
+        let home = tempfile::tempdir().expect("temp dir");
+        let with_token = |token: &str| Environment {
+            oauth_token: Some(Secret::new(token)),
+            ..env_in(home.path())
+        };
+        let account = |token: &str| {
+            locate(&with_token(token), &NoKeychain)
+                .expect("locates")
+                .expect("signed in")
+                .account()
+        };
+
+        assert_ne!(
+            account("sk-ant-oat01-QUOTADIAL-TEST-TOKEN-A").account_id,
+            account("sk-ant-oat01-QUOTADIAL-TEST-TOKEN-B").account_id
+        );
+        assert_eq!(
+            account("sk-ant-oat01-QUOTADIAL-TEST-TOKEN-A"),
+            account("sk-ant-oat01-QUOTADIAL-TEST-TOKEN-A")
         );
     }
 

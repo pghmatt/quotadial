@@ -8,7 +8,10 @@
 //!   as 429s repeat. A block is never shortened, and the numbers from the last good fetch stay on
 //!   screen, marked as cache, while it lasts.
 //! - The one exception: after Anthropic rejected a sign-in, a new sign-in (Claude Code wrote a new
-//!   token) is tried at once instead of after the floor.
+//!   token) is tried at once instead of after the floor, once per floor.
+//! - A request whose answer was never recorded, because QuotaDial was stopped mid-request, still
+//!   counts.
+//! - If the clock moves back, the last request counts as just sent, and a block keeps its length.
 //!
 //! Replaces CodexBar's `Providers/Claude/ClaudeOAuth/ClaudeOAuthUsageRateLimitGate.swift`, which
 //! honours `Retry-After` or a 5-minute cooldown but lets user-initiated refreshes through.
@@ -21,8 +24,6 @@ use crate::state::{AccountState, LastResult};
 
 /// The longest `Retry-After` honoured, so a garbled header cannot stop requests for good.
 const MAX_RETRY_AFTER_HOURS: i64 = 24;
-/// How far in the future a saved request time may be before the clock is assumed to have moved.
-const CLOCK_SKEW_MINUTES: i64 = 1;
 
 /// What to do about one fetch.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,7 +42,7 @@ pub(crate) fn floor() -> TimeDelta {
 }
 
 /// Decides whether a fetch for `account` may send a request at `now`. `generation` is the
-/// current sign-in's generation (see `Login::generation`).
+/// current sign-in's generation (see `Login::generation`). Call [`AccountState::reanchor`] first.
 pub(crate) fn decide(
     state: &AccountState,
     account: &Account,
@@ -51,10 +52,6 @@ pub(crate) fn decide(
     let Some(requested_at) = state.requested_at else {
         return Decision::Request;
     };
-    if requested_at > now + TimeDelta::minutes(CLOCK_SKEW_MINUTES) {
-        // The clock moved back, so the saved times say nothing about now.
-        return Decision::Request;
-    }
     if let Some(until) = state.blocked_until.filter(|until| *until > now) {
         return Decision::Replay(Box::new(rate_limited(state, account, until)));
     }
@@ -74,23 +71,77 @@ pub(crate) fn decide(
                 timestamp(next_request)
             )),
         },
-        None => Decision::Request,
+        // QuotaDial was stopped before the first answer for this account was recorded.
+        None => Decision::Wait(format!(
+            "The request sent at {} has no recorded answer, perhaps because QuotaDial was \
+             stopped. QuotaDial asks Anthropic at most every 5 minutes, so the next request is \
+             after {}.",
+            timestamp(requested_at),
+            timestamp(next_request)
+        )),
     }
 }
 
-/// The last answer rejected the sign-in, and Claude Code has written a new token since.
+/// The last answer rejected the sign-in, Claude Code has written a new token since, and the one
+/// early retry this allows per floor has not been used.
 fn signed_in_again(state: &AccountState, generation: Option<&str>) -> bool {
     let rejected = matches!(
         &state.last_result,
         Some(LastResult::Snapshot { snapshot }) if snapshot.status == Status::AuthRequired
     );
-    rejected && generation.is_some() && generation != state.login_generation.as_deref()
+    rejected
+        && !state.bypassed_floor
+        && generation.is_some()
+        && generation != state.login_generation.as_deref()
 }
 
 impl AccountState {
+    /// Fixes the saved times after the clock moved back: the last request counts as sent `now`,
+    /// and a block keeps the length it had from that request, at most 24 hours. Returns whether
+    /// anything changed, so the caller can save it. Without this, a clock set back a day would
+    /// stop requests for a day.
+    pub(crate) fn reanchor(&mut self, now: DateTime<Utc>) -> bool {
+        let Some(requested_at) = self.requested_at.filter(|at| *at > now) else {
+            return false;
+        };
+        let shift = requested_at - now;
+        self.requested_at = Some(now);
+        self.blocked_until = self
+            .blocked_until
+            .map(|until| (until - shift).min(now + TimeDelta::hours(MAX_RETRY_AFTER_HOURS)));
+        true
+    }
+
+    /// For a sign-in QuotaDial cannot name without asking Anthropic (no account config): once
+    /// Claude Code has written a new token, the saved numbers may be another account's, so they
+    /// are not shown again. The floor and any block still hold. A rejected sign-in is left alone,
+    /// so the one early retry still applies. Returns whether anything changed.
+    pub(crate) fn forget_numbers_after_new_sign_in(&mut self, generation: Option<&str>) -> bool {
+        let rejected = matches!(
+            &self.last_result,
+            Some(LastResult::Snapshot { snapshot }) if snapshot.status == Status::AuthRequired
+        );
+        let new_token = generation.is_some()
+            && self.login_generation.is_some()
+            && generation != self.login_generation.as_deref();
+        if rejected || !new_token {
+            return false;
+        }
+        self.last_good = None;
+        self.last_result = Some(LastResult::Failed {
+            message: "Claude Code's sign-in changed since QuotaDial last asked Anthropic."
+                .to_owned(),
+        });
+        self.login_generation = generation.map(str::to_owned);
+        true
+    }
+
     /// Marks a request as sent, before it is. Saving this first means the floor holds even if
     /// QuotaDial stops before the answer arrives.
     pub(crate) fn start_request(&mut self, now: DateTime<Utc>, generation: Option<String>) {
+        self.bypassed_floor = self
+            .requested_at
+            .is_some_and(|requested_at| now < requested_at + floor());
         self.requested_at = Some(now);
         self.login_generation = generation;
     }
@@ -491,19 +542,151 @@ mod tests {
     }
 
     #[test]
-    fn a_clock_that_moved_back_does_not_block_requests() {
+    fn a_clock_moved_back_counts_the_last_request_as_just_sent() {
         let mut state = after_success();
-        state.blocked_until = Some(t0() + minutes(60));
+        let now = t0() - TimeDelta::hours(3);
 
+        assert!(state.reanchor(now));
+        assert_eq!(state.requested_at, Some(now));
+        assert!(matches!(
+            decide(&state, &account(), Some("gen-1"), now + minutes(4)),
+            Decision::Replay(_)
+        ));
         assert_eq!(
-            decide(
-                &state,
-                &account(),
-                Some("gen-1"),
-                t0() - TimeDelta::hours(3)
-            ),
+            decide(&state, &account(), Some("gen-1"), now + minutes(5)),
             Decision::Request
         );
+        // Once fixed, the times are left alone.
+        assert!(!state.reanchor(now + minutes(1)));
+    }
+
+    #[test]
+    fn a_block_keeps_its_length_when_the_clock_moves_back() {
+        let mut state = after_success();
+        state.start_request(t0() + minutes(10), Some("gen-1".into()));
+        state.record_rate_limit(&account(), Some(t0() + minutes(40)), t0() + minutes(10));
+        let now = t0() - TimeDelta::days(2);
+
+        assert!(state.reanchor(now));
+        assert_eq!(state.blocked_until, Some(now + minutes(30)));
+        assert!(matches!(
+            decide(&state, &account(), Some("gen-1"), now + minutes(29)),
+            Decision::Replay(snapshot) if snapshot.status == Status::RateLimited
+        ));
+    }
+
+    #[test]
+    fn a_block_saved_under_a_far_fast_clock_is_capped_at_a_day() {
+        let mut state = AccountState {
+            requested_at: Some(t0() + TimeDelta::days(400)),
+            blocked_until: Some(t0() + TimeDelta::days(800)),
+            ..AccountState::default()
+        };
+
+        assert!(state.reanchor(t0()));
+        assert_eq!(state.blocked_until, Some(t0() + TimeDelta::hours(24)));
+    }
+
+    #[test]
+    fn a_first_request_with_no_recorded_answer_still_holds_the_floor() {
+        let mut state = AccountState::default();
+        state.start_request(t0(), Some("gen-1".into()));
+
+        assert_eq!(
+            decide(&state, &account(), Some("gen-1"), t0() + minutes(1)),
+            Decision::Wait(
+                "The request sent at 2099-01-01T00:00:00Z has no recorded answer, perhaps because \
+                 QuotaDial was stopped. QuotaDial asks Anthropic at most every 5 minutes, so the \
+                 next request is after 2099-01-01T00:05:00Z."
+                    .into()
+            )
+        );
+        assert_eq!(
+            decide(&state, &account(), Some("gen-1"), t0() + minutes(5)),
+            Decision::Request
+        );
+    }
+
+    #[test]
+    fn a_request_stopped_midway_replays_the_previous_answer() {
+        let mut state = after_success();
+        state.start_request(t0() + minutes(6), Some("gen-1".into()));
+
+        assert!(matches!(
+            decide(&state, &account(), Some("gen-1"), t0() + minutes(7)),
+            Decision::Replay(snapshot) if snapshot.status == Status::Ok
+        ));
+    }
+
+    #[test]
+    fn numbers_of_an_unnamed_sign_in_are_forgotten_when_its_token_changes() {
+        let mut state = after_success();
+
+        assert!(!state.forget_numbers_after_new_sign_in(Some("gen-1")));
+        assert!(state.forget_numbers_after_new_sign_in(Some("gen-2")));
+        assert_eq!(state.last_good, None);
+        assert_eq!(
+            decide(&state, &account(), Some("gen-2"), t0() + minutes(2)),
+            Decision::Wait(
+                "Claude Code's sign-in changed since QuotaDial last asked Anthropic. QuotaDial asks \
+                 Anthropic at most every 5 minutes, so the next request is after \
+                 2099-01-01T00:05:00Z."
+                    .into()
+            )
+        );
+        // Blocks still hold, without the old numbers.
+        let mut blocked = after_success();
+        blocked.record_rate_limit(&account(), None, t0());
+        assert!(blocked.forget_numbers_after_new_sign_in(Some("gen-2")));
+        let Decision::Replay(snapshot) =
+            decide(&blocked, &account(), Some("gen-2"), t0() + minutes(1))
+        else {
+            panic!("expected a replay");
+        };
+        assert_eq!(snapshot.status, Status::RateLimited);
+        assert!(snapshot.windows.is_empty());
+    }
+
+    #[test]
+    fn a_rejected_unnamed_sign_in_keeps_its_early_retry() {
+        let mut state = AccountState::default();
+        state.start_request(t0(), Some("gen-1".into()));
+        state.record_auth_failure(&Snapshot::auth_required(account(), "Run `claude`."));
+
+        assert!(!state.forget_numbers_after_new_sign_in(Some("gen-2")));
+        assert_eq!(
+            decide(&state, &account(), Some("gen-2"), t0() + minutes(1)),
+            Decision::Request
+        );
+    }
+
+    #[test]
+    fn only_one_early_retry_per_floor_after_a_rejection() {
+        let mut state = AccountState::default();
+        state.start_request(t0(), Some("gen-1".into()));
+        state.record_auth_failure(&Snapshot::auth_required(account(), "Run `claude`."));
+
+        // The first new token is tried at once.
+        assert_eq!(
+            decide(&state, &account(), Some("gen-2"), t0() + minutes(1)),
+            Decision::Request
+        );
+        state.start_request(t0() + minutes(1), Some("gen-2".into()));
+        assert!(state.bypassed_floor);
+        state.record_auth_failure(&Snapshot::auth_required(account(), "Run `claude`."));
+
+        // A third token inside the same floor waits.
+        assert!(matches!(
+            decide(&state, &account(), Some("gen-3"), t0() + minutes(2)),
+            Decision::Replay(_)
+        ));
+        // After the floor, requests resume and the early retry is available again.
+        assert_eq!(
+            decide(&state, &account(), Some("gen-3"), t0() + minutes(6)),
+            Decision::Request
+        );
+        state.start_request(t0() + minutes(6), Some("gen-3".into()));
+        assert!(!state.bypassed_floor);
     }
 
     #[test]

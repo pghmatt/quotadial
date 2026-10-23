@@ -2,6 +2,7 @@
 
 use std::io::{self, Read};
 use std::process::{Command, ExitStatus, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -16,13 +17,14 @@ pub(crate) struct Finished {
 pub(crate) enum RunError {
     /// It could not be started.
     Launch(io::Error),
-    /// It was still running at the deadline and was killed.
+    /// It was still running at the deadline and was killed, or something it started kept its
+    /// output open past the deadline.
     TimedOut,
 }
 
 /// Runs `command` with no input, returning its exit status and standard output. Standard error is
-/// discarded, so nothing the program prints there can reach a message. The program is killed if it
-/// has not finished within `timeout`.
+/// discarded, so nothing the program prints there can reach a message. Nothing waits past
+/// `timeout`: the program is killed if it is still running then.
 pub(crate) fn run(mut command: Command, timeout: Duration) -> Result<Finished, RunError> {
     let mut child = command
         .stdin(Stdio::null())
@@ -31,14 +33,16 @@ pub(crate) fn run(mut command: Command, timeout: Duration) -> Result<Finished, R
         .spawn()
         .map_err(RunError::Launch)?;
     // Read on another thread, so output larger than the pipe buffer cannot stall the program.
-    let reader = child.stdout.take().map(|mut stdout| {
+    let (sender, output) = mpsc::channel();
+    if let Some(mut stdout) = child.stdout.take() {
         thread::spawn(move || {
-            let mut output = Vec::new();
+            let mut bytes = Vec::new();
             // A read error leaves whatever arrived; the exit status still decides the outcome.
-            let _ = stdout.read_to_end(&mut output);
-            output
-        })
-    });
+            let _ = stdout.read_to_end(&mut bytes);
+            // The receiver is gone only if `run` already gave up, so there is no one to tell.
+            let _ = sender.send(bytes);
+        });
+    }
 
     let deadline = Instant::now() + timeout;
     let status = loop {
@@ -57,10 +61,17 @@ pub(crate) fn run(mut command: Command, timeout: Duration) -> Result<Finished, R
             }
         }
     };
-    let stdout = reader
-        .and_then(|reader| reader.join().ok())
-        .unwrap_or_default();
-    Ok(Finished { status, stdout })
+    // A program can exit while something it started still holds its output open, as a wrapper
+    // script's child might. Do not wait for that past the deadline either.
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    match output.recv_timeout(remaining) {
+        Ok(stdout) => Ok(Finished { status, stdout }),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Ok(Finished {
+            status,
+            stdout: Vec::new(),
+        }),
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(RunError::TimedOut),
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -97,6 +108,16 @@ mod tests {
 
         assert!(matches!(result, Err(RunError::TimedOut)));
         assert!(started.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    fn output_held_open_by_a_leftover_child_does_not_stall() {
+        let started = Instant::now();
+        // The shell exits at once, but the background `sleep` keeps its standard output open.
+        let result = run(shell("sleep 5 & echo started"), Duration::from_millis(300));
+
+        assert!(matches!(result, Err(RunError::TimedOut)));
+        assert!(started.elapsed() < Duration::from_secs(3));
     }
 
     #[test]

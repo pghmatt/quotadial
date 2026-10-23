@@ -23,7 +23,8 @@ const PROFILE_PATH: &str = "/api/oauth/profile";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// CodexBar's stand-in when `claude --version` cannot be run.
 const FALLBACK_CLAUDE_CODE_VERSION: &str = "2.1.0";
-const TIMEOUT: Duration = Duration::from_secs(30);
+/// How long a request may take, start to finish.
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 /// Usage responses are a few kilobytes. Anything this large is not one.
@@ -47,8 +48,19 @@ pub(crate) enum UsageResponse {
         status: u16,
         message: Option<String>,
     },
-    /// 200 with a body that is not a JSON object.
+    /// 200 with a body that is not a JSON object, or that did not arrive in full.
     Invalid(String),
+}
+
+/// Why a usage request has no answer to classify.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UsageError {
+    /// The request never left this machine: no connection could be made. It does not count
+    /// against the floor.
+    NotSent(String),
+    /// The request was sent, but no answer came back in time or the connection broke. Anthropic
+    /// may have counted it, so it counts against the floor.
+    NoAnswer(String),
 }
 
 /// A client for Anthropic's OAuth endpoints.
@@ -57,13 +69,19 @@ pub(crate) struct Api {
     client: Client,
     base_url: String,
     user_agent: String,
+    timeout: Duration,
 }
 
 impl Api {
-    pub(crate) fn new(base_url: &str, user_agent: String) -> Result<Self, String> {
+    /// `timeout` is [`TIMEOUT`] except in tests.
+    pub(crate) fn new(
+        base_url: &str,
+        user_agent: String,
+        timeout: Duration,
+    ) -> Result<Self, String> {
         let client = Client::builder()
-            .timeout(TIMEOUT)
-            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(timeout)
+            .connect_timeout(CONNECT_TIMEOUT.min(timeout))
             .redirect(redirect::Policy::none())
             .build()
             .map_err(|error| format!("could not set up the HTTP client: {error}"))?;
@@ -71,12 +89,13 @@ impl Api {
             client,
             base_url: base_url.trim_end_matches('/').to_owned(),
             user_agent,
+            timeout,
         })
     }
 
-    /// `GET /api/oauth/usage`. An `Err` means no answer arrived, so nothing reached Anthropic's
-    /// rate limiter.
-    pub(crate) async fn usage(&self, token: &Secret) -> Result<UsageResponse, String> {
+    /// `GET /api/oauth/usage`. An `Err` means there is no answer to classify, and says whether the
+    /// request was sent at all.
+    pub(crate) async fn usage(&self, token: &Secret) -> Result<UsageResponse, UsageError> {
         let response = self
             .client
             .get(format!("{}{USAGE_PATH}", self.base_url))
@@ -87,7 +106,14 @@ impl Api {
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await
-            .map_err(|error| transport_error(&error))?;
+            .map_err(|error| {
+                let reason = self.transport_error(&error);
+                if error.is_connect() || error.is_builder() {
+                    UsageError::NotSent(reason)
+                } else {
+                    UsageError::NoAnswer(reason)
+                }
+            })?;
 
         let status = response.status();
         let retry_after = response
@@ -95,8 +121,16 @@ impl Api {
             .get(RETRY_AFTER)
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
-        let body = read_body(response).await?;
-        Ok(classify(status, retry_after, &body))
+        // A 429 or 401 is decided by its status, so a body that fails to arrive cannot hide it.
+        let body = if matches!(
+            status,
+            StatusCode::TOO_MANY_REQUESTS | StatusCode::UNAUTHORIZED
+        ) {
+            Ok(Vec::new())
+        } else {
+            self.read_body(response).await
+        };
+        Ok(classify(status, retry_after, body))
     }
 
     /// `GET /api/oauth/profile`, used only when Claude Code's account config does not say who is
@@ -115,36 +149,81 @@ impl Api {
         if response.status() != StatusCode::OK {
             return None;
         }
-        let body = read_body(response).await.ok()?;
+        let body = self.read_body(response).await.ok()?;
         identity::from_profile(&serde_json::from_slice(&body).ok()?)
+    }
+
+    async fn read_body(&self, mut response: Response) -> Result<Vec<u8>, String> {
+        let mut body = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|error| self.transport_error(&error))?
+        {
+            if body.len() + chunk.len() > MAX_BODY_BYTES {
+                return Err("the response is larger than 1 MiB".to_owned());
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok(body)
+    }
+
+    /// Describes a failure that left no answer: no connection, a timeout, or a broken response.
+    fn transport_error(&self, error: &reqwest::Error) -> String {
+        if error.is_timeout() {
+            return if error.is_connect() {
+                format!(
+                    "could not connect within {} seconds",
+                    CONNECT_TIMEOUT.min(self.timeout).as_secs_f32()
+                )
+            } else {
+                format!("no answer within {} seconds", self.timeout.as_secs_f32())
+            };
+        }
+        // The innermost cause says the most ("connection refused", "dns error: …"). The URL carries
+        // no secret, but it adds nothing for the user either.
+        let mut cause: &dyn std::error::Error = error;
+        while let Some(source) = cause.source() {
+            cause = source;
+        }
+        cause.to_string()
     }
 }
 
-fn classify(status: StatusCode, retry_after: Option<String>, body: &[u8]) -> UsageResponse {
+/// Classifies an answer. `body` is an error when the body did not arrive in full.
+fn classify(
+    status: StatusCode,
+    retry_after: Option<String>,
+    body: Result<Vec<u8>, String>,
+) -> UsageResponse {
+    let failed = |body: &[u8]| UsageResponse::Failed {
+        status: status.as_u16(),
+        message: error_message(body),
+    };
     match status {
-        StatusCode::OK => match serde_json::from_slice::<Value>(body) {
-            Ok(value) if value.is_object() => UsageResponse::Usage(value),
-            _ => UsageResponse::Invalid("the usage response is not a JSON object".to_owned()),
-        },
+        StatusCode::TOO_MANY_REQUESTS => UsageResponse::RateLimited { retry_after },
         StatusCode::UNAUTHORIZED => UsageResponse::Unauthorized,
+        StatusCode::OK => match body {
+            Ok(body) => match serde_json::from_slice::<Value>(&body) {
+                Ok(value) if value.is_object() => UsageResponse::Usage(value),
+                _ => UsageResponse::Invalid("the usage response is not a JSON object".to_owned()),
+            },
+            Err(reason) => UsageResponse::Invalid(format!(
+                "the usage response did not arrive in full ({reason})"
+            )),
+        },
         StatusCode::FORBIDDEN => {
-            let text = String::from_utf8_lossy(body);
+            let body = body.unwrap_or_default();
+            let text = String::from_utf8_lossy(&body);
             if text.contains("user:profile") {
                 UsageResponse::MissingScope
             } else if text.contains("OAuth token has been revoked") {
                 UsageResponse::Revoked
             } else {
-                UsageResponse::Failed {
-                    status: status.as_u16(),
-                    message: error_message(body),
-                }
+                failed(&body)
             }
         }
-        StatusCode::TOO_MANY_REQUESTS => UsageResponse::RateLimited { retry_after },
-        _ => UsageResponse::Failed {
-            status: status.as_u16(),
-            message: error_message(body),
-        },
+        _ => failed(&body.unwrap_or_default()),
     }
 }
 
@@ -160,35 +239,6 @@ fn error_message(body: &[u8]) -> Option<String> {
         Some((cut, _)) => format!("{}…", &line[..cut]),
         None => line,
     })
-}
-
-async fn read_body(mut response: Response) -> Result<Vec<u8>, String> {
-    let mut body = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|error| transport_error(&error))?
-    {
-        if body.len() + chunk.len() > MAX_BODY_BYTES {
-            return Err("the response is larger than 1 MiB".to_owned());
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(body)
-}
-
-/// A failure with no answer: no connection, a timeout, or a broken response.
-fn transport_error(error: &reqwest::Error) -> String {
-    if error.is_timeout() {
-        return format!("no answer within {} seconds", TIMEOUT.as_secs());
-    }
-    // The innermost cause says the most ("connection refused", "dns error: …"). The URL carries
-    // no secret, but it adds nothing for the user either.
-    let mut cause: &dyn std::error::Error = error;
-    while let Some(source) = cause.source() {
-        cause = source;
-    }
-    cause.to_string()
 }
 
 /// `claude-code/<version>`, the User-Agent Claude Code sends.
@@ -254,37 +304,42 @@ mod tests {
 
     #[test]
     fn statuses_are_classified() {
+        let body = |text: &str| Ok(text.as_bytes().to_vec());
         assert!(matches!(
-            classify(StatusCode::OK, None, br#"{"five_hour":null}"#),
+            classify(StatusCode::OK, None, body(r#"{"five_hour":null}"#)),
             UsageResponse::Usage(_)
         ));
         assert!(matches!(
-            classify(StatusCode::OK, None, b"<html>"),
+            classify(StatusCode::OK, None, body("<html>")),
             UsageResponse::Invalid(_)
         ));
         assert!(matches!(
-            classify(StatusCode::UNAUTHORIZED, None, b""),
+            classify(StatusCode::OK, None, Err("connection reset".into())),
+            UsageResponse::Invalid(reason) if reason.contains("did not arrive in full")
+        ));
+        assert!(matches!(
+            classify(StatusCode::UNAUTHORIZED, None, Err("never read".into())),
             UsageResponse::Unauthorized
         ));
         let scope = json!({ "type": "error", "error": { "type": "permission_error",
             "message": "OAuth token does not meet scope requirement user:profile" } });
         assert!(matches!(
-            classify(StatusCode::FORBIDDEN, None, scope.to_string().as_bytes()),
+            classify(StatusCode::FORBIDDEN, None, body(&scope.to_string())),
             UsageResponse::MissingScope
         ));
         let revoked = json!({ "error": { "message": "OAuth token has been revoked" } });
         assert!(matches!(
-            classify(StatusCode::FORBIDDEN, None, revoked.to_string().as_bytes()),
+            classify(StatusCode::FORBIDDEN, None, body(&revoked.to_string())),
             UsageResponse::Revoked
         ));
         assert!(matches!(
-            classify(StatusCode::TOO_MANY_REQUESTS, Some("120".into()), b""),
+            classify(StatusCode::TOO_MANY_REQUESTS, Some("120".into()), Err("never read".into())),
             UsageResponse::RateLimited { retry_after: Some(value) } if value == "120"
         ));
         let overloaded =
             json!({ "error": { "type": "overloaded_error", "message": "Overloaded" } });
         assert!(matches!(
-            classify(StatusCode::SERVICE_UNAVAILABLE, None, overloaded.to_string().as_bytes()),
+            classify(StatusCode::SERVICE_UNAVAILABLE, None, body(&overloaded.to_string())),
             UsageResponse::Failed { status: 503, message: Some(message) } if message == "Overloaded"
         ));
     }

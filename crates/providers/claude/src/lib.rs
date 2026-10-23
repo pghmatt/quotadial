@@ -35,7 +35,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use quotadial_core::{Account, Error, Provider, Result, Snapshot, Status};
 
-use crate::api::{Api, UsageResponse};
+use crate::api::{Api, UsageError, UsageResponse};
 use crate::clock::{Clock, SystemClock};
 use crate::credentials::{Credentials, ParseError};
 use crate::environment::Environment;
@@ -61,6 +61,7 @@ pub struct ClaudeProvider {
     state_dir: Option<PathBuf>,
     base_url: String,
     claude_code_version: OnceLock<Option<String>>,
+    request_timeout: Duration,
     api: OnceLock<std::result::Result<Api, String>>,
 }
 
@@ -75,6 +76,7 @@ impl ClaudeProvider {
             state_dir: StateStore::default_dir(),
             base_url: api::DEFAULT_BASE_URL.to_owned(),
             claude_code_version: OnceLock::new(),
+            request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
         }
     }
@@ -91,7 +93,11 @@ impl ClaudeProvider {
                 let version = self
                     .claude_code_version
                     .get_or_init(api::detect_claude_code_version);
-                Api::new(&self.base_url, api::user_agent(version.as_deref()))
+                Api::new(
+                    &self.base_url,
+                    api::user_agent(version.as_deref()),
+                    self.request_timeout,
+                )
             })
             .as_ref()
             .map_err(|reason| Error::Request {
@@ -159,23 +165,35 @@ impl ClaudeProvider {
         state: &mut state::AccountState,
         now: DateTime<Utc>,
     ) -> std::result::Result<Snapshot, RequestFailure> {
-        let response = api
-            .usage(&credentials.access_token)
-            .await
-            .map_err(|reason| {
-                RequestFailure::Unanswered(format!("Could not reach Anthropic: {reason}."))
-            })?;
-
         let request_error = |reason| Error::Request {
             provider: ID,
             reason,
         };
+        let response = match api.usage(&credentials.access_token).await {
+            Ok(response) => response,
+            Err(UsageError::NotSent(reason)) => {
+                return Err(RequestFailure::NotSent(format!(
+                    "Could not reach Anthropic: {reason}."
+                )));
+            }
+            // Anthropic may have counted it, so it is recorded like any answer QuotaDial cannot use.
+            Err(UsageError::NoAnswer(reason)) => {
+                return state
+                    .record_failure(format!("Anthropic did not answer: {reason}."), now)
+                    .map_err(|reason| RequestFailure::Error(request_error(reason)));
+            }
+        };
+
         let snapshot = match response {
             UsageResponse::Usage(body) => {
-                if login.identity.is_none()
-                    && let Some(identity) = api.profile(&credentials.access_token).await
-                {
-                    account = named(account, &identity);
+                if login.identity.is_none() {
+                    account = match known_account(login, state, &account) {
+                        Some(known) => known,
+                        None => match api.profile(&credentials.access_token).await {
+                            Some(identity) => named(account, &identity),
+                            None => account,
+                        },
+                    };
                 }
                 let snapshot = snapshot_from(account, usage::read(&body, now));
                 state.record_usage(&snapshot);
@@ -240,9 +258,21 @@ enum Stored {
 
 /// Why a request produced no snapshot.
 enum RequestFailure {
-    /// No answer arrived, so the request does not count against the floor.
-    Unanswered(String),
+    /// The request never left this machine, so it does not count against the floor.
+    NotSent(String),
     Error(Error),
+}
+
+impl RequestFailure {
+    fn into_error(self) -> Error {
+        match self {
+            Self::NotSent(reason) => Error::Request {
+                provider: ID,
+                reason,
+            },
+            Self::Error(error) => error,
+        }
+    }
 }
 
 #[async_trait]
@@ -260,6 +290,12 @@ impl Provider for ClaudeProvider {
     }
 
     async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+        let store = self.store()?;
+        let key = state::account_key(account);
+        // Everything below runs under the account's lock, so the sign-in found, the token read
+        // and the answer saved belong to one moment, and two processes send one request.
+        let _lock = lock(&store, &key).await?;
+
         let Some(login) = self.locate()? else {
             return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT));
         };
@@ -270,11 +306,17 @@ impl Provider for ClaudeProvider {
             ));
         }
 
-        let store = self.store()?;
-        let key = state::account_key(account);
-        let _lock = lock(&store, &key).await?;
         let mut state = store.load(&key);
         let now = self.clock.now();
+        let mut changed = state.reanchor(now);
+        if login.identity.is_none() && !matches!(login.source, LoginSource::Environment(_)) {
+            changed |= state.forget_numbers_after_new_sign_in(login.generation.as_deref());
+        }
+        if changed {
+            store
+                .save(&key, &state)
+                .map_err(|error| cache_error(&store, &error))?;
+        }
         match gate::decide(&state, account, login.generation.as_deref(), now) {
             Decision::Request => {}
             Decision::Replay(snapshot) => return Ok(*snapshot),
@@ -298,6 +340,19 @@ impl Provider for ClaudeProvider {
                 ));
             }
         };
+        // Claude Code may have switched accounts while the token was read. A token read during a
+        // switch must not be counted as this account's.
+        match self.locate()? {
+            Some(current) if same_account(&current.account(), account) => {}
+            Some(_) => {
+                return Ok(Snapshot::auth_required(
+                    account.clone(),
+                    advice::DIFFERENT_ACCOUNT,
+                ));
+            }
+            None => return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT)),
+        }
+
         let mut account = account.clone();
         if let Some(plan) = credentials.plan() {
             account.plan = Some(plan);
@@ -329,22 +384,18 @@ impl Provider for ClaudeProvider {
             .map_err(|error| cache_error(&store, &error))?;
 
         match Self::request(api, &login, &credentials, account, &mut state, now).await {
-            Ok(snapshot) => {
-                // The floor is already saved, so a failure here only loses the answer's details.
-                let _ = store.save(&key, &state);
-                Ok(snapshot)
-            }
-            Err(RequestFailure::Error(error)) => {
-                let _ = store.save(&key, &state);
-                Err(error)
-            }
-            Err(RequestFailure::Unanswered(message)) => {
-                // Nothing reached Anthropic, so the floor is put back as it was.
+            Err(RequestFailure::NotSent(message)) => {
+                // Nothing left this machine, so the floor is put back as it was. If this save
+                // fails, the floor simply holds for 5 minutes.
                 let _ = store.save(&key, &before);
                 gate::unanswered(&before, &message).map_err(|reason| Error::Request {
                     provider: ID,
                     reason,
                 })
+            }
+            answered => {
+                save_answer(&store, &key, &state)?;
+                answered.map_err(RequestFailure::into_error)
             }
         }
     }
@@ -365,9 +416,18 @@ impl Provider for ClaudeProvider {
 /// Takes the account's lock without blocking the async runtime while another process holds it.
 async fn lock(store: &StateStore, key: &str) -> Result<StateLock> {
     let (blocking_store, key) = (store.clone(), key.to_owned());
-    tokio::task::spawn_blocking(move || blocking_store.lock(&key))
+    tokio::task::spawn_blocking(move || blocking_store.lock(&key, state::LOCK_WAIT))
         .await
         .map_err(|error| cache_error(store, &error))?
+        .map_err(|error| cache_error(store, &error))
+}
+
+/// Saves the state after an answer, trying twice: a lost 429 block would let the next request out
+/// too soon. If both tries fail, the fetch fails rather than hide the problem.
+fn save_answer(store: &StateStore, key: &str, state: &state::AccountState) -> Result<()> {
+    store
+        .save(key, state)
+        .or_else(|_| store.save(key, state))
         .map_err(|error| cache_error(store, &error))
 }
 
@@ -390,6 +450,24 @@ fn credentials_error(source: &LoginSource, reason: String) -> Error {
 /// The same account, as `Account` identity is defined: provider, organization and account id.
 fn same_account(a: &Account, b: &Account) -> bool {
     a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
+}
+
+/// The account Anthropic named for this environment token on an earlier request. The state is
+/// kept per token (its account id is a hash of the token), so it cannot name another token's
+/// account. Other sign-ins without a known account are always asked about again.
+fn known_account(
+    login: &Login,
+    state: &state::AccountState,
+    stand_in: &Account,
+) -> Option<Account> {
+    if !matches!(login.source, LoginSource::Environment(_)) {
+        return None;
+    }
+    let known = &state.last_good.as_ref()?.account;
+    (known.account_id != stand_in.account_id).then(|| Account {
+        plan: stand_in.plan.clone().or_else(|| known.plan.clone()),
+        ..known.clone()
+    })
 }
 
 /// `account` as Anthropic's profile names it, keeping the plan already known.
@@ -448,7 +526,14 @@ impl ClaudeProvider {
             state_dir: Some(state_dir),
             base_url: base_url.to_owned(),
             claude_code_version: OnceLock::from(Some("2.1.286".to_owned())),
+            request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
         }
+    }
+
+    /// The same, with requests giving up after `timeout`.
+    pub(crate) fn with_request_timeout(mut self, timeout: Duration) -> Self {
+        self.request_timeout = timeout;
+        self
     }
 }
