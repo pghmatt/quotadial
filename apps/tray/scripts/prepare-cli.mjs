@@ -1,6 +1,10 @@
 // Builds the `quotadial` CLI and puts it where Tauri bundles it beside the app's own binary
-// (D-067): src-tauri/binaries/quotadial-<target triple>, with `.exe` on Windows. Tauri strips the
+// (D-069): src-tauri/binaries/quotadial-<target triple>, with `.exe` on Windows. Tauri strips the
 // triple when it bundles, so the app carries it as plain `quotadial`.
+//
+// A universal Mac app (`tauri build --target universal-apple-darwin`) needs three files: Tauri
+// compiles the app once per architecture and checks for that architecture's CLI each time, then
+// bundles one CLI holding both, made here with `lipo`.
 //
 //   node scripts/prepare-cli.mjs            a debug build, for `tauri dev` and the checks
 //   node scripts/prepare-cli.mjs --release  a release build, for `tauri build`
@@ -9,6 +13,7 @@ import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const UNIVERSAL = "universal-apple-darwin";
 const release = process.argv.includes("--release");
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const binaries = fileURLToPath(new URL("../src-tauri/binaries", import.meta.url));
@@ -24,21 +29,35 @@ if (!triple) {
   console.error("Could not tell which target to build the CLI for: `rustc -vV` names no host.");
   process.exit(1);
 }
-const crossing = triple !== host;
 
-const cargo = ["build", "--locked", "--package", "quotadial", "--bin", "quotadial"];
-if (release) cargo.push("--release");
-if (crossing) cargo.push("--target", triple);
-execFileSync("cargo", cargo, { cwd: root, stdio: "inherit" });
+/** Builds the CLI for `target` and copies it into `binaries`, returning where it went. */
+function build(target) {
+  const crossing = target !== host;
+  const cargo = ["build", "--locked", "--package", "quotadial", "--bin", "quotadial"];
+  if (release) cargo.push("--release");
+  if (crossing) cargo.push("--target", target);
+  execFileSync("cargo", cargo, { cwd: root, stdio: "inherit" });
+  const extension = target.includes("windows") ? ".exe" : "";
+  const built = join(
+    root,
+    "target",
+    ...(crossing ? [target] : []),
+    release ? "release" : "debug",
+    `quotadial${extension}`,
+  );
+  const bundled = join(binaries, `quotadial-${target}${extension}`);
+  copyFileSync(built, bundled);
+  console.log(`Bundled the CLI as binaries/quotadial-${target}${extension}.`);
+  return bundled;
+}
 
-const extension = triple.includes("windows") ? ".exe" : "";
-const built = join(
-  root,
-  "target",
-  ...(crossing ? [triple] : []),
-  release ? "release" : "debug",
-  `quotadial${extension}`,
-);
 mkdirSync(binaries, { recursive: true });
-copyFileSync(built, join(binaries, `quotadial-${triple}${extension}`));
-console.log(`Bundled the CLI as binaries/quotadial-${triple}${extension}.`);
+if (triple === UNIVERSAL) {
+  const parts = ["aarch64-apple-darwin", "x86_64-apple-darwin"].map(build);
+  execFileSync("lipo", ["-create", "-output", join(binaries, `quotadial-${UNIVERSAL}`), ...parts], {
+    stdio: "inherit",
+  });
+  console.log(`Bundled the CLI for both Mac architectures as binaries/quotadial-${UNIVERSAL}.`);
+} else {
+  build(triple);
+}

@@ -22,5 +22,11 @@
         }
       }
     ]
+  },
+  "bundle": {
+    "targets": [
+      "app",
+      "dmg"
+    ]
   }
 }
