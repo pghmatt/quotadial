@@ -47,9 +47,11 @@ pub(crate) enum ParseError {
 impl ParseError {
     pub(crate) fn describe(self) -> &'static str {
         match self {
-            Self::NotJson => "the file is not valid JSON",
+            Self::NotJson => "the file is not valid JSON; run `codex login` to sign in again",
             Self::ApiKey => "the Codex CLI is signed in with an API key",
-            Self::NoAccessToken => "the file holds no access token",
+            Self::NoAccessToken => {
+                "the file holds no access token; run `codex login` to sign in again"
+            }
         }
     }
 }

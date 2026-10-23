@@ -684,7 +684,8 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     let first = provider.fetch(&account).await;
     assert_eq!(
         first.expect_err("fails").to_string(),
-        "claude: request failed: Anthropic's usage endpoint answered HTTP 500."
+        "claude: request failed: Anthropic's usage endpoint answered HTTP 500. QuotaDial asks \
+         Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
     );
 
     harness.advance(2);
@@ -805,7 +806,8 @@ async fn a_damaged_credentials_file_is_an_error_that_names_the_file_but_not_its_
     assert_eq!(
         result.expect_err("fails").to_string(),
         format!(
-            "claude: could not read credentials from {}: it is not valid JSON",
+            "claude: could not read credentials from {}: it is not valid JSON; run `claude` to \
+             sign in again",
             file.display()
         )
     );
@@ -1193,7 +1195,8 @@ async fn a_token_quoted_in_anthropics_error_is_never_shown_or_saved() {
     assert_eq!(
         failed.expect_err("fails").to_string(),
         "claude: request failed: Anthropic's usage endpoint answered HTTP 400: invalid token: \
-         [redacted token]."
+         [redacted token]. QuotaDial asks Anthropic at most every 5 minutes, so the next request \
+         is after 2099-01-01T00:10:00Z."
     );
     assert_eq!(harness.usage_requests().await, 1);
     assert_no_token(&cache_contents(&harness));
@@ -1301,7 +1304,8 @@ async fn a_redirect_is_never_followed() {
 
     assert_eq!(
         result.expect_err("fails").to_string(),
-        "claude: request failed: Anthropic's usage endpoint answered HTTP 302."
+        "claude: request failed: Anthropic's usage endpoint answered HTTP 302. QuotaDial asks \
+         Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
     );
     assert_eq!(
         harness.requests().await,

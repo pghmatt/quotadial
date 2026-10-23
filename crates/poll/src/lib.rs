@@ -31,7 +31,7 @@ pub struct Policy {
 impl Policy {
     /// For example "QuotaDial asks Anthropic at most every 5 minutes, so the next request is after
     /// 2099-01-01T00:05:00Z."
-    fn next_request(&self, at: DateTime<Utc>) -> String {
+    pub(crate) fn next_request(&self, at: DateTime<Utc>) -> String {
         let every = match self.floor.num_minutes() {
             1 => "minute".to_owned(),
             minutes => format!("{minutes} minutes"),

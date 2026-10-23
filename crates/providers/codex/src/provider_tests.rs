@@ -393,7 +393,8 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     let first = provider.fetch(&account).await;
     assert_eq!(
         first.expect_err("fails").to_string(),
-        "codex: request failed: ChatGPT's usage endpoint answered HTTP 500."
+        "codex: request failed: ChatGPT's usage endpoint answered HTTP 500. QuotaDial asks \
+         ChatGPT at most every 2 minutes, so the next request is after 2026-10-23T12:02:00Z."
     );
 
     harness.advance(1);
@@ -552,7 +553,8 @@ async fn a_token_quoted_in_chatgpts_error_is_never_shown_or_saved() {
     assert_eq!(
         failed.expect_err("fails").to_string(),
         "codex: request failed: ChatGPT's usage endpoint answered HTTP 403: Token [redacted \
-         token] is not allowed here."
+         token] is not allowed here. QuotaDial asks ChatGPT at most every 2 minutes, so the next \
+         request is after 2026-10-23T12:02:00Z."
     );
     assert_no_token(&harness.cache_contents(), &token);
 }
@@ -570,7 +572,10 @@ async fn a_damaged_auth_file_is_an_error_that_names_the_file_but_not_its_content
 
     let message = error.to_string();
     assert!(message.starts_with("codex: could not read credentials from "));
-    assert!(message.ends_with("auth.json: the file is not valid JSON"));
+    assert!(
+        message
+            .ends_with("auth.json: the file is not valid JSON; run `codex login` to sign in again")
+    );
     assert!(!message.contains("secret"));
 }
 
@@ -687,7 +692,8 @@ async fn an_answer_for_another_account_is_never_used() {
     assert_eq!(
         result.expect_err("refused").to_string(),
         "codex: unexpected response: ChatGPT's answer names another account than the Codex CLI's \
-         sign-in, so it was not used."
+         sign-in, so it was not used. QuotaDial asks ChatGPT at most every 2 minutes, so the next \
+         request is after 2026-10-23T12:02:00Z."
     );
     assert!(
         !harness.cache_contents().contains("used_pct"),
@@ -712,7 +718,8 @@ async fn a_redirect_is_never_followed() {
 
     assert_eq!(
         result.expect_err("fails").to_string(),
-        "codex: request failed: ChatGPT's usage endpoint answered HTTP 302."
+        "codex: request failed: ChatGPT's usage endpoint answered HTTP 302. QuotaDial asks \
+         ChatGPT at most every 2 minutes, so the next request is after 2026-10-23T12:02:00Z."
     );
     let requests = harness.server.received_requests().await.expect("recorded");
     assert_eq!(requests.len(), 1, "only the usage request was sent");
@@ -734,6 +741,7 @@ async fn an_answer_over_a_mebibyte_is_not_read() {
     assert_eq!(
         result.expect_err("refused").to_string(),
         "codex: unexpected response: ChatGPT's answer could not be read: the usage response did not \
-         arrive in full (the response is larger than 1 MiB)."
+         arrive in full (the response is larger than 1 MiB). QuotaDial asks ChatGPT at most every \
+         2 minutes, so the next request is after 2026-10-23T12:02:00Z."
     );
 }

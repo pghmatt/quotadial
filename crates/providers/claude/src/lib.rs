@@ -145,7 +145,7 @@ impl ClaudeProvider {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     return Ok(Stored::SignedOut);
                 }
-                Err(error) => return Err(credentials_error(&login.source, error.to_string())),
+                Err(error) => return Err(credentials_error(&login.source, unreadable(&error))),
             },
         };
         match Credentials::parse(payload.expose()) {
@@ -175,7 +175,7 @@ impl ClaudeProvider {
             Ok(response) => response,
             Err(UsageError::NotSent(reason)) => {
                 return Err(RequestFailure::NotSent(format!(
-                    "Could not reach Anthropic: {reason}."
+                    "Could not reach Anthropic: {reason}. Check the internet connection."
                 )));
             }
             // Anthropic may have counted it, so it is recorded like any answer QuotaDial cannot use.
@@ -416,6 +416,11 @@ impl Provider for ClaudeProvider {
     fn min_poll_interval(&self) -> Duration {
         MIN_POLL_INTERVAL
     }
+}
+
+/// Why a credentials file could not be read, and the fix.
+fn unreadable(error: &std::io::Error) -> String {
+    format!("{error}; check that you can read it")
 }
 
 fn credentials_error(source: &LoginSource, reason: String) -> Error {

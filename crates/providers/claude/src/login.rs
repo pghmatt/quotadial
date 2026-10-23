@@ -156,7 +156,7 @@ pub(crate) fn locate(env: &Environment, keychain: &dyn Keychain) -> Result<Optio
         Err(error) => Err(Error::Credentials {
             provider: ID,
             location: file.display().to_string(),
-            reason: error.to_string(),
+            reason: format!("{error}; check that you can read it"),
         }),
     }
 }

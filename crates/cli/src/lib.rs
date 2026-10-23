@@ -3,12 +3,13 @@
 // Printing results is this crate's job.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::process::ExitCode;
+use std::time::Duration;
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status, redact_secrets};
+use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status, Window, redact_secrets};
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
 use serde::Serialize;
@@ -29,7 +30,18 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Keep showing usage, refreshing every minute. No provider is asked more often than its own
+    /// limit, so most refreshes show cached numbers with their age.
+    Watch {
+        /// Print one line of JSON per refresh instead of text.
+        #[arg(long)]
+        json: bool,
+    },
 }
+
+/// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
+/// is asked more often than its own limit (5 minutes for Anthropic).
+const WATCH_EVERY: Duration = Duration::from_secs(60);
 
 /// What `quotadial status` reports: a snapshot per account, plus any provider that failed outright.
 #[derive(Debug, Default, Serialize)]
@@ -59,6 +71,7 @@ impl ProviderError {
 pub fn run() -> ExitCode {
     match Cli::parse().command {
         Command::Status { json } => status(json),
+        Command::Watch { json } => watch(json),
     }
 }
 
@@ -70,16 +83,22 @@ fn providers() -> Vec<Box<dyn Provider>> {
     ]
 }
 
-fn status(json: bool) -> ExitCode {
-    let runtime = match tokio::runtime::Builder::new_current_thread()
+fn runtime() -> Option<tokio::runtime::Runtime> {
+    match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime,
+        Ok(runtime) => Some(runtime),
         Err(error) => {
             eprintln!("quotadial: could not start the async runtime: {error}");
-            return ExitCode::FAILURE;
+            None
         }
+    }
+}
+
+fn status(json: bool) -> ExitCode {
+    let Some(runtime) = runtime() else {
+        return ExitCode::FAILURE;
     };
     let report = runtime.block_on(collect(&providers()));
 
@@ -87,18 +106,49 @@ fn status(json: bool) -> ExitCode {
     let written = if json {
         write_json(&report, &mut stdout)
     } else {
-        write_text(&report, &mut stdout)
+        write_text(&report, Utc::now(), &mut stdout)
     };
     match written {
         Ok(()) if report.errors.is_empty() => ExitCode::SUCCESS,
         Ok(()) => ExitCode::FAILURE,
-        // The reader went away, as in `quotadial status | head`. Nothing is left to say.
-        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("quotadial: could not write the status: {error}");
-            ExitCode::FAILURE
-        }
+        Err(error) => write_failed(&error),
     }
+}
+
+/// Refreshes forever, until stopped with Ctrl-C or its reader goes away.
+fn watch(json: bool) -> ExitCode {
+    let Some(runtime) = runtime() else {
+        return ExitCode::FAILURE;
+    };
+    let providers = providers();
+    // The Windows console shows escape codes as text unless a program turns them on, which needs
+    // unsafe code, so on Windows each refresh simply follows the last.
+    let redraw = !json && io::stdout().is_terminal() && !cfg!(windows);
+    runtime.block_on(async {
+        loop {
+            let report = collect(&providers).await;
+            let mut stdout = io::stdout().lock();
+            let written = if json {
+                write_json_line(&report, &mut stdout)
+            } else {
+                write_frame(&report, &providers, Utc::now(), redraw, &mut stdout)
+            };
+            if let Err(error) = written.and_then(|()| stdout.flush()) {
+                return write_failed(&error);
+            }
+            drop(stdout);
+            tokio::time::sleep(WATCH_EVERY).await;
+        }
+    })
+}
+
+fn write_failed(error: &io::Error) -> ExitCode {
+    // The reader went away, as in `quotadial status | head`. Nothing is left to say.
+    if error.kind() == io::ErrorKind::BrokenPipe {
+        return ExitCode::SUCCESS;
+    }
+    eprintln!("quotadial: could not write the status: {error}");
+    ExitCode::FAILURE
 }
 
 /// Asks every provider for its accounts, then fetches each account, using the provider's local
@@ -144,7 +194,48 @@ fn write_json(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
     writeln!(out)
 }
 
-fn write_text(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
+/// The same report as `status --json`, on one line, for `watch --json`.
+fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
+    serde_json::to_writer(&mut *out, report)?;
+    writeln!(out)
+}
+
+/// One `watch` refresh: the status, then when it was updated and how often each provider is
+/// asked. `redraw` clears the terminal first.
+fn write_frame(
+    report: &StatusReport,
+    providers: &[Box<dyn Provider>],
+    now: DateTime<Utc>,
+    redraw: bool,
+    out: &mut impl Write,
+) -> io::Result<()> {
+    if redraw {
+        // Clear the screen and move to its top-left corner.
+        write!(out, "\x1b[2J\x1b[H")?;
+    }
+    write_text(report, now, out)?;
+    let limits: Vec<String> = providers
+        .iter()
+        .map(|provider| {
+            format!(
+                "{} at most every {}",
+                provider.id(),
+                duration(
+                    TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
+                )
+            )
+        })
+        .collect();
+    writeln!(
+        out,
+        "\nUpdated {}. Refreshes every minute and asks {}. Press Ctrl-C to stop.",
+        timestamp(now),
+        limits.join(" and ")
+    )
+}
+
+/// The report as text, with every time relative to `now`.
+fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -> io::Result<()> {
     if report.snapshots.is_empty() && report.errors.is_empty() {
         return writeln!(out, "no accounts found");
     }
@@ -155,18 +246,15 @@ fn write_text(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
             write!(out, " ({plan})")?;
         }
         writeln!(out, ": {}", status_label(snapshot.status))?;
-        for window in &snapshot.windows {
-            let resets = window.resets_at.map_or_else(
-                || "no reset time reported".to_owned(),
-                |resets_at| format!("resets {}", timestamp(resets_at)),
-            );
+        for window in tightest_first(&snapshot.windows) {
             writeln!(
                 out,
-                "  {}: {:.0}% used, {resets}, from {} at {}",
+                "  {}: {:.0}% used, {}, from {} {}",
                 window.label,
                 window.used_pct,
+                resets(window.resets_at, now),
                 source_label(window.source),
-                timestamp(window.fetched_at),
+                ago(window.fetched_at, now),
             )?;
         }
         if let Some(extra) = &snapshot.extra_usage {
@@ -184,6 +272,49 @@ fn write_text(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
 
 fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+/// The windows closest to their limits first, and of those, the one that resets soonest.
+fn tightest_first(windows: &[Window]) -> Vec<&Window> {
+    let mut sorted: Vec<&Window> = windows.iter().collect();
+    sorted.sort_by(|a, b| {
+        b.used_pct.total_cmp(&a.used_pct).then_with(|| {
+            let reset = |window: &Window| window.resets_at.unwrap_or(DateTime::<Utc>::MAX_UTC);
+            reset(a).cmp(&reset(b))
+        })
+    });
+    sorted
+}
+
+/// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
+fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
+    match resets_at {
+        None => "no reset time reported".to_owned(),
+        Some(at) if at > now => format!("resets in {}", duration(at - now)),
+        Some(at) => format!("reset {} ago", duration(now - at)),
+    }
+}
+
+/// For example `4 min ago`, or `just now`.
+fn ago(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    if now - at < TimeDelta::minutes(1) {
+        return "just now".to_owned();
+    }
+    format!("{} ago", duration(now - at))
+}
+
+/// For example `under a minute`, `45 min`, `2 h 10 min` or `3 d 4 h`, rounded down.
+fn duration(length: TimeDelta) -> String {
+    let minutes = length.num_minutes();
+    let (days, hours) = (minutes / (24 * 60), minutes / 60 % 24);
+    match (days, hours, minutes % 60) {
+        _ if minutes < 1 => "under a minute".to_owned(),
+        (0, 0, minutes) => format!("{minutes} min"),
+        (0, hours, 0) => format!("{hours} h"),
+        (0, hours, minutes) => format!("{hours} h {minutes} min"),
+        (days, 0, _) => format!("{days} d"),
+        (days, hours, _) => format!("{days} d {hours} h"),
+    }
 }
 
 /// For example `on, 12.50 of 50.00 USD used (25%)`, or `off`.
@@ -348,12 +479,17 @@ mod tests {
         }
     }
 
+    /// Four minutes after the test snapshots were fetched.
+    fn now() -> DateTime<Utc> {
+        ts("2099-01-01T00:04:00Z")
+    }
+
     fn render(report: &StatusReport, json: bool) -> String {
         let mut out = Vec::new();
         if json {
             write_json(report, &mut out).expect("writes");
         } else {
-            write_text(report, &mut out).expect("writes");
+            write_text(report, now(), &mut out).expect("writes");
         }
         String::from_utf8(out).expect("UTF-8")
     }
@@ -383,8 +519,8 @@ mod tests {
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): ok\n  Session: 12% used, resets \
-             2099-01-01T05:00:00Z, from the API at 2099-01-01T00:00:00Z\n"
+            "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
+             from the API 4 min ago\n"
         );
     }
 
@@ -401,7 +537,7 @@ mod tests {
         assert_eq!(
             render(&report, false),
             "scripted user@example.com: ok\n  Session: 12% used, no reset time reported, from \
-             cache at 2099-01-01T00:00:00Z\n"
+             cache 4 min ago\n"
         );
     }
 
@@ -424,10 +560,125 @@ mod tests {
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): rate limited\n  Session: 12% used, resets \
-             2099-01-01T05:00:00Z, from cache at 2099-01-01T00:00:00Z\n  Extra usage: on, 12.50 \
-             of 50.00 USD used (25%)\n  Anthropic is rate-limiting usage requests.\n"
+            "scripted user@example.com (max): rate limited\n  Session: 12% used, resets in 4 h \
+             56 min, from cache 4 min ago\n  Extra usage: on, 12.50 of 50.00 USD used (25%)\n  \
+             Anthropic is rate-limiting usage requests.\n"
         );
+    }
+
+    #[test]
+    fn durations_read_naturally_and_round_down() {
+        assert_eq!(duration(TimeDelta::seconds(59)), "under a minute");
+        assert_eq!(duration(TimeDelta::minutes(45)), "45 min");
+        assert_eq!(duration(TimeDelta::hours(2)), "2 h");
+        assert_eq!(
+            duration(TimeDelta::minutes(130) + TimeDelta::seconds(59)),
+            "2 h 10 min"
+        );
+        assert_eq!(duration(TimeDelta::days(3)), "3 d");
+        assert_eq!(
+            duration(TimeDelta::days(3) + TimeDelta::hours(4) + TimeDelta::minutes(5)),
+            "3 d 4 h"
+        );
+    }
+
+    #[test]
+    fn reset_times_and_ages_are_relative_to_now() {
+        assert_eq!(
+            resets(Some(ts("2099-01-01T05:00:00Z")), now()),
+            "resets in 4 h 56 min"
+        );
+        assert_eq!(
+            resets(Some(ts("2099-01-01T00:01:00Z")), now()),
+            "reset 3 min ago",
+            "numbers from before a reset say so"
+        );
+        assert_eq!(resets(None, now()), "no reset time reported");
+        assert_eq!(ago(ts("2099-01-01T00:00:00Z"), now()), "4 min ago");
+        assert_eq!(ago(ts("2099-01-01T00:03:30Z"), now()), "just now");
+        assert_eq!(
+            ago(ts("2099-01-01T00:09:00Z"), now()),
+            "just now",
+            "a clock that moved back"
+        );
+    }
+
+    #[test]
+    fn the_tightest_window_comes_first() {
+        let window = |label: &str, used_pct, resets_at: Option<&str>| Window {
+            kind: WindowKind::Weekly,
+            label: label.into(),
+            used_pct,
+            resets_at: resets_at.map(ts),
+            window_seconds: 604_800,
+            scope_model: None,
+            source: Source::Api,
+            fetched_at: ts("2099-01-01T00:00:00Z"),
+        };
+        let windows = [
+            window("Session", 10.0, Some("2099-01-01T05:00:00Z")),
+            window("Weekly", 70.0, Some("2099-01-07T00:00:00Z")),
+            window("Weekly (Opus)", 70.0, Some("2099-01-03T00:00:00Z")),
+            window("Weekly (unknown reset)", 70.0, None),
+        ];
+
+        let order: Vec<&str> = tightest_first(&windows)
+            .into_iter()
+            .map(|window| window.label.as_str())
+            .collect();
+
+        assert_eq!(
+            order,
+            [
+                "Weekly (Opus)",
+                "Weekly",
+                "Weekly (unknown reset)",
+                "Session"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_watch_refresh_says_when_it_was_updated_and_how_often_providers_are_asked() {
+        let providers: Vec<Box<dyn Provider>> = vec![Box::new(ScriptedProvider {
+            discovery_fails: false,
+            fetch_fails: false,
+            fallback: None,
+        })];
+        let report = StatusReport {
+            snapshots: vec![snapshot(account(), Source::Cache)],
+            errors: Vec::new(),
+        };
+        let frame = |redraw| {
+            let mut out = Vec::new();
+            write_frame(&report, &providers, now(), redraw, &mut out).expect("writes");
+            String::from_utf8(out).expect("UTF-8")
+        };
+
+        let redrawn = frame(true);
+        assert!(redrawn.starts_with("\x1b[2J\x1b[Hscripted user@example.com (max): ok\n"));
+        assert!(redrawn.ends_with(
+            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and asks scripted at most \
+             every 5 min. Press Ctrl-C to stop.\n"
+        ));
+        assert!(!frame(false).contains('\x1b'), "no escape codes when piped");
+    }
+
+    #[test]
+    fn watch_json_is_one_line_per_refresh_with_the_status_json() {
+        let report = StatusReport {
+            snapshots: vec![snapshot(account(), Source::Api)],
+            errors: Vec::new(),
+        };
+        let mut out = Vec::new();
+        write_json_line(&report, &mut out).expect("writes");
+        let line = String::from_utf8(out).expect("UTF-8");
+
+        assert_eq!(line.matches('\n').count(), 1);
+        assert!(line.ends_with('\n'));
+        let parsed: Value = serde_json::from_str(&line).expect("valid JSON");
+        let pretty: Value = serde_json::from_str(&render(&report, true)).expect("valid JSON");
+        assert_eq!(parsed, pretty);
     }
 
     #[test]
