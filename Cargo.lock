@@ -1300,9 +1300,11 @@ dependencies = [
  "chrono",
  "dirs",
  "quotadial-core",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
 ]
@@ -1366,9 +1368,6 @@ dependencies = [
  "quotadial-daemon",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]

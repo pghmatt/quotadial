@@ -36,8 +36,8 @@ deb, the AppImage and the CLI for four platforms; publishing it is Matt's click.
 M4, alerts and history: the manager approved the plan in #40 on 2026-10-23, with six decisions and
 two additions (D-090, D-091). Its PRs, in order:
 - PR 1, the pace of every window (P-016, D-092), merged (PR #43);
-- PR 2, alert rules written in plain words, and the one `tier()` check (D-093), in review;
-- PR 2b, alerts sent to a webhook and Slack;
+- PR 2, alert rules written in plain words, and the one `tier()` check (D-093), merged (PR #44);
+- PR 2b, alerts sent to a webhook and Slack (D-094), in review;
 - PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view;
 - PR 4, the providers' status pages and an incident badge;
 - PR 5, the week's API-equivalent cost, from a bundled price table.
@@ -97,7 +97,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Step | Status | Notes |
 | --- | --- | --- |
 | PR 1: pace | Done (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
-| PR 2: alert rules | In review (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
+| PR 2: alert rules | Done (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
+| PR 2b: alerts to webhooks and Slack | In review (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
 
 ## Kickoff
 
@@ -284,6 +285,40 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
+### M4 PR 2b: alerts to webhooks and Slack (D-094)
+
+- **Settings:** `Config` moved from `quotadial-providers` to the daemon crate (`config.rs`), with
+  `webhooks` and `warnings`. `Webhook::new` accepts `https`, or `http` on this machine, and keeps
+  the address as a `Secret`. `host()` is all that is shown, and `key()` is the first 8 bytes of
+  its SHA-256 in hex. A file with webhooks that others can read gets a `chmod 600` warning.
+- **Sending** (`deliver.rs`): one `reqwest` client, 10-second timeout, no redirects. `payload`
+  builds the JSON (eight fields) or Slack's `{"text": "*title*\nbody"}` with `&`, `<` and `>`
+  escaped. Errors are worded from the failure's kind and the host, never from `reqwest`'s message,
+  which holds the address.
+- **Retries** (`deliveries.rs`, schema 4): a `deliveries` row per firing and webhook key (host,
+  sent, error, attempts, last try). `undelivered` gives the told firings of the last hour not yet
+  taken and past their wait (1, 2, 4, 8, then 15 minutes). `deliver_due` sends them and records
+  each result at the time it was given.
+- **Poller:** `with_webhooks`. After each check it spawns one sending task, unless one is still
+  running (a `tokio::sync::Mutex` guard), so polling never waits on a webhook. `Host::start` loads
+  the webhooks from `config.json`.
+- **Where it shows:** `quotadial daemon` names the hosts at start and prints the warnings.
+  `quotadial alerts` lists the hosts, the warnings and each firing's deliveries.
+  `firings[].deliveries` is in the API and MCP. The app's Settings says where alerts also go and
+  shows the warnings.
+- **Tests:** settings (defaults, https or local, never shown, the permission warning); the payloads
+  (only the firing; Slack's escaping); sending to a local receiver once, a 404 tried again after a
+  minute and not after an hour, an unreachable host named by its host; the backoff; the poller
+  sending a told alert; the CLI's listing.
+- **Live check on Matt's Mac**, with a daemon from this branch on a copy of the data folder and a
+  local receiver at `http://127.0.0.1:48123/hooks/secret-path`:
+  - The daemon said "It sends alerts to 127.0.0.1 too", naming the host only.
+  - `warn me when a weekly window passes 40%` posted five alerts, each with exactly the eight
+    fields, no account or organization id, and no sign-in place. The starting rules stayed quiet.
+  - With the receiver stopped, `tell me when codex passes 45%` was recorded as "not sent to
+    127.0.0.1: it could not be reached". With the receiver back, it was sent on the retry, a minute
+    later.
+
 ### M4 PR 2: alert rules (D-093)
 
 - **Core** (`crates/core/src/alert.rs`, `tier.rs`):
@@ -337,6 +372,10 @@ so they became #10.
     minute after added nothing.
   - The app, built under another name on the copy, listed the three rules in Settings with their
     boxes, Remove buttons, "Read as" lines and the field to add one.
+  - The plan's stop-across-a-reset check: the daemon stopped at 23:25:16, after reading account
+    …041b's session at 33% with a reset at 23:29:59. The session reset with no daemon running. On
+    restarting at 23:33:16, it told "Claude Session has reset" once, a second later, keyed by
+    23:29:59, and three minutes of checks added nothing (posted on #44).
 
 ### M4 PR 1: pace (P-016, D-092)
 

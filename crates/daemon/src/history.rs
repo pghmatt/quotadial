@@ -19,9 +19,9 @@ use serde::Serialize;
 /// How long history is kept.
 pub const KEEP_DAYS: i64 = 30;
 
-/// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`, and version 3
-/// the alert rules and their firings.
-const SCHEMA_VERSION: i32 = 3;
+/// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`, version 3 the
+/// alert rules and their firings, and version 4 where each firing was sent.
+const SCHEMA_VERSION: i32 = 4;
 
 /// The history database.
 #[derive(Debug)]

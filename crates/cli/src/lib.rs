@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{Provider, StatusReport, collect, text};
-use quotadial_daemon::{AddError, Alerts, DataDir, History, HistoryError};
+use quotadial_daemon::{AddError, Alerts, Config, DataDir, History, HistoryError, Webhook};
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -252,7 +252,7 @@ fn alerts(action: AlertsAction) -> ExitCode {
     let written = match action {
         AlertsAction::List { json } => match history.alerts(now) {
             Ok(alerts) if json => write_json(&alerts, &mut stdout),
-            Ok(alerts) => write_alerts(&alerts, now, &mut stdout),
+            Ok(alerts) => write_alerts(&alerts, &config(), now, &mut stdout),
             Err(error) => return history_failed(&error),
         },
         AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now) {
@@ -292,6 +292,13 @@ fn alerts(action: AlertsAction) -> ExitCode {
     }
 }
 
+/// The settings in `config.json`, or the defaults.
+fn config() -> Config {
+    DataDir::from_env()
+        .map(|dir| Config::load(&dir))
+        .unwrap_or_default()
+}
+
 /// The daemon's history, where the alert rules live, created if no daemon has run yet.
 fn open_history() -> Result<History, String> {
     let dir = DataDir::from_env().ok_or_else(|| {
@@ -312,8 +319,14 @@ fn history_failed(error: &HistoryError) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// The alert rules, each with what QuotaDial read it as, then what they told lately.
-fn write_alerts(alerts: &Alerts, now: DateTime<Utc>, out: &mut impl Write) -> io::Result<()> {
+/// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
+/// what they told lately, with where each went.
+fn write_alerts(
+    alerts: &Alerts,
+    config: &Config,
+    now: DateTime<Utc>,
+    out: &mut impl Write,
+) -> io::Result<()> {
     if alerts.rules.is_empty() {
         writeln!(
             out,
@@ -327,6 +340,13 @@ fn write_alerts(alerts: &Alerts, now: DateTime<Utc>, out: &mut impl Write) -> io
             writeln!(out, "             read as: {}", rule.rule)?;
         }
     }
+    if !config.webhooks.is_empty() {
+        let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
+        writeln!(out, "\nAlso sent to {}.", hosts.join(", "))?;
+    }
+    for warning in &config.warnings {
+        writeln!(out, "\nwarning: {warning}")?;
+    }
     if alerts.firings.is_empty() {
         return writeln!(out, "\nNothing told in the last week.");
     }
@@ -339,8 +359,23 @@ fn write_alerts(alerts: &Alerts, now: DateTime<Utc>, out: &mut impl Write) -> io
             firing.title,
             firing.body
         )?;
+        for delivery in &firing.deliveries {
+            match &delivery.error {
+                _ if delivery.sent => writeln!(out, "    Sent to {}.", delivery.to)?,
+                Some(error) => writeln!(out, "    {}.", capitalized(error))?,
+                None => writeln!(out, "    Not sent to {} yet.", delivery.to)?,
+            }
+        }
     }
     Ok(())
+}
+
+/// `text` with its first letter in capitals.
+fn capitalized(text: &str) -> String {
+    let mut letters = text.chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
 }
 
 /// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
@@ -379,6 +414,14 @@ fn daemon(port: u16) -> ExitCode {
             host.port(),
             host.dir().token().display()
         ));
+        let config = Config::load(host.dir());
+        if !config.webhooks.is_empty() {
+            let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
+            say(format_args!("It sends alerts to {} too.", hosts.join(", ")));
+        }
+        for warning in &config.warnings {
+            eprintln!("quotadial: warning: {warning}");
+        }
         match host.run(shutdown_signal()).await {
             Ok(()) => {
                 say(format_args!("QuotaDial daemon stopped."));
@@ -857,6 +900,70 @@ mod tests {
             !text(&expired).contains("Pace"),
             "nothing to say with no windows to show"
         );
+    }
+
+    #[test]
+    fn alerts_say_where_each_went_and_what_the_settings_could_not_use() {
+        let config = Config {
+            webhooks: vec![
+                Webhook::new(
+                    "https://hooks.slack.com/services/T000/B000/XXXXXXXX",
+                    quotadial_daemon::WebhookKind::Slack,
+                )
+                .expect("a webhook"),
+            ],
+            warnings: vec!["A webhook in config.json is not an https address.".into()],
+            ..Config::default()
+        };
+        let alerts = Alerts {
+            rules: Vec::new(),
+            firings: vec![quotadial_daemon::Firing {
+                id: 1,
+                rule: 1,
+                provider: "claude".into(),
+                account_id: "user-1".into(),
+                org: None,
+                account: "user@example.com".into(),
+                window: Some("Weekly".into()),
+                used_pct: Some(91.0),
+                resets_at: None,
+                title: "Claude Weekly passed 90%".into(),
+                body: "user@example.com: 91% used.".into(),
+                fired_at: ts("2099-01-01T00:00:00Z"),
+                deliveries: vec![
+                    quotadial_daemon::Delivery {
+                        to: "example.com".into(),
+                        sent: false,
+                        error: Some("not sent to example.com: it did not answer in time".into()),
+                    },
+                    quotadial_daemon::Delivery {
+                        to: "hooks.slack.com".into(),
+                        sent: true,
+                        error: None,
+                    },
+                ],
+            }],
+        };
+        let mut out = Vec::new();
+
+        write_alerts(&alerts, &config, now(), &mut out).expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        let expected = [
+            "No alert rules. Add one with `quotadial alerts add \"warn me at 80%\"`.",
+            "",
+            "Also sent to hooks.slack.com.",
+            "",
+            "warning: A webhook in config.json is not an https address.",
+            "",
+            "Told in the last week:",
+            "  4 min ago: Claude Weekly passed 90%. user@example.com: 91% used.",
+            "    Not sent to example.com: it did not answer in time.",
+            "    Sent to hooks.slack.com.",
+            "",
+        ];
+        assert_eq!(shown, expected.join("\n"));
+        assert!(!shown.contains("XXXXXXXX"));
     }
 
     #[test]

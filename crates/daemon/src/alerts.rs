@@ -18,6 +18,7 @@ use quotadial_core::{
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 
+use crate::deliveries::Delivery;
 use crate::history::{History, HistoryError, timestamp};
 
 /// Two times of one occurrence closer than this are the same time.
@@ -64,6 +65,9 @@ pub struct Firing {
     /// What a notification's text says.
     pub body: String,
     pub fired_at: DateTime<Utc>,
+    /// Where it was sent besides the app's notifications, or why not (D-094).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deliveries: Vec<Delivery>,
 }
 
 /// The alert rules and what they told lately, as `GET /v1/alerts` and the MCP tool `list_alerts`
@@ -110,7 +114,17 @@ pub(crate) fn upgrade(connection: &Connection, version: i32) -> Result<(), Histo
          );
          CREATE INDEX IF NOT EXISTS firings_by_occurrence
              ON firings (rule_id, provider, org, account_id, label, scope_model);
-         CREATE INDEX IF NOT EXISTS firings_by_time ON firings (fired_at);",
+         CREATE INDEX IF NOT EXISTS firings_by_time ON firings (fired_at);
+         CREATE TABLE IF NOT EXISTS deliveries (
+             firing_id INTEGER NOT NULL,
+             webhook TEXT NOT NULL,
+             host TEXT NOT NULL,
+             sent INTEGER NOT NULL,
+             error TEXT,
+             attempts INTEGER NOT NULL,
+             last_at TEXT NOT NULL,
+             PRIMARY KEY (firing_id, webhook)
+         );",
     )?;
     if version < 3 {
         for written in STARTING_RULES {
@@ -213,7 +227,13 @@ impl History {
              FROM firings WHERE id > ?1 AND fired_at >= ?2 AND quiet = 0 ORDER BY id",
         )?;
         let rows = statement.query_map(params![after, timestamp(since)], firing)?;
-        Ok(rows.collect::<Result<_, _>>()?)
+        let mut firings: Vec<Firing> = rows.collect::<Result<_, _>>()?;
+        drop(statement);
+        drop(connection);
+        for firing in &mut firings {
+            firing.deliveries = self.deliveries_of(firing.id)?;
+        }
+        Ok(firings)
     }
 
     /// The newest firing's id, or 0.
@@ -423,6 +443,7 @@ impl History {
             title,
             body,
             fired_at: now,
+            deliveries: Vec::new(),
         }))
     }
 }
@@ -478,7 +499,7 @@ fn insert_rule(
     Ok(connection.last_insert_rowid())
 }
 
-fn firing(row: &Row<'_>) -> rusqlite::Result<Firing> {
+pub(crate) fn firing(row: &Row<'_>) -> rusqlite::Result<Firing> {
     let org: String = row.get(3)?;
     let label: String = row.get(6)?;
     Ok(Firing {
@@ -497,10 +518,11 @@ fn firing(row: &Row<'_>) -> rusqlite::Result<Firing> {
         title: row.get(9)?,
         body: row.get(10)?,
         fired_at: parse_time(&row.get::<_, String>(11)?).unwrap_or_default(),
+        deliveries: Vec::new(),
     })
 }
 
-fn parse_time(text: &str) -> Option<DateTime<Utc>> {
+pub(crate) fn parse_time(text: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(text)
         .ok()
         .map(|time| time.with_timezone(&Utc))

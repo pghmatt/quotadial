@@ -3151,9 +3151,11 @@ dependencies = [
  "chrono",
  "dirs 7.0.0",
  "quotadial-core",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tokio",
 ]
 
@@ -3210,8 +3212,6 @@ dependencies = [
  "quotadial-daemon",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
- "serde",
- "serde_json",
 ]
 
 [[package]]

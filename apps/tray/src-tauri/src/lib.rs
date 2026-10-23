@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use quotadial_core::{StatusReport, text};
-use quotadial_daemon::{AddError, DataDir, History};
+use quotadial_daemon::{AddError, Config, DataDir, History};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -120,6 +120,10 @@ struct SettingsView {
     launch_at_login: bool,
     /// The alert rules, oldest first. They change through their own commands, not `set_settings`.
     alerts: Vec<AlertChoice>,
+    /// The hosts of the webhooks alerts are also sent to, from `config.json` (D-094).
+    alert_targets: Vec<String>,
+    /// What `config.json` could not be used for, each naming the fix.
+    alert_problems: Vec<String>,
     providers: Vec<ProviderChoice>,
     /// Every account QuotaDial knows now, with the name the user gave it.
     accounts: Vec<AccountChoice>,
@@ -163,8 +167,17 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
+    let config = DataDir::from_env()
+        .map(|dir| Config::load(&dir))
+        .unwrap_or_default();
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+        alert_targets: config
+            .webhooks
+            .iter()
+            .map(|webhook| webhook.host().to_owned())
+            .collect(),
+        alert_problems: config.warnings,
         alerts: state
             .history
             .iter()

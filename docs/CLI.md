@@ -84,7 +84,9 @@ apply. A change applies the next time a command, the daemon or the app starts.
 ```json
 {
   "extra_config_dirs": ["~/work/claude", "~/claude-accounts/*"],
-  "max_accounts": 3
+  "max_accounts": 3,
+  "alert_webhooks": ["https://example.com/hooks/quota"],
+  "slack_webhook": "https://hooks.slack.com/services/..."
 }
 ```
 
@@ -92,6 +94,12 @@ apply. A change applies the next time a command, the daemon or the app starts.
 | --- | --- |
 | `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them: full paths, or paths starting with `~` for the home folder. A folder ending in `/*` adds every folder inside it. An entry that is not a full path is left out, with a warning in `errors`. None by default |
 | `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default |
+| `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts). Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
+| `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message. None by default |
+
+A webhook's address works like a password: a Slack address holds its channel's key. QuotaDial never
+prints one, and names a webhook only by its host. Keep `config.json` readable only by you
+(`chmod 600`); QuotaDial warns when other users can read a file that holds webhooks.
 
 The tray app keeps its own settings, such as the names given to accounts, in its settings panel
 (`docs/INSTALL.md`).
@@ -180,6 +188,16 @@ How rules are checked:
   week's.
 - The rules live in the history in the data directory. `quotadial alerts` changes them there
   whether or not the daemon runs, and the daemon reads them again at its next check.
+
+The daemon also sends each alert to the webhooks in `config.json` (see Settings):
+- A webhook in `alert_webhooks` gets a JSON `POST` with only the alert: `provider`, `account` (the
+  display name), `window`, `used_pct`, `resets_at`, `title`, `text` and `fired_at`. Never a token,
+  an account id or where a sign-in is kept.
+- `slack_webhook` gets the title in bold and the text, as a Slack message.
+- An alert a webhook does not take, as when the network is down just after the machine wakes, is
+  sent again after 1, 2, 4 and 8 minutes and then every 15, for an hour after it was told.
+  Redirects are not followed.
+- `quotadial alerts` says where each alert went, or why it did not, naming a webhook by its host.
 
 ## The local API
 
@@ -283,6 +301,7 @@ reset since, and the daemon fetches again within 10 minutes.
 | `rules[].provider`, `rules[].window` | What it covers, when it names a provider or a window. Left out otherwise |
 | `rules[].enabled` | Whether it is on |
 | `firings[]` | What the rules told in the last week, oldest first, at most the newest 100. Each names its rule, the account's provider, id and display name, the window (left out for a sign-in), its share used and reset then, and the title and text the notification showed |
+| `firings[].deliveries` | Where it was sent besides the notification: each webhook's host (`to`), whether it took it (`sent`), and if not, why (`error`). Left out when there are no webhooks |
 
 ## The MCP server
 

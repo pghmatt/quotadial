@@ -13,15 +13,17 @@ publish.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 quotadial-core.workspace = true
+reqwest.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 
 [dev-dependencies]
 async-trait.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "test-util"] }
 
 [lints]
 workspace = true

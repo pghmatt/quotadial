@@ -74,7 +74,8 @@ that; Ubuntu has it on already.
 - Alerts: each alert rule, with a box to turn it on or off and a button to remove it, and a field
   to add one in plain words, such as "warn me at 80%". QuotaDial starts with two: an account needs
   signing in again, and a limit passes 90%. Each alert comes once as a notification, as
-  [`CLI.md`](CLI.md#alerts) describes with the words it reads.
+  [`CLI.md`](CLI.md#alerts) describes with the words it reads. Alerts can also go to a webhook or
+  to Slack, set in `config.json` ([`CLI.md`](CLI.md#settings)); Settings names where they go.
 - Show or hide each provider. A hidden provider still has its usage read for the `quotadial`
   command.
 - Give each account a name, such as "Work", shown in the popover beside its email address and in
