@@ -6,8 +6,10 @@
 //! ChatGPT), and providers enforce the floor themselves too, across every process, through the
 //! shared gate. The interval adapts to activity, as the PRD asks: an account whose numbers moved in
 //! the last 10 minutes is asked at its provider's floor, and a still one every 10 minutes. A change
-//! in usage is the activity, so no process watching is needed. Accounts are rediscovered every
-//! minute, so a new sign-in appears and a removed one goes.
+//! in usage is the activity, so no process watching is needed. The interval counts from when an
+//! account's answer came back, never from before its request went out, so the next poll cannot
+//! come before the gate allows a request. Accounts are rediscovered every minute, so a new sign-in
+//! appears and a removed one goes.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -298,6 +300,11 @@ impl Poller {
                 .map(Snapshot::without_secrets)
                 .ok_or_else(|| ProviderError::new(provider.id(), &error)),
         };
+        // The gate counts the floor from when the request went out: after the accounts asked
+        // before this one in the round, and after finding this one's sign-in. Counting from `now`,
+        // when the round began, would bring the next poll a little before the floor allows, and it
+        // would only replay the cache.
+        let answered = Instant::now();
         match &result {
             Ok(snapshot) => {
                 if tracked
@@ -309,14 +316,14 @@ impl Poller {
                 }
                 tracked.last = Some(snapshot.clone());
                 let active = now.duration_since(tracked.moved_at) < ACTIVE_FOR;
-                tracked.due = now + if active { floor } else { IDLE_EVERY.max(floor) };
+                tracked.due = answered + if active { floor } else { IDLE_EVERY.max(floor) };
                 // Written off the async runtime, so a slow disk never holds up the API. A failed
                 // write loses one history point; the numbers are still served.
                 let (history, stored) = (Arc::clone(&self.history), snapshot.clone());
                 let _ =
                     tokio::task::spawn_blocking(move || history.record(&stored, Utc::now())).await;
             }
-            Err(_) => tracked.due = now + floor,
+            Err(_) => tracked.due = answered + floor,
         }
         let (index, account) = (tracked.provider, tracked.account.clone());
         self.latest.update(|states| {
@@ -451,6 +458,65 @@ mod tests {
         }
     }
 
+    /// A provider that keeps its floor itself, as the real ones do through the shared gate: it
+    /// counts the floor from when it sends a request, which is after it has found the sign-in, and
+    /// a fetch sooner than that replays its last answer from the cache. Finding the sign-in takes
+    /// `lookups[0]` the first time and `lookups[1]` after, as a first `security` call is slower.
+    struct Gated {
+        floor: Duration,
+        lookups: [Duration; 2],
+        state: Mutex<GatedState>,
+    }
+
+    #[derive(Default)]
+    struct GatedState {
+        requests: Vec<Instant>,
+        last: Option<Snapshot>,
+    }
+
+    impl Gated {
+        fn requests(&self) -> Vec<Instant> {
+            self.state.lock().expect("lock").requests.clone()
+        }
+    }
+
+    #[async_trait]
+    impl Provider for Gated {
+        fn id(&self) -> &'static str {
+            "claude"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(vec![account("claude", "user-1")])
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            let first = self.state.lock().expect("lock").requests.is_empty();
+            tokio::time::sleep(self.lookups[usize::from(!first)]).await;
+            let mut state = self.state.lock().expect("lock");
+            let now = Instant::now();
+            if let (Some(requested_at), Some(last)) = (state.requests.last(), &state.last)
+                && now < *requested_at + self.floor
+            {
+                return Ok(last.clone().served_from_cache());
+            }
+            state.requests.push(now);
+            // The numbers move with every request, so the account stays at the floor.
+            let count = state.requests.len();
+            let snapshot = snapshot(account, count as f64, count, Source::Api);
+            state.last = Some(snapshot.clone());
+            Ok(snapshot)
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            self.floor
+        }
+    }
+
     fn account(provider: &str, id: &str) -> Account {
         Account {
             provider: provider.into(),
@@ -544,6 +610,37 @@ mod tests {
         }
 
         assert_eq!(minutes, [0, 2, 4, 6, 8]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn each_poll_comes_once_the_floor_since_the_request_has_passed() {
+        let (_dir, history) = history();
+        let claude = Arc::new(Gated {
+            floor: Duration::from_secs(5 * 60),
+            lookups: [Duration::from_secs(2), Duration::from_secs(1)],
+            state: Mutex::default(),
+        });
+        let mut poller = Poller::new(vec![Arc::clone(&claude) as Arc<dyn Provider>], history);
+
+        let start = Instant::now();
+        loop {
+            let wake = poller.poll_due().await;
+            if wake.duration_since(start) > Duration::from_secs(16 * 60) {
+                break;
+            }
+            tokio::time::sleep_until(wake).await;
+        }
+
+        let minutes: Vec<u64> = claude
+            .requests()
+            .iter()
+            .map(|at| at.duration_since(start).as_secs() / 60)
+            .collect();
+        assert_eq!(
+            minutes,
+            [0, 5, 10, 15],
+            "every poll sends a request; none comes early and replays the cache"
+        );
     }
 
     #[tokio::test(start_paused = true)]
