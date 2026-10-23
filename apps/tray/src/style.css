@@ -191,11 +191,16 @@ meter::-webkit-meter-even-less-good-value {
 }
 
 .detail,
+.pace,
 .extra,
 .sign-in {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.pace.runs-out {
+  color: var(--warning);
 }
 
 .detail .tag {

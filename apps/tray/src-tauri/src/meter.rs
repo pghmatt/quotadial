@@ -98,6 +98,11 @@ pub struct WindowView {
     pub fetched: String,
     /// A sudden 0% that a second fetch has not confirmed yet.
     pub unconfirmed: bool,
+    /// How fast the window is filling, such as "at 8.5%/h, runs out in 1 h 30 min, 40 min before it
+    /// resets", when the daemon's history has enough to go on.
+    pub pace: Option<String>,
+    /// Whether, at that pace, the window runs out before it resets.
+    pub runs_out: bool,
 }
 
 impl Meter {
@@ -267,6 +272,14 @@ fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
             text::ago(window.fetched_at, now)
         ),
         unconfirmed: window.unconfirmed,
+        pace: window
+            .pace
+            .as_ref()
+            .map(|pace| text::pace(pace, window, now)),
+        runs_out: window
+            .pace
+            .as_ref()
+            .is_some_and(|pace| pace.runs_out_at.is_some()),
     }
 }
 
@@ -312,7 +325,7 @@ fn sign_in(account: &Account) -> String {
 
 #[cfg(test)]
 mod tests {
-    use quotadial_core::{Account, ExtraUsage, ProviderError, Source, WindowKind};
+    use quotadial_core::{Account, ExtraUsage, Pace, ProviderError, Source, WindowKind};
 
     use super::*;
 
@@ -337,6 +350,7 @@ mod tests {
             source: Source::Api,
             fetched_at: at("2099-01-01T00:00:00Z"),
             unconfirmed: false,
+            pace: None,
         }
     }
 
@@ -376,6 +390,38 @@ mod tests {
             ],
             errors: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_window_shows_its_pace_and_whether_it_runs_out_before_it_resets() {
+        let mut filling = window("Weekly", 62.0, "2099-01-03T04:00:00Z");
+        filling.pace = Some(Pace {
+            pct_per_hour: 2.0,
+            runs_out_at: Some(at("2099-01-01T19:00:00Z")),
+        });
+        let mut lasting = window("Session", 10.0, "2099-01-01T05:00:00Z");
+        lasting.pace = Some(Pace {
+            pct_per_hour: 1.0,
+            runs_out_at: None,
+        });
+        let report = StatusReport {
+            snapshots: vec![snapshot("claude", None, vec![filling, lasting])],
+            errors: Vec::new(),
+        };
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        let windows = &meter.accounts[0].windows;
+        assert_eq!(
+            windows[0].pace.as_deref(),
+            Some("at 2.0%/h, runs out in 18 h 56 min, 1 d 9 h before it resets")
+        );
+        assert!(windows[0].runs_out);
+        assert_eq!(
+            windows[1].pace.as_deref(),
+            Some("at 1.0%/h, lasts until it resets")
+        );
+        assert!(!windows[1].runs_out);
     }
 
     #[test]
@@ -430,6 +476,8 @@ mod tests {
                     resets: "resets in 2 h 10 min".into(),
                     fetched: "from the API 4 min ago".into(),
                     unconfirmed: false,
+                    pace: None,
+                    runs_out: false,
                 },
                 WindowView {
                     label: "Weekly".into(),
@@ -438,6 +486,8 @@ mod tests {
                     resets: "resets in 3 d".into(),
                     fetched: "from the API 4 min ago".into(),
                     unconfirmed: true,
+                    pace: None,
+                    runs_out: false,
                 },
             ]
         );

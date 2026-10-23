@@ -4,7 +4,8 @@
 //! Account { provider, account_id, display_name, plan, org }
 //! Window  { kind: session | weekly | model_weekly | daily | credits | other, label, used_pct,
 //!           resets_at, window_seconds, scope_model?, source: api | local_log | cache, fetched_at,
-//!           unconfirmed }
+//!           unconfirmed, pace? }
+//! Pace    { pct_per_hour, runs_out_at? }
 //! Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required |
 //!            rate_limited | unsupported, error? }
 //! ```
@@ -12,7 +13,7 @@
 //! Field names and enum values serialize exactly as written there. Fields marked `?` are optional
 //! and are left out of JSON when absent. `Account.plan`, `Account.org` and `Window.resets_at` are
 //! optional too: providers do not always report them (proposals P-001 and P-002 in
-//! `docs/DECISIONS.md`, approved by Matt).
+//! `docs/DECISIONS.md`, approved by Matt). `Window.pace` comes from the daemon's history (P-016).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -79,6 +80,23 @@ pub struct Window {
     /// P-005). Left out of JSON when false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unconfirmed: bool,
+    /// How fast the window is filling, from the daemon's history of it (P-016). Only the daemon
+    /// keeps that history, so a direct fetch leaves it out, as does the daemon for a window with too
+    /// few readings since it last reset ([`Pace::of`] says which).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pace: Option<Pace>,
+}
+
+/// How fast a [`Window`] is filling: a straight line fitted through its readings since it last
+/// reset.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Pace {
+    /// The share of the limit used per hour, in percentage points.
+    pub pct_per_hour: f64,
+    /// When the window reaches 100% at this pace, if that comes before it resets. Left out when
+    /// it does not, or when the window is not filling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runs_out_at: Option<DateTime<Utc>>,
 }
 
 /// The kinds of limit windows providers report.
@@ -267,6 +285,7 @@ mod tests {
             source,
             fetched_at: ts("2099-01-01T00:00:00Z"),
             unconfirmed: false,
+            pace: None,
         }
     }
 
@@ -285,7 +304,13 @@ mod tests {
     fn field_names_match_the_prd() {
         let snapshot = Snapshot {
             account: account(),
-            windows: vec![window(WindowKind::ModelWeekly, Some("opus"), Source::Api)],
+            windows: vec![Window {
+                pace: Some(Pace {
+                    pct_per_hour: 2.5,
+                    runs_out_at: Some(ts("2099-01-01T04:00:00Z")),
+                }),
+                ..window(WindowKind::ModelWeekly, Some("opus"), Source::Api)
+            }],
             extra_usage: Some(ExtraUsage {
                 enabled: true,
                 used_pct: Some(10.0),
@@ -313,6 +338,7 @@ mod tests {
                 "fetched_at",
                 "kind",
                 "label",
+                "pace",
                 "resets_at",
                 "scope_model",
                 "source",
@@ -320,6 +346,30 @@ mod tests {
                 "window_seconds"
             ]
         );
+        assert_eq!(
+            keys(&value["windows"][0]["pace"]),
+            ["pct_per_hour", "runs_out_at"]
+        );
+        assert_eq!(
+            value["windows"][0]["pace"]["runs_out_at"],
+            json!("2099-01-01T04:00:00Z")
+        );
+    }
+
+    #[test]
+    fn a_pace_that_does_not_run_out_leaves_out_its_time() {
+        let window = Window {
+            pace: Some(Pace {
+                pct_per_hour: 0.0,
+                runs_out_at: None,
+            }),
+            ..window(WindowKind::Session, None, Source::Api)
+        };
+        let value = serde_json::to_value(&window).expect("serializes");
+
+        assert_eq!(keys(&value["pace"]), ["pct_per_hour"]);
+        let read_back: Window = serde_json::from_value(value).expect("deserializes");
+        assert_eq!(read_back, window);
     }
 
     #[test]
@@ -458,6 +508,7 @@ mod tests {
             source: Source::Api,
             fetched_at: ts("2099-01-01T00:00:00Z"),
             unconfirmed: false,
+            pace: None,
         };
         let snapshot = Snapshot {
             account: account(),

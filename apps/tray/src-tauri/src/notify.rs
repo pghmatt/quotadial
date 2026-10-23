@@ -154,6 +154,7 @@ mod tests {
                 source: Source::Api,
                 fetched_at: now(),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,

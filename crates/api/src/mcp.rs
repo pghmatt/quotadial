@@ -36,9 +36,10 @@ const INVALID_PARAMS: i64 = -32_602;
 const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGPT/Codex plan limit \
     the accounts on this machine have used, when each limit resets, and how old every number is. \
     Before starting a long job, call get_account_headroom (or get_usage for every window) to check \
-    that the account has room left and when its tightest limit resets. Providers are never asked \
-    more often than their limits allow, so a number can be a few minutes old; its fetched_at says \
-    when it was fetched.";
+    that the account has room left and when its tightest limit resets. While the QuotaDial daemon \
+    runs, a window also has a pace: pct_per_hour, how fast it is filling, and runs_out_at, when it \
+    reaches 100% if that comes before it resets. Providers are never asked more often than their \
+    limits allow, so a number can be a few minutes old; its fetched_at says when it was fetched.";
 
 /// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the provider
 /// ids an agent may narrow an answer to; `report` gets the numbers.
@@ -322,8 +323,9 @@ fn tools(providers: &[&str]) -> Value {
             "description": "Usage of every Claude and ChatGPT/Codex plan limit for the accounts on \
                             this machine. For each account: its status, and for every window the \
                             share used (used_pct), when it resets (resets_at), where the number \
-                            came from (source) and when it was fetched (fetched_at). The same JSON \
-                            as `quotadial status --json`.",
+                            came from (source), when it was fetched (fetched_at) and, while the \
+                            daemon runs, its pace (pace.pct_per_hour, and pace.runs_out_at when it \
+                            runs out before it resets). The same JSON as `quotadial status --json`.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -331,9 +333,9 @@ fn tools(providers: &[&str]) -> Value {
             "name": "get_account_headroom",
             "description": "The accounts ranked by headroom, the room left in each account's \
                             tightest window: headroom_pct is 100 minus that window's share used, \
-                            and tightest is the window, with when it resets. The most headroom \
-                            comes first. Use it before a long job to check that an account has \
-                            room left.",
+                            and tightest is the window, with when it resets and its pace. The most \
+                            headroom comes first. Use it before a long job to check that an \
+                            account has room left.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -392,6 +394,7 @@ mod tests {
                 source: Source::Api,
                 fetched_at: at("2099-01-01T00:00:00Z"),
                 unconfirmed: false,
+                pace: None,
             }],
             extra_usage: None,
             status: Status::Ok,

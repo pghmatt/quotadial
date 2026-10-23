@@ -165,6 +165,9 @@ function WindowRow({ window, id }: { window: Window; id: string }) {
           </span>
         )}
       </p>
+      {window.pace && (
+        <p class={window.runs_out ? "pace runs-out" : "pace"}>{window.pace}</p>
+      )}
     </li>
   );
 }

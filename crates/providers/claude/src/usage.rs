@@ -112,6 +112,7 @@ pub(crate) fn read(body: &Value, fetched_at: DateTime<Utc>) -> Reading {
             source: Source::Api,
             fetched_at,
             unconfirmed: false,
+            pace: None,
         })
     };
 
@@ -223,6 +224,7 @@ fn scoped_weekly_limits(body: &Value, shown: &[Window], fetched_at: DateTime<Utc
                 source: Source::Api,
                 fetched_at,
                 unconfirmed: false,
+                pace: None,
             })
         })
         .collect()
