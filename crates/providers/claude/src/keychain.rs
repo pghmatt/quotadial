@@ -243,10 +243,17 @@ attributes:
         assert_eq!(NoKeychain.read("Claude Code-credentials", None), Ok(None));
     }
 
-    /// Looks up an item that cannot exist. Attribute lookups never show a prompt or read a secret.
+    /// Looks up an item that cannot exist with the real `/usr/bin/security`. An attribute lookup
+    /// shows no prompt and reads no secret, but tests leave the login keychain alone, and a locked
+    /// keychain on a headless machine fails with status 36. So this runs only on request:
+    /// `QUOTADIAL_REAL_KEYCHAIN_TESTS=1 cargo test -p quotadial-provider-claude -- --ignored`.
     #[cfg(target_os = "macos")]
     #[test]
+    #[ignore = "uses the real login keychain; set QUOTADIAL_REAL_KEYCHAIN_TESTS=1 and pass --ignored"]
     fn security_reports_a_missing_item_as_none() {
+        if std::env::var_os("QUOTADIAL_REAL_KEYCHAIN_TESTS").is_none_or(|value| value != "1") {
+            return;
+        }
         let found = security_cli::SecurityCli.find(
             "QuotaDial test item that does not exist",
             Some("quotadial-test"),
