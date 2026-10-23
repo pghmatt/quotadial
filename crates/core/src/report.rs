@@ -15,7 +15,8 @@ pub struct StatusReport {
 }
 
 /// A provider or account that produced no snapshot, for example because its credentials were
-/// unreadable. The message names the fix.
+/// unreadable, or what a provider could not look at while finding its accounts. The message names
+/// the fix.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderError {
     /// The provider id, as in [`Provider::id`].
@@ -87,16 +88,23 @@ impl ProviderError {
     /// `error` from the provider `provider`, with any token blanked out of its text.
     #[must_use]
     pub fn new(provider: &str, error: &Error) -> Self {
+        Self::warning(provider, &error.to_string())
+    }
+
+    /// `message`, about what `provider` could not look at, with any token blanked out of it.
+    #[must_use]
+    pub fn warning(provider: &str, message: &str) -> Self {
         Self {
             provider: provider.to_owned(),
-            message: redact_secrets(&error.to_string()).into_owned(),
+            message: redact_secrets(message).into_owned(),
         }
     }
 }
 
 /// Asks every provider for its accounts, then fetches each account, using the provider's local
-/// fallback when the fetch fails. Error text is checked for tokens here, whichever provider wrote
-/// it, so none reaches a report.
+/// fallback when the fetch fails. What a provider could not look at while finding its accounts is
+/// reported beside them. Error text is checked for tokens here, whichever provider wrote it, so
+/// none reaches a report.
 pub async fn collect<P: AsRef<dyn Provider>>(providers: &[P]) -> StatusReport {
     let mut report = StatusReport::default();
     for provider in providers {
@@ -110,6 +118,12 @@ pub async fn collect<P: AsRef<dyn Provider>>(providers: &[P]) -> StatusReport {
                 continue;
             }
         };
+        report.errors.extend(
+            provider
+                .discovery_warnings()
+                .iter()
+                .map(|warning| ProviderError::warning(provider.id(), warning)),
+        );
         for account in accounts {
             match provider.fetch(&account).await {
                 Ok(snapshot) => report.snapshots.push(snapshot.without_secrets()),

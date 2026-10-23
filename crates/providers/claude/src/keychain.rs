@@ -73,8 +73,8 @@ pub(crate) fn system() -> Box<dyn Keychain> {
     }
 }
 
-/// Platforms where Claude Code keeps its sign-in only in `.credentials.json`.
-#[cfg_attr(target_os = "macos", allow(dead_code))]
+/// Platforms where Claude Code keeps its sign-in only in `.credentials.json`, and a keychain that
+/// has stopped answering.
 pub(crate) struct NoKeychain;
 
 impl Keychain for NoKeychain {
@@ -105,6 +105,8 @@ mod security_cli {
 
     pub(super) const SECURITY: &str = "/usr/bin/security";
     pub(super) const FIND_TIMEOUT: Duration = Duration::from_secs(5);
+    /// Listing prints every item in the login keychain, so it takes longer the more there are.
+    pub(super) const LIST_TIMEOUT: Duration = Duration::from_secs(20);
     pub(super) const READ_TIMEOUT: Duration = Duration::from_secs(30);
     /// `security`'s exit status for errSecItemNotFound.
     pub(super) const ITEM_NOT_FOUND: i32 = 44;
@@ -147,8 +149,8 @@ mod security_cli {
         }
 
         fn list(&self, prefix: &str) -> Result<Vec<Item>, String> {
-            let finished = process::run(list_command(), FIND_TIMEOUT)
-                .map_err(|error| run_error(&error, FIND_TIMEOUT))?;
+            let finished = process::run(list_command(), LIST_TIMEOUT)
+                .map_err(|error| run_error(&error, LIST_TIMEOUT))?;
             match finished.status.code() {
                 Some(0) => Ok(listed_items(
                     &String::from_utf8_lossy(&finished.stdout),
@@ -254,7 +256,7 @@ mod tests {
     use std::process::Command;
 
     use super::security_cli::{
-        READ_TIMEOUT, SECURITY, exit_error, find_command, list_command, listed_items,
+        LIST_TIMEOUT, READ_TIMEOUT, SECURITY, exit_error, find_command, list_command, listed_items,
         modified_attribute, run_error,
     };
     use super::*;
@@ -398,6 +400,12 @@ attributes:
             run_error(&RunError::TimedOut, READ_TIMEOUT),
             "/usr/bin/security did not answer within 30 seconds; if macOS is asking whether to \
              allow access, answer it and try again"
+        );
+        assert_eq!(
+            run_error(&RunError::TimedOut, LIST_TIMEOUT),
+            "/usr/bin/security did not answer within 20 seconds; if macOS is asking whether to \
+             allow access, answer it and try again",
+            "a listing of a large keychain gets longer than a lookup of one item"
         );
     }
 

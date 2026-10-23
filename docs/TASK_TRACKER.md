@@ -20,7 +20,9 @@ M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). It
 - PR 3, settings and notifications (PR #33);
 - PR 4, builds for macOS, Windows and Linux (PR #35);
 - PR 5, every stored Claude sign-in as its own account, added by the manager in #34 (PR #36);
-- a fix found during PR 5's live check: the daemon now polls a moving account at its floor (PR #37).
+- a fix found during PR 5's live check: the daemon now polls a moving account at its floor (PR #37);
+- the two fixes from the manager's review of PR #36, which came in after it merged: a Keychain that
+  cannot be listed is searched folder by folder, and the listing has a longer timeout (PR #38).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -67,7 +69,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 3: settings and notifications | Done (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
 | PR 4: builds | Done (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
 | PR 5: every stored Claude sign-in (#34) | Done (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
-| Fix: poll at the floor | In review (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
+| Fix: poll at the floor | Done (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
+| Fix: the review of #36 | In review (PR #38) | A failed Keychain listing keeps this shell's own sign-in and finds each folder's item by name, with a warning in `errors`; the listing gets a 20-second timeout (D-088) |
 
 ## Kickoff
 
@@ -253,6 +256,29 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3: the review of PR #36 (D-088)
+
+- The manager's review of #36 arrived three minutes after the merge, with two items to fix before
+  merging. They follow in PR #38, which the manager said to merge on green CI.
+- **A failed listing.** `login::locate_all` returns a `Found`: the sign-ins, and why the Keychain
+  could not be listed, if it could not. Without the listing, each candidate folder is searched with
+  `locate`, which looks up the folder's item by name and then its credentials file. After one
+  failed lookup, the Keychain is not asked again in that discovery. Only items whose folder is
+  unknown are missed.
+- **The warning.** `Provider::discovery_warnings` (default: none) carries the reason. `collect` and
+  the daemon add it to the report's `errors` beside the accounts found. It clears at the next
+  discovery that lists the Keychain.
+- **The timeout.** `dump-keychain` has its own 20-second `LIST_TIMEOUT`.
+- **Tests:**
+  - a listing that fails still finds this shell's own sign-in and a folder's, warns, and clears the
+    warning when the listing works again;
+  - a keychain that stops answering is asked once more, and then the folders' credentials files are
+    read;
+  - `collect` and the daemon show warnings beside the accounts, with any token blanked out;
+  - the listing's timeout message.
+- 318 tests in the workspace.
+- Opened afterwards: the follow-up issue with the review's six smaller items.
 
 ### M3: polling at the floor (D-087)
 

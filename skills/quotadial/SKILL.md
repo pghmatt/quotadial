@@ -117,7 +117,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `extra_usage` | Pay-as-you-go use beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit`, `currency`, or `balance` (credits left) |
 | `status` | `ok`; `stale` or `rate_limited` (older numbers shown again); `auth_required` (the user must sign in again); `unsupported` |
 | `error` | Why the status is not `ok`, naming the fix, such as "Run `claude` to sign in again." |
-| `errors[]` | Providers or accounts that produced nothing, each with a message naming the fix |
+| `errors[]` | Providers or accounts that produced nothing, and places a provider could not look in for accounts, each with a message naming the fix |
 
 ## Headroom
 
