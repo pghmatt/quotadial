@@ -86,8 +86,8 @@ apply. A change applies the next time a command, the daemon or the app starts.
 
 | Setting | Meaning |
 | --- | --- |
-| `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them. `~` is the home folder, and a folder ending in `/*` adds every folder inside it. None by default |
-| `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. All of them by default |
+| `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them: full paths, or paths starting with `~` for the home folder. A folder ending in `/*` adds every folder inside it. An entry that is not a full path is left out, with a warning in `errors`. None by default |
+| `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default |
 
 The tray app keeps its own settings, such as the names given to accounts, in its settings panel
 (`docs/INSTALL.md`).

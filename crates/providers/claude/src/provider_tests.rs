@@ -2018,3 +2018,191 @@ async fn items_recorded_as_not_accounts_at_the_same_time_are_all_kept() {
     let recorded = NotAccounts::load(&harness.cache.path().join("claude"));
     assert!(items.iter().all(|login| recorded.excludes(login)));
 }
+
+/// Answers the profile endpoint for `token` with the fixture's account.
+async fn mount_profile_for(harness: &Harness, token: &str) {
+    Mock::given(method("GET"))
+        .and(path("/api/oauth/profile"))
+        .and(header("authorization", format!("Bearer {token}").as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(PROFILE_FIXTURE, "application/json"))
+        .mount(&harness.server)
+        .await;
+}
+
+/// A Keychain item no folder accounts for, holding `token`.
+fn unknown_item(harness: &Harness, service: &str, token: &str) {
+    let mut oauth = oauth();
+    oauth["accessToken"] = json!(token);
+    harness.keychain.put(
+        service,
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth }).to_string(),
+    );
+}
+
+#[tokio::test]
+async fn two_items_with_no_folder_for_one_subscription_are_one_row_asked_once_per_floor() {
+    let harness = Harness::new().await;
+    let (first, second) = (
+        "sk-ant-oat01-QUOTADIAL-TEST-FIRST-ITEM-0123456789",
+        "sk-ant-oat01-QUOTADIAL-TEST-SECOND-ITEM-0123456789",
+    );
+    unknown_item(&harness, "Claude Code-credentials-0000000a", first);
+    unknown_item(&harness, "Claude Code-credentials-0000000b", second);
+    harness.mount_usage(usage_ok()).await;
+    mount_profile_for(&harness, first).await;
+    mount_profile_for(&harness, second).await;
+    let providers: Vec<Box<dyn Provider>> = vec![Box::new(harness.provider())];
+
+    let report = quotadial_core::collect(&providers).await;
+
+    assert_eq!(report.snapshots.len(), 1, "one subscription, one row");
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert_eq!(
+        report.snapshots[0].account.account_id,
+        "00000000-0000-0000-0000-000000000001"
+    );
+    assert_eq!(
+        harness.usage_requests().await,
+        1,
+        "one request inside the floor"
+    );
+
+    harness.advance(6);
+    let again = quotadial_core::collect(&providers).await;
+    assert_eq!(again.snapshots.len(), 1);
+    assert_eq!(
+        harness.usage_requests().await,
+        2,
+        "one request in the next floor"
+    );
+    assert_eq!(
+        profile_requests(&harness).await,
+        2,
+        "each token was named once, and remembered"
+    );
+}
+
+#[tokio::test]
+async fn a_token_is_named_once_even_when_its_accounts_request_fails() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(ResponseTemplate::new(503).set_body_string("overloaded"))
+        .await;
+    mount_profile_for(&harness, ENV_TOKEN).await;
+    let env = Environment {
+        oauth_token: Some(Secret::new(ENV_TOKEN)),
+        ..harness.env()
+    };
+    let provider = harness.provider_with(env, &harness.server.uri());
+    let accounts = provider.discover_accounts().expect("discovers");
+    let (token, stored) = (accounts[0].clone(), accounts[1].clone());
+    // The stored sign-in asks first and gets nothing it can use.
+    let _ = provider.fetch(&stored).await;
+
+    let _ = provider.fetch(&token).await;
+    harness.advance(1);
+    let _ = provider.fetch(&token).await;
+
+    assert_eq!(
+        profile_requests(&harness).await,
+        1,
+        "named once, though no answer was usable"
+    );
+    assert_eq!(
+        harness.usage_requests().await,
+        1,
+        "and the account's floor held"
+    );
+}
+
+#[tokio::test]
+async fn max_accounts_counts_subscriptions_once_their_sign_ins_are_named() {
+    let harness = Harness::new().await;
+    let (first, second) = (
+        "sk-ant-oat01-QUOTADIAL-TEST-FIRST-ITEM-0123456789",
+        "sk-ant-oat01-QUOTADIAL-TEST-SECOND-ITEM-0123456789",
+    );
+    unknown_item(&harness, "Claude Code-credentials-0000000a", first);
+    unknown_item(&harness, "Claude Code-credentials-0000000b", second);
+    sign_in_folder(
+        &harness,
+        ".claude-work",
+        "00000000-0000-0000-0000-00000000000c",
+        &oauth(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    mount_profile_for(&harness, first).await;
+    mount_profile_for(&harness, second).await;
+    let provider = harness.provider();
+    for account in provider.discover_accounts().expect("discovers") {
+        provider.fetch(&account).await.expect("fetch");
+    }
+
+    let capped = harness
+        .provider()
+        .with_max_accounts(Some(2))
+        .discover_accounts()
+        .expect("discovers");
+
+    assert!(
+        capped
+            .iter()
+            .any(|account| account.account_id == "00000000-0000-0000-0000-00000000000c"),
+        "the two items are one subscription, so the folder's account is the second: {capped:?}"
+    );
+    assert_eq!(capped.len(), 3, "both items stay, as one row");
+}
+
+#[tokio::test]
+async fn a_relative_extra_folder_is_left_out_with_a_warning() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    let provider = harness.provider().with_extra_config_dirs(vec![
+        PathBuf::from("claude-work"),
+        PathBuf::from("~/elsewhere"),
+    ]);
+
+    provider.discover_accounts().expect("discovers");
+
+    assert_eq!(
+        provider.discovery_warnings(),
+        [
+            "claude: the extra_config_dirs entry \"claude-work\" in config.json is not a full path, \
+          so QuotaDial left it out. Write it in full, or start it with ~."
+        ]
+    );
+}
+
+#[test]
+fn an_item_with_no_modification_time_is_never_left_out() {
+    let env = Environment::default();
+    let item = |generation: Option<&str>| {
+        Login::new(
+            &env,
+            LoginSource::Keychain {
+                service: "Claude Code-credentials-0000000e".into(),
+                account: None,
+            },
+            generation.map(str::to_owned),
+            None,
+            Folder::Unknown,
+        )
+    };
+    let recorded = NotAccounts(BTreeMap::from([(
+        "Claude Code-credentials-0000000e".to_owned(),
+        None,
+    )]));
+
+    assert!(
+        !recorded.excludes(&item(None)),
+        "with no time, a rewrite cannot be seen"
+    );
+    let timed = NotAccounts(BTreeMap::from([(
+        "Claude Code-credentials-0000000e".to_owned(),
+        Some("20990101000000Z".to_owned()),
+    )]));
+    assert!(timed.excludes(&item(Some("20990101000000Z"))));
+    assert!(!timed.excludes(&item(Some("20990102000000Z"))));
+}

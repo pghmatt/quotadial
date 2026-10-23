@@ -35,6 +35,15 @@ pub(crate) fn unlisted(reason: &str) -> String {
     )
 }
 
+/// An `extra_config_dirs` entry was left out because it is not a full path.
+pub(crate) fn skipped_dir(dir: &std::path::Path) -> String {
+    format!(
+        "claude: the extra_config_dirs entry \"{}\" in config.json is not a full path, so QuotaDial \
+         left it out. Write it in full, or start it with ~.",
+        dir.display()
+    )
+}
+
 /// No sign-in for the account was found, and nothing is known about where it was.
 pub(crate) fn not_found(account: &Account) -> String {
     match &account.sign_in {

@@ -29,8 +29,9 @@ M3 is done. Both parts of its test pass on Matt's Mac:
 - a first launch with an empty data folder shows a number in the tray after 1.0 second, with no
   typing.
 
-The review's six smaller items are #39. The M4 plan, alerts and history, is #40 and waits for the
-manager's approval. A `v0.1.0` tag, which drafts the first release, waits for Matt's go-ahead.
+The review's six smaller items are #39, done in PR #42. The M4 plan, alerts and history, is #40
+and waits for the manager's approval. A `v0.1.0` tag, which drafts the first release, waits for
+Matt's go-ahead.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -79,6 +80,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 5: every stored Claude sign-in (#34) | Done (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
 | Fix: poll at the floor | Done (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
 | Fix: the review of #36 | Done (PR #38) | A failed Keychain listing keeps this shell's own sign-in and finds each folder's item by name, with a warning in `errors`; the listing gets a 20-second timeout (D-088) |
+| Follow-ups from the review of #36 (#39) | In review (PR #42) | The named account kept before the request; relative extra folders left out with a warning; folders matched however they were written; `max_accounts` counts subscriptions; items with no time never left out; the two-items test (D-089) |
 
 ## Kickoff
 
@@ -264,6 +266,35 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3: the review's follow-ups, #39 (D-089)
+
+- **Naming once per token:**
+  - `AccountState` has `named` and `named_generation`. `fetch` records the profile's answer there
+    before `request_as`, whatever the request's answer.
+  - `known_account` reads `named` first, then the older `last_good` record.
+  - `request_as` no longer records anything itself.
+- **Relative extra folders:** `candidate_dirs` returns `Candidates { dirs, skipped }`.
+  `locate_all`'s `Found` carries the skipped entries, and the provider warns about each one
+  (`advice::skipped_dir`).
+- **Spellings:** `Search::candidate` tries `spellings(dir)`: the folder with and without a trailing
+  separator, and its resolved path the same two ways. It takes the first whose item is listed, so
+  `Folder::Named` holds the text Claude Code was given.
+- **The cap:** `ClaudeProvider::keep_subscriptions` counts each sign-in as its named account when the
+  state names it, and keeps further sign-ins of an account it already keeps.
+- **Items with no time:** `NotAccounts::excludes` needs a generation, and `not_an_account` records
+  none without one.
+- **Tests:**
+  - two items with no folder for one subscription;
+  - naming once after a 503;
+  - the cap counting subscriptions;
+  - a relative extra folder;
+  - an item with no time;
+  - a trailing separator;
+  - a linked home;
+  - the state round trip with the new fields.
+
+  326 tests in the workspace. Reverting the naming and the cap fails six of them.
 
 ### M3: the review of PR #36 (D-088)
 
