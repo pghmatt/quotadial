@@ -252,6 +252,13 @@ so they became #10.
     added with local scope for a throwaway folder and removed afterwards.
   - With the daemon stopped, the server fetched for itself, and both accounts replayed from the
     cache inside their floors.
+  - The PRD's M2 test, "Claude Code can call the skill and read headroom": a one-off `claude -p`
+    with Haiku, the skill in a throwaway project and `--mcp-config` for `quotadial mcp`. It found
+    the skill, called `get_account_headroom`, and answered Claude 91% (Session, resets 15:40Z) and
+    Codex 36% (Weekly, resets Oct 29).
+  - The first run tried a made-up shell command before the tool. The skill now says the MCP tools
+    are tools, not commands, and that the CLI's only command for this is `status --json`. The
+    second run went straight to the tool.
 - Test count: 284 (core 21, poll 36, daemon 17, API 26, Claude 101 plus the opt-in Keychain test,
   Codex 54, CLI unit 20, CLI binaries 9).
 

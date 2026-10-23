@@ -16,13 +16,15 @@ Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` one
 
 Use the first of these that is available:
 
-1. **The MCP tools**, if the `quotadial` MCP server is connected:
+1. **The MCP tools**, if the `quotadial` MCP server is connected. Call them as tools, not as shell
+   commands. In Claude Code they are named `mcp__quotadial__get_account_headroom` and so on.
    - `get_account_headroom` ranks the accounts by the room left in their tightest limit.
    - `get_usage` returns every limit.
    - `list_alerts` stays empty until QuotaDial has alert rules.
    - The first two take an optional `provider`, `claude` or `codex`.
 2. **The CLI**: `quotadial status --json`, the same report as `get_usage`. It works whether or not
-   the QuotaDial daemon is running.
+   the QuotaDial daemon is running. It is the CLI's only command for this, so with the CLI, find
+   the tightest window yourself, as "Headroom" below describes.
 3. **The HTTP API**, while the daemon runs (`quotadial daemon`). See below.
 
 Ask once before a job, not in a loop. QuotaDial asks Anthropic at most every 5 minutes per account
