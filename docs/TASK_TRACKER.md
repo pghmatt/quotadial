@@ -12,7 +12,7 @@ unconfirmed-0% rule, #20 (PR #21), and #13 with P-012 (PR #22). M1 is done but t
 cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008).
 
 M2 (manager's go-ahead, 2026-10-23) comes in three PRs: the daemon and its store (#23, PR #26), the
-local API and its token (#24), then the MCP server and SKILL.md (#25). P-001 to P-009 are accepted and in the PRD,
+local API and its token (#24, PR #27), then the MCP server and SKILL.md (#25). P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -39,8 +39,8 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | Issue | Status | Notes |
 | --- | --- | --- |
 | #23 Daemon with one shared poller and SQLite history | Done (PR #26) | `quotadial daemon`; adaptive interval; WAL history in the OS data directory; one daemon at a time (D-053, D-054) |
-| #24 Local API on 127.0.0.1 with a bearer token; the CLI asks the daemon | To do | Next |
-| #25 MCP server and SKILL.md | To do | |
+| #24 Local API on 127.0.0.1 with a bearer token; the CLI asks the daemon | Done (PR #27) | `GET /v1/status` and `GET /v1/headroom` on `127.0.0.1:47115`, a private bearer token and a host check; `status` and `watch` ask a running daemon and fetch for themselves only when none runs (D-056 to D-061) |
+| #25 MCP server and SKILL.md | To do | Next |
 
 ## Kickoff
 
@@ -226,6 +226,34 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M2 #24: the local API and its token
+
+- `crates/api` (`quotadial-api`): `Token` (32 random bytes from `getrandom`, hex, in `token`, 0600,
+  made on the daemon's first start, compared in constant time), `Runtime` (`daemon.json`: pid,
+  port, start time, 0600), the axum server and `client`, which the CLI and the MCP server use.
+- The server (D-056, D-057): `bind` listens on `127.0.0.1` only; a middleware refuses a `Host` that
+  is not `127.0.0.1:<port>` or `localhost:<port>` (403) and then a missing or wrong bearer token
+  (401 with `WWW-Authenticate: Bearer`). `GET /v1/status` serves the poller's `Latest` report;
+  `GET /v1/headroom` ranks it (D-060). Other paths get a JSON 404, other methods a JSON 405.
+- Finding the daemon (D-058): `Instance::is_running` checks `daemon.lock` with a momentary shared
+  lock, and `Instance::acquire` waits up to a second for such a check. The token is sent only while
+  the lock is held; a starting daemon deletes a crashed one's `daemon.json` before it listens.
+- The CLI (D-059): `quotadial daemon [--port N]` loads or makes the token, listens, writes
+  `daemon.json`, prints the API's address and the token's location, then runs the poller and the
+  server until Ctrl-C or `SIGTERM`, and removes `daemon.json`. `status` and `watch` ask
+  `/v1/status` while a daemon runs and call `collect` only when none does. A running daemon that
+  does not answer is an error that names the fix, never a reason to poll.
+- `Snapshot::windows_tightest_first` moved to core so the CLI and headroom agree (D-061).
+- Live check, 2026-10-23 13:37Z, on Matt's Mac: the daemon listened on `127.0.0.1:47115` with
+  `token` and `daemon.json` at 0600. Without the token the API answered 401, with another `Host`
+  403. With it, `/v1/status` returned both accounts fresh from the APIs (Claude Max, Session 8%;
+  Codex Pro, Weekly 62%, 1056.44 credits) and `/v1/headroom` ranked Claude 92% (Session) above
+  Codex 38% (Weekly). `quotadial status` answered from the daemon in 7 ms. The curl command in
+  `docs/CLI.md` worked in zsh and bash. Ctrl-C and `SIGTERM` both stopped the daemon cleanly and
+  removed `daemon.json`; `status` then replayed both accounts from the cache inside their floors.
+- Test count: 271 (core 21, poll 36, daemon 17, API 14, Claude 101 plus the opt-in Keychain test,
+  Codex 54, CLI unit 20, CLI binaries 8).
 
 ### M2 #23: the daemon and its history
 

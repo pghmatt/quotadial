@@ -10,7 +10,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, Window, collect};
+use quotadial_api::client::Unanswered;
+use quotadial_api::{DEFAULT_PORT, Runtime, Token};
+use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, collect};
 use quotadial_daemon::{DataDir, History, Instance, InstanceError, Poller};
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
@@ -38,8 +40,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Run the daemon until Ctrl-C: the one poller every consumer shares, with history.
-    Daemon,
+    /// Run the daemon until Ctrl-C: the one poller every consumer shares, with history and the
+    /// local API. While it runs, `status` and `watch` ask it instead of polling.
+    Daemon {
+        /// The port for the local API, on 127.0.0.1. 0 lets the system choose a free one.
+        #[arg(long, default_value_t = DEFAULT_PORT)]
+        port: u16,
+    },
 }
 
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
@@ -52,7 +59,7 @@ pub fn run() -> ExitCode {
     match Cli::parse().command {
         Command::Status { json } => status(json),
         Command::Watch { json } => watch(json),
-        Command::Daemon => daemon(),
+        Command::Daemon { port } => daemon(port),
     }
 }
 
@@ -77,11 +84,32 @@ fn runtime() -> Option<tokio::runtime::Runtime> {
     }
 }
 
+/// What the running daemon last found or, when no daemon is running, a direct fetch, which still
+/// keeps every provider's floor through the shared gate. While a daemon runs it is the only thing
+/// that polls, so one that does not answer is an error, not a reason to poll around it.
+async fn report<P: AsRef<dyn Provider>>(
+    providers: &[P],
+    dir: Option<&DataDir>,
+) -> Result<StatusReport, Unanswered> {
+    if let Some(dir) = dir
+        && let Some(report) = quotadial_api::client::status(dir).await?
+    {
+        return Ok(report);
+    }
+    Ok(collect(providers).await)
+}
+
 fn status(json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let report = runtime.block_on(collect(&providers()));
+    let report = match runtime.block_on(report(&providers(), DataDir::from_env().as_ref())) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("quotadial: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let mut stdout = io::stdout().lock();
     let written = if json {
@@ -102,17 +130,22 @@ fn watch(json: bool) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let providers = providers();
+    let dir = DataDir::from_env();
     // The Windows console shows escape codes as text unless a program turns them on, which needs
     // unsafe code, so on Windows each refresh simply follows the last.
     let redraw = !json && io::stdout().is_terminal() && !cfg!(windows);
     runtime.block_on(async {
         loop {
-            let report = collect(&providers).await;
+            let report = report(&providers, dir.as_ref()).await;
             let mut stdout = io::stdout().lock();
-            let written = if json {
-                write_json_line(&report, &mut stdout)
-            } else {
-                write_frame(&report, &providers, Utc::now(), redraw, &mut stdout)
+            let written = match &report {
+                Ok(report) if json => write_json_line(report, &mut stdout),
+                // The JSON lines stay reports; why a refresh has none goes to standard error.
+                Err(error) if json => {
+                    eprintln!("quotadial: {error}");
+                    Ok(())
+                }
+                _ => write_frame(report.as_ref(), &providers, Utc::now(), redraw, &mut stdout),
             };
             if let Err(error) = written.and_then(|()| stdout.flush()) {
                 return write_failed(&error);
@@ -123,8 +156,8 @@ fn watch(json: bool) -> ExitCode {
     })
 }
 
-/// Runs the daemon until Ctrl-C.
-fn daemon() -> ExitCode {
+/// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
+fn daemon(port: u16) -> ExitCode {
     let Some(dir) = DataDir::from_env() else {
         eprintln!(
             "quotadial: the operating system names no data directory; set QUOTADIAL_DATA_DIR."
@@ -145,6 +178,8 @@ fn daemon() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    // A daemon that crashed left its port behind, and another program may hold that port now.
+    Runtime::remove(&dir);
     let history = match History::open(&dir.history()) {
         Ok(history) => Arc::new(history),
         Err(error) => {
@@ -155,25 +190,138 @@ fn daemon() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let token = match Token::load_or_create(&dir) {
+        Ok(token) => token,
+        Err(error) => {
+            eprintln!(
+                "quotadial: could not create the API token at {}: {error}; check that you can \
+                 write to it.",
+                dir.token().display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
     let providers: Vec<Arc<dyn Provider>> = providers().into_iter().map(Arc::from).collect();
-    println!(
+    let code = runtime.block_on(serve_daemon(&dir, providers, history, token, port));
+    Runtime::remove(&dir);
+    code
+}
+
+/// Listens on `port`, says where, then polls and serves until stopped.
+async fn serve_daemon(
+    dir: &DataDir,
+    providers: Vec<Arc<dyn Provider>>,
+    history: Arc<History>,
+    token: Token,
+    port: u16,
+) -> ExitCode {
+    let listener = match quotadial_api::bind(port).await {
+        Ok(listener) => listener,
+        Err(error) => {
+            eprintln!(
+                "quotadial: could not listen on 127.0.0.1:{port}: {error}; another program may \
+                 be using the port, so choose another with --port."
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    let announced = listener.local_addr().and_then(|address| {
+        let runtime = Runtime {
+            pid: std::process::id(),
+            port: address.port(),
+            started_at: Utc::now(),
+        };
+        runtime.write(dir).map(|()| runtime)
+    });
+    let port = match announced {
+        Ok(runtime) => runtime.port,
+        Err(error) => {
+            eprintln!(
+                "quotadial: could not write {}: {error}; check that you can write to it.",
+                dir.runtime().display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    say(format_args!(
         "QuotaDial daemon running. It asks {}, keeps history in {}, and is the only thing that \
-         polls while it runs. Press Ctrl-C to stop.",
+         polls while it runs.",
         limits(&providers),
         dir.history().display()
-    );
+    ));
+    say(format_args!(
+        "Its API is at http://127.0.0.1:{port}, for requests with the token in {}. Press Ctrl-C \
+         to stop.",
+        dir.token().display()
+    ));
     let poller = Poller::new(providers, history);
-    runtime.block_on(poller.run(async {
-        // If Ctrl-C cannot be caught, the daemon runs until it is stopped some other way.
+    let latest = poller.latest();
+    let (stop, stopped) = tokio::sync::watch::channel(false);
+    let until_stopped = |mut stopped: tokio::sync::watch::Receiver<bool>| async move {
+        // A closed channel also means stop.
+        let _ = stopped.wait_for(|stop| *stop).await;
+    };
+    let serve = async {
+        let served =
+            quotadial_api::serve(listener, latest, token, until_stopped(stopped.clone())).await;
+        // A daemon whose API has stopped serves no one, so it stops polling too, and consumers
+        // fetch for themselves again.
+        let _ = stop.send(true);
+        served
+    };
+    let signalled = async {
+        tokio::select! {
+            () = shutdown_signal() => {
+                let _ = stop.send(true);
+            }
+            () = until_stopped(stopped.clone()) => {}
+        }
+    };
+    let (served, (), ()) =
+        tokio::join!(serve, poller.run(until_stopped(stopped.clone())), signalled);
+    match served {
+        Ok(()) => {
+            say(format_args!("QuotaDial daemon stopped."));
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("quotadial: the API stopped: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Prints a line from the daemon, which keeps running when nothing reads its output any more.
+fn say(line: std::fmt::Arguments<'_>) {
+    let _ = writeln!(io::stdout(), "{line}");
+}
+
+/// Completes on Ctrl-C or, on Unix, when the daemon is told to terminate, as a service manager
+/// does. If neither can be caught, the daemon runs until it is stopped some other way.
+async fn shutdown_signal() {
+    let interrupt = async {
         if tokio::signal::ctrl_c().await.is_err() {
             std::future::pending::<()>().await;
         }
-    }));
-    println!("QuotaDial daemon stopped.");
-    ExitCode::SUCCESS
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                terminate.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = interrupt => {}
+        () = terminate => {}
+    }
 }
 
 /// For example `claude at most every 5 min and codex at most every 2 min`.
@@ -214,10 +362,10 @@ fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()
     writeln!(out)
 }
 
-/// One `watch` refresh: the status, then when it was updated and how often each provider is
-/// asked. `redraw` clears the terminal first.
+/// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated
+/// and how often each provider is asked. `redraw` clears the terminal first.
 fn write_frame(
-    report: &StatusReport,
+    report: Result<&StatusReport, &Unanswered>,
     providers: &[Box<dyn Provider>],
     now: DateTime<Utc>,
     redraw: bool,
@@ -227,7 +375,10 @@ fn write_frame(
         // Clear the screen and move to its top-left corner.
         write!(out, "\x1b[2J\x1b[H")?;
     }
-    write_text(report, now, out)?;
+    match report {
+        Ok(report) => write_text(report, now, out)?,
+        Err(error) => writeln!(out, "error: {error}")?,
+    }
     writeln!(
         out,
         "\nUpdated {}. Refreshes every minute and asks {}. Press Ctrl-C to stop.",
@@ -248,7 +399,7 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
             write!(out, " ({plan})")?;
         }
         writeln!(out, ": {}", status_label(snapshot.status))?;
-        for window in tightest_first(&snapshot.windows) {
+        for window in snapshot.windows_tightest_first() {
             let unconfirmed = if window.unconfirmed {
                 ", unconfirmed until the next fetch agrees"
             } else {
@@ -279,18 +430,6 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
 
 fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
-/// The windows closest to their limits first, and of those, the one that resets soonest.
-fn tightest_first(windows: &[Window]) -> Vec<&Window> {
-    let mut sorted: Vec<&Window> = windows.iter().collect();
-    sorted.sort_by(|a, b| {
-        b.used_pct.total_cmp(&a.used_pct).then_with(|| {
-            let reset = |window: &Window| window.resets_at.unwrap_or(DateTime::<Utc>::MAX_UTC);
-            reset(a).cmp(&reset(b))
-        })
-    });
-    sorted
 }
 
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
@@ -363,11 +502,12 @@ fn source_label(source: Source) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
-    use quotadial_core::{Account, Error, Result, Snapshot, WindowKind};
+    use quotadial_core::{Account, Error, Result, Snapshot, Window, WindowKind};
     use serde_json::{Value, json};
 
     use super::*;
@@ -413,6 +553,46 @@ mod tests {
         fn min_poll_interval(&self) -> Duration {
             Duration::from_secs(300)
         }
+    }
+
+    /// A provider that counts its fetches, to show whether something polled.
+    #[derive(Default)]
+    struct CountingProvider(AtomicUsize);
+
+    impl CountingProvider {
+        fn fetches(&self) -> usize {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl Provider for CountingProvider {
+        fn id(&self) -> &'static str {
+            "scripted"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(vec![account()])
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(snapshot(account.clone(), Source::Api))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
+    fn data_dir() -> (tempfile::TempDir, DataDir) {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let dir = DataDir::new(temp.path().join("quotadial"));
+        (temp, dir)
     }
 
     /// A fake Anthropic token, never a real one.
@@ -633,42 +813,6 @@ mod tests {
     }
 
     #[test]
-    fn the_tightest_window_comes_first() {
-        let window = |label: &str, used_pct, resets_at: Option<&str>| Window {
-            kind: WindowKind::Weekly,
-            label: label.into(),
-            used_pct,
-            resets_at: resets_at.map(ts),
-            window_seconds: 604_800,
-            scope_model: None,
-            source: Source::Api,
-            fetched_at: ts("2099-01-01T00:00:00Z"),
-            unconfirmed: false,
-        };
-        let windows = [
-            window("Session", 10.0, Some("2099-01-01T05:00:00Z")),
-            window("Weekly", 70.0, Some("2099-01-07T00:00:00Z")),
-            window("Weekly (Opus)", 70.0, Some("2099-01-03T00:00:00Z")),
-            window("Weekly (unknown reset)", 70.0, None),
-        ];
-
-        let order: Vec<&str> = tightest_first(&windows)
-            .into_iter()
-            .map(|window| window.label.as_str())
-            .collect();
-
-        assert_eq!(
-            order,
-            [
-                "Weekly (Opus)",
-                "Weekly",
-                "Weekly (unknown reset)",
-                "Session"
-            ]
-        );
-    }
-
-    #[test]
     fn a_watch_refresh_says_when_it_was_updated_and_how_often_providers_are_asked() {
         let providers: Vec<Box<dyn Provider>> = vec![Box::new(ScriptedProvider {
             discovery_fails: false,
@@ -681,7 +825,7 @@ mod tests {
         };
         let frame = |redraw| {
             let mut out = Vec::new();
-            write_frame(&report, &providers, now(), redraw, &mut out).expect("writes");
+            write_frame(Ok(&report), &providers, now(), redraw, &mut out).expect("writes");
             String::from_utf8(out).expect("UTF-8")
         };
 
@@ -819,6 +963,99 @@ mod tests {
             render(&report, false),
             "error: scripted: could not read credentials from /nonexistent/credentials.json: \
              permission denied\n"
+        );
+    }
+    #[tokio::test]
+    async fn while_a_daemon_runs_the_cli_asks_it_instead_of_polling() {
+        let (_temp, dir) = data_dir();
+        let _instance = Instance::acquire(&dir).expect("holds the daemon lock");
+        let token = Token::load_or_create(&dir).expect("makes a token");
+        let history = Arc::new(History::open(&dir.history()).expect("opens history"));
+        let polled_by_daemon = Arc::new(CountingProvider::default());
+        let mut poller = Poller::new(
+            vec![Arc::clone(&polled_by_daemon) as Arc<dyn Provider>],
+            history,
+        );
+        poller.poll_due().await;
+        let latest = poller.latest();
+        let listener = quotadial_api::bind(0).await.expect("binds");
+        Runtime {
+            pid: std::process::id(),
+            port: listener.local_addr().expect("address").port(),
+            started_at: Utc::now(),
+        }
+        .write(&dir)
+        .expect("writes the runtime file");
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(quotadial_api::serve(
+            listener,
+            latest.clone(),
+            token,
+            async {
+                let _ = stopped.await;
+            },
+        ));
+        let cli = Arc::new(CountingProvider::default());
+
+        let shown = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+            .await
+            .expect("the daemon answers");
+
+        assert_eq!(shown, latest.report());
+        assert_eq!(shown.snapshots.len(), 1);
+        assert_eq!(cli.fetches(), 0, "the CLI did not poll");
+        assert_eq!(polled_by_daemon.fetches(), 1);
+        stop.send(()).expect("the server is running");
+        server.await.expect("joins").expect("stops cleanly");
+    }
+
+    #[tokio::test]
+    async fn with_no_daemon_running_the_cli_fetches_directly() {
+        let (_temp, dir) = data_dir();
+        let cli = Arc::new(CountingProvider::default());
+        let providers = [Arc::clone(&cli) as Arc<dyn Provider>];
+
+        let shown = report(&providers, Some(&dir)).await.expect("fetches");
+        assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
+        assert_eq!(cli.fetches(), 1);
+
+        report(&providers, None).await.expect("fetches");
+        assert_eq!(cli.fetches(), 2, "with no data directory at all");
+    }
+
+    #[tokio::test]
+    async fn a_running_daemon_that_does_not_answer_is_shown_instead_of_polling() {
+        let (_temp, dir) = data_dir();
+        let _instance = Instance::acquire(&dir).expect("holds the daemon lock");
+        Token::load_or_create(&dir).expect("makes a token");
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+        let port = closed.local_addr().expect("address").port();
+        drop(closed);
+        Runtime {
+            pid: std::process::id(),
+            port,
+            started_at: Utc::now(),
+        }
+        .write(&dir)
+        .expect("writes the runtime file");
+        let cli = Arc::new(CountingProvider::default());
+
+        let error = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+            .await
+            .expect_err("the daemon does not answer");
+        assert_eq!(cli.fetches(), 0, "the CLI did not poll around the daemon");
+
+        let providers: Vec<Box<dyn Provider>> = vec![Box::new(CountingProvider::default())];
+        let mut out = Vec::new();
+        write_frame(Err(&error), &providers, now(), false, &mut out).expect("writes");
+        assert_eq!(
+            String::from_utf8(out).expect("UTF-8"),
+            format!(
+                "error: the QuotaDial daemon is running, but its API at \
+                 http://127.0.0.1:{port}/v1/status refused the connection; restart it with \
+                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and \
+                 asks scripted at most every 5 min. Press Ctrl-C to stop.\n"
+            )
         );
     }
 }

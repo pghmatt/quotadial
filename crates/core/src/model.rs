@@ -131,6 +131,19 @@ impl Snapshot {
         Self::without_windows(account, Status::AuthRequired, reason)
     }
 
+    /// The windows closest to their limits first, and of those, the one that resets soonest.
+    #[must_use]
+    pub fn windows_tightest_first(&self) -> Vec<&Window> {
+        let mut sorted: Vec<&Window> = self.windows.iter().collect();
+        sorted.sort_by(|a, b| {
+            b.used_pct.total_cmp(&a.used_pct).then_with(|| {
+                let reset = |window: &Window| window.resets_at.unwrap_or(DateTime::<Utc>::MAX_UTC);
+                reset(a).cmp(&reset(b))
+            })
+        });
+        sorted
+    }
+
     /// The same snapshot with any token blanked out of its error text, whichever provider wrote
     /// it.
     #[must_use]
@@ -414,6 +427,49 @@ mod tests {
         assert_eq!(value["unconfirmed"], json!(true));
         let read_back: Window = serde_json::from_value(value).expect("deserializes");
         assert_eq!(read_back, unconfirmed);
+    }
+
+    #[test]
+    fn the_tightest_window_comes_first() {
+        let window = |label: &str, used_pct, resets_at: Option<&str>| Window {
+            kind: WindowKind::Weekly,
+            label: label.into(),
+            used_pct,
+            resets_at: resets_at.map(ts),
+            window_seconds: 604_800,
+            scope_model: None,
+            source: Source::Api,
+            fetched_at: ts("2099-01-01T00:00:00Z"),
+            unconfirmed: false,
+        };
+        let snapshot = Snapshot {
+            account: account(),
+            windows: vec![
+                window("Session", 10.0, Some("2099-01-01T05:00:00Z")),
+                window("Weekly", 70.0, Some("2099-01-07T00:00:00Z")),
+                window("Weekly (Opus)", 70.0, Some("2099-01-03T00:00:00Z")),
+                window("Weekly (unknown reset)", 70.0, None),
+            ],
+            extra_usage: None,
+            status: Status::Ok,
+            error: None,
+        };
+
+        let order: Vec<&str> = snapshot
+            .windows_tightest_first()
+            .into_iter()
+            .map(|window| window.label.as_str())
+            .collect();
+
+        assert_eq!(
+            order,
+            [
+                "Weekly (Opus)",
+                "Weekly",
+                "Weekly (unknown reset)",
+                "Session"
+            ]
+        );
     }
 
     #[test]
