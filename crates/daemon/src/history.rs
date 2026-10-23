@@ -13,14 +13,15 @@ use std::sync::Mutex;
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use quotadial_core::{Account, Pace, Reading, Snapshot, Status, Window};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::Serialize;
 
 /// How long history is kept.
 pub const KEEP_DAYS: i64 = 30;
 
-/// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`.
-const SCHEMA_VERSION: i32 = 2;
+/// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`, and version 3
+/// the alert rules and their firings.
+const SCHEMA_VERSION: i32 = 3;
 
 /// The history database.
 #[derive(Debug)]
@@ -31,6 +32,12 @@ pub struct History {
 /// Why history could not be read or written.
 #[derive(Debug)]
 pub struct HistoryError(String);
+
+impl HistoryError {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
 
 impl std::fmt::Display for HistoryError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -64,7 +71,7 @@ impl History {
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         options.open(path)?;
 
-        let connection = Connection::open(path)?;
+        let mut connection = Connection::open(path)?;
         connection.busy_timeout(std::time::Duration::from_secs(5))?;
         let mode: String =
             connection.pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))?;
@@ -75,15 +82,17 @@ impl History {
             )));
         }
         connection.pragma_update(None, "synchronous", "NORMAL")?;
-        let version: i32 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        // One transaction, so an upgrade cut short is done again in full next time. It takes the
+        // write lock before it reads the version, so two processes opening an older database at
+        // once upgrade it once.
+        let upgrade = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let version: i32 = upgrade.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version > SCHEMA_VERSION {
             return Err(HistoryError(format!(
                 "{} was written by a newer QuotaDial (schema {version})",
                 path.display()
             )));
         }
-        // One transaction, so an upgrade cut short is done again in full next time.
-        let upgrade = connection.unchecked_transaction()?;
         upgrade.execute_batch(
             "CREATE TABLE IF NOT EXISTS snapshots (
                  id INTEGER PRIMARY KEY,
@@ -127,6 +136,7 @@ impl History {
                 }
             }
         }
+        crate::alerts::upgrade(&upgrade, version)?;
         upgrade.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         upgrade.commit()?;
         Ok(Self {
@@ -262,6 +272,7 @@ impl History {
             "DELETE FROM readings WHERE fetched_at < ?1",
             params![before],
         )?;
+        connection.execute("DELETE FROM firings WHERE fired_at < ?1", params![before])?;
         Ok(connection.execute(
             "DELETE FROM snapshots WHERE polled_at < ?1",
             params![before],
@@ -311,7 +322,7 @@ impl History {
         Ok(usize::try_from(count).unwrap_or_default())
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         // A panic while holding the connection leaves SQLite consistent, so the lock is reused.
         self.connection
             .lock()
@@ -365,7 +376,7 @@ fn newest_fetch(snapshot: &Snapshot) -> Option<DateTime<Utc>> {
 }
 
 /// A UTC time in a fixed format, so text order is time order.
-fn timestamp(at: DateTime<Utc>) -> String {
+pub(crate) fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Micros, true)
 }
 
@@ -665,7 +676,7 @@ mod tests {
             .lock()
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("reads the version");
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION);
     }
 
     #[test]

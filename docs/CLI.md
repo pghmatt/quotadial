@@ -15,6 +15,10 @@ CLI already store and never writes them.
 | `quotadial daemon` | Runs the daemon until Ctrl-C: the one poller every consumer shares, with history and the local API |
 | `quotadial daemon --port <port>` | The same, with the API on another port; 0 lets the system choose a free one |
 | `quotadial mcp` | Runs the MCP server named `quotadial` on standard input and output, for agents |
+| `quotadial alerts` | Lists the alert rules and what they told in the last week; `alerts list --json` gives the same as JSON |
+| `quotadial alerts add <words>` | Adds an alert rule written in plain words, such as `quotadial alerts add "warn me at 80%"` |
+| `quotadial alerts remove <number>` | Removes the rule with that number |
+| `quotadial alerts on <number>`, `quotadial alerts off <number>` | Turns the rule with that number on or off |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -118,14 +122,77 @@ same daemon itself when none is running, so with the app open there is no need t
   daemon that stops while being asked, as when the tray app quits, hands over: once its lock is
   released, they fetch for themselves.
 
+## Alerts
+
+An alert rule says, in plain words, what to be told about. QuotaDial reads it with a small grammar
+on this machine, with no model or network call, and says what it read:
+
+```text
+$ quotadial alerts add "warn me when claude's weekly passes 85%"
+Added alert rule 3. QuotaDial reads it as: when a Claude weekly window reaches 85%.
+```
+
+| Rule | Written like | Told |
+| --- | --- | --- |
+| A share used | `warn me at 80%`, `warn me when the weekly window passes 90 percent` | When a window reaches that share, once for each window: again after it resets |
+| A reset | `tell me when the session resets` | When a window resets |
+| Running out | `warn me when the weekly window will run out before it resets` | When, at its pace, a window runs out before it resets. Pace needs the daemon |
+| A time before a reset | `tell me 30 minutes before the session resets if it is above 50%` | That long before a window resets, if at least that share of it is used. The share is optional |
+| A sign-in | `tell me when an account needs to sign in again` | When an account's sign-in needs renewing, and again only after it has worked in between |
+
+A rule covers every window of every account unless it names:
+- a provider: `claude` or `codex` (`anthropic`, `chatgpt` and `openai` work too);
+- a window: `session`, `weekly` or `daily` for that kind of window, a model such as `opus` or
+  `fable`, or a window's label in quotes, such as `"Weekly (Cowork)"`.
+
+Times can be written as `30 minutes`, `2 h`, `an hour`, `half an hour` or `a day`, up to a week. A
+rule names at most one share, one time, one window and one provider. Anything the grammar cannot
+read is refused, with three forms it can.
+
+Every history starts with two rules, which were the app's two notifications before: `warn me when
+a window passes 90%` and `tell me when an account needs to sign in again`. They can be turned off
+or removed like any other.
+
+```text
+$ quotadial alerts
+Alert rules:
+    1  on   warn me when a window passes 90%
+             read as: when any window reaches 90%
+    2  off  tell me when an account needs to sign in again
+             read as: when an account needs to sign in again
+
+Told in the last week:
+  2 h ago: Claude Weekly passed 90%. user@example.com: 91% used, resets in 2 d 4 h.
+```
+
+How rules are checked:
+- The daemon checks every rule that is on after each round of polls, and every minute in between,
+  so a time before a reset is told within a minute of it.
+- Only current numbers count: a snapshot whose status is `ok`, never an unconfirmed 0%. A sign-in
+  rule looks for `auth_required` instead.
+- Each time a rule's condition holds is told once. It is keyed by the rule, the account, the window
+  and the window's reset, so a restart, a sleep or a clock change neither repeats it nor loses it.
+  A reset that happened while the machine slept is told once, when the daemon next reads that
+  window.
+- A rule added while its condition already holds is told at the next check.
+- What a rule told goes into the history, which keeps it for 30 days. The app shows it as a
+  notification. `quotadial alerts`, `GET /v1/alerts` and the MCP tool `list_alerts` list the last
+  week's.
+- The rules live in the history in the data directory. `quotadial alerts` changes them there
+  whether or not the daemon runs, and the daemon reads them again at its next check.
+
 ## The local API
 
-The daemon answers two requests, on `127.0.0.1` only:
+The daemon answers these requests, on `127.0.0.1` only:
 
 | Request | Answer |
 | --- | --- |
 | `GET /v1/status` | The same report as `status --json` (see JSON output below) |
 | `GET /v1/headroom` | Every account ranked by the room left in its tightest window |
+| `GET /v1/alerts` | The alert rules, and what they told in the last week |
+| `POST /v1/alerts` | Adds a rule sent as `{ "rule": "warn me at 80%" }`. 201 with the rule, or 400 with what the grammar could not read |
+| `PATCH /v1/alerts/<id>` | Turns a rule on or off, sent as `{ "enabled": false }`. 200 with the rule, or 404 |
+| `DELETE /v1/alerts/<id>` | Removes a rule. 204, or 404 |
 
 Every request needs the token from the `token` file in the data directory, as
 `Authorization: Bearer <token>`. The daemon creates it on its first start, 64 hex characters that
@@ -177,6 +244,46 @@ processes can list.
 Headroom uses the numbers as last fetched. A `tightest.resets_at` in the past means the window has
 reset since, and the daemon fetches again within 10 minutes.
 
+`GET /v1/alerts`, the same as `quotadial alerts list --json`:
+
+```json
+{
+  "rules": [
+    {
+      "id": 1,
+      "written": "warn me when a window passes 90%",
+      "enabled": true,
+      "kind": "threshold",
+      "pct": 90.0,
+      "created_at": "2099-01-01T00:00:00Z"
+    }
+  ],
+  "firings": [
+    {
+      "id": 7,
+      "rule": 1,
+      "provider": "claude",
+      "account_id": "...",
+      "account": "user@example.com",
+      "window": "Weekly",
+      "used_pct": 91.0,
+      "resets_at": "2099-01-03T04:00:00Z",
+      "title": "Claude Weekly passed 90%",
+      "body": "user@example.com: 91% used, resets in 2 d 4 h.",
+      "fired_at": "2099-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `rules[].written` | The words the rule was written in |
+| `rules[].kind` | What it watches for: `threshold` (with `pct`), `reset`, `runs_out`, `before_reset` (with `minutes`, and `above_pct` when given) or `sign_in` |
+| `rules[].provider`, `rules[].window` | What it covers, when it names a provider or a window. Left out otherwise |
+| `rules[].enabled` | Whether it is on |
+| `firings[]` | What the rules told in the last week, oldest first, at most the newest 100. Each names its rule, the account's provider, id and display name, the window (left out for a sign-in), its share used and reset then, and the title and text the notification showed |
+
 ## The MCP server
 
 `quotadial mcp` is an MCP server named `quotadial` that an agent starts and talks to over standard
@@ -193,7 +300,7 @@ Its three tools only read:
 | --- | --- |
 | `get_usage` | The same report as `status --json` |
 | `get_account_headroom` | The same ranking as `GET /v1/headroom` |
-| `list_alerts` | `{ "alerts": [] }`: QuotaDial has no alert rules yet, so the list stays empty until they arrive |
+| `list_alerts` | The same as `GET /v1/alerts`: the alert rules, and what they told in the last week |
 
 `get_usage` and `get_account_headroom` take an optional `provider`, `claude` or `codex`, that limits
 the answer to that provider's accounts. Each answer comes as JSON text and, for agents that speak

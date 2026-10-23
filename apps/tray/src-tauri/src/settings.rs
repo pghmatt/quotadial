@@ -1,6 +1,7 @@
-//! The tray app's settings: which notifications it sends and which providers it shows. They are
-//! kept as JSON in the app's own config folder, readable only by the user. Whether QuotaDial opens
-//! at login is the operating system's to keep, so it is not stored here.
+//! The tray app's settings: which providers it shows and the names given to accounts. They are kept
+//! as JSON in the app's own config folder, readable only by the user. Whether QuotaDial opens at
+//! login is the operating system's to keep, and which alerts are on is the daemon's history's
+//! (D-093), so neither is stored here.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -8,17 +9,14 @@ use std::path::Path;
 
 use std::collections::BTreeMap;
 
-use quotadial_core::{Account, StatusReport};
+use quotadial_core::{Account, Condition, Scope, StatusReport};
+use quotadial_daemon::History;
 use serde::{Deserialize, Serialize};
 
-/// The settings, with every notification on and every provider shown until changed.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// The settings, with every provider shown until changed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// Notify when an account needs signing in again.
-    pub notify_sign_in: bool,
-    /// Notify when a window passes 90%.
-    pub notify_high: bool,
     /// Providers left out of the tray, the popover and the notifications, by id.
     pub hidden_providers: Vec<String>,
     /// A name the user gave an account, by [`account_key`], shown in place of its email address
@@ -26,27 +24,50 @@ pub struct Settings {
     pub aliases: BTreeMap<String, String>,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            notify_sign_in: true,
-            notify_high: true,
-            hidden_providers: Vec::new(),
-            aliases: BTreeMap::new(),
-        }
-    }
-}
-
-/// An account, as the settings and the record of notifications name it: its provider, its id and
-/// its organization, the three that make an account (D-024).
+/// An account, as the settings name it: its provider, its id and its organization, the three that
+/// make an account (D-024).
 #[must_use]
 pub fn account_key(account: &Account) -> String {
-    format!(
-        "{} {} {}",
-        account.provider,
-        account.account_id,
-        account.org.as_deref().unwrap_or("-")
+    key(
+        &account.provider,
+        &account.account_id,
+        account.org.as_deref(),
     )
+}
+
+/// [`account_key`] from the three parts, as a firing carries them.
+#[must_use]
+pub fn key(provider: &str, account_id: &str, org: Option<&str>) -> String {
+    format!("{provider} {account_id} {}", org.unwrap_or("-"))
+}
+
+/// The two notifications M3 kept as switches in the settings file. They are rules now (D-093):
+/// a switch that was off turns its rule off, once, and the file is then saved without it. Returns
+/// whether the file had the switches.
+pub fn carry_over(path: &Path, history: &History) -> bool {
+    #[derive(Deserialize)]
+    struct Switches {
+        notify_sign_in: Option<bool>,
+        notify_high: Option<bool>,
+    }
+    let Some(switches) = fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Switches>(&bytes).ok())
+    else {
+        return false;
+    };
+    let off = [
+        (switches.notify_high, Condition::Threshold { pct: 90.0 }),
+        (switches.notify_sign_in, Condition::SignIn),
+    ];
+    for (_, condition) in off.iter().filter(|(on, _)| *on == Some(false)) {
+        for rule in history.rules().unwrap_or_default() {
+            if rule.rule.condition == *condition && rule.rule.scope == Scope::default() {
+                let _ = history.set_rule_enabled(rule.id, false);
+            }
+        }
+    }
+    switches.notify_high.is_some() || switches.notify_sign_in.is_some()
 }
 
 impl Settings {
@@ -129,14 +150,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn settings_start_with_everything_on_and_survive_a_restart() {
+    fn settings_start_with_everything_shown_and_survive_a_restart() {
         let temp = tempfile::tempdir().expect("temp dir");
         let path = temp.path().join("config/settings.json");
 
         assert_eq!(Settings::load(&path), Settings::default());
         let changed = Settings {
-            notify_sign_in: false,
-            notify_high: true,
             hidden_providers: vec!["codex".into()],
             aliases: BTreeMap::from([("claude user-1 -".into(), "Work".into())]),
         };
@@ -159,15 +178,57 @@ mod tests {
         fs::write(&path, "not json").expect("writes");
         assert_eq!(Settings::load(&path), Settings::default());
 
-        fs::write(&path, r#"{"notify_high": false}"#).expect("writes");
+        fs::write(
+            &path,
+            r#"{"hidden_providers": ["codex"], "notify_high": false}"#,
+        )
+        .expect("writes");
         assert_eq!(
             Settings::load(&path),
             Settings {
-                notify_high: false,
+                hidden_providers: vec!["codex".into()],
                 ..Settings::default()
             },
             "a setting saved by an older version keeps the rest at their defaults"
         );
+    }
+
+    #[test]
+    fn a_notification_switched_off_in_m3_turns_its_rule_off_once() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let path = temp.path().join("settings.json");
+        let history = History::open(&temp.path().join("history.db")).expect("opens");
+        let custom = history
+            .add_rule("warn me when codex passes 90%", chrono::Utc::now())
+            .expect("adds");
+        fs::write(
+            &path,
+            r#"{"notify_sign_in": true, "notify_high": false, "hidden_providers": []}"#,
+        )
+        .expect("writes");
+
+        assert!(carry_over(&path, &history), "the file had the switches");
+
+        let on: Vec<(String, bool)> = history
+            .rules()
+            .expect("reads")
+            .into_iter()
+            .map(|rule| (rule.written, rule.enabled))
+            .collect();
+        assert_eq!(
+            on,
+            [
+                ("warn me when a window passes 90%".to_owned(), false),
+                (
+                    "tell me when an account needs to sign in again".to_owned(),
+                    true
+                ),
+                (custom.written, true),
+            ],
+            "only the starting rule for the switch that was off"
+        );
+        Settings::load(&path).save(&path).expect("saves");
+        assert!(!carry_over(&path, &history), "once");
     }
 
     #[test]

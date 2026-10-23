@@ -5,7 +5,7 @@ use std::path::Path;
 
 use chrono::{DateTime, TimeDelta, Utc};
 
-use crate::{ExtraUsage, Pace, Source, Status, Window};
+use crate::{ExtraUsage, Pace, Source, Status};
 
 /// `path` with `~` for the home folder, as people write it, such as `~/.codex/auth.json`.
 #[must_use]
@@ -27,16 +27,16 @@ pub fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
     }
 }
 
-/// A window's pace: for example `at 8.5%/h, runs out in 1 h 30 min, 40 min before it resets`, or
-/// `at 2.1%/h, lasts until it resets`.
+/// A window's pace, given when it resets: for example `at 8.5%/h, runs out in 1 h 30 min, 40 min
+/// before it resets`, or `at 2.1%/h, lasts until it resets`.
 #[must_use]
-pub fn pace(pace: &Pace, window: &Window, now: DateTime<Utc>) -> String {
+pub fn pace(pace: &Pace, resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
     let rate = match pace.pct_per_hour {
         rate if rate >= 10.0 => format!("{rate:.0}%/h"),
         rate if rate >= 0.05 => format!("{rate:.1}%/h"),
         _ => "0%/h".to_owned(),
     };
-    match (pace.runs_out_at, window.resets_at) {
+    match (pace.runs_out_at, resets_at) {
         (Some(out), _) if out <= now => format!("at {rate}, runs out about now"),
         (Some(out), Some(reset)) => format!(
             "at {rate}, runs out in {}, {} before it resets",
@@ -47,6 +47,22 @@ pub fn pace(pace: &Pace, window: &Window, now: DateTime<Utc>) -> String {
         (None, Some(_)) => format!("at {rate}, lasts until it resets"),
         (None, None) => format!("at {rate}"),
     }
+}
+
+/// The name people know a provider by, such as `Claude` for `claude`.
+#[must_use]
+pub fn provider_name(id: &str) -> &str {
+    match id {
+        "claude" => "Claude",
+        "codex" => "Codex",
+        other => other,
+    }
+}
+
+/// A share as people write it: `80` for 80.0 and `80.5` for 80.5, to a tenth.
+#[must_use]
+pub fn percent(pct: f64) -> String {
+    format!("{}", (pct * 10.0).round() / 10.0)
 }
 
 /// For example `4 min ago`, or `just now`.
@@ -183,49 +199,44 @@ mod tests {
 
     #[test]
     fn a_pace_says_whether_the_window_runs_out_before_it_resets() {
-        let window = Window {
-            kind: crate::WindowKind::Session,
-            label: "Session".into(),
-            used_pct: 62.0,
-            resets_at: Some(ts("2099-01-01T02:14:00Z")),
-            window_seconds: 18_000,
-            scope_model: None,
-            source: Source::Api,
-            fetched_at: now(),
-            unconfirmed: false,
-            pace: None,
-        };
+        let resets_at = Some(ts("2099-01-01T02:14:00Z"));
         let pace = |pct_per_hour, runs_out_at: Option<&str>| Pace {
             pct_per_hour,
             runs_out_at: runs_out_at.map(ts),
         };
 
         assert_eq!(
-            super::pace(&pace(8.46, Some("2099-01-01T01:34:00Z")), &window, now()),
+            super::pace(&pace(8.46, Some("2099-01-01T01:34:00Z")), resets_at, now()),
             "at 8.5%/h, runs out in 1 h 30 min, 40 min before it resets"
         );
         assert_eq!(
-            super::pace(&pace(25.0, None), &window, now()),
+            super::pace(&pace(25.0, None), resets_at, now()),
             "at 25%/h, lasts until it resets"
         );
         assert_eq!(
-            super::pace(&pace(0.01, None), &window, now()),
+            super::pace(&pace(0.01, None), resets_at, now()),
             "at 0%/h, lasts until it resets"
         );
         assert_eq!(
-            super::pace(&pace(90.0, Some("2099-01-01T00:03:00Z")), &window, now()),
+            super::pace(&pace(90.0, Some("2099-01-01T00:03:00Z")), resets_at, now()),
             "at 90%/h, runs out about now",
             "a run-out the clock has passed since the reading"
         );
-        let no_reset = Window {
-            resets_at: None,
-            ..window.clone()
-        };
         assert_eq!(
-            super::pace(&pace(2.0, Some("2099-01-01T19:04:00Z")), &no_reset, now()),
+            super::pace(&pace(2.0, Some("2099-01-01T19:04:00Z")), None, now()),
             "at 2.0%/h, runs out in 19 h"
         );
-        assert_eq!(super::pace(&pace(0.0, None), &no_reset, now()), "at 0%/h");
+        assert_eq!(super::pace(&pace(0.0, None), None, now()), "at 0%/h");
+    }
+
+    #[test]
+    fn providers_and_shares_are_named_as_people_write_them() {
+        assert_eq!(provider_name("claude"), "Claude");
+        assert_eq!(provider_name("codex"), "Codex");
+        assert_eq!(provider_name("other"), "other");
+        assert_eq!(percent(80.0), "80");
+        assert_eq!(percent(80.5), "80.5");
+        assert_eq!(percent(33.333), "33.3");
     }
 
     #[test]

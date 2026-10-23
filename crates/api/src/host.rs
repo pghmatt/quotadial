@@ -29,6 +29,7 @@ pub struct Host {
     listener: TcpListener,
     port: u16,
     poller: Poller,
+    history: Arc<History>,
     token: Token,
 }
 
@@ -134,13 +135,15 @@ impl Host {
         }
         .write(&dir)
         .map_err(announce)?;
-        let poller = Poller::new(providers, Arc::new(history));
+        let history = Arc::new(history);
+        let poller = Poller::new(providers, Arc::clone(&history));
         Ok(Self {
             dir,
             instance,
             listener,
             port,
             poller,
+            history,
             token,
         })
     }
@@ -175,6 +178,7 @@ impl Host {
             instance,
             listener,
             poller,
+            history,
             token,
             ..
         } = self;
@@ -185,7 +189,14 @@ impl Host {
             let _ = stopped.wait_for(|stop| *stop).await;
         };
         let serving = async {
-            let served = serve(listener, latest, token, until_stopped(stopped.clone())).await;
+            let served = serve(
+                listener,
+                latest,
+                history,
+                token,
+                until_stopped(stopped.clone()),
+            )
+            .await;
             // A daemon whose API has stopped serves no one, so it stops polling too, and consumers
             // fetch for themselves again.
             let _ = stop.send(true);

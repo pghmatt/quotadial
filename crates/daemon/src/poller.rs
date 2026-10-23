@@ -10,7 +10,8 @@
 //! account's answer came back, never from before its request went out, so the next poll cannot
 //! come before the gate allows a request. Accounts are rediscovered every minute, so a new sign-in
 //! appears and a removed one goes. Every answer goes to the history, and each window of an `ok`
-//! answer gets its pace from it (P-016).
+//! answer gets its pace from it (P-016). The alert rules are checked after every round of polls and
+//! every minute between, for a time before a reset (D-093).
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -32,6 +33,8 @@ pub const IDLE_EVERY: Duration = Duration::from_secs(10 * 60);
 pub const DISCOVER_EVERY: Duration = Duration::from_secs(60);
 /// How often history older than its keeping time is deleted.
 const PRUNE_EVERY: Duration = Duration::from_secs(60 * 60);
+/// How often the alert rules are checked between polls, for a time before a reset.
+pub const ALERTS_EVERY: Duration = Duration::from_secs(60);
 
 /// What the poller last found, shared with every consumer.
 #[derive(Debug, Clone, Default)]
@@ -42,6 +45,8 @@ struct Shared {
     providers: RwLock<Vec<ProviderState>>,
     /// Told whenever the report changes, so a consumer such as the tray app need not ask.
     changed: watch::Sender<()>,
+    /// The newest firing of an alert rule to tell, so the tray app can tell it.
+    fired: watch::Sender<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +86,13 @@ impl Latest {
         self.0.changed.subscribe()
     }
 
+    /// A receiver whose `changed()` completes each time an alert rule has fired, holding the
+    /// newest firing's id. The firings themselves are in the history.
+    #[must_use]
+    pub fn subscribe_firings(&self) -> watch::Receiver<i64> {
+        self.0.fired.subscribe()
+    }
+
     fn update(&self, change: impl FnOnce(&mut Vec<ProviderState>)) {
         change(
             &mut self
@@ -112,6 +124,7 @@ pub struct Poller {
     tracked: HashMap<(usize, String, Option<String>), Tracked>,
     discover_at: Instant,
     prune_at: Instant,
+    alerts_at: Instant,
 }
 
 impl std::fmt::Debug for Poller {
@@ -157,6 +170,7 @@ impl Poller {
             tracked: HashMap::new(),
             discover_at: now,
             prune_at: now,
+            alerts_at: now + ALERTS_EVERY,
         }
     }
 
@@ -203,15 +217,34 @@ impl Poller {
             .map(|(key, _)| key.clone())
             .collect();
         due.sort();
+        let polled = !due.is_empty();
         for key in due {
             self.poll(&key, now).await;
+        }
+        if polled || now >= self.alerts_at {
+            self.check_alerts().await;
+            self.alerts_at = Instant::now() + ALERTS_EVERY;
         }
         self.tracked
             .values()
             .map(|tracked| tracked.due)
-            .chain([self.discover_at, self.prune_at])
+            .chain([self.discover_at, self.prune_at, self.alerts_at])
             .min()
             .unwrap_or(self.discover_at)
+    }
+
+    /// Checks the alert rules against what was last found, and tells consumers of any firing.
+    async fn check_alerts(&self) {
+        let (history, report) = (Arc::clone(&self.history), self.latest.report());
+        // A failed check is tried again within a minute; a firing is recorded once whenever it is.
+        let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now()))
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .and_then(|fired| fired.iter().map(|firing| firing.id).max());
+        if let Some(newest) = fired {
+            self.latest.0.fired.send_replace(newest);
+        }
     }
 
     /// Finds every provider's accounts. A new account is due at once; one that has gone is
@@ -836,6 +869,31 @@ mod tests {
                 runs_out_at: Some(base() + TimeDelta::minutes(90)),
             })
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn alert_rules_are_checked_after_each_round_and_consumers_told() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.set_used(Ok(95.0));
+        let mut poller = poller(vec![Arc::clone(&codex)], Arc::clone(&history));
+        let mut fired = poller.latest().subscribe_firings();
+
+        poller.poll_due().await;
+
+        assert!(
+            fired.has_changed().expect("open"),
+            "a new history's 90% rule"
+        );
+        let newest = *fired.borrow_and_update();
+        let firings = history.firings(0, DateTime::<Utc>::MIN_UTC).expect("reads");
+        assert_eq!(firings.len(), 1);
+        assert_eq!(firings[0].id, newest);
+        assert_eq!(firings[0].title, "Codex Session passed 90%");
+
+        tokio::time::advance(Duration::from_secs(2 * 60)).await;
+        poller.poll_due().await;
+        assert!(!fired.has_changed().expect("open"), "told once");
     }
 
     #[tokio::test(start_paused = true)]

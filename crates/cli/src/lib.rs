@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{Provider, StatusReport, collect, text};
-use quotadial_daemon::DataDir;
+use quotadial_daemon::{AddError, Alerts, DataDir, History, HistoryError};
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -47,6 +47,36 @@ enum Command {
     /// Run the MCP server named quotadial on standard input and output, for agents such as Claude
     /// Code and Codex. Like `status`, it asks the daemon while one runs.
     Mcp,
+    /// List the alert rules and what they told lately, or add, remove, or turn one on or off. Rules
+    /// are written in plain words, such as `quotadial alerts add "warn me at 80%"`.
+    Alerts {
+        #[command(subcommand)]
+        action: Option<AlertsAction>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AlertsAction {
+    /// List the rules and what they told in the last week. The default.
+    List {
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a rule written in plain words, such as "warn me at 80%", "warn me when the weekly
+    /// window will run out before it resets" or "tell me 30 minutes before the session resets if
+    /// it is above 50%".
+    Add {
+        /// The rule's words.
+        #[arg(required = true, num_args = 1.., trailing_var_arg = true)]
+        rule: Vec<String>,
+    },
+    /// Remove the rule with this number.
+    Remove { id: i64 },
+    /// Turn the rule with this number on.
+    On { id: i64 },
+    /// Turn the rule with this number off.
+    Off { id: i64 },
 }
 
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
@@ -61,6 +91,7 @@ pub fn run() -> ExitCode {
         Command::Watch { json } => watch(json),
         Command::Daemon { port } => daemon(port),
         Command::Mcp => mcp(),
+        Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
     }
 }
 
@@ -181,6 +212,15 @@ fn mcp() -> ExitCode {
                 .await
                 .map(|(report, _)| report)
         },
+        async || {
+            open_history()
+                .and_then(|history| {
+                    history
+                        .alerts(Utc::now())
+                        .map_err(|error| error.to_string())
+                })
+                .map_err(|error| format!("QuotaDial could not read its alert rules: {error}"))
+        },
     ));
     match served {
         Ok(()) => ExitCode::SUCCESS,
@@ -191,6 +231,116 @@ fn mcp() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Lists or changes the alert rules. They live in the daemon's history, which a running daemon
+/// reads again at every check, so a change counts within a minute whether or not one runs.
+fn alerts(action: AlertsAction) -> ExitCode {
+    let history = match open_history() {
+        Ok(history) => history,
+        Err(error) => {
+            eprintln!("quotadial: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let now = Utc::now();
+    let mut stdout = io::stdout().lock();
+    let no_rule = |id| {
+        eprintln!("quotadial: there is no alert rule {id}; `quotadial alerts` lists them.");
+        ExitCode::FAILURE
+    };
+    let written = match action {
+        AlertsAction::List { json } => match history.alerts(now) {
+            Ok(alerts) if json => write_json(&alerts, &mut stdout),
+            Ok(alerts) => write_alerts(&alerts, now, &mut stdout),
+            Err(error) => return history_failed(&error),
+        },
+        AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now) {
+            Ok(added) => writeln!(
+                stdout,
+                "Added alert rule {}. QuotaDial reads it as: {}.",
+                added.id, added.rule
+            ),
+            Err(AddError::Unread(message)) => {
+                eprintln!("quotadial: {message}");
+                return ExitCode::FAILURE;
+            }
+            Err(AddError::History(error)) => return history_failed(&error),
+        },
+        AlertsAction::Remove { id } => match history.remove_rule(id) {
+            Ok(true) => writeln!(stdout, "Removed alert rule {id}."),
+            Ok(false) => return no_rule(id),
+            Err(error) => return history_failed(&error),
+        },
+        AlertsAction::On { id } | AlertsAction::Off { id } => {
+            let on = matches!(action, AlertsAction::On { .. });
+            match history.set_rule_enabled(id, on) {
+                Ok(Some(rule)) => writeln!(
+                    stdout,
+                    "Alert rule {id} is {}: {}.",
+                    if on { "on" } else { "off" },
+                    rule.written
+                ),
+                Ok(None) => return no_rule(id),
+                Err(error) => return history_failed(&error),
+            }
+        }
+    };
+    match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => write_failed(&error),
+    }
+}
+
+/// The daemon's history, where the alert rules live, created if no daemon has run yet.
+fn open_history() -> Result<History, String> {
+    let dir = DataDir::from_env().ok_or_else(|| {
+        "the operating system names no data directory; set QUOTADIAL_DATA_DIR.".to_owned()
+    })?;
+    dir.create()
+        .map_err(|error| format!("could not use {}: {error}", dir.path().display()))?;
+    History::open(&dir.history()).map_err(|error| {
+        format!(
+            "could not open the history at {}: {error}",
+            dir.history().display()
+        )
+    })
+}
+
+fn history_failed(error: &HistoryError) -> ExitCode {
+    eprintln!("quotadial: could not use the history: {error}");
+    ExitCode::FAILURE
+}
+
+/// The alert rules, each with what QuotaDial read it as, then what they told lately.
+fn write_alerts(alerts: &Alerts, now: DateTime<Utc>, out: &mut impl Write) -> io::Result<()> {
+    if alerts.rules.is_empty() {
+        writeln!(
+            out,
+            "No alert rules. Add one with `quotadial alerts add \"warn me at 80%\"`."
+        )?;
+    } else {
+        writeln!(out, "Alert rules:")?;
+        for rule in &alerts.rules {
+            let state = if rule.enabled { "on " } else { "off" };
+            writeln!(out, "  {:>3}  {state}  {}", rule.id, rule.written)?;
+            writeln!(out, "             read as: {}", rule.rule)?;
+        }
+    }
+    if alerts.firings.is_empty() {
+        return writeln!(out, "\nNothing told in the last week.");
+    }
+    writeln!(out, "\nTold in the last week:")?;
+    for firing in &alerts.firings {
+        writeln!(
+            out,
+            "  {}: {}. {}",
+            text::ago(firing.fired_at, now),
+            firing.title,
+            firing.body
+        )?;
+    }
+    Ok(())
 }
 
 /// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
@@ -299,7 +449,7 @@ fn write_failed(error: &io::Error) -> ExitCode {
     ExitCode::FAILURE
 }
 
-fn write_json(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
+fn write_json(report: &impl serde::Serialize, out: &mut impl Write) -> io::Result<()> {
     serde_json::to_writer_pretty(&mut *out, report)?;
     writeln!(out)
 }
@@ -369,7 +519,7 @@ fn write_text(
                 text::ago(window.fetched_at, now),
             )?;
             if let Some(pace) = &window.pace {
-                writeln!(out, "    {}", text::pace(pace, window, now))?;
+                writeln!(out, "    {}", text::pace(pace, window.resets_at, now))?;
             }
         }
         if let Some(extra) = &snapshot.extra_usage {
@@ -928,7 +1078,7 @@ mod tests {
         let polled_by_daemon = Arc::new(CountingProvider::default());
         let mut poller = Poller::new(
             vec![Arc::clone(&polled_by_daemon) as Arc<dyn Provider>],
-            history,
+            Arc::clone(&history),
         );
         poller.poll_due().await;
         let latest = poller.latest();
@@ -944,6 +1094,7 @@ mod tests {
         let server = tokio::spawn(quotadial_api::serve(
             listener,
             latest.clone(),
+            history,
             token,
             async {
                 let _ = stopped.await;

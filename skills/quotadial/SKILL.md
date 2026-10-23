@@ -25,7 +25,7 @@ Use the first of these that is available:
    commands. In Claude Code they are named `mcp__quotadial__get_account_headroom` and so on.
    - `get_account_headroom` ranks the accounts by the room left in their tightest limit.
    - `get_usage` returns every limit.
-   - `list_alerts` stays empty until QuotaDial has alert rules.
+   - `list_alerts` returns the user's alert rules and what they told in the last week.
    - The first two take an optional `provider`, `claude` or `codex`.
 2. **The CLI**: `quotadial status --json`, the same report as `get_usage`. It works whether or not
    the QuotaDial daemon is running. It is the CLI's only command for this, so with the CLI, find
@@ -38,12 +38,16 @@ and ChatGPT at most every 2 minutes, so asking more often returns the same numbe
 ## The HTTP API
 
 The daemon listens on `127.0.0.1` only, on port 47115 unless it was started with `--port`. While it
-runs, `daemon.json` in QuotaDial's data folder holds the port it chose. Two read-only requests:
+runs, `daemon.json` in QuotaDial's data folder holds the port it chose. Three requests read:
 
 | Request | Answer |
 | --- | --- |
 | `GET /v1/status` | The usage report (see below) |
 | `GET /v1/headroom` | The accounts ranked by headroom (see below) |
+| `GET /v1/alerts` | The user's alert rules, and what they told in the last week |
+
+The API can also add, change and remove alert rules (`POST /v1/alerts`, `PATCH` and `DELETE`
+`/v1/alerts/<id>`). They are the user's: change them only when the user asks you to.
 
 Every request needs `Authorization: Bearer <token>`, with the token from the `token` file in
 QuotaDial's data folder:
@@ -71,7 +75,7 @@ Status codes:
 | 200 | The answer, as JSON |
 | 401 | The token is missing or wrong |
 | 403 | The `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` |
-| 404, 405 | Another path or method. The API has only the two `GET` requests above |
+| 404, 405 | Another path or method |
 
 A refused connection means the daemon is not running. Use `quotadial status --json` instead. Every
 error body is `{ "error": "..." }`.

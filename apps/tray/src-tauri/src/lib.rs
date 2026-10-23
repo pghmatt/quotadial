@@ -3,19 +3,19 @@
 //! twice. The tray shows the tightest window's share used, its menu and tooltip every account, and
 //! clicking it opens a popover beside it with every window, each number with its reset and age.
 
+mod alerts;
 mod feed;
 mod icon;
 mod meter;
-mod notify;
 mod settings;
 
 use std::path::PathBuf;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use quotadial_core::StatusReport;
-use quotadial_daemon::DataDir;
+use quotadial_core::{StatusReport, text};
+use quotadial_daemon::{AddError, DataDir, History};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -26,10 +26,10 @@ use tauri_plugin_notification::NotificationExt as _;
 use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::sync::watch;
 
+use crate::alerts::{TELL_WITHIN, Told};
 use crate::feed::{Role, Timing, Update};
-use crate::meter::{Meter, provider_name};
-use crate::notify::Sent;
-use crate::settings::{Settings, account_key};
+use crate::meter::Meter;
+use crate::settings::{Settings, account_key, carry_over};
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -59,10 +59,12 @@ struct AppState {
     /// When the popover last opened, and how.
     opened: Mutex<Option<(Instant, Opened)>>,
     settings: Mutex<Settings>,
-    /// The notifications already sent.
-    sent: Mutex<Sent>,
-    /// Where the settings and the record of sent notifications are kept, if the system names a
-    /// folder for them.
+    /// The daemon's history, which keeps the alert rules and their firings, when it can be opened.
+    history: Option<Arc<History>>,
+    /// The newest firing told as a notification.
+    told: Mutex<Told>,
+    /// Where the settings and the record of what was told are kept, if the system names a folder
+    /// for them.
     files: Option<Files>,
 }
 
@@ -80,7 +82,9 @@ enum Opened {
 
 struct Files {
     settings: PathBuf,
-    sent: PathBuf,
+    told: PathBuf,
+    /// Where M3 kept the notifications it sent, which the alert rules' firings replace (D-093).
+    sent_before: PathBuf,
 }
 
 #[derive(Default)]
@@ -114,11 +118,22 @@ impl AppState {
 struct SettingsView {
     /// Whether QuotaDial opens when the user logs in, as the system says.
     launch_at_login: bool,
-    notify_sign_in: bool,
-    notify_high: bool,
+    /// The alert rules, oldest first. They change through their own commands, not `set_settings`.
+    alerts: Vec<AlertChoice>,
     providers: Vec<ProviderChoice>,
     /// Every account QuotaDial knows now, with the name the user gave it.
     accounts: Vec<AccountChoice>,
+}
+
+/// An alert rule the user can turn on or off, or remove.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct AlertChoice {
+    id: i64,
+    /// The words it was written in.
+    written: String,
+    /// What QuotaDial read it as, such as "when any window reaches 80%".
+    read_as: String,
+    enabled: bool,
 }
 
 /// An account the user can name.
@@ -150,13 +165,22 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
         .clone();
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
-        notify_sign_in: settings.notify_sign_in,
-        notify_high: settings.notify_high,
+        alerts: state
+            .history
+            .iter()
+            .flat_map(|history| history.rules().unwrap_or_default())
+            .map(|rule| AlertChoice {
+                id: rule.id,
+                read_as: rule.rule.to_string(),
+                written: rule.written,
+                enabled: rule.enabled,
+            })
+            .collect(),
         providers: quotadial_providers::all()
             .iter()
             .map(|provider| ProviderChoice {
                 id: provider.id().to_owned(),
-                name: provider_name(provider.id()).to_owned(),
+                name: text::provider_name(provider.id()).to_owned(),
                 shown: settings.shows(provider.id()),
             })
             .collect(),
@@ -172,7 +196,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
                 AccountChoice {
                     label: format!(
                         "{} {}",
-                        provider_name(&snapshot.account.provider),
+                        text::provider_name(&snapshot.account.provider),
                         snapshot.account.display_name
                     ),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
@@ -218,8 +242,6 @@ fn set_settings(
         };
     }
     let settings = Settings {
-        notify_sign_in: view.notify_sign_in,
-        notify_high: view.notify_high,
         hidden_providers: view
             .providers
             .iter()
@@ -237,10 +259,70 @@ fn set_settings(
         .settings
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = settings;
-    // A notification just switched on speaks up about what is already true.
-    notify(&app);
     refresh(&app);
     Ok(self::settings(app.clone(), state))
+}
+
+/// Adds an alert rule written in plain words, and shows the settings with it.
+///
+/// # Errors
+///
+/// Why the rule was not added, such as the forms the grammar reads, for the popover to show.
+#[tauri::command]
+fn add_alert(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    rule: String,
+) -> Result<SettingsView, String> {
+    let history = state.history.as_ref().ok_or_else(no_history)?;
+    history
+        .add_rule(&rule, Utc::now())
+        .map_err(|error| match error {
+            AddError::Unread(message) => message,
+            AddError::History(error) => format!("QuotaDial could not keep the rule: {error}."),
+        })?;
+    Ok(self::settings(app.clone(), state))
+}
+
+/// Turns an alert rule on or off, and shows the settings with it.
+///
+/// # Errors
+///
+/// When the rule cannot be changed, for the popover to show.
+#[tauri::command]
+fn set_alert(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    enabled: bool,
+) -> Result<SettingsView, String> {
+    let history = state.history.as_ref().ok_or_else(no_history)?;
+    history
+        .set_rule_enabled(id, enabled)
+        .map_err(|error| format!("QuotaDial could not change the rule: {error}."))?;
+    Ok(self::settings(app.clone(), state))
+}
+
+/// Removes an alert rule, and shows the settings without it.
+///
+/// # Errors
+///
+/// When the rule cannot be removed, for the popover to show.
+#[tauri::command]
+fn remove_alert(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<SettingsView, String> {
+    let history = state.history.as_ref().ok_or_else(no_history)?;
+    history
+        .remove_rule(id)
+        .map_err(|error| format!("QuotaDial could not remove the rule: {error}."))?;
+    Ok(self::settings(app.clone(), state))
+}
+
+fn no_history() -> String {
+    "QuotaDial could not open its history, where the alert rules are kept.".to_owned()
 }
 
 /// The popover asks for the meter when it opens; after that it hears the `meter` event.
@@ -299,7 +381,10 @@ pub fn run() {
             hide,
             quit,
             settings,
-            set_settings
+            set_settings,
+            add_alert,
+            set_alert,
+            remove_alert
         ])
         .on_window_event(|window, event| match event {
             // Closing the popover hides it; the app lives in the tray until it is quit.
@@ -334,28 +419,41 @@ pub fn run() {
             let (stopped_tx, stopped) = watch::channel(false);
             let files = app.path().app_config_dir().ok().map(|folder| Files {
                 settings: folder.join("settings.json"),
-                sent: folder.join("notified.json"),
+                told: folder.join("alerts.json"),
+                sent_before: folder.join("notified.json"),
             });
+            let settings = files
+                .as_ref()
+                .map(|files| Settings::load(&files.settings))
+                .unwrap_or_default();
+            let history = open_history();
+            let mut told = Told::default();
+            if let (Some(files), Some(history)) = (&files, &history) {
+                if carry_over(&files.settings, history) {
+                    // Saved without M3's switches, so they are carried over once.
+                    let _ = settings.save(&files.settings);
+                }
+                // M3's record of what it told is no longer read: the rules' first check, quiet,
+                // records what already holds.
+                let _ = std::fs::remove_file(&files.sent_before);
+                // On a first start nothing told before is told again.
+                told = Told::load(&files.told).unwrap_or(Told {
+                    last: history.last_firing().unwrap_or_default(),
+                });
+            }
             app.manage(AppState {
                 known: Mutex::default(),
                 quit,
                 stopped,
                 hidden_at: Mutex::default(),
                 opened: Mutex::default(),
-                settings: Mutex::new(
-                    files
-                        .as_ref()
-                        .map(|files| Settings::load(&files.settings))
-                        .unwrap_or_default(),
-                ),
-                sent: Mutex::new(
-                    files
-                        .as_ref()
-                        .map(|files| Sent::load(&files.sent))
-                        .unwrap_or_default(),
-                ),
+                settings: Mutex::new(settings),
+                history,
+                told: Mutex::new(told),
                 files,
             });
+            // What a rule told just before the app last stopped, and the app had not yet shown.
+            tell(app.handle());
             build_tray(app.handle())?;
             start_feed(app.handle().clone(), quitting, stopped_tx);
             let handle = app.handle().clone();
@@ -403,6 +501,14 @@ fn stop_before_exit(app: &AppHandle) {
     });
 }
 
+/// The daemon's history, opened alongside the daemon the app runs or follows, for the alert rules
+/// and their firings.
+fn open_history() -> Option<Arc<History>> {
+    let dir = DataDir::from_env()?;
+    dir.create().ok()?;
+    History::open(&dir.history()).ok().map(Arc::new)
+}
+
 /// Starts the feed, which runs or follows the daemon until the app quits, then exits the app.
 fn start_feed(app: AppHandle, quitting: watch::Receiver<bool>, stopped: watch::Sender<bool>) {
     let Some(dir) = DataDir::from_env() else {
@@ -434,7 +540,6 @@ fn start_feed(app: AppHandle, quitting: watch::Receiver<bool>, stopped: watch::S
 
 /// Keeps an update and shows it.
 fn receive(app: &AppHandle, update: Update) {
-    let new_numbers = matches!(update, Update::Report(_));
     {
         let state = app.state::<AppState>();
         let mut known = state.known.lock().unwrap_or_else(PoisonError::into_inner);
@@ -446,24 +551,25 @@ fn receive(app: &AppHandle, update: Update) {
             // The last numbers stay on show, with what is wrong.
             Update::Problem(problem) => known.problem = Some(problem),
             Update::Role(role) => known.role = Some(role),
+            Update::Fired => {
+                drop(known);
+                tell(app);
+                return;
+            }
         }
-    }
-    if new_numbers {
-        notify(app);
     }
     refresh(app);
 }
 
-/// Sends the notifications the latest report calls for, and keeps the record of what was sent.
-fn notify(app: &AppHandle) {
+/// Tells, as notifications, the firings the history holds that the app has not told yet, and keeps
+/// the record of the newest one told.
+fn tell(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let Some(report) = state
-        .known
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .report
-        .clone()
-    else {
+    let Some(history) = &state.history else {
+        return;
+    };
+    let mut told = state.told.lock().unwrap_or_else(PoisonError::into_inner);
+    let Ok(firings) = history.firings(told.last, Utc::now() - TELL_WITHIN) else {
         return;
     };
     let settings = state
@@ -471,9 +577,7 @@ fn notify(app: &AppHandle) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    let mut sent = state.sent.lock().unwrap_or_else(PoisonError::into_inner);
-    let before = sent.clone();
-    let notices = sent.check(&report, &settings, Utc::now());
+    let (notices, now_told) = told.tell(&firings, &settings);
     for notice in notices {
         // Best effort: a notification the system refuses still leaves the number in the tray.
         let _ = app
@@ -483,11 +587,12 @@ fn notify(app: &AppHandle) {
             .body(notice.body)
             .show();
     }
-    if *sent != before
-        && let Some(files) = &state.files
-    {
-        // A record that cannot be kept only means a notice may come again after a restart.
-        let _ = sent.save(&files.sent);
+    if now_told != *told {
+        *told = now_told;
+        if let Some(files) = &state.files {
+            // A record that cannot be kept only means a notice may come again after a restart.
+            let _ = told.save(&files.told);
+        }
     }
 }
 

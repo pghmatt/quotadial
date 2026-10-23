@@ -35,8 +35,9 @@ deb, the AppImage and the CLI for four platforms; publishing it is Matt's click.
 
 M4, alerts and history: the manager approved the plan in #40 on 2026-10-23, with six decisions and
 two additions (D-090, D-091). Its PRs, in order:
-- PR 1, the pace of every window (P-016, D-092), in review;
-- PR 2, alert rules, with rules written in plain language and the one `tier()` check;
+- PR 1, the pace of every window (P-016, D-092), merged (PR #43);
+- PR 2, alert rules written in plain words, and the one `tier()` check (D-093), in review;
+- PR 2b, alerts sent to a webhook and Slack;
 - PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view;
 - PR 4, the providers' status pages and an incident badge;
 - PR 5, the week's API-equivalent cost, from a bundled price table.
@@ -95,7 +96,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 
 | Step | Status | Notes |
 | --- | --- | --- |
-| PR 1: pace | In review (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
+| PR 1: pace | Done (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
+| PR 2: alert rules | In review (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
 
 ## Kickoff
 
@@ -281,6 +283,60 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M4 PR 2: alert rules (D-093)
+
+- **Core** (`crates/core/src/alert.rs`, `tier.rs`):
+  - `Rule::parse` reads plain words with a hand-written scanner, no new dependency. A rule names
+    at most one share, time, window and provider.
+  - `Rule::occurrences(snapshot, last_reset, now)` says where a condition holds, with the instance
+    that makes it once. `Rule::message` words the notification, and `Display` says what a rule was
+    read as.
+  - `tier()` and `ProFeature::AlertRules` gate running out and a time before a reset.
+  - `text::provider_name` moved here from the app. `text::pace` takes the reset time, and
+    `text::percent` writes a share without a trailing `.0`.
+- **History, schema 3** (`crates/daemon/src/alerts.rs`):
+  - `rules` (written, rule JSON, on, quiet) and `firings` (rule, account, label, scope model,
+    instance, share, reset, title, body, quiet, time), pruned with the rest after 30 days.
+  - `check(report, now)` records each occurrence not recorded before (two instances within 10
+    minutes are one) and returns the firings to tell.
+  - A quiet rule's first check records without telling. A rule that is off at the upgrade ends
+    its quiet start without recording.
+  - `last_reset` reads the window's reading before the current one.
+  - `History::open` now takes the write lock (an immediate transaction) before reading the
+    version.
+- **Poller:** checks after every round with polls and every minute (`ALERTS_EVERY`), and tells
+  consumers through `Latest::subscribe_firings`.
+- **API:** `GET` and `POST /v1/alerts` and `PATCH` and `DELETE /v1/alerts/{id}`. JSON errors name
+  the fix, and changes need the token like reads. `serve` takes the history.
+- **CLI:** `quotadial alerts [list [--json] | add <words> | remove | on | off]`, on the history
+  directly. `add` takes the words with or without quotes and says what it read.
+- **MCP:** `list_alerts` returns the rules and the last week's firings. `serve` takes a second
+  source for them.
+- **The app:**
+  - `notify.rs` (M3's `Sent`) is gone. `alerts.rs` tells the firings newer than `alerts.json`'s
+    last told, within 15 minutes, with account names and without hidden providers.
+  - The feed sends `Update::Fired` from the poller, or after each refresh while following.
+  - Settings lists the rules (on or off, remove, read as) with a field to add one.
+  - `settings::carry_over` turns off the starting rule for an M3 switch that was off, once, and
+    `notified.json` is removed.
+- **Tests:** the grammar (the examples, a dozen wordings, the refusals and limits, JSON, what a
+  rule reads as), each condition, the wording, `tier()`; the store (once per window, a drifting
+  reset, clock jumps, a 12-hour sleep across a reset, a restart before telling, the starting
+  rules new and quiet, a rule off at the upgrade, add, off, on and remove, pruning, concurrent
+  upgrades); the poller telling consumers; the API's endpoints; the CLI binary; `list_alerts`;
+  the app's telling, carry-over and feed.
+- **Live check on Matt's Mac**, with a daemon from this branch on a copy of the data folder (schema
+  2, from the app updated to PR #43). The floor state is shared, so no provider was asked early.
+  - `quotadial alerts add tell me when a window resets` upgraded the copy to schema 3 and added
+    rule 3.
+  - The first round recorded what M3 had already told, quietly: the two weekly windows at 99% and
+    100%, and the two expired sign-ins. `quotadial alerts` showed nothing told.
+  - Account …ddf5's session reset at 22:29:59 while the daemon ran. It told "Claude Session has
+    reset" once, at 22:33:03, from its first reading after the reset, and the checks every
+    minute after added nothing.
+  - The app, built under another name on the copy, listed the three rules in Settings with their
+    boxes, Remove buttons, "Read as" lines and the field to add one.
 
 ### M4 PR 1: pace (P-016, D-092)
 

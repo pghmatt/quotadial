@@ -43,9 +43,9 @@ Nothing is named `usage`, the PRD's old working name.
 
 | Path | Contents |
 | --- | --- |
-| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, and the fit that gives a window its pace |
+| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, and the one `tier()` check for Pro features |
 | `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
-| `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots and window readings, the single-instance lock |
+| `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
 | `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app |

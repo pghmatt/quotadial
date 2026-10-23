@@ -4,12 +4,13 @@ import { useEffect, useState } from "preact/hooks";
 import type { Settings } from "./meter";
 
 /**
- * The settings panel: opening at login, the two notifications, which providers to show, and the
- * names given to accounts.
+ * The settings panel: opening at login, the alert rules, which providers to show, and the names
+ * given to accounts.
  */
 export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     void invoke<Settings>("settings").then(setSettings);
@@ -32,17 +33,26 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
   }
 
   // Each change applies at once; the app answers with the settings as they now are.
-  const change = (next: Settings) => {
-    setSettings(next);
-    invoke<Settings>("set_settings", { view: next })
+  const apply = (saving: Promise<Settings>, done?: () => void) => {
+    saving
       .then((saved) => {
         setSettings(saved);
         setProblem(null);
+        done?.();
       })
       .catch((error: unknown) => {
         setProblem(String(error));
         void invoke<Settings>("settings").then(setSettings);
       });
+  };
+  const change = (next: Settings) => {
+    setSettings(next);
+    apply(invoke<Settings>("set_settings", { view: next }));
+  };
+  const addAlert = () => {
+    if (draft.trim()) {
+      apply(invoke<Settings>("add_alert", { rule: draft }), () => setDraft(""));
+    }
   };
 
   return (
@@ -59,27 +69,53 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
         Open QuotaDial when I log in
       </label>
       <fieldset>
-        <legend>Notify me when</legend>
-        <label class="choice">
+        <legend>Alerts</legend>
+        {settings.alerts.map((alert) => (
+          <div class="alert-choice" key={alert.id}>
+            <label class="choice">
+              <input
+                type="checkbox"
+                checked={alert.enabled}
+                onChange={(event) =>
+                  apply(
+                    invoke<Settings>("set_alert", {
+                      id: alert.id,
+                      enabled: event.currentTarget.checked,
+                    }),
+                  )
+                }
+              />
+              {alert.written}
+            </label>
+            <button
+              type="button"
+              class="remove"
+              aria-label={`Remove the alert "${alert.written}"`}
+              onClick={() => apply(invoke<Settings>("remove_alert", { id: alert.id }))}
+            >
+              Remove
+            </button>
+            <p class="read-as">Read as: {alert.read_as}</p>
+          </div>
+        ))}
+        <form
+          class="add-alert"
+          onSubmit={(event) => {
+            event.preventDefault();
+            addAlert();
+          }}
+        >
           <input
-            type="checkbox"
-            checked={settings.notify_sign_in}
-            onChange={(event) =>
-              change({ ...settings, notify_sign_in: event.currentTarget.checked })
-            }
+            type="text"
+            value={draft}
+            placeholder="warn me at 80%"
+            aria-label="A new alert, in plain words"
+            onInput={(event) => setDraft(event.currentTarget.value)}
           />
-          an account needs signing in again
-        </label>
-        <label class="choice">
-          <input
-            type="checkbox"
-            checked={settings.notify_high}
-            onChange={(event) =>
-              change({ ...settings, notify_high: event.currentTarget.checked })
-            }
-          />
-          a limit passes 90%
-        </label>
+          <button type="submit" disabled={!draft.trim()}>
+            Add
+          </button>
+        </form>
       </fieldset>
       <fieldset>
         <legend>Show</legend>
