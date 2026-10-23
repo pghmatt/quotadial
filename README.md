@@ -6,7 +6,8 @@ already store, asks each provider for your current usage, and puts the answer in
 system tray, in your terminal, behind a local HTTP API, and in front of your agents through an MCP
 server and a SKILL.md. It runs on macOS, Windows and Linux.
 
-**Status: pre-alpha.** `quotadial status` shows Claude and ChatGPT/Codex usage; `watch` is next.
+**Status: pre-alpha.** `quotadial status` and `quotadial watch` show Claude and ChatGPT/Codex
+usage; see [docs/CLI.md](docs/CLI.md) for the output and exit codes.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the
 product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 
@@ -36,6 +37,7 @@ cd quotadial
 cargo build --workspace --release
 ./target/release/quotadial status          # or the short alias: qd status
 ./target/release/quotadial status --json
+./target/release/quotadial watch           # refreshes every minute; Ctrl-C to stop
 ```
 
 Run the checks CI runs:

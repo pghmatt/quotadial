@@ -6,8 +6,8 @@ Progress and implementation notes. Update this file with every change.
 
 The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10, then the
 ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branch off `main`,
-self-review, live check, PR, merge when CI is green. #10 is done (PR #16), and so is #2 (PR #17),
-with the Codex halves of #4 and #5. `watch` (#3) is next. P-001 to P-009 are accepted and in the PRD,
+self-review, live check, PR, merge when CI is green. #10 is done (PR #16), #2 (PR #17, with the
+Codex halves of #4 and #5) and #3 (PR #18). #11 to #15 are next. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -17,16 +17,16 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | --- | --- | --- |
 | #1 Claude provider | Done (PR #8) | Reads Claude Code's sign-in, fetches `/api/oauth/usage`, 5-minute floor and 429 backoff across processes; verified live on Matt's Mac |
 | #2 Codex provider | Done (PR #17) | Reads `auth.json`, fetches `wham/usage`, windows by length, session-log fallback, 2-minute floor through the shared gate; verified live on Matt's Mac |
-| #3 CLI `status`, `--json`, `watch` | Partly done | `status` and `status --json` work; `watch` to do |
+| #3 CLI `status`, `--json`, `watch` | Done (PR #18) | Relative times, tightest window first, `watch` and `watch --json`, errors that name the fix; output and exit codes in `docs/CLI.md` (D-047) |
 | #4 Redacted fixtures | Nearly done (PR #9, PR #17) | Claude: live usage and redacted profile (D-033). Codex: redacted live Pro response and session log (D-039, D-042). A test fails if a committed fixture holds a token-like string or an email outside `example.com`. Left: a Plus capture (there is no Plus account to capture, so its shape stays synthetic) and Claude's 429 and 401 (not provoked on purpose) |
 | #5 Live endpoint check | Done but one check (PR #9, PR #17) | Claude (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011); a 429 was not provoked on purpose. Codex (D-039): headers, the response shape (P-003 confirmed, P-013), Pro's single weekly window, the 401 body |
 | #7 Signed remote schema file | Deferred (D-035) | Split out of #1 (D-025) |
 | #10 Review fixes from PR #8 | Done (PR #16) | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
-| #11 `spawn_blocking` for version detection and Keychain find | To do | After #2 and #3 |
-| #12 No `claude` spawn for the User-Agent version | To do | After #2 and #3 |
-| #13 Surface unknown buckets without a known prefix | To do | After #2 and #3; coordinate with #7 |
-| #14 Test gaps: two orgs, bounded profile requests, no token in the cache | To do | After #2 and #3 |
-| #15 Zeroize secrets, fixed `JoinError` message | To do | After #2 and #3 |
+| #11 `spawn_blocking` for version detection and Keychain find | To do | Next |
+| #12 No `claude` spawn for the User-Agent version | To do | |
+| #13 Surface unknown buckets without a known prefix | To do | Coordinate with #7 |
+| #14 Test gaps: two orgs, bounded profile requests, no token in the cache | To do | |
+| #15 Zeroize secrets, fixed `JoinError` message | To do | |
 
 ## Kickoff
 
@@ -212,6 +212,27 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M1 #3: CLI `status`, `--json` and `watch`
+
+- Text (D-047): every window as "Session: 42% used, resets in 2 h 10 min, from the API 4 min ago",
+  the tightest first (highest share used, then soonest reset), and "reset 3 min ago" when the
+  numbers predate a reset. JSON is unchanged and keeps absolute UTC times.
+- `watch` refreshes every minute and relies on each provider's floor (5 minutes for Anthropic, 2
+  for ChatGPT), so most refreshes show cached numbers with a growing age. It clears the terminal
+  only when stdout is one, ends each refresh with when it was updated and how often each provider
+  is asked, and stops with Ctrl-C or when its reader goes away. `watch --json` prints one compact
+  report per line.
+- Every error names the fix or when QuotaDial tries again: a failed request with nothing cached
+  gives the next request time, an unreachable provider says to check the connection, a locked or
+  unanswered Keychain says to unlock it or answer the prompt, a damaged sign-in says to run
+  `claude` or `codex login`, unreadable files and cache folders say what to check.
+- `docs/CLI.md` documents the commands, the text and JSON output, the polling limits and the exit
+  codes, for agents and for the M2 SKILL.md.
+- Live check, 2026-10-23 12:28Z: `quotadial status` showed both accounts with relative times, the
+  tightest window first; one `watch` refresh replayed both from the cache and printed its footer.
+- Test count: 227 (core 19, poll 34, Claude 99 plus the opt-in Keychain test, Codex 53, CLI unit
+  16, CLI binaries 6, including `watch` and `watch --json` run for real).
 
 ### M1 #2: ChatGPT/Codex provider
 
