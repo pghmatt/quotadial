@@ -23,8 +23,9 @@ QuotaDial's GitHub repository.
 On macOS 14 and earlier you can instead Control-click QuotaDial in Applications, choose **Open**,
 then **Open** again.
 
-QuotaDial shows a dial in the menu bar, with the share used beside it. Click the dial to open its
-window. QuotaDial has no Dock icon; quit it from the menu bar.
+QuotaDial shows a dial in the menu bar, with the share used beside it. Click the dial to see every
+account and limit; right-click it, or click with two fingers, for the menu. QuotaDial has no Dock
+icon: quit it from the menu or from the bottom of the popover.
 
 ### Windows
 
@@ -33,7 +34,8 @@ window. QuotaDial has no Dock icon; quit it from the menu bar.
 2. If Windows says it **protected your PC**, choose **More info**, then **Run anyway**.
 
 QuotaDial's number appears in the notification area. If Windows tucks it under the **^** arrow,
-drag it onto the taskbar to keep it in view.
+drag it onto the taskbar to keep it in view. Click it to see every account and limit; right-click
+it for the menu.
 
 ### Linux
 

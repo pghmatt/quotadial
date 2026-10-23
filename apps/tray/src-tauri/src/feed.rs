@@ -18,6 +18,17 @@ pub enum Update {
     Report(StatusReport),
     /// No numbers can be had right now: why, naming the fix.
     Problem(String),
+    /// Where the numbers come from now.
+    Role(Role),
+}
+
+/// Whether the app runs the daemon or follows one already running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// The app runs the daemon, with its API on this port.
+    Running { port: u16 },
+    /// The app follows a daemon started with `quotadial daemon`.
+    Following,
 }
 
 /// How often things are tried again.
@@ -86,6 +97,7 @@ async fn host_until_quit(
     send: &impl Fn(Update),
     quit: &mut watch::Receiver<bool>,
 ) -> bool {
+    send(Update::Role(Role::Running { port: host.port() }));
     let latest = host.latest();
     let mut changes = latest.subscribe();
     send(Update::Report(latest.report()));
@@ -114,6 +126,7 @@ async fn follow(
     timing: Timing,
     quit: &mut watch::Receiver<bool>,
 ) -> bool {
+    send(Update::Role(Role::Following));
     loop {
         match client::status(dir).await {
             Ok(Some(report)) => send(Update::Report(report)),
@@ -233,8 +246,20 @@ mod tests {
                         .first()
                         .and_then(|snapshot| snapshot.windows.first())
                         .map(|window| window.used_pct),
-                    Update::Problem(_) => None,
+                    Update::Problem(_) | Update::Role(_) => None,
                 })
+        }
+
+        fn roles(&self) -> Vec<Role> {
+            self.0
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter_map(|update| match update {
+                    Update::Role(role) => Some(*role),
+                    _ => None,
+                })
+                .collect()
         }
 
         async fn until(&self, used_pct: f64) {
@@ -268,6 +293,9 @@ mod tests {
         ));
 
         received.until(40.0).await;
+        assert!(received.roles().contains(&Role::Running {
+            port: Runtime::read(&dir).expect("announced").port
+        }));
         assert!(Instance::is_running(&dir), "the app holds the daemon lock");
         assert!(Runtime::read(&dir).is_some(), "and says where its API is");
         assert!(
@@ -302,6 +330,7 @@ mod tests {
         ));
 
         received.until(40.0).await;
+        assert_eq!(received.roles(), [Role::Following]);
 
         stop_standalone.send(()).expect("running");
         standalone.await.expect("joins").expect("stops cleanly");
