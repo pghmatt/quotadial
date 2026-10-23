@@ -9,7 +9,9 @@
 //! ```
 //!
 //! Field names and enum values serialize exactly as written there. Fields marked `?` are optional
-//! and are left out of JSON when absent.
+//! and are left out of JSON when absent. `Account.plan`, `Account.org` and `Window.resets_at` are
+//! optional too: providers do not always report them (proposals P-001 and P-002 in
+//! `docs/DECISIONS.md`, approved by Matt).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -26,10 +28,12 @@ pub struct Account {
     pub account_id: String,
     /// What to call the account, usually its email address.
     pub display_name: String,
-    /// The subscription plan, as the provider names it.
-    pub plan: String,
-    /// The organization or workspace the account belongs to.
-    pub org: String,
+    /// The subscription plan, as the provider names it, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    /// The organization or workspace the account belongs to, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub org: Option<String>,
 }
 
 /// One usage limit with its own reset, such as a five-hour session or a weekly cap.
@@ -41,8 +45,9 @@ pub struct Window {
     pub label: String,
     /// How much of the limit is used, as a percentage of the limit.
     pub used_pct: f64,
-    /// When the window resets.
-    pub resets_at: DateTime<Utc>,
+    /// When the window resets, when the provider says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resets_at: Option<DateTime<Utc>>,
     /// The length of the window in seconds, for example 18000 for five hours.
     pub window_seconds: u64,
     /// The model this limit applies to, for per-model windows.
@@ -105,11 +110,36 @@ impl Snapshot {
     /// `reason` is one sentence saying why, shown in place of a misleading 0%.
     #[must_use]
     pub fn unsupported(account: Account, reason: impl Into<String>) -> Self {
+        Self::without_windows(account, Status::Unsupported, reason)
+    }
+
+    /// A snapshot with no windows for an account whose stored login is missing, expired or
+    /// rejected.
+    ///
+    /// `reason` is one sentence that names the fix, such as running the official CLI to sign in.
+    #[must_use]
+    pub fn auth_required(account: Account, reason: impl Into<String>) -> Self {
+        Self::without_windows(account, Status::AuthRequired, reason)
+    }
+
+    /// The same snapshot served again from QuotaDial's own store: every window that came from the
+    /// API now says it came from the cache. `fetched_at` keeps the time of the original fetch.
+    #[must_use]
+    pub fn served_from_cache(mut self) -> Self {
+        for window in &mut self.windows {
+            if window.source == Source::Api {
+                window.source = Source::Cache;
+            }
+        }
+        self
+    }
+
+    fn without_windows(account: Account, status: Status, reason: impl Into<String>) -> Self {
         Self {
             account,
             windows: Vec::new(),
             extra_usage: None,
-            status: Status::Unsupported,
+            status,
             error: Some(reason.into()),
         }
     }
@@ -168,8 +198,8 @@ mod tests {
             provider: "claude".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
-            plan: "max".into(),
-            org: "00000000-0000-0000-0000-000000000002".into(),
+            plan: Some("max".into()),
+            org: Some("00000000-0000-0000-0000-000000000002".into()),
         }
     }
 
@@ -178,7 +208,7 @@ mod tests {
             kind,
             label: "Session".into(),
             used_pct: 12.5,
-            resets_at: ts("2099-01-01T05:00:00Z"),
+            resets_at: Some(ts("2099-01-01T05:00:00Z")),
             window_seconds: 18_000,
             scope_model: scope_model.map(Into::into),
             source,
@@ -283,8 +313,15 @@ mod tests {
     #[test]
     fn optional_fields_are_left_out_when_absent() {
         let snapshot = Snapshot {
-            account: account(),
-            windows: vec![window(WindowKind::Session, None, Source::Cache)],
+            account: Account {
+                plan: None,
+                org: None,
+                ..account()
+            },
+            windows: vec![Window {
+                resets_at: None,
+                ..window(WindowKind::Session, None, Source::Cache)
+            }],
             extra_usage: None,
             status: Status::Ok,
             error: None,
@@ -292,7 +329,47 @@ mod tests {
         let value = serde_json::to_value(&snapshot).expect("serializes");
 
         assert_eq!(keys(&value), ["account", "status", "windows"]);
-        assert!(value["windows"][0].get("scope_model").is_none());
+        assert_eq!(
+            keys(&value["account"]),
+            ["account_id", "display_name", "provider"]
+        );
+        assert_eq!(
+            keys(&value["windows"][0]),
+            [
+                "fetched_at",
+                "kind",
+                "label",
+                "source",
+                "used_pct",
+                "window_seconds"
+            ]
+        );
+    }
+
+    #[test]
+    fn absent_optional_fields_read_back_as_none() {
+        let value = json!({
+            "account": {
+                "provider": "claude",
+                "account_id": "00000000-0000-0000-0000-000000000001",
+                "display_name": "user@example.com"
+            },
+            "windows": [{
+                "kind": "model_weekly",
+                "label": "Weekly (Opus)",
+                "used_pct": 0.0,
+                "window_seconds": 604_800,
+                "source": "api",
+                "fetched_at": "2099-01-01T00:00:00Z"
+            }],
+            "status": "ok"
+        });
+        let snapshot: Snapshot = serde_json::from_value(value).expect("deserializes");
+
+        assert_eq!(snapshot.account.plan, None);
+        assert_eq!(snapshot.account.org, None);
+        assert_eq!(snapshot.windows[0].resets_at, None);
+        assert_eq!(snapshot.windows[0].scope_model, None);
     }
 
     #[test]
@@ -334,5 +411,38 @@ mod tests {
             snapshot.error.as_deref(),
             Some("Free plans report no usage limits.")
         );
+    }
+
+    #[test]
+    fn auth_required_snapshot_names_the_fix() {
+        let snapshot = Snapshot::auth_required(account(), "Run `claude` to sign in again.");
+
+        assert_eq!(snapshot.status, Status::AuthRequired);
+        assert!(snapshot.windows.is_empty());
+        assert!(snapshot.extra_usage.is_none());
+        assert_eq!(
+            snapshot.error.as_deref(),
+            Some("Run `claude` to sign in again.")
+        );
+    }
+
+    #[test]
+    fn served_from_cache_relabels_api_windows_and_keeps_their_age() {
+        let snapshot = Snapshot {
+            account: account(),
+            windows: vec![
+                window(WindowKind::Session, None, Source::Api),
+                window(WindowKind::ModelWeekly, Some("opus"), Source::LocalLog),
+            ],
+            extra_usage: None,
+            status: Status::Ok,
+            error: None,
+        };
+        let cached = snapshot.clone().served_from_cache();
+
+        assert_eq!(cached.windows[0].source, Source::Cache);
+        assert_eq!(cached.windows[0].fetched_at, snapshot.windows[0].fetched_at);
+        assert_eq!(cached.windows[1].source, Source::LocalLog);
+        assert_eq!(cached.status, Status::Ok);
     }
 }

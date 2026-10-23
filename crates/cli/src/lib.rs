@@ -6,9 +6,9 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use chrono::SecondsFormat;
+use chrono::{DateTime, SecondsFormat, Utc};
 use clap::{Parser, Subcommand};
-use quotadial_core::{Provider, Snapshot, Source, Status};
+use quotadial_core::{ExtraUsage, Provider, Snapshot, Source, Status};
 use quotadial_provider_claude::ClaudeProvider;
 use quotadial_provider_codex::CodexProvider;
 use serde::Serialize;
@@ -141,24 +141,27 @@ fn write_text(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
     }
     for snapshot in &report.snapshots {
         let account = &snapshot.account;
-        writeln!(
-            out,
-            "{} {} ({}): {}",
-            account.provider,
-            account.display_name,
-            account.plan,
-            status_label(snapshot.status)
-        )?;
+        write!(out, "{} {}", account.provider, account.display_name)?;
+        if let Some(plan) = &account.plan {
+            write!(out, " ({plan})")?;
+        }
+        writeln!(out, ": {}", status_label(snapshot.status))?;
         for window in &snapshot.windows {
+            let resets = window.resets_at.map_or_else(
+                || "no reset time reported".to_owned(),
+                |resets_at| format!("resets {}", timestamp(resets_at)),
+            );
             writeln!(
                 out,
-                "  {}: {:.0}% used, resets {}, from {} at {}",
+                "  {}: {:.0}% used, {resets}, from {} at {}",
                 window.label,
                 window.used_pct,
-                window.resets_at.to_rfc3339_opts(SecondsFormat::Secs, true),
                 source_label(window.source),
-                window.fetched_at.to_rfc3339_opts(SecondsFormat::Secs, true),
+                timestamp(window.fetched_at),
             )?;
+        }
+        if let Some(extra) = &snapshot.extra_usage {
+            writeln!(out, "  Extra usage: {}", extra_usage_text(extra))?;
         }
         if let Some(error) = &snapshot.error {
             writeln!(out, "  {error}")?;
@@ -168,6 +171,26 @@ fn write_text(report: &StatusReport, out: &mut impl Write) -> io::Result<()> {
         writeln!(out, "error: {}", error.message)?;
     }
     Ok(())
+}
+
+fn timestamp(at: DateTime<Utc>) -> String {
+    at.to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+/// For example `on, 12.50 of 50.00 USD used (25%)`, or `off`.
+fn extra_usage_text(extra: &ExtraUsage) -> String {
+    if !extra.enabled {
+        return "off".to_owned();
+    }
+    let mut text = "on".to_owned();
+    if let (Some(used), Some(limit)) = (extra.used, extra.limit) {
+        let currency = extra.currency.as_deref().unwrap_or("USD");
+        text.push_str(&format!(", {used:.2} of {limit:.2} {currency} used"));
+    }
+    if let Some(used_pct) = extra.used_pct {
+        text.push_str(&format!(" ({used_pct:.0}%)"));
+    }
+    text
 }
 
 fn status_label(status: Status) -> &'static str {
@@ -253,8 +276,8 @@ mod tests {
             provider: "scripted".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
-            plan: "max".into(),
-            org: "00000000-0000-0000-0000-000000000002".into(),
+            plan: Some("max".into()),
+            org: Some("00000000-0000-0000-0000-000000000002".into()),
         }
     }
 
@@ -265,7 +288,7 @@ mod tests {
                 kind: WindowKind::Session,
                 label: "Session".into(),
                 used_pct: 12.4,
-                resets_at: ts("2099-01-01T05:00:00Z"),
+                resets_at: Some(ts("2099-01-01T05:00:00Z")),
                 window_seconds: 18_000,
                 scope_model: None,
                 source,
@@ -315,6 +338,61 @@ mod tests {
             "scripted user@example.com (max): ok\n  Session: 12% used, resets \
              2099-01-01T05:00:00Z, from the API at 2099-01-01T00:00:00Z\n"
         );
+    }
+
+    #[test]
+    fn text_leaves_out_what_the_provider_did_not_report() {
+        let mut snapshot = snapshot(account(), Source::Cache);
+        snapshot.account.plan = None;
+        snapshot.windows[0].resets_at = None;
+        let report = StatusReport {
+            snapshots: vec![snapshot],
+            errors: Vec::new(),
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "scripted user@example.com: ok\n  Session: 12% used, no reset time reported, from \
+             cache at 2099-01-01T00:00:00Z\n"
+        );
+    }
+
+    #[test]
+    fn text_shows_extra_usage_and_the_reason_for_a_non_ok_status() {
+        let mut snapshot = snapshot(account(), Source::Cache);
+        snapshot.status = Status::RateLimited;
+        snapshot.extra_usage = Some(ExtraUsage {
+            enabled: true,
+            used_pct: Some(25.0),
+            used: Some(12.5),
+            limit: Some(50.0),
+            currency: Some("USD".into()),
+        });
+        snapshot.error = Some("Anthropic is rate-limiting usage requests.".into());
+        let report = StatusReport {
+            snapshots: vec![snapshot],
+            errors: Vec::new(),
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "scripted user@example.com (max): rate limited\n  Session: 12% used, resets \
+             2099-01-01T05:00:00Z, from cache at 2099-01-01T00:00:00Z\n  Extra usage: on, 12.50 \
+             of 50.00 USD used (25%)\n  Anthropic is rate-limiting usage requests.\n"
+        );
+    }
+
+    #[test]
+    fn extra_usage_that_is_off_says_so() {
+        let extra = ExtraUsage {
+            enabled: false,
+            used_pct: None,
+            used: None,
+            limit: None,
+            currency: None,
+        };
+
+        assert_eq!(extra_usage_text(&extra), "off");
     }
 
     #[tokio::test]
