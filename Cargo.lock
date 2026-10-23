@@ -1203,9 +1203,15 @@ name = "quotadial-provider-codex"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
+ "chrono",
  "quotadial-core",
+ "quotadial-poll",
+ "reqwest",
  "serde_json",
+ "tempfile",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]
