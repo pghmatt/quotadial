@@ -19,6 +19,8 @@ and a thin CLI.
   `docs/PRD.md` is ever tracked or the public copy contains private content.
 - Manager: Claude (claude.ai session) reviews through the GitHub repo and edits the PRD. Builder:
   the Codus brain. The builder never edits the PRD; it proposes changes in `docs/DECISIONS.md`.
+- The manager leaves instructions in GitHub issues, PR reviews and comments. Check them at the
+  start of every turn, and read every review on a PR before merging it.
 - `docs/DECISIONS.md` records every choice the PRD left open and every proposed PRD change.
 - `docs/TASK_TRACKER.md` records progress and implementation notes. Update it with every change.
 - CodexBar (MIT, Peter Steinberger, https://github.com/steipete/CodexBar) is the reference
@@ -65,6 +67,8 @@ Nothing is named `usage`, the PRD's old working name.
   CLIs store. Refreshing or re-authenticating is the CLI's job.
 - Never print, log or commit tokens, cookies or API keys. That includes error messages, `Debug`
   output, test snapshots and fixtures. Redact before a value leaves the function that read it.
+  Text from outside, such as a server's error message, goes through
+  `quotadial_core::redact_secrets` before it reaches a `Snapshot`, and the CLI applies it again.
 - Unredacted captures live under `fixtures/**/raw/`, which is gitignored. Only redacted or
   synthetic fixtures are committed. See `fixtures/README.md`.
 - Poll Anthropic usage endpoints no more than once every 5 minutes per account. Enforce the floor in
@@ -72,7 +76,8 @@ Nothing is named `usage`, the PRD's old working name.
 - QuotaDial's own cache lives in the OS cache directory under `quotadial/`, with private file
   permissions. It holds derived data only (snapshots, times, counters), never a token.
 - Tests never touch the real Keychain, the official CLIs' files or the network. Inject fakes and a
-  local HTTP server instead.
+  local HTTP server instead. The one exception is an `#[ignore]`d test that runs only with
+  `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, which CI never sets.
 - `cargo fmt`, `cargo clippy -D warnings` and `cargo test` must pass on macOS, Windows and Linux
   before anything merges to `main`. CI enforces this and `main` is protected.
 

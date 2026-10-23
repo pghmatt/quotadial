@@ -4,11 +4,12 @@ Progress and implementation notes. Update this file with every change.
 
 ## Current focus
 
-Staying on Claude, at Matt's request (2026-10-23): the Codex provider (#2) waits. M1 #1 (Claude
-provider) is merged (PR #8, 2026-10-23, at Matt's go-ahead), which closed #1. The Claude halves of
-#4 (fixtures) and #5 (live checks) are done in PR #9. The Claude work left waits for the manager:
-proposals P-001 to P-011 in `docs/DECISIONS.md` (P-001 and P-002 are approved by Matt and already
-in the code), and the hosting and signing key for #7.
+The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10 (the PR #8
+review fixes, a blocker) first, then the ChatGPT/Codex provider (#2), then `watch` (#3), then #11
+to #15. Each one: branch off `main`, self-review, live check, PR, merge when CI is green. "Stay on
+claude" meant the model, not the task. P-001 to P-009 are accepted and in the PRD, P-010 is decided
+(D-034), and P-011 and #7 are deferred (D-035). The manager's instructions arrive as GitHub issues,
+PR reviews and comments, checked at the start of every turn.
 
 ## M1
 
@@ -19,7 +20,13 @@ in the code), and the hosting and signing key for #7.
 | #3 CLI `status`, `--json`, `watch` | Partly done | `status` and `status --json` work; `watch` to do |
 | #4 Redacted fixtures | Claude done (PR #9) | Live usage and redacted profile captures committed (D-033); Codex to do |
 | #5 Live endpoint check | Claude done (PR #9) | Claude checked live on 2026-10-23 (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011). A 429 was not provoked on purpose. Codex to do |
-| #7 Signed remote schema file | To do | Split out of #1 (D-025) |
+| #7 Signed remote schema file | Deferred (D-035) | Split out of #1 (D-025) |
+| #10 Review fixes from PR #8 | In review | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
+| #11 `spawn_blocking` for version detection and Keychain find | To do | After #2 and #3 |
+| #12 No `claude` spawn for the User-Agent version | To do | After #2 and #3 |
+| #13 Surface unknown buckets without a known prefix | To do | After #2 and #3; coordinate with #7 |
+| #14 Test gaps: two orgs, bounded profile requests, no token in the cache | To do | After #2 and #3 |
+| #15 Zeroize secrets, fixed `JoinError` message | To do | After #2 and #3 |
 
 ## Kickoff
 
@@ -136,7 +143,8 @@ Modules in `crates/providers/claude/src/`, each naming the CodexBar files it fol
 - Test count: 148 (core 9, Claude 122, Codex 3, CLI unit 10, CLI binaries 4). The Claude tests run
   against a local HTTP server (wiremock) with a fake keychain, a manual clock and a temporary cache
   directory, so no test touches the real Keychain, Claude Code's files or the network. The macOS
-  test that runs `security` looks up a made-up item by attributes only.
+  test that runs `security` looks up a made-up item by attributes only; since #10 it runs only on
+  request.
 - Linux and Windows lints are checked locally by building with the macOS-only Keychain code
   switched off (a simulated non-macOS `cfg`), because CI is the only real non-macOS build.
 - Security review (an independent agent, read-only, 2026-10-22). It found no token leakage, no
@@ -178,6 +186,32 @@ Modules in `crates/providers/claude/src/`, each naming the CodexBar files it fol
   `main` was then merged into `feat/claude-live-checks`; the content is unchanged, because `main`
   after the squash is identical to #9's old base. For stacked PRs, point the child at `main`
   before deleting the parent's branch.
+
+### M1 #10: review fixes from PR #8
+
+The manager's review of PR #8 asked for three fixes before merging; PR #8 was merged without them,
+so they became #10.
+
+- `keychain.rs`: the test that runs the real `/usr/bin/security` is `#[ignore]`d and also returns
+  early unless `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, so CI and plain `cargo test` never touch the login
+  keychain. Run it with
+  `QUOTADIAL_REAL_KEYCHAIN_TESTS=1 cargo test -p quotadial-provider-claude -- --ignored`; it passed
+  on Matt's Mac on 2026-10-23.
+- Token redaction (D-036): `quotadial_core::redact_secrets` replaces `sk-ant-…` tokens with
+  `[redacted token]`. `api.rs` `error_message` applies it before shortening the message, so a token
+  cut at 200 characters cannot slip through in part. The CLI applies it again in `collect`, to
+  snapshot errors and provider errors, for text and JSON output alike. Tests: a fake token in a 401
+  body and in a 400 body never reaches the snapshot, the error, the printed JSON or the cache files;
+  a provider that leaks a token in its error text never gets it to the CLI's output.
+- State load (D-037): a missing file starts afresh; a file that does not parse in full keeps its
+  last request time, 429 block and 429 count, or counts as a request sent now when none can be
+  read; the recovered state is saved at once; an unreadable file (an I/O error) fails the fetch
+  with no request. Tests cover a cut-off file, a file from another format version, a snapshot change
+  without a version bump (the block holds) and a directory where the file should be.
+- The PRD names two M1 follow-ups that have no issue yet: `Window.unconfirmed` for the unconfirmed
+  0% rule (P-005) and Windows Credential Manager (P-008).
+- Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
+  binaries 4).
 
 ### Step 4: findings that shape M1
 
