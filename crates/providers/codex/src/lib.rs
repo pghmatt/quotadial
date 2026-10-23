@@ -265,11 +265,20 @@ impl Provider for CodexProvider {
     }
 
     fn discover_accounts(&self) -> Result<Vec<Account>> {
-        Ok(match self.sign_in()? {
-            SignIn::Missing => Vec::new(),
-            SignIn::ApiKey => vec![api_key_account()],
-            SignIn::ChatGpt { auth, .. } => vec![account_for(&auth)],
-        })
+        // Where the sign-in was read, as every account carries it (P-015).
+        let place = self
+            .env
+            .auth_file()
+            .map(|path| quotadial_core::text::tilde(&path, self.env.home.as_deref()));
+        let account = match self.sign_in()? {
+            SignIn::Missing => return Ok(Vec::new()),
+            SignIn::ApiKey => api_key_account(),
+            SignIn::ChatGpt { auth, .. } => account_for(&auth),
+        };
+        Ok(vec![Account {
+            sign_in: place,
+            ..account
+        }])
     }
 
     async fn fetch(&self, account: &Account) -> Result<Snapshot> {
@@ -297,7 +306,7 @@ impl Provider for CodexProvider {
         // Changes whenever the Codex CLI rewrites the file, which allows one early retry after a
         // rejected sign-in.
         let generation = generation.map(|at| at.to_rfc3339_opts(SecondsFormat::Nanos, true));
-        if !same_account(&account_for(&auth), account) {
+        if !account_for(&auth).same_as(account) {
             return Ok(Snapshot::auth_required(
                 account.clone(),
                 advice::DIFFERENT_ACCOUNT,
@@ -370,7 +379,7 @@ impl Provider for CodexProvider {
         let SignIn::ChatGpt { auth, written } = self.sign_in().ok()? else {
             return None;
         };
-        if !same_account(&account_for(&auth), account) {
+        if !account_for(&auth).same_as(account) {
             return None;
         }
         let owner = Owner {
@@ -418,6 +427,7 @@ fn account_for(auth: &Auth) -> Account {
             .unwrap_or_else(|| "ChatGPT account".to_owned()),
         plan: auth.plan.clone(),
         org,
+        sign_in: None,
     }
 }
 
@@ -428,6 +438,7 @@ fn api_key_account() -> Account {
         display_name: "OpenAI API key".to_owned(),
         plan: None,
         org: None,
+        sign_in: None,
     }
 }
 
@@ -441,11 +452,6 @@ fn foreign_answer(reading: &Reading, auth: &Auth) -> Option<String> {
              used."
                 .to_owned()
         })
-}
-
-/// The same account, as `Account` identity is defined: provider, organization and account id.
-fn same_account(a: &Account, b: &Account) -> bool {
-    a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
 }
 
 /// When the file was last written.

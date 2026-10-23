@@ -13,13 +13,13 @@
 //! - The account details are in `.config.json` in the config directory when that file exists,
 //!   otherwise in `.claude.json` in `$CLAUDE_CONFIG_DIR` or the home directory.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use quotadial_core::Secret;
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
-const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
+pub(crate) const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
 
 /// Claude Code's Keychain account when the user name has characters it will not pass to
 /// `security`.
@@ -58,6 +58,54 @@ impl Environment {
         self.home.as_ref().map(|home| home.join(".claude"))
     }
 
+    /// What Claude Code would see with `CLAUDE_CONFIG_DIR` set to `dir` and no token in the
+    /// environment: the sign-in it keeps for that folder.
+    pub(crate) fn for_config_dir(&self, dir: &str) -> Self {
+        Self {
+            home: self.home.clone(),
+            config_dir: Some(dir.to_owned()),
+            secure_storage_dir: None,
+            oauth_token: None,
+            user: self.user.clone(),
+        }
+    }
+
+    /// What Claude Code would see here without `CLAUDE_CODE_OAUTH_TOKEN`: the sign-in it keeps for
+    /// this shell's folder.
+    pub(crate) fn without_token(&self) -> Self {
+        Self {
+            oauth_token: None,
+            ..self.clone()
+        }
+    }
+
+    /// What Claude Code would see with none of its variables set: the sign-in in its default
+    /// folder.
+    pub(crate) fn default_only(&self) -> Self {
+        Self {
+            home: self.home.clone(),
+            config_dir: None,
+            secure_storage_dir: None,
+            oauth_token: None,
+            user: self.user.clone(),
+        }
+    }
+
+    /// Whether `CLAUDE_CONFIG_DIR` or `CLAUDE_SECURESTORAGE_CONFIG_DIR` moves this sign-in away from
+    /// Claude Code's default folder, and to which folder.
+    pub(crate) fn scoped_dir(&self) -> Option<String> {
+        match self.secure_storage_dir.as_deref() {
+            Some("") => None,
+            Some(dir) => Some(nfc(dir)),
+            None => self.config_dir.as_deref().map(nfc),
+        }
+    }
+
+    /// `path` with `~` for the home folder, as people write it.
+    pub(crate) fn tilde(&self, path: &Path) -> String {
+        quotadial_core::text::tilde(path, self.home.as_deref())
+    }
+
     /// `$CLAUDE_CONFIG_DIR`, or `~/.claude`.
     pub(crate) fn config_dir(&self) -> Option<PathBuf> {
         match &self.config_dir {
@@ -88,12 +136,7 @@ impl Environment {
     }
 
     pub(crate) fn keychain_service(&self) -> String {
-        let scoped_dir = match self.secure_storage_dir.as_deref() {
-            Some("") => None,
-            Some(dir) => Some(nfc(dir)),
-            None => self.config_dir.as_deref().map(nfc),
-        };
-        match scoped_dir {
+        match self.scoped_dir() {
             Some(dir) => format!("{KEYCHAIN_SERVICE}-{}", &sha256_hex(&dir)[..8]),
             None => KEYCHAIN_SERVICE.to_owned(),
         }

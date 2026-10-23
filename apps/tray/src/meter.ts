@@ -15,6 +15,10 @@ export interface Meter {
 export type Level = "unknown" | "normal" | "warning" | "high";
 
 export interface Account {
+  /** As the settings name the account. */
+  key: string;
+  /** The name the user gave the account, shown in place of `name`. */
+  alias: string | null;
   summary: string;
   /** Such as "Claude". */
   provider: string;
@@ -52,6 +56,16 @@ export interface Settings {
   notify_sign_in: boolean;
   notify_high: boolean;
   providers: ProviderChoice[];
+  /** Every account QuotaDial knows now, with the name the user gave it. */
+  accounts: AccountChoice[];
+}
+
+export interface AccountChoice {
+  key: string;
+  /** Such as "Claude user@example.com". */
+  label: string;
+  /** The name given, or empty. */
+  alias: string;
 }
 
 export interface ProviderChoice {

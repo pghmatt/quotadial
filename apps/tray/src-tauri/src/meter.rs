@@ -2,11 +2,14 @@
 //! and how close that is to the limit; the popover gets every account and window, each number with
 //! its reset, its source and its age.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
-use quotadial_core::{Snapshot, Status, StatusReport, Window, text};
+use quotadial_core::{Account, Snapshot, Status, StatusReport, Window, text};
 use serde::Serialize;
 
 use crate::feed::Role;
+use crate::settings::account_key;
 
 /// From this share used, the meter warns.
 pub const WARNING_PCT: f64 = 70.0;
@@ -57,6 +60,10 @@ pub struct Meter {
 /// One account, as the popover shows it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AccountView {
+    /// The account, as the settings name it ([`account_key`]).
+    pub key: String,
+    /// The name the user gave the account, if any, shown in place of `name`.
+    pub alias: Option<String>,
     /// One line for the tray's menu and tooltip, such as
     /// "Claude user@example.com (max): Session 42%, resets in 2 h 10 min".
     pub summary: String,
@@ -116,9 +123,14 @@ impl Meter {
         let Some(report) = report else {
             return meter;
         };
+        // An account waiting for its owner to sign in again keeps its last numbers on show in the
+        // popover, but they are too old to set the tray's number.
         let tightest = report
             .snapshots
             .iter()
+            .filter(|snapshot| {
+                !matches!(snapshot.status, Status::AuthRequired | Status::Unsupported)
+            })
             .flat_map(|snapshot| {
                 snapshot
                     .windows
@@ -167,6 +179,33 @@ impl Meter {
         lines
     }
 
+    /// The meter with the names the user gave accounts in place of their email addresses. Each
+    /// provider's accounts come sorted by email address in the report, and are sorted here by the
+    /// name shown instead.
+    #[must_use]
+    pub fn with_aliases(mut self, aliases: &BTreeMap<String, String>) -> Self {
+        for account in &mut self.accounts {
+            if let Some(alias) = aliases.get(&account.key) {
+                account.summary = account.summary.replacen(
+                    &format!("{} {}", account.provider, account.name),
+                    &format!("{} {alias}", account.provider),
+                    1,
+                );
+                account.alias = Some(alias.clone());
+            }
+        }
+        for provider in self.accounts.chunk_by_mut(|a, b| a.provider == b.provider) {
+            provider.sort_by_cached_key(|account| {
+                account
+                    .alias
+                    .as_deref()
+                    .unwrap_or(&account.name)
+                    .to_lowercase()
+            });
+        }
+        self
+    }
+
     /// The tray icon's tooltip: the app's name, then [`Meter::lines`].
     #[must_use]
     pub fn tooltip(&self) -> String {
@@ -197,8 +236,10 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         None => summary.push_str(&format!(": {}", text::status_label(snapshot.status))),
     }
     AccountView {
+        key: account_key(account),
+        alias: None,
         summary,
-        sign_in: sign_in(&account.provider),
+        sign_in: sign_in(account),
         provider,
         name: account.display_name.clone(),
         plan: account.plan.clone(),
@@ -238,9 +279,16 @@ pub(crate) fn provider_name(id: &str) -> &str {
     }
 }
 
-/// Where QuotaDial looks for a provider's sign-in, in the order it looks.
-fn sign_in(provider: &str) -> String {
-    match provider {
+/// Where QuotaDial reads the account's sign-in (P-015), or, if the provider did not say, where it
+/// looks.
+fn sign_in(account: &Account) -> String {
+    if let Some(place) = &account.sign_in {
+        return format!(
+            "QuotaDial reads this account's sign-in from {place}. It only reads it and never \
+             changes it."
+        );
+    }
+    match account.provider.as_str() {
         "claude" => {
             let keychain = if cfg!(target_os = "macos") {
                 "then the macOS Keychain item \"Claude Code-credentials\", "
@@ -300,6 +348,7 @@ mod tests {
                 display_name: "user@example.com".into(),
                 plan: plan.map(str::to_owned),
                 org: None,
+                sign_in: None,
             },
             windows,
             extra_usage: None,
@@ -442,6 +491,110 @@ mod tests {
             meter.tooltip(),
             "QuotaDial\nClaude user@example.com (max): sign-in required\nRun `claude` to sign in \
              again.\ncodex: could not read credentials from ~/.codex/auth.json"
+        );
+    }
+
+    #[test]
+    fn an_account_waiting_for_a_sign_in_does_not_set_the_tray_number() {
+        let mut expired = snapshot(
+            "claude",
+            Some("max"),
+            vec![window("Weekly", 98.0, "2099-01-04T00:04:00Z")],
+        );
+        expired.status = Status::AuthRequired;
+        expired.account.sign_in = Some(
+            "the macOS Keychain item \"Claude Code-credentials-1df4ed49\" (CLAUDE_CONFIG_DIR \
+             ~/.claude-work)"
+                .into(),
+        );
+        let report = StatusReport {
+            snapshots: vec![
+                expired,
+                snapshot(
+                    "codex",
+                    Some("pro"),
+                    vec![window("Weekly", 40.0, "2099-01-07T03:04:00Z")],
+                ),
+            ],
+            errors: Vec::new(),
+        };
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        assert_eq!(
+            meter.percent,
+            Some(40),
+            "the expired account's 98% is too old"
+        );
+        assert_eq!(
+            meter.accounts[0].windows.len(),
+            1,
+            "but the popover still shows it"
+        );
+        assert_eq!(
+            meter.accounts[0].sign_in,
+            "QuotaDial reads this account's sign-in from the macOS Keychain item \
+             \"Claude Code-credentials-1df4ed49\" (CLAUDE_CONFIG_DIR ~/.claude-work). It only \
+             reads it and never changes it."
+        );
+    }
+
+    #[test]
+    fn a_name_the_user_gave_replaces_the_email_address() {
+        let meter = Meter::new(Some(&two_accounts()), None, None, now()).with_aliases(
+            &BTreeMap::from([("codex user-1 -".to_owned(), "Personal".to_owned())]),
+        );
+
+        assert_eq!(meter.accounts[1].alias.as_deref(), Some("Personal"));
+        assert_eq!(meter.accounts[1].name, "user@example.com");
+        assert_eq!(
+            meter.lines()[1],
+            "Codex Personal (pro): Weekly 73%, resets in 6 d 3 h"
+        );
+        assert_eq!(meter.accounts[0].alias, None);
+    }
+
+    #[test]
+    fn names_the_user_gave_set_the_order_within_a_provider() {
+        let named = |account_id: &str, display_name: &str| {
+            let mut snapshot = snapshot(
+                "claude",
+                Some("max"),
+                vec![window("Weekly", 10.0, "2099-01-04T00:04:00Z")],
+            );
+            snapshot.account.account_id = account_id.into();
+            snapshot.account.display_name = display_name.into();
+            snapshot
+        };
+        let mut report = two_accounts();
+        report.snapshots = vec![
+            named("user-m", "m@example.com"),
+            named("user-z", "z@example.com"),
+            report.snapshots[1].clone(),
+        ];
+
+        let meter = Meter::new(Some(&report), None, None, now()).with_aliases(&BTreeMap::from([(
+            "claude user-z -".to_owned(),
+            "Home".to_owned(),
+        )]));
+
+        let order: Vec<(&str, &str)> = meter
+            .accounts
+            .iter()
+            .map(|account| {
+                (
+                    account.provider.as_str(),
+                    account.alias.as_deref().unwrap_or(&account.name),
+                )
+            })
+            .collect();
+        assert_eq!(
+            order,
+            [
+                ("Claude", "Home"),
+                ("Claude", "m@example.com"),
+                ("Codex", "user@example.com"),
+            ]
         );
     }
 

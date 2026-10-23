@@ -22,6 +22,27 @@ pub(crate) trait Keychain: Send + Sync {
 
     /// Reads an item's secret. `Ok(None)` means there is no such item.
     fn read(&self, service: &str, account: Option<&str>) -> Result<Option<Secret>, String>;
+
+    /// Every item [`is_listed`] for `prefix`, found by attributes only, so no secret is read and
+    /// macOS never asks. Platforms without a keychain have none.
+    fn list(&self, _prefix: &str) -> Result<Vec<Item>, String> {
+        Ok(Vec::new())
+    }
+}
+
+/// Whether `service` is `prefix` itself or one of Claude Code's per-folder items: `prefix`, a dash
+/// and the first 8 hex characters of the folder's SHA-256, as Claude Code writes them.
+pub(crate) fn is_listed(service: &str, prefix: &str) -> bool {
+    match service.strip_prefix(prefix) {
+        Some("") => true,
+        Some(rest) => rest.strip_prefix('-').is_some_and(|hash| {
+            hash.len() == 8
+                && hash
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || matches!(c, 'a'..='f'))
+        }),
+        None => false,
+    }
 }
 
 /// What QuotaDial knows about a Keychain item without reading its secret.
@@ -30,6 +51,14 @@ pub(crate) struct ItemInfo {
     /// The item's modification time as `security` prints it, such as `20261022205736Z`. Claude Code
     /// rewrites the item whenever it signs in or refreshes its token.
     pub(crate) modified: Option<String>,
+}
+
+/// A Keychain item found by [`Keychain::list`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Item {
+    pub(crate) service: String,
+    pub(crate) account: Option<String>,
+    pub(crate) info: ItemInfo,
 }
 
 /// The keychain on this platform: `/usr/bin/security` on macOS, none elsewhere.
@@ -68,7 +97,7 @@ mod security_cli {
     use quotadial_core::Secret;
     use zeroize::Zeroize;
 
-    use super::{ItemInfo, Keychain};
+    use super::{Item, ItemInfo, Keychain, is_listed};
     use crate::process::{self, RunError};
 
     /// The macOS login keychain, through `/usr/bin/security`.
@@ -116,6 +145,59 @@ mod security_cli {
                 code => Err(exit_error(code)),
             }
         }
+
+        fn list(&self, prefix: &str) -> Result<Vec<Item>, String> {
+            let finished = process::run(list_command(), FIND_TIMEOUT)
+                .map_err(|error| run_error(&error, FIND_TIMEOUT))?;
+            match finished.status.code() {
+                Some(0) => Ok(listed_items(
+                    &String::from_utf8_lossy(&finished.stdout),
+                    prefix,
+                )),
+                code => Err(exit_error(code)),
+            }
+        }
+    }
+
+    /// `security dump-keychain` without `-d`, which prints every item's attributes and no secret.
+    pub(super) fn list_command() -> Command {
+        let mut command = Command::new(SECURITY);
+        command.arg("dump-keychain");
+        command
+    }
+
+    /// The generic-password items in a `dump-keychain` listing whose service [`is_listed`] for
+    /// `prefix`, each once.
+    pub(super) fn listed_items(listing: &str, prefix: &str) -> Vec<Item> {
+        let mut items: Vec<Item> = Vec::new();
+        for block in listing.split("keychain: ").skip(1) {
+            if !block.lines().any(|line| line.trim() == "class: \"genp\"") {
+                continue;
+            }
+            let Some(service) = blob_attribute(block, "svce") else {
+                continue;
+            };
+            if is_listed(&service, prefix) && !items.iter().any(|item| item.service == service) {
+                items.push(Item {
+                    account: blob_attribute(block, "acct"),
+                    info: ItemInfo {
+                        modified: modified_attribute(block),
+                    },
+                    service,
+                });
+            }
+        }
+        items
+    }
+
+    /// A text attribute in `security`'s listing, from a line such as `    "svce"<blob>="text"`.
+    fn blob_attribute(attributes: &str, name: &str) -> Option<String> {
+        let marker = format!("\"{name}\"<blob>=\"");
+        let line = attributes
+            .lines()
+            .find(|line| line.trim_start().starts_with(&marker))?;
+        let value = line.trim_start().strip_prefix(&marker)?.strip_suffix('"')?;
+        (!value.is_empty()).then(|| value.to_owned())
     }
 
     /// `security find-generic-password [-a <account>] [-w] -s <service>`, in Claude Code's argument
@@ -172,7 +254,8 @@ mod tests {
     use std::process::Command;
 
     use super::security_cli::{
-        READ_TIMEOUT, SECURITY, exit_error, find_command, modified_attribute, run_error,
+        READ_TIMEOUT, SECURITY, exit_error, find_command, list_command, listed_items,
+        modified_attribute, run_error,
     };
     use super::*;
     use crate::process::RunError;
@@ -232,6 +315,75 @@ attributes:
     }
 
     #[test]
+    fn listing_finds_every_claude_code_item_by_attributes_only() {
+        let listing = format!(
+            "{ATTRIBUTES}{}{}{}",
+            r#"keychain: "/Users/example/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    "acct"<blob>="example"
+    "mdat"<timedate>=0x32303236313032333130303030305A00  "20261023100000Z\000"
+    "svce"<blob>="Claude Code-credentials-1df4ed49"
+"#,
+            r#"keychain: "/Users/example/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    "acct"<blob>="example"
+    "svce"<blob>="Claude Code-credentials-0a1b2c3d"
+keychain: "/Users/example/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="Claude Code-credentials-backup"
+keychain: "/Users/example/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="Claude Code-credentials-1DF4ED49"
+keychain: "/Users/example/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="Claude Code-credentials-1df4ed4"
+"#,
+            r#"keychain: "/Users/example/Library/Keychains/login.keychain-db"
+version: 512
+class: "inet"
+attributes:
+    "svce"<blob>="Claude Code-credentials-cafebabe"
+keychain: "/Users/example/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="Claude Code-credentialsX"
+"#
+        );
+
+        let items = listed_items(&listing, "Claude Code-credentials");
+
+        let services: Vec<&str> = items.iter().map(|item| item.service.as_str()).collect();
+        assert_eq!(
+            services,
+            [
+                "Claude Code-credentials",
+                "Claude Code-credentials-1df4ed49",
+                "Claude Code-credentials-0a1b2c3d",
+            ],
+            "only generic passwords named as Claude Code names them: the prefix, or the prefix, a \
+             dash and 8 lowercase hex characters"
+        );
+        assert_eq!(items[1].account.as_deref(), Some("example"));
+        assert_eq!(items[1].info.modified.as_deref(), Some("20261023100000Z"));
+        assert_eq!(items[2].info.modified, None);
+        assert_eq!(
+            list_command()
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            ["dump-keychain"],
+            "no -d, so no secret is printed"
+        );
+    }
+
+    #[test]
     fn failures_name_the_exit_status() {
         assert_eq!(
             exit_error(Some(36)),
@@ -252,6 +404,7 @@ attributes:
     #[test]
     fn platforms_without_a_keychain_find_nothing() {
         assert_eq!(NoKeychain.find("Claude Code-credentials", None), Ok(None));
+        assert_eq!(NoKeychain.list("Claude Code-credentials"), Ok(Vec::new()));
         assert!(matches!(
             NoKeychain.read("Claude Code-credentials", None),
             Ok(None)

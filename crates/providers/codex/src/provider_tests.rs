@@ -181,6 +181,14 @@ async fn discovers_the_signed_in_account_without_a_request() {
             display_name: "user@example.com".into(),
             plan: Some("pro".into()),
             org: Some(WORKSPACE.into()),
+            sign_in: Some(
+                harness
+                    .codex_home
+                    .path()
+                    .join("auth.json")
+                    .display()
+                    .to_string()
+            ),
         }
     );
     assert_eq!(harness.usage_requests().await, 0);

@@ -10,7 +10,12 @@ signed in to. It reports each limit's share used, when it resets and how old eac
 it before you start something long, such as a multi-hour run, a large refactor or many subagents,
 so the job does not stop halfway. Also check it when the user asks how much they have left.
 
-Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` ones.
+Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` ones. A machine can
+hold several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`, and QuotaDial
+lists all of them. `account.sign_in` says where each one's sign-in is, such as
+`the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`.
+The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or the plain
+`Claude Code-credentials` item (`~/.claude`) when that is not set.
 
 ## How to ask
 
@@ -102,6 +107,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | Field | Meaning |
 | --- | --- |
 | `snapshots[]` | One per account: a provider, its organization or workspace (`org`), and an account id |
+| `account.sign_in` | Where QuotaDial read the account's sign-in, such as a Keychain item and its `CLAUDE_CONFIG_DIR`, or `~/.codex/auth.json`. Never a token. Left out when unknown |
 | `windows[].kind` | `session` (5 hours), `weekly`, `model_weekly` (one model's weekly limit, named in `scope_model`), `daily`, `credits`, or `other` for a limit QuotaDial does not know yet |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
@@ -134,13 +140,18 @@ The ranking from `GET /v1/headroom` and `get_account_headroom`:
 - `headroom_pct` is 100 minus the `used_pct` of the account's tightest window, the one closest to
   its limit.
 - The account with the most headroom comes first. Equal headroom goes to the account whose tightest
-  window resets sooner. Accounts without windows come last, with their `status` and `error`.
+  window resets sooner. Accounts without windows come last, with their `status` and `error`, and so
+  do accounts that cannot be used now (`auth_required`, `unsupported`): they have no
+  `headroom_pct`, even when `tightest` still shows their last numbers.
 - A `tightest.resets_at` in the past means that window has reset since the numbers were fetched.
 
 ## Deciding
 
-- Look at the accounts for the provider you run on. Trust `status: "ok"` most. Treat `stale` and
-  `rate_limited` as a few minutes old. For `auth_required`, tell the user the fix in `error`.
+- Look at the account you run on. Trust `status: "ok"` most. Treat `stale` and `rate_limited` as a
+  few minutes old. For `auth_required`, tell the user the fix in `error`, which names the command
+  that signs that folder in again.
+- If your account is nearly out and another of the user's subscriptions has room, say so: they can
+  run `claude` with that account's `CLAUDE_CONFIG_DIR`. Do not switch accounts yourself.
 - Suppose the tightest window is above about 80% used and resets hours from now. Tell the user
   before starting a long job, with when it resets (`resets_at`), so they can choose to wait, narrow
   the job, or use another account. A near-empty window needs no comment.

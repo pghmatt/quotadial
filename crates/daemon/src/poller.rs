@@ -67,7 +67,7 @@ impl Latest {
                 }
             }
         }
-        report
+        report.normalized()
     }
 
     /// A receiver whose `changed()` completes each time the report may have changed. It reports
@@ -211,7 +211,9 @@ impl Poller {
     }
 
     /// Finds every provider's accounts. A new account is due at once; one that has gone is
-    /// forgotten.
+    /// forgotten. A lookup that fails, such as a keychain that does not answer in time, keeps the
+    /// accounts found last: they are still asked about, and the error shows beside them until a
+    /// lookup works again.
     async fn discover(&mut self, now: Instant) {
         for (index, provider) in self.providers.iter().enumerate() {
             let blocking = Arc::clone(provider);
@@ -227,9 +229,14 @@ impl Poller {
                             .to_owned(),
                     })
                 });
-            let (accounts, error) = match found {
-                Ok(accounts) => (accounts, None),
-                Err(error) => (Vec::new(), Some(ProviderError::new(provider.id(), &error))),
+            let accounts = match found {
+                Ok(accounts) => accounts,
+                Err(error) => {
+                    let error = ProviderError::new(provider.id(), &error);
+                    self.latest
+                        .update(|states| states[index].error = Some(error));
+                    continue;
+                }
             };
             self.tracked.retain(|key, _| {
                 key.0 != index
@@ -240,6 +247,8 @@ impl Poller {
             for account in &accounts {
                 self.tracked
                     .entry((index, account.account_id.clone(), account.org.clone()))
+                    // Its name, plan or sign-in may have changed since it was found.
+                    .and_modify(|tracked| tracked.account = account.clone())
                     .or_insert_with(|| Tracked {
                         provider: index,
                         account: account.clone(),
@@ -250,15 +259,15 @@ impl Poller {
             }
             self.latest.update(|states| {
                 let state = &mut states[index];
-                state.error = error;
-                state.accounts.retain(|(known, _)| {
-                    accounts.iter().any(|account| same_account(account, known))
-                });
+                state.error = None;
+                state
+                    .accounts
+                    .retain(|(known, _)| accounts.iter().any(|account| account.same_as(known)));
                 for account in &accounts {
                     if !state
                         .accounts
                         .iter()
-                        .any(|(known, _)| same_account(account, known))
+                        .any(|(known, _)| account.same_as(known))
                     {
                         // Shown as soon as it is found; its first poll follows at once.
                         state.accounts.push((
@@ -315,7 +324,7 @@ impl Poller {
             match state
                 .accounts
                 .iter_mut()
-                .find(|(known, _)| same_account(known, &account))
+                .find(|(known, _)| known.same_as(&account))
             {
                 Some(entry) => entry.1 = result,
                 None => state.accounts.push((account, result)),
@@ -346,10 +355,6 @@ fn numbers_moved(before: &Snapshot, after: &Snapshot) -> bool {
     key(before) != key(after) || before.status != after.status
 }
 
-fn same_account(a: &Account, b: &Account) -> bool {
-    a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
@@ -369,6 +374,8 @@ mod tests {
         used_pct: Mutex<std::result::Result<f64, String>>,
         fallback: Option<f64>,
         fetches: AtomicUsize,
+        /// Every account asked about, in order.
+        fetched: Mutex<Vec<Account>>,
         /// How long each fetch takes.
         delay: Duration,
     }
@@ -382,6 +389,7 @@ mod tests {
                 used_pct: Mutex::new(Ok(10.0)),
                 fallback: None,
                 fetches: AtomicUsize::new(0),
+                fetched: Mutex::default(),
                 delay: Duration::ZERO,
             }
         }
@@ -419,6 +427,7 @@ mod tests {
 
         async fn fetch(&self, account: &Account) -> Result<Snapshot> {
             let count = self.fetches.fetch_add(1, Ordering::SeqCst);
+            self.fetched.lock().expect("lock").push(account.clone());
             tokio::time::sleep(self.delay).await;
             let used_pct = self
                 .used_pct
@@ -449,6 +458,7 @@ mod tests {
             display_name: "user@example.com".into(),
             plan: None,
             org: None,
+            sign_in: None,
         }
     }
 
@@ -610,7 +620,11 @@ mod tests {
         tokio::time::advance(DISCOVER_EVERY).await;
         poller.poll_due().await;
         let report = poller.latest().report();
-        assert!(report.snapshots.is_empty());
+        assert_eq!(
+            report.snapshots.len(),
+            2,
+            "a failed lookup keeps the accounts found last"
+        );
         assert_eq!(
             report.errors[0].message,
             "claude: could not read credentials from the sign-in: permission denied; check that \
@@ -621,6 +635,26 @@ mod tests {
         tokio::time::advance(DISCOVER_EVERY).await;
         poller.poll_due().await;
         assert_eq!(poller.latest().report(), StatusReport::default());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_changed_name_or_sign_in_reaches_the_next_fetch() {
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        let mut poller = poller(vec![Arc::clone(&claude)], history);
+        poller.poll_due().await;
+
+        let mut moved = account("claude", "user-1");
+        moved.sign_in = Some("the macOS Keychain item \"Claude Code-credentials-0000000a\"".into());
+        claude.set_accounts(Ok(vec![moved.clone()]));
+        tokio::time::advance(Duration::from_secs(5 * 60)).await;
+        poller.poll_due().await;
+
+        assert_eq!(
+            claude.fetched.lock().expect("lock").last(),
+            Some(&moved),
+            "the account as last found, not as first found"
+        );
     }
 
     #[tokio::test(start_paused = true)]

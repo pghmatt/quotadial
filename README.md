@@ -19,8 +19,12 @@ product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 
 | Provider | Reads the login from | Status |
 | --- | --- | --- |
-| Claude | Claude Code (the macOS Keychain, `~/.claude/.credentials.json`, or `CLAUDE_CODE_OAUTH_TOKEN`) | Works |
+| Claude | Claude Code (the macOS Keychain, `~/.claude/.credentials.json`, or `CLAUDE_CODE_OAUTH_TOKEN`), for every `CLAUDE_CONFIG_DIR` it finds | Works, with every stored subscription |
 | ChatGPT / Codex | Codex CLI (`auth.json` in `$CODEX_HOME` or `~/.codex`) | Works |
+
+If you keep several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`,
+QuotaDial shows all of them, not only the one Claude Code uses now. See
+[docs/CLI.md](docs/CLI.md#accounts) for where it looks.
 
 QuotaDial only reads these credentials. It never writes, refreshes or moves them, and it never logs
 them. When a sign-in has expired, run `claude` or `codex` once and QuotaDial picks up the refreshed

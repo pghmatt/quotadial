@@ -31,6 +31,67 @@ When a provider answers 429, QuotaDial waits as long as the `Retry-After` header
 When ChatGPT cannot be reached and nothing is cached, the newest numbers from the Codex CLI's own
 session logs stand in, marked as coming from them.
 
+## Accounts
+
+QuotaDial shows every subscription whose sign-in is stored on the machine, not only the one the
+current shell would use. Each account has its own floor, cache and history.
+
+- **Claude.** First the sign-in Claude Code would use here: `CLAUDE_CODE_OAUTH_TOKEN` when it is
+  set, or else the one for `CLAUDE_CONFIG_DIR`, or for `~/.claude` when that is not set. Then every
+  other Claude Code sign-in on the machine, including the one Claude Code keeps for this folder when
+  a token in the environment comes first:
+  - On macOS, every Keychain item named `Claude Code-credentials`, or that, a dash and 8 hex
+    characters, as Claude Code names them. QuotaDial lists them by name without reading them, and
+    reads an item's token only when it asks about that account. If the Keychain cannot be listed,
+    QuotaDial says so rather than show the accounts as signed out, and a running daemon keeps the
+    accounts it found last.
+  - Claude Code names each item after the folder it was made for, so QuotaDial matches the items to
+    folders: other `~/.claude…` folders, the folders in `~/.codus/accounts`, and those in
+    `extra_config_dirs` (see Settings below). A link to a folder counts as the folder.
+  - On Linux and Windows, `.credentials.json` in those same folders.
+- **Codex.** The sign-in the Codex CLI keeps in `auth.json`, in `~/.codex` or the folder
+  `CODEX_HOME` names.
+- **One row per subscription.** A subscription found in two places, such as two folders signed in
+  to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
+  sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
+  named by Anthropic's profile endpoint, once per token, before its usage is asked.
+- **Where each sign-in is.** `account.sign_in` in the JSON says where QuotaDial read it, such as
+  `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`.
+- **A sign-in that expired or was rejected** shows `sign-in required`, with the command that signs
+  that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/.claude-work claude` once to refresh
+  it." On Windows the command is for PowerShell: `$env:CLAUDE_CONFIG_DIR = '…'; claude`. Its last
+  good numbers stay on show, marked as coming from the cache. QuotaDial never refreshes or writes a
+  sign-in itself.
+- **A Keychain item whose folder QuotaDial cannot find** still shows, named by its item. Its fix
+  asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
+  account, as when a folder only ever signed in to MCP servers, it is left out until the item
+  changes.
+- **Order.** Claude's accounts come first, then Codex's, each sorted by name.
+
+The daemon looks for new and removed sign-ins every minute.
+
+## Settings
+
+Settings that every QuotaDial process reads (the CLI, the daemon and the tray app) go in
+`config.json` in the data directory (see The daemon below). The file is optional. A missing or
+damaged one means the defaults, and a setting of the wrong kind keeps its default while the others
+apply. A change applies the next time a command, the daemon or the app starts.
+
+```json
+{
+  "extra_config_dirs": ["~/work/claude", "~/claude-accounts/*"],
+  "max_accounts": 3
+}
+```
+
+| Setting | Meaning |
+| --- | --- |
+| `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them. `~` is the home folder, and a folder ending in `/*` adds every folder inside it. None by default |
+| `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. All of them by default |
+
+The tray app keeps its own settings, such as the names given to accounts, in its settings panel
+(`docs/INSTALL.md`).
+
 ## The daemon
 
 `quotadial daemon` runs until Ctrl-C, or on Linux and macOS until it is sent `SIGTERM`, as a
@@ -107,9 +168,9 @@ processes can list.
 
 | Field | Meaning |
 | --- | --- |
-| `accounts[]` | Every account with a snapshot, the most headroom first. Equal headroom goes to the account whose tightest window resets sooner. Accounts without windows, such as one whose sign-in expired, come last |
-| `headroom_pct` | 100 minus the tightest window's `used_pct`, from 0 to 100. Left out when the account has no windows |
-| `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length and when it was fetched. Left out when the account has no windows |
+| `accounts[]` | Every account with a snapshot, the most headroom first. Equal headroom goes to the account whose tightest window resets sooner. Accounts without windows come last, and so do accounts that cannot be used now, whose status is `auth_required` or `unsupported` |
+| `headroom_pct` | 100 minus the tightest window's `used_pct`, from 0 to 100. Left out when the account has no windows or cannot be used now: a sign-in that expired keeps its last numbers on show, but their room is not there to use |
+| `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length and when it was fetched. For an account that cannot be used now, the last one known. Left out when the account has no windows |
 | `status`, `error` | As in `status --json` |
 | `errors[]` | As in `status --json` |
 
@@ -187,7 +248,8 @@ the last, without escape codes.
         "account_id": "00000000-0000-0000-0000-000000000001",
         "display_name": "user@example.com",
         "plan": "max",
-        "org": "00000000-0000-0000-0000-000000000002"
+        "org": "00000000-0000-0000-0000-000000000002",
+        "sign_in": "the macOS Keychain item \"Claude Code-credentials\""
       },
       "windows": [
         {
@@ -212,8 +274,9 @@ the last, without escape codes.
 
 | Field | Meaning |
 | --- | --- |
-| `snapshots[]` | One per account. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
+| `snapshots[]` | One per account, Claude's first, each provider's sorted by name. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
 | `account.plan`, `account.org` | Left out when the provider does not say |
+| `account.sign_in` | Where QuotaDial read the account's sign-in, written for people with `~` for the home folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
 | `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily`, `credits`, or `other` for a limit QuotaDial does not know yet, shown by its provider's name with `window_seconds` 0 |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |

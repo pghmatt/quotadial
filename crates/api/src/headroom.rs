@@ -8,10 +8,11 @@ use chrono::{DateTime, Utc};
 use quotadial_core::{Account, ProviderError, Status, StatusReport, Window};
 use serde::{Deserialize, Serialize};
 
-/// Every account's headroom, the most first, then the accounts without numbers.
+/// Every account's headroom, the most first, then the accounts that have none to offer now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HeadroomReport {
-    /// Accounts with numbers, the most headroom first; then accounts without numbers.
+    /// Accounts with headroom, the most first; then accounts without numbers and accounts that
+    /// cannot be used now.
     pub accounts: Vec<Headroom>,
     /// Providers or accounts that produced no snapshot.
     pub errors: Vec<ProviderError>,
@@ -25,10 +26,12 @@ pub struct Headroom {
     /// Whether its numbers are current, and if not, why.
     pub status: Status,
     /// 100 minus the tightest window's share used, from 0 to 100. Left out when the account has no
-    /// windows.
+    /// windows, or cannot be used now: its sign-in needs the user (`auth_required`) or its plan has
+    /// no limits to read (`unsupported`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headroom_pct: Option<f64>,
-    /// The window closest to its limit, which sets the headroom: its reset, length and age.
+    /// The window closest to its limit, which sets the headroom: its reset, length and age. For an
+    /// account that cannot be used now, the last one known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tightest: Option<Window>,
     /// Why the status is not ok, naming the fix.
@@ -47,11 +50,15 @@ pub fn rank(report: &StatusReport) -> HeadroomReport {
                 .windows_tightest_first()
                 .first()
                 .map(|window| (*window).clone());
+            // An account waiting for its owner to sign in again keeps its last numbers on show,
+            // but whatever room they show cannot be used until then (#34).
+            let usable = !matches!(snapshot.status, Status::AuthRequired | Status::Unsupported);
             Headroom {
                 account: snapshot.account.clone(),
                 status: snapshot.status,
                 headroom_pct: tightest
                     .as_ref()
+                    .filter(|_| usable)
                     .map(|window| (100.0 - window.used_pct).clamp(0.0, 100.0)),
                 tightest,
                 error: snapshot.error.clone(),
@@ -101,6 +108,7 @@ mod tests {
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
+                sign_in: None,
             },
             windows: windows
                 .iter()
@@ -196,6 +204,33 @@ mod tests {
             Some("Run `gemini` to sign in again.")
         );
         assert_eq!(ranked.errors, report.errors);
+    }
+
+    #[test]
+    fn an_account_waiting_for_a_sign_in_has_no_headroom_whatever_it_last_showed() {
+        let mut expired = snapshot("claude", &[("Weekly", 5.0, Some("2099-01-02T00:00:00Z"))]);
+        expired.status = Status::AuthRequired;
+        expired.error = Some("Run `CLAUDE_CONFIG_DIR=~/.claude-work claude` once.".into());
+        let report = StatusReport {
+            snapshots: vec![
+                expired,
+                snapshot("codex", &[("Weekly", 85.0, Some("2099-01-05T00:00:00Z"))]),
+            ],
+            errors: Vec::new(),
+        };
+
+        let ranked = rank(&report);
+
+        assert_eq!(ranked.accounts[0].account.provider, "codex");
+        assert_eq!(ranked.accounts[0].headroom_pct, Some(15.0));
+        let waiting = &ranked.accounts[1];
+        assert_eq!(waiting.status, Status::AuthRequired);
+        assert_eq!(waiting.headroom_pct, None, "its 95% left cannot be used");
+        assert_eq!(
+            waiting.tightest.as_ref().map(|window| window.used_pct),
+            Some(5.0),
+            "its last numbers still show"
+        );
     }
 
     #[test]

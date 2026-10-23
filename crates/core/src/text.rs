@@ -1,9 +1,21 @@
 //! The words QuotaDial uses for times, sources and statuses. The CLI, the tray app and its
 //! notifications all say them the same way.
 
+use std::path::Path;
+
 use chrono::{DateTime, TimeDelta, Utc};
 
 use crate::{ExtraUsage, Source, Status};
+
+/// `path` with `~` for the home folder, as people write it, such as `~/.codex/auth.json`.
+#[must_use]
+pub fn tilde(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|home| path.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
+}
 
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
 #[must_use]
@@ -83,7 +95,21 @@ pub fn source_label(source: Source) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+
+    #[test]
+    fn paths_in_the_home_folder_start_with_a_tilde() {
+        let home = PathBuf::from("/Users/example");
+        assert_eq!(
+            tilde(&home.join(".codex/auth.json"), Some(&home)),
+            "~/.codex/auth.json"
+        );
+        assert_eq!(tilde(&home, Some(&home)), "~");
+        assert_eq!(tilde(Path::new("/etc/x"), Some(&home)), "/etc/x");
+        assert_eq!(tilde(Path::new("/etc/x"), None), "/etc/x");
+    }
 
     fn ts(rfc3339: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(rfc3339)
