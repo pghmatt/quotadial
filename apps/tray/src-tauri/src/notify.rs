@@ -9,11 +9,11 @@ use std::io;
 use std::path::Path;
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use quotadial_core::{Account, Status, StatusReport, text};
+use quotadial_core::{Status, StatusReport, text};
 use serde::{Deserialize, Serialize};
 
 use crate::meter::{HIGH_PCT, provider_name};
-use crate::settings::{Settings, write_private};
+use crate::settings::{Settings, account_key, write_private};
 
 /// A notification to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,7 +59,7 @@ impl Sent {
         let mut still = BTreeSet::new();
         for snapshot in &report.snapshots {
             let account = &snapshot.account;
-            let who = who(account);
+            let who = account_key(account);
             present.insert(who.clone());
             if !settings.shows(&account.provider) {
                 continue;
@@ -114,19 +114,9 @@ impl Sent {
     }
 }
 
-/// An account, as the record names it.
-fn who(account: &Account) -> String {
-    format!(
-        "{} {} {}",
-        account.provider,
-        account.account_id,
-        account.org.as_deref().unwrap_or("-")
-    )
-}
-
 #[cfg(test)]
 mod tests {
-    use quotadial_core::{Snapshot, Source, Window, WindowKind};
+    use quotadial_core::{Account, Snapshot, Source, Window, WindowKind};
 
     use super::*;
 
@@ -147,6 +137,7 @@ mod tests {
             display_name: "user@example.com".into(),
             plan: None,
             org: None,
+            sign_in: None,
         }
     }
 

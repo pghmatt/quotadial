@@ -29,7 +29,7 @@ use tokio::sync::watch;
 use crate::feed::{Role, Timing, Update};
 use crate::meter::{Meter, provider_name};
 use crate::notify::Sent;
-use crate::settings::Settings;
+use crate::settings::{Settings, account_key};
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -105,6 +105,7 @@ impl AppState {
             known.role,
             Utc::now(),
         )
+        .with_aliases(&settings.aliases)
     }
 }
 
@@ -116,6 +117,19 @@ struct SettingsView {
     notify_sign_in: bool,
     notify_high: bool,
     providers: Vec<ProviderChoice>,
+    /// Every account QuotaDial knows now, with the name the user gave it.
+    accounts: Vec<AccountChoice>,
+}
+
+/// An account the user can name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct AccountChoice {
+    /// As the settings name it ([`account_key`]).
+    key: String,
+    /// Such as "Claude user@example.com".
+    label: String,
+    /// The name given, or empty.
+    alias: String,
 }
 
 /// A provider the user can show or hide.
@@ -146,6 +160,26 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
                 shown: settings.shows(provider.id()),
             })
             .collect(),
+        accounts: state
+            .known
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .report
+            .iter()
+            .flat_map(|report| &report.snapshots)
+            .map(|snapshot| {
+                let key = account_key(&snapshot.account);
+                AccountChoice {
+                    label: format!(
+                        "{} {}",
+                        provider_name(&snapshot.account.provider),
+                        snapshot.account.display_name
+                    ),
+                    alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
+                    key,
+                }
+            })
+            .collect(),
     }
 }
 
@@ -170,6 +204,19 @@ fn set_settings(
         };
         changed.map_err(|error| format!("QuotaDial could not change opening at login: {error}"))?;
     }
+    // Names of accounts not on show now are kept.
+    let mut aliases = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .aliases
+        .clone();
+    for account in &view.accounts {
+        match account.alias.trim() {
+            "" => aliases.remove(&account.key),
+            alias => aliases.insert(account.key.clone(), alias.to_owned()),
+        };
+    }
     let settings = Settings {
         notify_sign_in: view.notify_sign_in,
         notify_high: view.notify_high,
@@ -179,6 +226,7 @@ fn set_settings(
             .filter(|provider| !provider.shown)
             .map(|provider| provider.id.clone())
             .collect(),
+        aliases,
     };
     if let Some(files) = &state.files {
         settings

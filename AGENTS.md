@@ -6,8 +6,8 @@ provider's usage endpoint, normalizes the result, and serves it through a tray a
 (`quotadial`, alias `qd`), a local HTTP API, an MCP server and a SKILL.md. It is sold with a free
 and a Pro tier. Domains: quotadial.com and quotadial.app.
 
-Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScript/React tray app,
-and a thin CLI.
+Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScript/Preact tray app
+(D-070), and a thin CLI.
 
 ## Source of truth and roles
 
@@ -48,7 +48,7 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history, the single-instance lock |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
-| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, used by the CLI and the tray app |
+| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app |
 | `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |

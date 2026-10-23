@@ -76,6 +76,13 @@ that; Ubuntu has it on already.
   resets.
 - Show or hide each provider. A hidden provider still has its usage read for the `quotadial`
   command.
+- Give each account a name, such as "Work", shown in the popover beside its email address and in
+  the tray's menu in place of it. Accounts are listed by the name shown. Clear the name to go back
+  to the email address.
+
+The popover lists every Claude subscription stored on the machine, not only the one Claude Code is
+signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
+folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts).
 
 ## The `quotadial` command
 

@@ -22,22 +22,24 @@ mod usage;
 #[cfg(test)]
 mod provider_tests;
 
+use std::collections::BTreeMap;
 use std::fmt;
-use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{Account, Error, Provider, Result, Secret, Snapshot, Status};
 use quotadial_poll::{AccountState, Clock, Decision, Policy, StateStore, SystemClock};
+use serde::{Deserialize, Serialize};
 
 use crate::api::{Api, UsageError, UsageResponse};
 use crate::credentials::{Credentials, ParseError};
 use crate::environment::Environment;
 use crate::identity::Identity;
 use crate::keychain::Keychain;
-use crate::login::{Login, LoginSource};
+use crate::login::{Folder, Login, LoginSource};
 use crate::usage::Reading;
 
 /// The provider id used in [`Account::provider`].
@@ -47,6 +49,9 @@ pub const ID: &str = "claude";
 /// five minutes per account.
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
+/// How long recording an item as not an account waits for another QuotaDial process doing the same.
+const NOT_ACCOUNTS_WAIT: Duration = Duration::from_secs(5);
+
 /// The floor between requests, enforced across every QuotaDial process, and how messages name
 /// Anthropic and Claude Code.
 const POLICY: Policy = Policy {
@@ -55,7 +60,8 @@ const POLICY: Policy = Policy {
     floor: TimeDelta::minutes(5),
 };
 
-/// Reads Claude usage with the login Claude Code already stores.
+/// Reads Claude usage with the sign-ins Claude Code already stores: every one on this machine, not
+/// only the one this shell would use (#34).
 pub struct ClaudeProvider {
     env: Environment,
     keychain: Arc<dyn Keychain>,
@@ -64,6 +70,12 @@ pub struct ClaudeProvider {
     base_url: String,
     request_timeout: Duration,
     api: OnceLock<std::result::Result<Api, String>>,
+    /// More config folders to look in, from QuotaDial's settings.
+    extra_dirs: Vec<PathBuf>,
+    /// At most this many accounts, this shell's own first; all when `None`.
+    max_accounts: Option<usize>,
+    /// The sign-ins the last discovery found, so a fetch looks up only its own account's.
+    logins: Mutex<Vec<Login>>,
 }
 
 impl ClaudeProvider {
@@ -78,24 +90,343 @@ impl ClaudeProvider {
             base_url: api::DEFAULT_BASE_URL.to_owned(),
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
+            extra_dirs: Vec::new(),
+            max_accounts: None,
+            logins: Mutex::default(),
         }
     }
 
-    fn locate(&self) -> Result<Option<Login>> {
-        login::locate(&self.env, self.keychain.as_ref())
+    /// Also looks for sign-ins in `dirs`, the `extra_config_dirs` setting. A folder ending in `*`
+    /// adds every folder inside it.
+    #[must_use]
+    pub fn with_extra_config_dirs(mut self, dirs: Vec<PathBuf>) -> Self {
+        self.extra_dirs = dirs;
+        self
     }
 
-    /// The same, without blocking the async runtime: on macOS the lookup runs `/usr/bin/security`
-    /// for up to 5 seconds.
-    async fn locate_without_blocking(&self) -> Result<Option<Login>> {
-        let (env, keychain) = (self.env.clone(), Arc::clone(&self.keychain));
-        tokio::task::spawn_blocking(move || login::locate(&env, keychain.as_ref()))
+    /// Shows at most `max` accounts, this shell's own first (the `max_accounts` setting).
+    #[must_use]
+    pub fn with_max_accounts(mut self, max: Option<usize>) -> Self {
+        self.max_accounts = max;
+        self
+    }
+
+    fn locate_all(&self) -> Result<Vec<Login>> {
+        let not_accounts = self
+            .state_dir
+            .as_deref()
+            .map(NotAccounts::load)
+            .unwrap_or_default();
+        let mut logins = login::locate_all(&self.env, self.keychain.as_ref(), &self.extra_dirs)?;
+        logins.retain(|login| !not_accounts.excludes(login));
+        if let Some(max) = self.max_accounts {
+            logins.truncate(max);
+        }
+        self.logins
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone_from(&logins);
+        Ok(logins)
+    }
+
+    /// Remembers that `login`, a Keychain item whose folder is unknown, holds no Claude account,
+    /// so discovery leaves it out until Claude Code rewrites it. Other QuotaDial processes may be
+    /// recording items too, so the record is read and rewritten under a lock. A record that cannot
+    /// be kept only means the item is asked about again.
+    async fn not_an_account(&self, login: &Login) {
+        let (Some(dir), LoginSource::Keychain { service, .. }) =
+            (self.state_dir.clone(), &login.source)
+        else {
+            return;
+        };
+        if login.folder != Folder::Unknown {
+            return;
+        }
+        let (service, generation) = (service.clone(), login.generation.clone());
+        let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            let _lock =
+                StateStore::new(ID, dir.clone()).lock(NotAccounts::LOCK, NOT_ACCOUNTS_WAIT)?;
+            let mut not_accounts = NotAccounts::load(&dir);
+            not_accounts.0.insert(service, generation);
+            not_accounts.save(&dir)
+        })
+        .await;
+    }
+
+    /// The sign-in for `account` as it is now, or the sentence to show when it is gone. Only that
+    /// sign-in is looked up again, the one discovery found for the account, so a fetch costs one
+    /// attribute lookup rather than a search of every folder.
+    async fn login_for(&self, account: &Account) -> Result<std::result::Result<Login, String>> {
+        let found = self
+            .logins
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .find(|login| login.account().same_as(account))
+            .cloned();
+        let Some(found) = found else {
+            // Not among the sign-ins found last, as when this process has not looked yet.
+            let (env, keychain, extra) = (
+                self.env.clone(),
+                Arc::clone(&self.keychain),
+                self.extra_dirs.clone(),
+            );
+            let logins = tokio::task::spawn_blocking(move || {
+                login::locate_all(&env, keychain.as_ref(), &extra)
+            })
             .await
-            .map_err(|_| Error::Credentials {
-                provider: ID,
-                location: "Claude Code's sign-in".to_owned(),
-                reason: "looking it up stopped unexpectedly; try again".to_owned(),
-            })?
+            .map_err(|_| stopped())??;
+            return Ok(logins
+                .into_iter()
+                .find(|login| login.account().same_as(account))
+                .ok_or_else(|| advice::not_found(account)));
+        };
+        Ok(match self.relocate(&found).await? {
+            None => Err(advice::signed_out(&found)),
+            Some(now) if !now.account().same_as(account) => Err(advice::different_account(&found)),
+            Some(now) => Ok(now),
+        })
+    }
+
+    /// `login` looked up again on its own, off the async runtime: on macOS that runs
+    /// `/usr/bin/security`.
+    async fn relocate(&self, login: &Login) -> Result<Option<Login>> {
+        let (login, keychain) = (login.clone(), Arc::clone(&self.keychain));
+        tokio::task::spawn_blocking(move || login.relocate(keychain.as_ref()))
+            .await
+            .map_err(|_| stopped())?
+    }
+
+    /// The account's saved state, put right first: a damaged file is saved again at once, so the
+    /// hold it records cannot restart, and a clock that moved back is re-anchored. For `unnamed`, a
+    /// sign-in that does not say whose it is, numbers from an earlier token are forgotten, since
+    /// they may be another account's.
+    fn prepare(
+        store: &StateStore,
+        key: &str,
+        unnamed: Option<&Login>,
+        now: DateTime<Utc>,
+    ) -> Result<AccountState> {
+        let (mut state, damaged) = store.load(key, now).map_err(|error| store.error(&error))?;
+        let mut changed = damaged;
+        changed |= state.reanchor(now);
+        if let Some(login) = unnamed.filter(|login| {
+            login.identity.is_none() && !matches!(login.source, LoginSource::Environment(_))
+        }) {
+            changed |= state.forget_numbers_after_new_sign_in(&POLICY, login.generation.as_deref());
+        }
+        if changed {
+            store
+                .save(key, &state)
+                .map_err(|error| store.error(&error))?;
+        }
+        Ok(state)
+    }
+
+    /// Fetches for `named`, the account an earlier answer named for `login`'s token, under that
+    /// account's own lock and floor. `key` is the sign-in's own, already locked.
+    async fn fetch_as(
+        &self,
+        store: &StateStore,
+        key: &str,
+        login: &Login,
+        named: Account,
+        now: DateTime<Utc>,
+    ) -> Result<Snapshot> {
+        let named_key = quotadial_poll::account_key(&named);
+        // Locked after the sign-in's own key, never before it, so two processes cannot wait on
+        // each other.
+        let _lock = if named_key == key {
+            None
+        } else {
+            Some(store.lock_account(&named_key).await?)
+        };
+        let mut state = Self::prepare(store, &named_key, None, now)?;
+        match quotadial_poll::decide(&POLICY, &state, &named, login.generation.as_deref(), now) {
+            Decision::Request => {}
+            Decision::Replay(snapshot) => return Ok(*snapshot),
+            Decision::Wait(reason) => {
+                return Err(Error::Request {
+                    provider: ID,
+                    reason,
+                });
+            }
+        }
+        let (credentials, named) = match self.credentials(login, &state, named, now).await? {
+            Ok(usable) => usable,
+            Err(snapshot) => return Ok(snapshot),
+        };
+        self.send(store, &named_key, &mut state, login, &credentials, named)
+            .await
+    }
+
+    /// Fetches for `named`, the account the profile has just named for `login`'s token, under that
+    /// account's own lock and floor, and remembers whose the token is in the sign-in's own state
+    /// (`known_account`), so the profile is asked once per token (D-049).
+    async fn request_as(
+        &self,
+        store: &StateStore,
+        (key, state): (&str, &mut AccountState),
+        login: &Login,
+        credentials: &Credentials,
+        named: Account,
+        now: DateTime<Utc>,
+    ) -> Result<Snapshot> {
+        let named_key = quotadial_poll::account_key(&named);
+        if named_key == key {
+            return self
+                .send(store, key, state, login, credentials, named)
+                .await;
+        }
+        let snapshot = {
+            // Locked after the sign-in's own key, as in `fetch_as`.
+            let _lock = store.lock_account(&named_key).await?;
+            let mut named_state = Self::prepare(store, &named_key, None, now)?;
+            match quotadial_poll::decide(
+                &POLICY,
+                &named_state,
+                &named,
+                login.generation.as_deref(),
+                now,
+            ) {
+                Decision::Request => {
+                    self.send(
+                        store,
+                        &named_key,
+                        &mut named_state,
+                        login,
+                        credentials,
+                        named,
+                    )
+                    .await?
+                }
+                Decision::Replay(snapshot) => *snapshot,
+                Decision::Wait(reason) => {
+                    return Err(Error::Request {
+                        provider: ID,
+                        reason,
+                    });
+                }
+            }
+        };
+        if snapshot.status == Status::Ok {
+            state.login_generation.clone_from(&login.generation);
+            state.last_good = Some(snapshot.clone());
+            state.last_good_generation.clone_from(&login.generation);
+            // A record that cannot be kept only means the profile is asked again next time.
+            let _ = store.save(key, state);
+        }
+        Ok(snapshot)
+    }
+
+    /// Reads `login`'s token and checks, without asking Anthropic, that it can be used: the
+    /// credentials and `account` with the plan they name, or the snapshot to show instead.
+    async fn credentials(
+        &self,
+        login: &Login,
+        state: &AccountState,
+        mut account: Account,
+        now: DateTime<Utc>,
+    ) -> Result<std::result::Result<(Credentials, Account), Snapshot>> {
+        let credentials = match self.read_credentials(login).await? {
+            Stored::Usable(credentials) => credentials,
+            Stored::SignedOut => {
+                return Ok(Err(needs_sign_in(
+                    state,
+                    account,
+                    &advice::signed_out(login),
+                )));
+            }
+            Stored::NoClaudeLogin => {
+                self.not_an_account(login).await;
+                return Ok(Err(needs_sign_in(
+                    state,
+                    account,
+                    &advice::no_claude_login(login),
+                )));
+            }
+        };
+        // Claude Code may have rewritten this sign-in while its token was read, perhaps for
+        // another account. A token read during a change is not used.
+        match self.relocate(login).await? {
+            None => {
+                return Ok(Err(needs_sign_in(
+                    state,
+                    account,
+                    &advice::signed_out(login),
+                )));
+            }
+            Some(again) if !again.account().same_as(&login.account()) => {
+                return Ok(Err(needs_sign_in(
+                    state,
+                    account,
+                    &advice::different_account(login),
+                )));
+            }
+            Some(again) if again.generation != login.generation => {
+                return Ok(Err(changed_while_read(state, account, login)));
+            }
+            Some(_) => {}
+        }
+        if let Some(plan) = credentials.plan() {
+            account.plan = Some(plan);
+        }
+        // Checked locally, so a dead token costs no request. Refreshing it is Claude Code's job.
+        if let Some(expired_at) = credentials
+            .expires_at
+            .filter(|_| credentials.is_expired(now))
+        {
+            return Ok(Err(needs_sign_in(
+                state,
+                account,
+                &advice::expired(login, expired_at),
+            )));
+        }
+        if !credentials.can_read_usage() {
+            return Ok(Err(needs_sign_in(
+                state,
+                account,
+                &advice::missing_scope(login),
+            )));
+        }
+        Ok(Ok((credentials, account)))
+    }
+
+    /// Sends the usage request for `account` under `key`'s floor and saves the answer.
+    async fn send(
+        &self,
+        store: &StateStore,
+        key: &str,
+        state: &mut AccountState,
+        login: &Login,
+        credentials: &Credentials,
+        account: Account,
+    ) -> Result<Snapshot> {
+        let api = self.api()?;
+        let now = self.clock.now();
+        // Save the floor before sending, so it holds even if QuotaDial stops mid-request. If the
+        // cache cannot be written, no request is sent.
+        let before = state.clone();
+        state.start_request(&POLICY, now, login.generation.clone());
+        store
+            .save(key, state)
+            .map_err(|error| store.error(&error))?;
+
+        match Self::request(api, login, credentials, account, state, now).await {
+            Err(RequestFailure::NotSent(message)) => {
+                // Nothing left this machine, so the floor is put back as it was. If this save
+                // fails, the floor simply holds for 5 minutes.
+                let _ = store.save(key, &before);
+                quotadial_poll::unanswered(&before, &message).map_err(|reason| Error::Request {
+                    provider: ID,
+                    reason,
+                })
+            }
+            answered => {
+                store.save_answer(key, state)?;
+                answered.map_err(RequestFailure::into_error)
+            }
+        }
     }
 
     /// The HTTP client, built on first use.
@@ -194,7 +525,9 @@ impl ClaudeProvider {
 
         let snapshot = match response {
             UsageResponse::Usage(body) => {
-                if login.identity.is_none() {
+                // Still the stand-in for an account Anthropic has not named: the answer names it
+                // if it can.
+                if login.identity.is_none() && account.same_as(&login.account()) {
                     account = match known_account(login, state, &account) {
                         Some(known) => known,
                         None => match api.profile(&credentials.access_token).await {
@@ -205,13 +538,11 @@ impl ClaudeProvider {
                 }
                 state.record_usage(snapshot_from(account, usage::read(&body, now)))
             }
-            UsageResponse::Unauthorized => {
-                auth_failure(state, account, advice::rejected(&login.source))
-            }
+            UsageResponse::Unauthorized => auth_failure(state, account, advice::rejected(login)),
             UsageResponse::MissingScope => {
-                auth_failure(state, account, advice::missing_scope(&login.source))
+                auth_failure(state, account, advice::missing_scope(login))
             }
-            UsageResponse::Revoked => auth_failure(state, account, advice::revoked(&login.source)),
+            UsageResponse::Revoked => auth_failure(state, account, advice::revoked(login)),
             UsageResponse::RateLimited { retry_after } => {
                 let retry_after = retry_after
                     .as_deref()
@@ -254,6 +585,51 @@ impl fmt::Debug for ClaudeProvider {
     }
 }
 
+/// Keychain items whose folder is unknown and which hold only MCP server sign-ins: not accounts
+/// (#34). Kept in the provider's state folder by service, with the modification time each item
+/// had, so discovery leaves them out until Claude Code rewrites them.
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct NotAccounts(BTreeMap<String, Option<String>>);
+
+impl NotAccounts {
+    const FILE: &'static str = "not-accounts.json";
+    /// The lock taken while the record is read and rewritten.
+    const LOCK: &'static str = "not-accounts";
+
+    fn load(dir: &Path) -> Self {
+        std::fs::read(dir.join(Self::FILE))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    }
+
+    /// Saves privately, through a temporary file.
+    fn save(&self, dir: &Path) -> std::io::Result<()> {
+        use std::io::Write;
+
+        std::fs::create_dir_all(dir)?;
+        let temporary = dir.join(format!("{}.tmp", Self::FILE));
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).truncate(true).write(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(&temporary)?;
+        file.write_all(&serde_json::to_vec(self).map_err(std::io::Error::other)?)?;
+        drop(file);
+        std::fs::rename(temporary, dir.join(Self::FILE))
+    }
+
+    fn excludes(&self, login: &Login) -> bool {
+        match &login.source {
+            LoginSource::Keychain { service, .. } if login.folder == Folder::Unknown => self
+                .0
+                .get(service)
+                .is_some_and(|generation| *generation == login.generation),
+            _ => false,
+        }
+    }
+}
+
 /// What reading a sign-in's token found.
 enum Stored {
     Usable(Credentials),
@@ -289,11 +665,7 @@ impl Provider for ClaudeProvider {
     }
 
     fn discover_accounts(&self) -> Result<Vec<Account>> {
-        Ok(self
-            .locate()?
-            .map(|login| login.account())
-            .into_iter()
-            .collect())
+        Ok(self.locate_all()?.iter().map(Login::account).collect())
     }
 
     async fn fetch(&self, account: &Account) -> Result<Snapshot> {
@@ -303,30 +675,32 @@ impl Provider for ClaudeProvider {
         // and the answer saved belong to one moment, and two processes send one request.
         let _lock = store.lock_account(&key).await?;
 
-        let Some(login) = self.locate_without_blocking().await? else {
-            return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT));
+        let login = match self.login_for(account).await? {
+            Ok(login) => login,
+            Err(reason) => {
+                let (state, _) = store
+                    .load(&key, self.clock.now())
+                    .map_err(|error| store.error(&error))?;
+                return Ok(needs_sign_in(&state, account.clone(), &reason));
+            }
         };
-        if !same_account(&login.account(), account) {
-            return Ok(Snapshot::auth_required(
-                account.clone(),
-                advice::DIFFERENT_ACCOUNT,
-            ));
-        }
-
+        // Named by where its sign-in was found this time, which may have moved (P-015).
+        let account = Account {
+            sign_in: Some(login.place.clone()),
+            ..account.clone()
+        };
         let now = self.clock.now();
-        let (mut state, damaged) = store.load(&key, now).map_err(|error| store.error(&error))?;
-        // A damaged file is saved again at once, so the hold it now records cannot restart.
-        let mut changed = damaged;
-        changed |= state.reanchor(now);
-        if login.identity.is_none() && !matches!(login.source, LoginSource::Environment(_)) {
-            changed |= state.forget_numbers_after_new_sign_in(&POLICY, login.generation.as_deref());
+        let mut state = Self::prepare(&store, &key, Some(&login), now)?;
+
+        // A sign-in that does not say whose it is, such as an environment token, may reach an
+        // account that another sign-in reaches too. Once an earlier answer named its account, that
+        // account's floor applies, so two sign-ins never send two requests inside it (#34).
+        if login.identity.is_none()
+            && let Some(named) = known_account(&login, &state, &account)
+        {
+            return self.fetch_as(&store, &key, &login, named, now).await;
         }
-        if changed {
-            store
-                .save(&key, &state)
-                .map_err(|error| store.error(&error))?;
-        }
-        match quotadial_poll::decide(&POLICY, &state, account, login.generation.as_deref(), now) {
+        match quotadial_poll::decide(&POLICY, &state, &account, login.generation.as_deref(), now) {
             Decision::Request => {}
             Decision::Replay(snapshot) => return Ok(*snapshot),
             Decision::Wait(reason) => {
@@ -336,77 +710,22 @@ impl Provider for ClaudeProvider {
                 });
             }
         }
-
-        let credentials = match self.read_credentials(&login).await? {
-            Stored::Usable(credentials) => credentials,
-            Stored::SignedOut => {
-                return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT));
-            }
-            Stored::NoClaudeLogin => {
-                return Ok(Snapshot::auth_required(
-                    account.clone(),
-                    advice::no_claude_login(&login.source),
-                ));
-            }
+        let (credentials, account) = match self.credentials(&login, &state, account, now).await? {
+            Ok(usable) => usable,
+            Err(snapshot) => return Ok(snapshot),
         };
-        // Claude Code may have switched accounts while the token was read. A token read during a
-        // switch must not be counted as this account's.
-        match self.locate_without_blocking().await? {
-            Some(current) if same_account(&current.account(), account) => {}
-            Some(_) => {
-                return Ok(Snapshot::auth_required(
-                    account.clone(),
-                    advice::DIFFERENT_ACCOUNT,
-                ));
-            }
-            None => return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT)),
-        }
-
-        let mut account = account.clone();
-        if let Some(plan) = credentials.plan() {
-            account.plan = Some(plan);
-        }
-        // Checked locally, so a dead token costs no request. Refreshing it is Claude Code's job.
-        if let Some(expired_at) = credentials
-            .expires_at
-            .filter(|_| credentials.is_expired(now))
-        {
-            return Ok(Snapshot::auth_required(
-                account,
-                advice::expired(expired_at),
-            ));
-        }
-        if !credentials.can_read_usage() {
-            return Ok(Snapshot::auth_required(
-                account,
-                advice::missing_scope(&login.source),
-            ));
-        }
-
-        let api = self.api()?;
-        // Save the floor before sending, so it holds even if QuotaDial stops mid-request. If the
-        // cache cannot be written, no request is sent.
-        let before = state.clone();
-        state.start_request(&POLICY, now, login.generation.clone());
-        store
-            .save(&key, &state)
-            .map_err(|error| store.error(&error))?;
-
-        match Self::request(api, &login, &credentials, account, &mut state, now).await {
-            Err(RequestFailure::NotSent(message)) => {
-                // Nothing left this machine, so the floor is put back as it was. If this save
-                // fails, the floor simply holds for 5 minutes.
-                let _ = store.save(&key, &before);
-                quotadial_poll::unanswered(&before, &message).map_err(|reason| Error::Request {
-                    provider: ID,
-                    reason,
-                })
-            }
-            answered => {
-                store.save_answer(&key, &state)?;
-                answered.map_err(RequestFailure::into_error)
+        if login.identity.is_none() {
+            // Asked before the usage request, so that request counts against the floor of the
+            // account the token belongs to, whichever of its sign-ins asks first.
+            if let Some(identity) = self.api()?.profile(&credentials.access_token).await {
+                let named = named(account, &identity);
+                return self
+                    .request_as(&store, (&key, &mut state), &login, &credentials, named, now)
+                    .await;
             }
         }
+        self.send(&store, &key, &mut state, &login, &credentials, account)
+            .await
     }
 
     fn fallback(&self, _account: &Account) -> Option<Snapshot> {
@@ -435,11 +754,6 @@ fn credentials_error(source: &LoginSource, reason: String) -> Error {
     }
 }
 
-/// The same account, as `Account` identity is defined: provider, organization and account id.
-fn same_account(a: &Account, b: &Account) -> bool {
-    a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
-}
-
 /// The account Anthropic named for this sign-in on an earlier request, so the profile is asked once
 /// per token rather than on every request. An environment token's state is kept per token (its
 /// account id is a hash of the token), so it cannot name another token's account. A Keychain or
@@ -453,22 +767,66 @@ fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Opt
     let known = &state.last_good.as_ref()?.account;
     (known.account_id != stand_in.account_id).then(|| Account {
         plan: stand_in.plan.clone().or_else(|| known.plan.clone()),
+        sign_in: stand_in.sign_in.clone(),
         ..known.clone()
     })
 }
 
-/// `account` as Anthropic's profile names it, keeping the plan already known.
+/// `account` as Anthropic's profile names it, keeping the plan already known and where its
+/// sign-in is.
 fn named(account: Account, identity: &Identity) -> Account {
     let named = login::account_for(identity);
     Account {
         plan: account.plan.or(named.plan.clone()),
+        sign_in: account.sign_in,
         ..named
     }
 }
 
+/// Shown when a sign-in changed while its token was read: its last numbers from the cache, if
+/// any, until the next fetch reads it again.
+fn changed_while_read(state: &AccountState, account: Account, login: &Login) -> Snapshot {
+    let mut snapshot = Snapshot {
+        account,
+        windows: Vec::new(),
+        extra_usage: None,
+        status: Status::Stale,
+        error: Some(format!(
+            "The Claude Code sign-in in {} changed while QuotaDial read it. QuotaDial reads it \
+             again at the next check.",
+            login.place
+        )),
+    };
+    if let Some(last) = &state.last_good {
+        snapshot.windows = last.clone().served_from_cache().windows;
+        snapshot.extra_usage.clone_from(&last.extra_usage);
+    }
+    snapshot
+}
+
+/// The error for a lookup whose task stopped before it finished.
+fn stopped() -> Error {
+    Error::Credentials {
+        provider: ID,
+        location: "Claude Code's sign-in".to_owned(),
+        reason: "looking it up stopped unexpectedly; try again".to_owned(),
+    }
+}
+
 fn auth_failure(state: &mut AccountState, account: Account, reason: String) -> Snapshot {
-    let snapshot = Snapshot::auth_required(account, reason);
+    let snapshot = needs_sign_in(state, account, &reason);
     state.record_auth_failure(&snapshot);
+    snapshot
+}
+
+/// A sign-in that needs the user, keeping the account's last good numbers on show, marked as coming
+/// from the cache with their age, so its row does not empty while it waits (#34).
+fn needs_sign_in(state: &AccountState, account: Account, reason: &str) -> Snapshot {
+    let mut snapshot = Snapshot::auth_required(account, reason);
+    if let Some(last) = &state.last_good {
+        snapshot.windows = last.clone().served_from_cache().windows;
+        snapshot.extra_usage.clone_from(&last.extra_usage);
+    }
     snapshot
 }
 
@@ -514,6 +872,9 @@ impl ClaudeProvider {
             base_url: base_url.to_owned(),
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
+            extra_dirs: Vec::new(),
+            max_accounts: None,
+            logins: Mutex::default(),
         }
     }
 

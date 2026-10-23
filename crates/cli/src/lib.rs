@@ -514,6 +514,7 @@ mod tests {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
+            sign_in: None,
         }
     }
 

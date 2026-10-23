@@ -3,13 +3,28 @@ import { useEffect, useState } from "preact/hooks";
 
 import type { Settings } from "./meter";
 
-/** The settings panel: opening at login, the two notifications, and which providers to show. */
+/**
+ * The settings panel: opening at login, the two notifications, which providers to show, and the
+ * names given to accounts.
+ */
 export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
     void invoke<Settings>("settings").then(setSettings);
+  }, []);
+
+  // A name is saved when its field loses focus. Leaving the popover does not take the focus from
+  // the field by itself, so it is taken here, and a name typed before clicking away is kept.
+  useEffect(() => {
+    const leave = () => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    };
+    window.addEventListener("blur", leave);
+    return () => window.removeEventListener("blur", leave);
   }, []);
 
   if (!settings) {
@@ -88,6 +103,31 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
           </label>
         ))}
       </fieldset>
+      {settings.accounts.length > 0 && (
+        <fieldset>
+          <legend>Names</legend>
+          {settings.accounts.map((account) => (
+            <label class="name-choice" key={account.key}>
+              <span>{account.label}</span>
+              <input
+                type="text"
+                value={account.alias}
+                placeholder="A name for this account"
+                onChange={(event) =>
+                  change({
+                    ...settings,
+                    accounts: settings.accounts.map((choice) =>
+                      choice.key === account.key
+                        ? { ...choice, alias: event.currentTarget.value }
+                        : choice,
+                    ),
+                  })
+                }
+              />
+            </label>
+          ))}
+        </fieldset>
+      )}
       {problem && (
         <p class="note" role="alert">
           {problem}

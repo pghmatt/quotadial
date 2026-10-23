@@ -73,7 +73,7 @@ function Contents({ meter }: { meter: Meter }) {
       {!settingsOpen &&
         meter.accounts.map((account, index) => (
           <AccountSection
-            key={`${account.provider} ${account.name}`}
+            key={account.key}
             account={account}
             index={index}
           />
@@ -108,6 +108,7 @@ function AccountSection({ account, index }: { account: Account; index: number })
     <section class="account" aria-labelledby={heading}>
       <h2 id={heading}>
         <span class="provider">{account.provider}</span>
+        {account.alias && <span class="alias">{account.alias}</span>}
         <span class="name">{account.name}</span>
         {account.plan && <span class="tag">{account.plan}</span>}
         {!account.ok && <span class="tag attention">{account.status}</span>}

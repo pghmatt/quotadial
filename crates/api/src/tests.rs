@@ -33,6 +33,7 @@ impl Provider for Fixed {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: None,
+            sign_in: None,
         }])
     }
 

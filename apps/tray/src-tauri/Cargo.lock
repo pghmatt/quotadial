@@ -3206,8 +3206,11 @@ name = "quotadial-providers"
 version = "0.1.0"
 dependencies = [
  "quotadial-core",
+ "quotadial-daemon",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

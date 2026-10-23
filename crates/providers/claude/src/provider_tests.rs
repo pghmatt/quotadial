@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{Secret, Source, WindowKind};
@@ -16,7 +16,7 @@ use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
-use crate::keychain::ItemInfo;
+use crate::keychain::{Item, ItemInfo};
 
 const TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-TOKEN-0123456789";
 const SERVICE: &str = "Claude Code-credentials";
@@ -47,6 +47,8 @@ struct FakeKeychain {
     items: Mutex<HashMap<String, (String, String)>>,
     reads: AtomicUsize,
     on_read: Mutex<Option<ReadHook>>,
+    /// Listing fails, as `security dump-keychain` does when it times out.
+    listing_fails: AtomicBool,
 }
 
 impl FakeKeychain {
@@ -80,6 +82,26 @@ impl Keychain for FakeKeychain {
         Ok(items.get(service).map(|(modified, _)| ItemInfo {
             modified: Some(modified.clone()),
         }))
+    }
+
+    fn list(&self, prefix: &str) -> std::result::Result<Vec<Item>, String> {
+        if self.listing_fails.load(Ordering::SeqCst) {
+            return Err("/usr/bin/security did not answer within 5 seconds".to_owned());
+        }
+        let items = self.items.lock().expect("keychain lock");
+        let mut listed: Vec<Item> = items
+            .iter()
+            .filter(|(service, _)| crate::keychain::is_listed(service, prefix))
+            .map(|(service, (modified, _))| Item {
+                service: service.clone(),
+                account: Some("example".into()),
+                info: ItemInfo {
+                    modified: Some(modified.clone()),
+                },
+            })
+            .collect();
+        listed.sort_by(|a, b| a.service.cmp(&b.service));
+        Ok(listed)
     }
 
     fn read(
@@ -259,6 +281,7 @@ async fn discovers_the_signed_in_account_without_reading_the_token() {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
+            sign_in: Some("the macOS Keychain item \"Claude Code-credentials\"".into()),
         }
     );
     assert_eq!(harness.keychain.reads(), 0);
@@ -478,7 +501,7 @@ async fn a_401_asks_for_a_new_sign_in_which_is_then_tried_at_once() {
     assert_eq!(rejected.status, Status::AuthRequired);
     assert_eq!(
         rejected.error.as_deref(),
-        Some("Anthropic rejected Claude Code's stored sign-in. Run `claude` to sign in again.")
+        Some("Anthropic rejected this Claude Code sign-in. Run `claude` to sign in again.")
     );
 
     harness.advance(1);
@@ -515,7 +538,8 @@ async fn an_expired_token_is_never_sent() {
     assert_eq!(
         snapshot.error.as_deref(),
         Some(
-            "Claude Code's sign-in expired at 2098-12-31T23:59:59Z. Run `claude` once to refresh it."
+            "This Claude Code sign-in expired at 2098-12-31T23:59:59Z. Run `claude` once to refresh \
+             it."
         )
     );
     assert_eq!(harness.requests().await, 0);
@@ -576,6 +600,7 @@ async fn an_environment_token_is_named_by_the_profile_endpoint() {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
+            sign_in: Some("the CLAUDE_CODE_OAUTH_TOKEN environment variable".into()),
         }
     );
     assert_eq!(harness.keychain.reads(), 0);
@@ -742,7 +767,14 @@ async fn another_account_signed_in_is_never_blended_with_this_one() {
     let snapshot = provider.fetch(&account).await.expect("fetch");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
-    assert_eq!(snapshot.error.as_deref(), Some(advice::DIFFERENT_ACCOUNT));
+    assert_eq!(
+        snapshot.error.as_deref(),
+        Some(
+            "The Claude Code sign-in in the macOS Keychain item \"Claude Code-credentials\" is now \
+             for another account, so this one's usage cannot be read there. To keep tracking it, \
+             sign in to it again in another folder, or run `claude` and sign in to it with /login."
+        )
+    );
     assert_eq!(harness.requests().await, 0);
 }
 
@@ -757,7 +789,13 @@ async fn signing_out_after_discovery_asks_for_a_sign_in() {
     let snapshot = provider.fetch(&account).await.expect("fetch");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
-    assert_eq!(snapshot.error.as_deref(), Some(advice::SIGNED_OUT));
+    assert_eq!(
+        snapshot.error.as_deref(),
+        Some(
+            "QuotaDial no longer finds the Claude Code sign-in in the macOS Keychain item \
+             \"Claude Code-credentials\". Run `claude` to sign in again."
+        )
+    );
 }
 
 #[tokio::test]
@@ -1050,7 +1088,14 @@ async fn a_switch_to_another_account_while_reading_the_token_is_not_counted() {
     let snapshot = provider.fetch(&account).await.expect("fetch");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
-    assert_eq!(snapshot.error.as_deref(), Some(advice::DIFFERENT_ACCOUNT));
+    assert_eq!(
+        snapshot.error.as_deref(),
+        Some(
+            "The Claude Code sign-in in the macOS Keychain item \"Claude Code-credentials\" is now \
+             for another account, so this one's usage cannot be read there. To keep tracking it, \
+             sign in to it again in another folder, or run `claude` and sign in to it with /login."
+        )
+    );
     assert_eq!(harness.requests().await, 0);
 }
 
@@ -1462,4 +1507,486 @@ async fn a_keychain_read_that_stops_never_reports_what_it_held() {
     );
     assert!(!message.contains("secrets"), "{message}");
     assert_eq!(harness.usage_requests().await, 0);
+}
+
+/// A Claude Code config folder at `name` under the test home, signed in to `account_uuid`, with its
+/// own Keychain item, as Claude Code makes for `CLAUDE_CONFIG_DIR=<folder>`. Returns the folder,
+/// joined one part at a time, as discovery joins it, so the item's hash matches on Windows too.
+fn sign_in_folder(harness: &Harness, name: &str, account_uuid: &str, oauth: &Value) -> PathBuf {
+    let folder = name
+        .split('/')
+        .fold(harness.home.path().to_path_buf(), |path, part| {
+            path.join(part)
+        });
+    std::fs::create_dir_all(&folder).expect("makes the folder");
+    std::fs::write(
+        folder.join(".claude.json"),
+        json!({
+            "oauthAccount": {
+                "accountUuid": account_uuid,
+                "emailAddress": format!("{account_uuid}@example.com"),
+                "organizationUuid": "00000000-0000-0000-0000-000000000002",
+                "organizationType": "claude_max"
+            }
+        })
+        .to_string(),
+    )
+    .expect("writes the account config");
+    let service = harness
+        .env()
+        .for_config_dir(&folder.display().to_string())
+        .keychain_service();
+    harness.keychain.put(
+        &service,
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth }).to_string(),
+    );
+    folder
+}
+
+#[tokio::test]
+async fn every_stored_sign_in_is_an_account_named_by_where_it_is() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    let work = sign_in_folder(
+        &harness,
+        ".codus/accounts/.pending-work",
+        "00000000-0000-0000-0000-00000000000a",
+        &oauth(),
+    );
+    // The default account again, from another folder: one subscription, one row (D-024).
+    sign_in_folder(
+        &harness,
+        ".claude-copy",
+        "00000000-0000-0000-0000-000000000001",
+        &oauth(),
+    );
+    // An item whose folder is gone.
+    harness.keychain.put(
+        "Claude Code-credentials-deadbeef",
+        "20990101000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+
+    let accounts = harness.provider().discover_accounts().expect("discovers");
+
+    let summary: Vec<(&str, Option<&str>)> = accounts
+        .iter()
+        .map(|account| (account.account_id.as_str(), account.sign_in.as_deref()))
+        .collect();
+    let work_item = harness
+        .env()
+        .for_config_dir(&work.display().to_string())
+        .keychain_service();
+    assert_eq!(
+        summary,
+        [
+            (
+                "00000000-0000-0000-0000-000000000001",
+                Some("the macOS Keychain item \"Claude Code-credentials\"")
+            ),
+            (
+                "00000000-0000-0000-0000-00000000000a",
+                Some(
+                    format!(
+                        "the macOS Keychain item \"{work_item}\" (CLAUDE_CONFIG_DIR {})",
+                        harness.env().tilde(&work)
+                    )
+                    .as_str()
+                )
+            ),
+            (
+                "Claude Code-credentials-deadbeef",
+                Some("the macOS Keychain item \"Claude Code-credentials-deadbeef\"")
+            ),
+        ]
+    );
+    assert_eq!(
+        harness.keychain.reads(),
+        0,
+        "finding sign-ins reads no secret"
+    );
+
+    let capped = harness
+        .provider()
+        .with_max_accounts(Some(1))
+        .discover_accounts()
+        .expect("discovers");
+    assert_eq!(capped.len(), 1, "max_accounts keeps this shell's own first");
+    assert_eq!(capped[0].account_id, "00000000-0000-0000-0000-000000000001");
+}
+
+#[tokio::test]
+async fn a_folders_sign_in_is_polled_with_its_token_and_gets_its_own_fix() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    let folder = sign_in_folder(
+        &harness,
+        ".claude-work",
+        "00000000-0000-0000-0000-00000000000a",
+        &oauth(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let accounts = provider.discover_accounts().expect("discovers");
+    let work = accounts
+        .iter()
+        .find(|account| account.account_id.ends_with('a'))
+        .expect("the work account")
+        .clone();
+
+    let fetched = provider.fetch(&work).await.expect("fetch");
+    assert_eq!(fetched.status, Status::Ok);
+    assert_eq!(fetched.account.account_id, work.account_id);
+    assert!(!fetched.windows.is_empty());
+
+    // Later, Anthropic rejects that folder's token: the fix names its folder, and the last numbers
+    // stay on show from the cache.
+    harness.server.reset().await;
+    harness
+        .mount_usage(ResponseTemplate::new(401).set_body_string("{}"))
+        .await;
+    harness.advance(6);
+    let rejected = provider.fetch(&work).await.expect("fetch");
+
+    assert_eq!(rejected.status, Status::AuthRequired);
+    let command = login::claude_in(&folder, &harness.env().tilde(&folder), cfg!(windows));
+    assert_eq!(
+        rejected.error,
+        Some(format!(
+            "Anthropic rejected this Claude Code sign-in. Run `{command}` to sign in again."
+        ))
+    );
+    if !cfg!(windows) {
+        assert_eq!(command, "CLAUDE_CONFIG_DIR=~/.claude-work claude");
+    }
+    assert_eq!(rejected.windows.len(), fetched.windows.len());
+    assert!(
+        rejected
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Cache)
+    );
+}
+
+#[tokio::test]
+async fn with_a_token_in_the_environment_claude_codes_own_sign_in_is_another_account() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    let env = Environment {
+        oauth_token: Some(Secret::new("sk-ant-oat01-QUOTADIAL-TEST-ENV-TOKEN")),
+        ..harness.env()
+    };
+
+    let accounts = harness
+        .provider_with(env, &harness.server.uri())
+        .discover_accounts()
+        .expect("discovers");
+
+    let places: Vec<Option<&str>> = accounts
+        .iter()
+        .map(|account| account.sign_in.as_deref())
+        .collect();
+    assert_eq!(
+        places,
+        [
+            Some("the CLAUDE_CODE_OAUTH_TOKEN environment variable"),
+            Some("the macOS Keychain item \"Claude Code-credentials\""),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_keychain_item_with_no_folder_and_no_claude_account_is_left_out_once_seen() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.keychain.put(
+        "Claude Code-credentials-0badf00d",
+        "20990101000000Z",
+        &json!({ "mcpOAuth": { "server": { "accessToken": "x" } } }).to_string(),
+    );
+    let provider = harness.provider();
+    let accounts = provider.discover_accounts().expect("discovers");
+    assert_eq!(accounts.len(), 2);
+    let mcp_only = accounts[1].clone();
+
+    let snapshot = provider.fetch(&mcp_only).await.expect("fetch");
+    assert_eq!(snapshot.status, Status::AuthRequired);
+
+    let accounts = provider.discover_accounts().expect("discovers");
+    assert_eq!(accounts.len(), 1, "no longer an account");
+
+    // Claude Code rewrites the item, perhaps with a Claude sign-in: it is asked about again.
+    harness.keychain.put(
+        "Claude Code-credentials-0badf00d",
+        "20990102000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    assert_eq!(provider.discover_accounts().expect("discovers").len(), 2);
+}
+
+const ENV_TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-ENV-TOKEN-0123456789";
+
+/// The `Authorization` header of every usage request, in order.
+async fn usage_tokens(harness: &Harness) -> Vec<String> {
+    harness
+        .server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|request| request.url.path() == "/api/oauth/usage")
+        .filter_map(|request| {
+            request
+                .headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn one_subscription_reached_through_two_sign_ins_is_asked_once_per_floor() {
+    let harness = Harness::new().await;
+    // Claude Code's own sign-in says whose it is. A token in the environment, for the same
+    // subscription, does not, until the profile names it.
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    Mock::given(method("GET"))
+        .and(path("/api/oauth/profile"))
+        .and(header(
+            "authorization",
+            format!("Bearer {ENV_TOKEN}").as_str(),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(PROFILE_FIXTURE, "application/json"))
+        .expect(1)
+        .mount(&harness.server)
+        .await;
+    let env = Environment {
+        oauth_token: Some(Secret::new(ENV_TOKEN)),
+        ..harness.env()
+    };
+    let provider = harness.provider_with(env, &harness.server.uri());
+    let accounts = provider.discover_accounts().expect("discovers");
+    assert_eq!(
+        accounts.len(),
+        2,
+        "until it is named, the token may be another account"
+    );
+    let (token, stored) = (accounts[0].clone(), accounts[1].clone());
+    assert!(token.account_id.starts_with("env:"));
+
+    let first = provider.fetch(&stored).await.expect("the stored sign-in");
+    let second = provider.fetch(&token).await.expect("the environment token");
+
+    assert_eq!(
+        harness.usage_requests().await,
+        1,
+        "one request inside the floor"
+    );
+    assert!(
+        second.account.same_as(&first.account),
+        "named as the same account"
+    );
+    assert!(
+        second
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Cache),
+        "the token's fetch shows the account's numbers from the cache"
+    );
+
+    harness.advance(6);
+    let third = provider.fetch(&token).await.expect("the token again");
+    let fourth = provider
+        .fetch(&stored)
+        .await
+        .expect("the stored sign-in again");
+
+    assert_eq!(
+        harness.usage_requests().await,
+        2,
+        "one request in the next floor too"
+    );
+    assert_eq!(
+        usage_tokens(&harness).await,
+        [format!("Bearer {TOKEN}"), format!("Bearer {ENV_TOKEN}")]
+    );
+    assert_eq!(
+        third.account.sign_in.as_deref(),
+        Some("the CLAUDE_CODE_OAUTH_TOKEN environment variable"),
+        "the numbers came through the token"
+    );
+    assert!(
+        third
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Api)
+    );
+    assert!(
+        fourth
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Cache)
+    );
+}
+
+#[tokio::test]
+async fn a_keychain_that_cannot_be_listed_is_an_error_not_a_sign_out() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    sign_in_folder(
+        &harness,
+        ".claude-work",
+        "00000000-0000-0000-0000-00000000000a",
+        &oauth(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let accounts = provider.discover_accounts().expect("discovers");
+    assert_eq!(accounts.len(), 2);
+
+    harness.keychain.listing_fails.store(true, Ordering::SeqCst);
+    let error = provider
+        .discover_accounts()
+        .expect_err("the listing failed");
+    assert_eq!(
+        error.to_string(),
+        "claude: could not read credentials from the macOS Keychain's list of Claude Code items: \
+         /usr/bin/security did not answer within 5 seconds"
+    );
+
+    // The accounts found before are still read, each through its own item.
+    for account in &accounts {
+        let snapshot = provider.fetch(account).await.expect("fetch");
+        assert_eq!(snapshot.status, Status::Ok, "{:?}", snapshot.error);
+    }
+    assert_eq!(harness.usage_requests().await, 2);
+}
+
+#[tokio::test]
+async fn a_token_read_while_claude_code_rewrites_the_sign_in_is_not_used() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    let keychain = Arc::clone(&harness.keychain);
+    harness.keychain.on_read(move || {
+        keychain.put(
+            SERVICE,
+            "20990101000500Z",
+            &json!({ "claudeAiOauth": oauth() }).to_string(),
+        );
+    });
+
+    let snapshot = provider.fetch(&account).await.expect("fetch");
+
+    assert_eq!(snapshot.status, Status::Stale);
+    assert_eq!(
+        snapshot.error.as_deref(),
+        Some(
+            "The Claude Code sign-in in the macOS Keychain item \"Claude Code-credentials\" \
+             changed while QuotaDial read it. QuotaDial reads it again at the next check."
+        )
+    );
+    assert_eq!(harness.usage_requests().await, 0);
+}
+
+#[tokio::test]
+async fn a_folder_switched_to_another_account_while_read_never_lends_its_token() {
+    let harness = Harness::new().await;
+    let account_uuid = "00000000-0000-0000-0000-00000000000a";
+    // One subscription signed in from two folders. The first holds the newer token, so it is the
+    // one used.
+    let one = sign_in_folder(&harness, ".claude-one", account_uuid, &oauth());
+    sign_in_folder(&harness, ".claude-two", account_uuid, &oauth());
+    let service_one = harness
+        .env()
+        .for_config_dir(&one.display().to_string())
+        .keychain_service();
+    harness.keychain.put(
+        &service_one,
+        "20990102000000Z",
+        &json!({ "claudeAiOauth": oauth() }).to_string(),
+    );
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let accounts = provider.discover_accounts().expect("discovers");
+    assert_eq!(accounts.len(), 1, "one subscription, one account");
+    assert!(
+        accounts[0]
+            .sign_in
+            .as_deref()
+            .is_some_and(|place| place.contains(&service_one))
+    );
+    // While its token is read, the first folder signs in to another account.
+    let (keychain, folder) = (Arc::clone(&harness.keychain), one.clone());
+    harness.keychain.on_read(move || {
+        std::fs::write(
+            folder.join(".claude.json"),
+            json!({ "oauthAccount": {
+                "accountUuid": "00000000-0000-0000-0000-00000000000b",
+                "emailAddress": "other@example.com",
+                "organizationUuid": "00000000-0000-0000-0000-000000000002"
+            } })
+            .to_string(),
+        )
+        .expect("switches the folder");
+        let mut other = oauth();
+        other["accessToken"] = json!("sk-ant-oat01-QUOTADIAL-TEST-OTHER-ACCOUNT-0123456789");
+        keychain.put(
+            &service_one,
+            "20990103000000Z",
+            &json!({ "claudeAiOauth": other }).to_string(),
+        );
+    });
+
+    let snapshot = provider.fetch(&accounts[0]).await.expect("fetch");
+
+    assert_eq!(snapshot.status, Status::AuthRequired);
+    assert!(
+        snapshot
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("is now for another account")),
+        "{:?}",
+        snapshot.error
+    );
+    assert_eq!(harness.usage_requests().await, 0);
+}
+
+#[tokio::test]
+async fn items_recorded_as_not_accounts_at_the_same_time_are_all_kept() {
+    let harness = Harness::new().await;
+    let provider = harness.provider();
+    let item = |service: &str| {
+        Login::new(
+            &harness.env(),
+            LoginSource::Keychain {
+                service: service.into(),
+                account: None,
+            },
+            Some("20990101000000Z".into()),
+            None,
+            Folder::Unknown,
+        )
+    };
+    let items = [
+        item("Claude Code-credentials-0000000a"),
+        item("Claude Code-credentials-0000000b"),
+        item("Claude Code-credentials-0000000c"),
+        item("Claude Code-credentials-0000000d"),
+    ];
+
+    tokio::join!(
+        provider.not_an_account(&items[0]),
+        provider.not_an_account(&items[1]),
+        provider.not_an_account(&items[2]),
+        provider.not_an_account(&items[3]),
+    );
+
+    let recorded = NotAccounts::load(&harness.cache.path().join("claude"));
+    assert!(items.iter().all(|login| recorded.excludes(login)));
 }

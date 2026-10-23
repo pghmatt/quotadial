@@ -6,7 +6,9 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
-use quotadial_core::StatusReport;
+use std::collections::BTreeMap;
+
+use quotadial_core::{Account, StatusReport};
 use serde::{Deserialize, Serialize};
 
 /// The settings, with every notification on and every provider shown until changed.
@@ -19,6 +21,9 @@ pub struct Settings {
     pub notify_high: bool,
     /// Providers left out of the tray, the popover and the notifications, by id.
     pub hidden_providers: Vec<String>,
+    /// A name the user gave an account, by [`account_key`], shown in place of its email address
+    /// (#34).
+    pub aliases: BTreeMap<String, String>,
 }
 
 impl Default for Settings {
@@ -27,8 +32,21 @@ impl Default for Settings {
             notify_sign_in: true,
             notify_high: true,
             hidden_providers: Vec::new(),
+            aliases: BTreeMap::new(),
         }
     }
+}
+
+/// An account, as the settings and the record of notifications name it: its provider, its id and
+/// its organization, the three that make an account (D-024).
+#[must_use]
+pub fn account_key(account: &Account) -> String {
+    format!(
+        "{} {} {}",
+        account.provider,
+        account.account_id,
+        account.org.as_deref().unwrap_or("-")
+    )
 }
 
 impl Settings {
@@ -120,6 +138,7 @@ mod tests {
             notify_sign_in: false,
             notify_high: true,
             hidden_providers: vec!["codex".into()],
+            aliases: BTreeMap::from([("claude user-1 -".into(), "Work".into())]),
         };
         changed.save(&path).expect("saves");
 
@@ -161,6 +180,7 @@ mod tests {
                     display_name: "user@example.com".into(),
                     plan: None,
                     org: None,
+                    sign_in: None,
                 },
                 "Sign in again.",
             )

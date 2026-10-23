@@ -250,6 +250,7 @@ mod tests {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some(org.into()),
+            sign_in: None,
         }
     }
 

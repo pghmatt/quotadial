@@ -380,6 +380,7 @@ mod tests {
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
+                sign_in: None,
             },
             windows: vec![Window {
                 kind: WindowKind::Weekly,

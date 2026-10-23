@@ -35,6 +35,22 @@ pub struct Account {
     /// The organization or workspace the account belongs to, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
+    /// Where QuotaDial read this account's sign-in, written for people, with `~` for the home
+    /// folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4"
+    /// (CLAUDE_CONFIG_DIR ~/.claude-work)`. Never a token. Left out when unknown (P-015).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sign_in: Option<String>,
+}
+
+impl Account {
+    /// Whether `other` is the same account: the same provider, organization and account id, the
+    /// three that make an account (D-024), whatever it is called or where its sign-in was found.
+    #[must_use]
+    pub fn same_as(&self, other: &Account) -> bool {
+        self.provider == other.provider
+            && self.account_id == other.account_id
+            && self.org == other.org
+    }
 }
 
 /// One usage limit with its own reset, such as a five-hour session or a weekly cap.
@@ -236,6 +252,7 @@ mod tests {
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
+            sign_in: None,
         }
     }
 

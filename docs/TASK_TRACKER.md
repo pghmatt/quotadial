@@ -14,11 +14,12 @@ cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager c
 M2 (manager's go-ahead, 2026-10-23) came in three PRs: the daemon and its store (#23, PR #26), the
 local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR #28). M2 is done.
 
-M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its four PRs:
+M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its PRs:
 - PR 1, the scaffold with the daemon running inside the app (PR #31);
 - PR 2, the popover (PR #32);
 - PR 3, settings and notifications (PR #33);
-- PR 4, builds for macOS, Windows and Linux (PR #35).
+- PR 4, builds for macOS, Windows and Linux (PR #35);
+- PR 5, every stored Claude sign-in as its own account, added by the manager in #34 (PR #36).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -26,7 +27,7 @@ Proposals:
 - P-011 and #7 are deferred (D-035).
 - P-012 and P-014 are in the code.
 - P-013 is the manager's PRD edit.
-- P-015 (`Account.sign_in`) is asked on #29.
+- P-015 (`Account.sign_in`) is accepted (#29, #34) and in the code (D-079).
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -63,7 +64,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 1: scaffold, the daemon in the app, the bundled CLI | Done (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
 | PR 2: popover | Done (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
 | PR 3: settings and notifications | Done (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
-| PR 4: builds | In review (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
+| PR 4: builds | Done (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
+| PR 5: every stored Claude sign-in (#34) | In review (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
 
 ## Kickoff
 
@@ -249,6 +251,96 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3 PR 5: every stored Claude sign-in (#34)
+
+- The model: `Account.sign_in` (P-015), and `Account::same_as`, the one identity check (D-078).
+  `StatusReport::normalized` merges two sign-ins of one subscription and sorts each provider's
+  accounts by name (D-082); `collect` and the daemon's `Latest::report` both use it.
+- The Claude provider (D-077 to D-080):
+  - `keychain.rs`: `Keychain::list` runs `security dump-keychain` without `-d` and keeps the
+    `genp` items named `Claude Code-credentials` or `Claude Code-credentials-…`, attributes only.
+  - `login.rs`: `locate_all` finds the shell's own sign-in, the default one when a token or a
+    folder is set, every candidate folder's sign-in (`candidate_dirs`: `~/.claude…`,
+    `~/.codus/accounts/*`, `extra_config_dirs`), and the items no folder matched (`Folder::Unknown`),
+    then keeps one per account. `Login::place` is the `sign_in` text, and `sign_in_command` the
+    command each fix names.
+  - `advice.rs`: every sign-in fix takes the `Login` and names its command.
+  - `lib.rs`: `fetch` finds the account's sign-in again each time (`login_for`); a sign-in that
+    expires or is rejected keeps the last good windows as cache (`needs_sign_in`). `NotAccounts`
+    (`not-accounts.json`, 0600) leaves out items with no folder and no Claude sign-in.
+    `with_extra_config_dirs` and `with_max_accounts` take the settings.
+- The Codex provider sets `sign_in` to its `auth.json` path.
+- `quotadial-providers` reads `config.json` from the data folder (D-081).
+- The app (D-083):
+  - `settings.rs` keeps `aliases` by `account_key` (provider, account id, organization), which
+    `notify.rs` also uses.
+  - `meter.rs`: `with_aliases` puts the names in and sorts each provider's accounts by the name
+    shown. The tray's number leaves out accounts waiting for a sign-in. "How QuotaDial reads this
+    sign-in" names the place from `sign_in`.
+  - The settings panel has a Names field per account, saved when the field loses focus or the
+    popover does. The popover scrolls past 640 points.
+- Live check on Matt's Mac, 2026-10-23:
+  - **The Keychain:** 18 Claude Code items. One is the default, 14 matched folders in
+    `~/.codus/accounts` by their hash, and 3 matched no folder and held only MCP server sign-ins.
+    Those 3 were read once and are left out since.
+  - **`quotadial status`** (the acceptance test): 9 rows in about 0.9 seconds, inside every floor.
+    There are 8 Claude subscriptions: 6 with numbers, and 2 `auth_required` whose fixes name their
+    folders ("Run `CLAUDE_CONFIG_DIR=~/.codus/accounts/.pending-… claude` once to refresh it."). The
+    ninth row is Codex.
+  - **The app:** the popover listed all 9 accounts with their windows and scrolled to the last. The
+    tray showed 100%, the fullest window among the working accounts. A name given in Settings showed
+    in the popover, the menu and the tooltip, moved that account into place by name, and was
+    cleared again. The order stayed the same from launch through polling and across a restart.
+  - **Fixed during the check:**
+    - The order moved between launches, because a restarted daemon used history's order (D-082).
+    - The popover could not scroll.
+    - A name typed before clicking away was saved only when the field next lost focus.
+  - **Found, for the next PR:** the daemon schedules an account's next poll from when its round of
+    polls began, a few seconds before the shared floor allows the request. So every other poll is a
+    replay from the cache, and a moving account is really asked every 10 minutes, not every 5.
+- An independent review of the branch found these, all fixed before the PR:
+  - **The floor was per sign-in, not per subscription** (D-084). An environment token, or an item
+    with no folder, kept its own floor even when it was the same subscription as another sign-in, so
+    one subscription could be asked twice in 5 minutes. Such a token is now named, from the cache or
+    by the profile, before any usage request, and asks under its account's lock and floor.
+  - **Headroom ranked expired accounts first** (D-086), on their old cached numbers.
+  - **One failed lookup hid every account** (D-085):
+    - A Keychain listing that failed or timed out read as empty, so every folder's account looked
+      signed out and notified.
+    - Every fetch listed the whole Keychain again.
+    - A failed discovery dropped the daemon's accounts.
+    Now a failed listing is an error, a fetch looks up only its own sign-in, and the daemon keeps
+    the accounts it found last.
+  - **The recheck after reading a token** accepted any sign-in of the account. It now requires the
+    same sign-in with the same generation (D-079).
+  - **Fixes that named no folder:** "signed out" and "now another account" name the place and its
+    command. Windows gets a PowerShell command, and paths that need quotes are quoted (D-079).
+  - **`sign_in` was lost** once the profile named an account, and went stale when an account's
+    sign-in moved. It now comes from the sign-in each fetch used, and the daemon refreshes what it
+    knows about an account at each discovery.
+  - **Smaller ones:**
+    - Only `Claude Code-credentials-<8 hex>` items are listed.
+    - `not-accounts.json` is rewritten under a lock.
+    - With a token in the environment, the shell's own folder is searched.
+    - Links to folders count.
+    - Keychain and file times compare as times.
+    - The first sign-in counts as the shell's own only when it is.
+    - One wrong setting in `config.json` no longer resets the others.
+    - Tests build folder paths the way discovery does, so they pass on Windows.
+- Tests: 314 in the workspace. The new ones cover:
+  - listing items by attributes only, and a listing that fails;
+  - every stored sign-in as an account named by its place, and a folder's own token and fix;
+  - the environment token as one more account, and one subscription through two sign-ins asked once
+    per floor;
+  - a token read during a rewrite, and a folder switched to another account mid-read;
+  - MCP-only items left out, including records made at the same time;
+  - the fix commands per shell, links, and newer sign-ins;
+  - `config.json`, and merging and sorting the report;
+  - headroom without expired accounts, and the daemon keeping accounts when discovery fails.
+
+  The app has 24, with new ones for names, their order, and the tray's number without expired
+  accounts.
 
 ### M3 PR 4: builds
 

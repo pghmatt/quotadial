@@ -1,19 +1,24 @@
-//! Finds the Claude Code sign-in this shell would use, without reading any secret.
+//! Finds Claude Code's sign-ins on this machine, without reading any secret.
 //!
-//! The order is Claude Code's own: `CLAUDE_CODE_OAUTH_TOKEN`, then on macOS the Keychain item for
-//! the config directory, then `.credentials.json` (Claude Code 2.1.286 reads the Keychain first
-//! and falls back to the file). One sign-in per shell is the M1 scope (decision D-023).
+//! [`locate`] finds the one this shell would use, in Claude Code's own order:
+//! `CLAUDE_CODE_OAUTH_TOKEN`, then on macOS the Keychain item for the config directory, then
+//! `.credentials.json` (Claude Code 2.1.286 reads the Keychain first and falls back to the file).
+//!
+//! [`locate_all`] finds every one stored (#34): that one first (D-023), Claude Code's default
+//! folder, the folders other tools keep sign-ins in, and any Keychain item no folder accounts for.
+//! A subscription seen from two folders is one account (D-024).
 
+use std::collections::BTreeSet;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use quotadial_core::{Account, Error, Result, Secret};
 
 use crate::ID;
-use crate::environment::{Environment, sha256_hex};
+use crate::environment::{Environment, KEYCHAIN_SERVICE, sha256_hex};
 use crate::identity::{self, Identity};
-use crate::keychain::Keychain;
+use crate::keychain::{Item, Keychain};
 
 /// Where a sign-in's token lives.
 #[derive(Debug, Clone)]
@@ -62,6 +67,17 @@ impl LoginSource {
     }
 }
 
+/// The Claude Code config folder a sign-in belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Folder {
+    /// Claude Code's default folder, used when `CLAUDE_CONFIG_DIR` is not set.
+    Default,
+    /// The folder `CLAUDE_CONFIG_DIR` names.
+    Named(PathBuf),
+    /// A Keychain item whose folder QuotaDial could not find.
+    Unknown,
+}
+
 /// A Claude Code sign-in found on this machine.
 #[derive(Debug, Clone)]
 pub(crate) struct Login {
@@ -72,12 +88,98 @@ pub(crate) struct Login {
     /// Who the sign-in belongs to, from Claude Code's account config. `None` for an environment
     /// token, whose account the config does not describe.
     pub(crate) identity: Option<Identity>,
+    pub(crate) folder: Folder,
+    /// Where the sign-in is, written for people, as [`Account::sign_in`] carries it (P-015).
+    pub(crate) place: String,
+    /// What Claude Code sees for this sign-in, so it can be looked up again on its own.
+    env: Environment,
 }
 
 impl Login {
+    pub(crate) fn new(
+        env: &Environment,
+        source: LoginSource,
+        generation: Option<String>,
+        identity: Option<Identity>,
+        folder: Folder,
+    ) -> Self {
+        let place = match (&source, &folder) {
+            (LoginSource::Environment(_), _) => source.location(),
+            (LoginSource::Keychain { service, .. }, Folder::Named(dir)) => format!(
+                "the macOS Keychain item \"{service}\" (CLAUDE_CONFIG_DIR {})",
+                env.tilde(dir)
+            ),
+            (LoginSource::Keychain { service, .. }, _) => {
+                format!("the macOS Keychain item \"{service}\"")
+            }
+            (LoginSource::File(path), _) => env.tilde(path),
+        };
+        Self {
+            source,
+            generation,
+            identity,
+            folder,
+            place,
+            env: env.clone(),
+        }
+    }
+
+    /// This sign-in looked up again on its own, without reading its token: its current generation
+    /// and who it belongs to now, or `None` once it is gone.
+    ///
+    /// # Errors
+    ///
+    /// When the Keychain or the credentials file cannot be read, which is not the same as gone.
+    pub(crate) fn relocate(&self, keychain: &dyn Keychain) -> Result<Option<Self>> {
+        let found = |generation| {
+            Some(Self::new(
+                &self.env,
+                self.source.clone(),
+                generation,
+                self.identity_now(),
+                self.folder.clone(),
+            ))
+        };
+        match &self.source {
+            LoginSource::Environment(_) => Ok(Some(self.clone())),
+            LoginSource::Keychain { service, account } => {
+                match keychain.find(service, account.as_deref()) {
+                    Ok(Some(item)) => Ok(found(item.modified)),
+                    Ok(None) => Ok(None),
+                    Err(reason) => Err(Error::Credentials {
+                        provider: ID,
+                        location: self.source.location(),
+                        reason,
+                    }),
+                }
+            }
+            LoginSource::File(path) => match std::fs::metadata(path) {
+                Ok(metadata) if metadata.is_file() => Ok(found(modified(&metadata))),
+                Ok(_) => Ok(None),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(Error::Credentials {
+                    provider: ID,
+                    location: path.display().to_string(),
+                    reason: format!("{error}; check that you can read it"),
+                }),
+            },
+        }
+    }
+
+    /// Who the sign-in belongs to now, from its folder's account config. An environment token's
+    /// account is not in it, and an item whose folder is unknown has none to read.
+    fn identity_now(&self) -> Option<Identity> {
+        if self.folder == Folder::Unknown || matches!(self.source, LoginSource::Environment(_)) {
+            return None;
+        }
+        self.env
+            .account_config_file()
+            .and_then(|file| identity::from_account_config(&file))
+    }
+
     /// The account this sign-in belongs to, as far as is known without asking Anthropic.
     pub(crate) fn account(&self) -> Account {
-        match &self.identity {
+        let account = match &self.identity {
             Some(identity) => account_for(identity),
             None => {
                 let (account_id, display_name) = self.source.stand_in();
@@ -87,9 +189,56 @@ impl Login {
                     display_name,
                     plan: None,
                     org: None,
+                    sign_in: None,
                 }
             }
+        };
+        Account {
+            sign_in: Some(self.place.clone()),
+            ..account
         }
+    }
+
+    /// The command that signs this sign-in's account in again, such as
+    /// `` `CLAUDE_CONFIG_DIR=~/.claude-work claude` ``.
+    pub(crate) fn sign_in_command(&self) -> String {
+        match (&self.folder, &self.source) {
+            (Folder::Named(dir), _) => {
+                format!("`{}`", claude_in(dir, &self.env.tilde(dir), cfg!(windows)))
+            }
+            (Folder::Unknown, LoginSource::Keychain { service, .. }) => format!(
+                "`claude` with the CLAUDE_CONFIG_DIR that made the Keychain item \"{service}\""
+            ),
+            _ => "`claude`".to_owned(),
+        }
+    }
+
+    /// The Keychain service this sign-in is filed under, if it is in the Keychain.
+    fn service(&self) -> Option<&str> {
+        match &self.source {
+            LoginSource::Keychain { service, .. } => Some(service),
+            _ => None,
+        }
+    }
+}
+
+/// The command that runs `claude` with `CLAUDE_CONFIG_DIR` set to `dir`: for PowerShell on
+/// Windows, and elsewhere for a POSIX shell, writing `shown`, the folder with `~`, when it needs no
+/// quotes.
+pub(crate) fn claude_in(dir: &Path, shown: &str, windows: bool) -> String {
+    if windows {
+        let dir = dir.display().to_string().replace('\'', "''");
+        return format!("$env:CLAUDE_CONFIG_DIR = '{dir}'; claude");
+    }
+    let plain = shown.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(c, '~' | '/' | '.' | '_' | '-' | '+' | '@' | ',' | ':')
+    });
+    if plain {
+        format!("CLAUDE_CONFIG_DIR={shown} claude")
+    } else {
+        let dir = dir.display().to_string().replace('\'', r"'\''");
+        format!("CLAUDE_CONFIG_DIR='{dir}' claude")
     }
 }
 
@@ -103,17 +252,26 @@ pub(crate) fn account_for(identity: &Identity) -> Account {
             .unwrap_or_else(|| identity.account_uuid.clone()),
         plan: identity.plan.clone(),
         org: identity.org_uuid.clone(),
+        sign_in: None,
     }
+}
+
+/// The folder an environment's stored sign-in belongs to.
+fn folder_of(env: &Environment) -> Folder {
+    env.scoped_dir()
+        .map_or(Folder::Default, |dir| Folder::Named(PathBuf::from(dir)))
 }
 
 /// Finds the sign-in Claude Code would use with this environment, or `None` when it is signed out.
 pub(crate) fn locate(env: &Environment, keychain: &dyn Keychain) -> Result<Option<Login>> {
     if let Some(token) = &env.oauth_token {
-        return Ok(Some(Login {
-            source: LoginSource::Environment(token.clone()),
-            generation: None,
-            identity: None,
-        }));
+        return Ok(Some(Login::new(
+            env,
+            LoginSource::Environment(token.clone()),
+            None,
+            None,
+            Folder::Default,
+        )));
     }
     let identity = || {
         env.account_config_file()
@@ -124,11 +282,13 @@ pub(crate) fn locate(env: &Environment, keychain: &dyn Keychain) -> Result<Optio
     let account = env.keychain_account();
     match keychain.find(&service, account.as_deref()) {
         Ok(Some(item)) => {
-            return Ok(Some(Login {
-                source: LoginSource::Keychain { service, account },
-                generation: item.modified,
-                identity: identity(),
-            }));
+            return Ok(Some(Login::new(
+                env,
+                LoginSource::Keychain { service, account },
+                item.modified,
+                identity(),
+                folder_of(env),
+            )));
         }
         Ok(None) => {}
         Err(reason) => {
@@ -144,13 +304,13 @@ pub(crate) fn locate(env: &Environment, keychain: &dyn Keychain) -> Result<Optio
         return Ok(None);
     };
     match std::fs::metadata(&file) {
-        Ok(metadata) if metadata.is_file() => Ok(Some(Login {
-            generation: metadata.modified().ok().map(|modified| {
-                DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Nanos, true)
-            }),
-            source: LoginSource::File(file),
-            identity: identity(),
-        })),
+        Ok(metadata) if metadata.is_file() => Ok(Some(Login::new(
+            env,
+            LoginSource::File(file),
+            modified(&metadata),
+            identity(),
+            folder_of(env),
+        ))),
         Ok(_) => Ok(None),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(Error::Credentials {
@@ -161,6 +321,195 @@ pub(crate) fn locate(env: &Environment, keychain: &dyn Keychain) -> Result<Optio
     }
 }
 
+/// A file's modification time, which changes whenever Claude Code writes a new token.
+fn modified(metadata: &std::fs::Metadata) -> Option<String> {
+    metadata
+        .modified()
+        .ok()
+        .map(|modified| DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Nanos, true))
+}
+
+/// Finds every Claude Code sign-in stored on this machine, one per account (#34): this shell's
+/// own first (D-023), then the sign-in Claude Code keeps for this shell's folder when a token in
+/// the environment comes first, then Claude Code's default folder, then the sign-ins kept for
+/// other config folders, then any Keychain item no folder accounts for. `extra_dirs` adds
+/// folders, and a folder ending in `*` adds every folder inside it.
+///
+/// # Errors
+///
+/// When this shell's own sign-in cannot be read, or the Keychain cannot be listed. Treating a
+/// listing that failed as an empty one would make every other account look signed out. Other
+/// folders whose sign-in cannot be read are skipped.
+pub(crate) fn locate_all(
+    env: &Environment,
+    keychain: &dyn Keychain,
+    extra_dirs: &[PathBuf],
+) -> Result<Vec<Login>> {
+    let own = locate(env, keychain)?;
+    let has_own = own.is_some();
+    let mut logins: Vec<Login> = own.into_iter().collect();
+    // Listed once by attributes, so every folder can be matched without reading a secret.
+    let items = keychain
+        .list(KEYCHAIN_SERVICE)
+        .map_err(|reason| Error::Credentials {
+            provider: ID,
+            location: "the macOS Keychain's list of Claude Code items".to_owned(),
+            reason,
+        })?;
+    let mut scoped = Vec::new();
+    // With a token in the environment, the sign-in Claude Code keeps for this shell's folder is
+    // another account.
+    if env.oauth_token.is_some() {
+        scoped.push(env.without_token());
+    }
+    // With a folder chosen, so is the one in Claude Code's default folder.
+    if env.scoped_dir().is_some() {
+        scoped.push(env.default_only());
+    }
+    let own_dir = env.scoped_dir();
+    scoped.extend(
+        candidate_dirs(env, extra_dirs)
+            .into_iter()
+            .filter(|dir| Some(dir) != own_dir.as_ref())
+            .map(|dir| env.for_config_dir(&dir)),
+    );
+    for env in &scoped {
+        if let Some(login) = stored(env, &items) {
+            logins.push(login);
+        }
+    }
+    for item in &items {
+        if !logins
+            .iter()
+            .any(|login| login.service() == Some(&item.service))
+        {
+            logins.push(Login::new(
+                env,
+                LoginSource::Keychain {
+                    service: item.service.clone(),
+                    account: item.account.clone(),
+                },
+                item.info.modified.clone(),
+                None,
+                Folder::Unknown,
+            ));
+        }
+    }
+    Ok(one_per_account(logins, has_own))
+}
+
+/// The sign-in stored for `env`'s folder, found among the listed Keychain `items` or as its
+/// credentials file.
+fn stored(env: &Environment, items: &[Item]) -> Option<Login> {
+    let identity = || {
+        env.account_config_file()
+            .and_then(|file| identity::from_account_config(&file))
+    };
+    let service = env.keychain_service();
+    if let Some(item) = items.iter().find(|item| item.service == service) {
+        return Some(Login::new(
+            env,
+            LoginSource::Keychain {
+                service,
+                account: item.account.clone(),
+            },
+            item.info.modified.clone(),
+            identity(),
+            folder_of(env),
+        ));
+    }
+    let file = env.credentials_file()?;
+    let metadata = std::fs::metadata(&file)
+        .ok()
+        .filter(|metadata| metadata.is_file())?;
+    Some(Login::new(
+        env,
+        LoginSource::File(file),
+        modified(&metadata),
+        identity(),
+        folder_of(env),
+    ))
+}
+
+/// Folders that may hold a Claude Code sign-in besides the default one, as `CLAUDE_CONFIG_DIR`
+/// would name them: `~/.claude-*` and other `~/.claude…` folders, the account folders Codus keeps
+/// in `~/.codus/accounts`, and `extra_dirs`.
+pub(crate) fn candidate_dirs(env: &Environment, extra_dirs: &[PathBuf]) -> Vec<String> {
+    let mut dirs = BTreeSet::new();
+    if let Some(home) = &env.home {
+        dirs.extend(folders_in(home, |name| {
+            name.starts_with(".claude") && name != ".claude"
+        }));
+        // Joined one part at a time, so the path is written as Claude Code would be given it on
+        // Windows too, and hashes to the same Keychain item.
+        dirs.extend(folders_in(&home.join(".codus").join("accounts"), |_| true));
+    }
+    for dir in extra_dirs {
+        let dir = match (dir.strip_prefix("~"), &env.home) {
+            (Ok(rest), Some(home)) => home.join(rest),
+            _ => dir.clone(),
+        };
+        if dir.file_name().is_some_and(|name| name == "*") {
+            if let Some(parent) = dir.parent() {
+                dirs.extend(folders_in(parent, |_| true));
+            }
+        } else if dir.is_dir() {
+            dirs.insert(dir.display().to_string());
+        }
+    }
+    dirs.into_iter().collect()
+}
+
+/// The folders directly inside `parent` whose names pass `keep`, as full paths. A link to a folder
+/// counts as a folder.
+fn folders_in(parent: &Path, keep: impl Fn(&str) -> bool) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|entry| keep(&entry.file_name().to_string_lossy()))
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.path().display().to_string())
+        .collect()
+}
+
+/// One sign-in per account (D-024): the first found, except that a newer token in the same
+/// account replaces an older one from another folder, being less likely to have expired. When
+/// `has_own`, the first is this shell's own sign-in, which always stays.
+fn one_per_account(logins: Vec<Login>, has_own: bool) -> Vec<Login> {
+    let mut kept: Vec<Login> = Vec::new();
+    for login in logins {
+        let account = login.account();
+        match kept
+            .iter_mut()
+            .enumerate()
+            .find(|(_, known)| known.account().same_as(&account))
+        {
+            Some((0, _)) if has_own => {}
+            Some((_, known)) if written(&login) > written(known) => *known = login,
+            Some(_) => {}
+            None => kept.push(login),
+        }
+    }
+    kept
+}
+
+/// When a sign-in's token was last written, read from its generation: a Keychain time such as
+/// `20261022205736Z`, or a file's RFC 3339 time. Compared as times, so neither kind of sign-in wins
+/// just because of how its time is written.
+fn written(login: &Login) -> Option<DateTime<Utc>> {
+    let generation = login.generation.as_deref()?;
+    NaiveDateTime::parse_from_str(generation, "%Y%m%d%H%M%SZ")
+        .map(|naive| naive.and_utc())
+        .ok()
+        .or_else(|| {
+            DateTime::parse_from_rfc3339(generation)
+                .ok()
+                .map(|time| time.with_timezone(&Utc))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -168,7 +517,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::keychain::{ItemInfo, NoKeychain};
+    use crate::keychain::{Item, ItemInfo, NoKeychain};
 
     /// A keychain whose only item is the one a test puts there. Reading secrets is not allowed.
     struct OneItem {
@@ -334,6 +683,7 @@ mod tests {
                 display_name: "user@example.com".into(),
                 plan: Some("max".into()),
                 org: Some("00000000-0000-0000-0000-000000000002".into()),
+                sign_in: Some("the macOS Keychain item \"Claude Code-credentials\"".into()),
             }
         );
     }
@@ -355,6 +705,201 @@ mod tests {
         // No account config: the file stands in for the account until Anthropic names it.
         assert_eq!(login.account().account_id, file.display().to_string());
         assert_eq!(login.account().org, None);
+    }
+
+    /// A keychain with no items whose listing fails, as `security dump-keychain` does on a timeout.
+    struct UnlistableKeychain;
+
+    impl Keychain for UnlistableKeychain {
+        fn find(
+            &self,
+            _service: &str,
+            _account: Option<&str>,
+        ) -> std::result::Result<Option<ItemInfo>, String> {
+            Ok(None)
+        }
+
+        fn read(
+            &self,
+            _service: &str,
+            _account: Option<&str>,
+        ) -> std::result::Result<Option<Secret>, String> {
+            panic!("locating a sign-in must never read a secret");
+        }
+
+        fn list(&self, _prefix: &str) -> std::result::Result<Vec<Item>, String> {
+            Err("/usr/bin/security did not answer within 5 seconds".to_owned())
+        }
+    }
+
+    /// A folder at `name` in `home` with a credentials file and an account config naming
+    /// `account_uuid`, as Claude Code leaves it where there is no Keychain.
+    fn signed_in_folder(home: &Path, name: &str, account_uuid: &str) -> PathBuf {
+        let folder = home.join(name);
+        std::fs::create_dir_all(&folder).expect("makes the folder");
+        std::fs::write(folder.join(".credentials.json"), "{}").expect("writes");
+        std::fs::write(
+            folder.join(".claude.json"),
+            json!({ "oauthAccount": {
+                "accountUuid": account_uuid,
+                "emailAddress": format!("{account_uuid}@example.com"),
+                "organizationUuid": "00000000-0000-0000-0000-000000000002"
+            } })
+            .to_string(),
+        )
+        .expect("writes account config");
+        folder
+    }
+
+    #[test]
+    fn the_fix_command_suits_the_shell_and_the_folder() {
+        let home_folder = Path::new("/Users/example/.claude-work");
+        assert_eq!(
+            claude_in(home_folder, "~/.claude-work", false),
+            "CLAUDE_CONFIG_DIR=~/.claude-work claude"
+        );
+        assert_eq!(
+            claude_in(Path::new("/Users/example/My Claude"), "~/My Claude", false),
+            "CLAUDE_CONFIG_DIR='/Users/example/My Claude' claude",
+            "quoted, with the full path, since quotes stop ~ from expanding"
+        );
+        assert_eq!(
+            claude_in(Path::new("/Users/example/it's"), "~/it's", false),
+            r"CLAUDE_CONFIG_DIR='/Users/example/it'\''s' claude"
+        );
+        assert_eq!(
+            claude_in(
+                Path::new(r"C:\Users\example\.claude-work"),
+                r"~\.claude-work",
+                true
+            ),
+            r"$env:CLAUDE_CONFIG_DIR = 'C:\Users\example\.claude-work'; claude",
+            "PowerShell, which neither expands ~ nor takes VAR=value before a command"
+        );
+        assert_eq!(
+            claude_in(Path::new(r"C:\Users\o'brien\.claude"), r"~\.claude", true),
+            r"$env:CLAUDE_CONFIG_DIR = 'C:\Users\o''brien\.claude'; claude"
+        );
+    }
+
+    #[test]
+    fn with_a_token_in_the_environment_its_folders_own_sign_in_is_another_account() {
+        let home = tempfile::tempdir().expect("temp dir");
+        let work = signed_in_folder(
+            home.path(),
+            "work-claude",
+            "00000000-0000-0000-0000-00000000000b",
+        );
+        let env = Environment {
+            config_dir: Some(work.display().to_string()),
+            oauth_token: Some(Secret::new("sk-ant-oat01-QUOTADIAL-TEST-TOKEN")),
+            ..env_in(home.path())
+        };
+
+        let logins = locate_all(&env, &NoKeychain, &[]).expect("locates");
+
+        let accounts: Vec<String> = logins
+            .iter()
+            .map(|login| login.account().account_id)
+            .collect();
+        assert_eq!(accounts.len(), 2, "{accounts:?}");
+        assert!(accounts[0].starts_with("env:"));
+        assert_eq!(accounts[1], "00000000-0000-0000-0000-00000000000b");
+        assert_eq!(logins[1].folder, Folder::Named(work.clone()));
+    }
+
+    #[test]
+    fn a_newer_sign_in_of_the_same_account_wins_unless_the_first_is_this_shells_own() {
+        let home = tempfile::tempdir().expect("temp dir");
+        let env = env_in(home.path());
+        let identity = Identity {
+            account_uuid: "00000000-0000-0000-0000-000000000001".into(),
+            email: None,
+            org_uuid: None,
+            plan: None,
+        };
+        let keychain = |generation: &str| {
+            Login::new(
+                &env,
+                LoginSource::Keychain {
+                    service: "Claude Code-credentials-0000000a".into(),
+                    account: None,
+                },
+                Some(generation.into()),
+                Some(identity.clone()),
+                Folder::Unknown,
+            )
+        };
+        let file = |generation: &str| {
+            Login::new(
+                &env,
+                LoginSource::File(home.path().join(".credentials.json")),
+                Some(generation.into()),
+                Some(identity.clone()),
+                Folder::Default,
+            )
+        };
+
+        // A Keychain time and a file time, compared as times.
+        let newer_file = one_per_account(
+            vec![
+                keychain("20991231000000Z"),
+                file("2100-01-01T00:00:00.000000000Z"),
+            ],
+            false,
+        );
+        assert!(matches!(newer_file[0].source, LoginSource::File(_)));
+        let older_file = one_per_account(
+            vec![
+                keychain("20991231000000Z"),
+                file("2099-12-30T00:00:00.000000000Z"),
+            ],
+            false,
+        );
+        assert!(matches!(older_file[0].source, LoginSource::Keychain { .. }));
+        // This shell's own sign-in stays, even when another is newer.
+        let own = one_per_account(
+            vec![
+                keychain("20991231000000Z"),
+                file("2100-01-01T00:00:00.000000000Z"),
+            ],
+            true,
+        );
+        assert!(matches!(own[0].source, LoginSource::Keychain { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_to_a_folder_is_searched_like_the_folder() {
+        let home = tempfile::tempdir().expect("temp dir");
+        let real = signed_in_folder(
+            home.path(),
+            "claude-accounts-real",
+            "00000000-0000-0000-0000-00000000000c",
+        );
+        std::os::unix::fs::symlink(&real, home.path().join(".claude-linked")).expect("links");
+
+        let dirs = candidate_dirs(&env_in(home.path()), &[]);
+
+        assert_eq!(
+            dirs,
+            [home.path().join(".claude-linked").display().to_string()]
+        );
+    }
+
+    #[test]
+    fn a_keychain_that_cannot_be_listed_fails_the_search() {
+        let home = tempfile::tempdir().expect("temp dir");
+
+        let error = locate_all(&env_in(home.path()), &UnlistableKeychain, &[])
+            .expect_err("no listing, no search");
+
+        assert!(
+            error
+                .to_string()
+                .ends_with("did not answer within 5 seconds"),
+            "{error}"
+        );
     }
 
     #[test]
