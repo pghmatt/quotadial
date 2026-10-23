@@ -90,8 +90,9 @@ pub(crate) fn failed(status: u16, message: Option<&str>) -> String {
 mod tests {
     use std::path::PathBuf;
 
+    use quotadial_core::Secret;
+
     use super::*;
-    use crate::secret::Secret;
 
     fn keychain() -> LoginSource {
         LoginSource::Keychain {

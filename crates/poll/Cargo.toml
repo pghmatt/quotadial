@@ -1,0 +1,26 @@
+[package]
+name = "quotadial-poll"
+description = "When QuotaDial may ask a provider for usage, and what it remembers between runs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+dirs.workspace = true
+quotadial-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

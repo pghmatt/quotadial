@@ -9,14 +9,13 @@
 use std::process::Command;
 use std::time::Duration;
 
-use quotadial_core::redact_secrets;
+use quotadial_core::{Secret, redact_secrets};
 use reqwest::header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER, USER_AGENT};
 use reqwest::{Client, Response, StatusCode, redirect};
 use serde_json::Value;
 
 use crate::identity::{self, Identity};
 use crate::process;
-use crate::secret::Secret;
 
 pub(crate) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const USAGE_PATH: &str = "/api/oauth/usage";

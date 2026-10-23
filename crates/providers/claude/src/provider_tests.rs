@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{Source, WindowKind};
+use quotadial_core::{Secret, Source, WindowKind};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use wiremock::matchers::{header, method, path};
@@ -17,7 +17,6 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
 use crate::keychain::ItemInfo;
-use crate::secret::Secret;
 
 const TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-TOKEN-0123456789";
 const SERVICE: &str = "Claude Code-credentials";
@@ -238,6 +237,11 @@ async fn discovered(provider: &ClaudeProvider) -> Account {
     let mut accounts = provider.discover_accounts().expect("discovers");
     assert_eq!(accounts.len(), 1, "one Claude account per shell");
     accounts.remove(0)
+}
+
+#[test]
+fn the_floor_matches_the_public_constant() {
+    assert_eq!(POLICY.floor.to_std().expect("positive"), MIN_POLL_INTERVAL);
 }
 
 #[tokio::test]
@@ -1149,7 +1153,7 @@ fn state_file(harness: &Harness, account: &Account) -> PathBuf {
         .cache
         .path()
         .join("claude")
-        .join(format!("{}.json", state::account_key(account)))
+        .join(format!("{}.json", quotadial_poll::account_key(account)))
 }
 
 /// Everything QuotaDial wrote to its cache directory, as text.

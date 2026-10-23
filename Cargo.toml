@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/core",
+    "crates/poll",
     "crates/providers/claude",
     "crates/providers/codex",
     "crates/api",
@@ -19,6 +20,7 @@ publish = false
 
 [workspace.dependencies]
 quotadial-core = { path = "crates/core" }
+quotadial-poll = { path = "crates/poll" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
 async-trait = "0.1.92"

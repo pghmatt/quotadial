@@ -2,12 +2,15 @@
 
 use chrono::{DateTime, Utc};
 
-pub(crate) trait Clock: Send + Sync {
+/// Where a provider gets the current time.
+pub trait Clock: Send + Sync {
+    /// The current time.
     fn now(&self) -> DateTime<Utc>;
 }
 
 /// The system clock.
-pub(crate) struct SystemClock;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemClock;
 
 impl Clock for SystemClock {
     fn now(&self) -> DateTime<Utc> {
