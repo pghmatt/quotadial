@@ -86,10 +86,14 @@ async fn get<T: DeserializeOwned>(dir: &DataDir, path: &str) -> Result<Option<T>
         .send()
         .await
         .map_err(|error| {
-            unanswered(if error.is_timeout() {
+            // A refused connection can surface as a connect timeout (Windows retries a refusal for
+            // longer than `CONNECT_TIMEOUT`), so both are "could not be reached".
+            unanswered(if error.is_connect() {
+                "could not be reached"
+            } else if error.is_timeout() {
                 "did not answer in time"
             } else {
-                "refused the connection"
+                "stopped answering"
             })
         })?;
     match response.status() {

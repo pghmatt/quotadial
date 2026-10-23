@@ -1052,7 +1052,7 @@ mod tests {
             String::from_utf8(out).expect("UTF-8"),
             format!(
                 "error: the QuotaDial daemon is running, but its API at \
-                 http://127.0.0.1:{port}/v1/status refused the connection; restart it with \
+                 http://127.0.0.1:{port}/v1/status could not be reached; restart it with \
                  `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and \
                  asks scripted at most every 5 min. Press Ctrl-C to stop.\n"
             )

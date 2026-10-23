@@ -364,7 +364,7 @@ async fn a_running_daemon_that_does_not_answer_is_an_error_not_a_reason_to_poll(
     let (_temp, dir, instance) = daemon.stop().await;
     let stopped = client::status(&dir).await.expect_err("nothing listens");
     assert!(
-        stopped.to_string().contains("refused the connection"),
+        stopped.to_string().contains("could not be reached"),
         "{stopped}"
     );
     assert!(
