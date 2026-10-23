@@ -311,7 +311,8 @@ mod tests {
         let home = tempfile::tempdir().expect("temp dir");
         write_account_config(home.path());
         std::fs::create_dir_all(home.path().join(".claude")).expect("config dir");
-        std::fs::write(home.path().join(".claude/.credentials.json"), "{}").expect("writes");
+        std::fs::write(home.path().join(".claude").join(".credentials.json"), "{}")
+            .expect("writes");
         let keychain = OneItem {
             service: "Claude Code-credentials".into(),
         };
@@ -342,7 +343,8 @@ mod tests {
     fn the_credentials_file_is_used_when_there_is_no_keychain_item() {
         let home = tempfile::tempdir().expect("temp dir");
         std::fs::create_dir_all(home.path().join(".claude")).expect("config dir");
-        let file = home.path().join(".claude/.credentials.json");
+        // Built one component at a time, as Claude Code does, so the text matches on Windows too.
+        let file = home.path().join(".claude").join(".credentials.json");
         std::fs::write(&file, "{}").expect("writes");
 
         let login = locate(&env_in(home.path()), &NoKeychain)
