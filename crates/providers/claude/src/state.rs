@@ -62,6 +62,26 @@ struct StateFile {
     state: AccountState,
 }
 
+/// The fields that hold requests back. Every format version keeps their names and meaning, so they
+/// can still be read from a file that no longer parses in full: a damaged one, or one whose
+/// snapshots another version of QuotaDial wrote.
+#[derive(Deserialize)]
+struct HoldFile {
+    state: Hold,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct Hold {
+    requested_at: Option<DateTime<Utc>>,
+    blocked_until: Option<DateTime<Utc>>,
+    rate_limit_strikes: u32,
+}
+
+/// Shown in place of the last answer when the saved state could not be read in full.
+const DAMAGED: &str =
+    "QuotaDial could not read its saved state for this account, so the last answer is lost.";
+
 /// The file name for an account's state: a hash of its identity, which keeps the name short and
 /// safe on every file system.
 pub(crate) fn account_key(account: &Account) -> String {
@@ -127,14 +147,40 @@ impl StateStore {
         }
     }
 
-    /// The account's saved state. A missing, unreadable or outdated file starts afresh.
-    pub(crate) fn load(&self, key: &str) -> AccountState {
-        fs::read(self.path(key))
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<StateFile>(&bytes).ok())
-            .filter(|file| file.version == FORMAT_VERSION)
+    /// The account's saved state, and whether the file could not be read in full and should be
+    /// saved again.
+    ///
+    /// A missing file starts afresh. A file that does not parse in full, because it is damaged or
+    /// another format version wrote it, keeps the hold it records: the last request time, any 429
+    /// block and the 429 count. If no request time can be read, it counts as a request sent at
+    /// `now`. A file that cannot be read at all is an error, so no request is sent. Either way a
+    /// damaged file never lets a request out early.
+    pub(crate) fn load(&self, key: &str, now: DateTime<Utc>) -> io::Result<(AccountState, bool)> {
+        let bytes = match fs::read(self.path(key)) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok((AccountState::default(), false));
+            }
+            Err(error) => return Err(error),
+        };
+        if let Ok(file) = serde_json::from_slice::<StateFile>(&bytes)
+            && file.version == FORMAT_VERSION
+        {
+            return Ok((file.state, false));
+        }
+        let hold = serde_json::from_slice::<HoldFile>(&bytes)
             .map(|file| file.state)
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let state = AccountState {
+            last_result: Some(LastResult::Failed {
+                message: DAMAGED.to_owned(),
+            }),
+            requested_at: Some(hold.requested_at.unwrap_or(now)),
+            blocked_until: hold.blocked_until,
+            rate_limit_strikes: hold.rate_limit_strikes,
+            ..AccountState::default()
+        };
+        Ok((state, true))
     }
 
     /// Saves the account's state, replacing the old file in one step so a crash cannot leave half a
@@ -230,7 +276,10 @@ mod tests {
         let _lock = store.lock(&key, LOCK_WAIT).expect("locks");
         store.save(&key, &state).expect("saves");
 
-        assert_eq!(store.load(&key), state);
+        assert_eq!(
+            store.load(&key, ts("2099-01-01T00:01:00Z")).expect("loads"),
+            (state, false)
+        );
         assert!(
             !dir.path()
                 .join("quotadial/claude")
@@ -239,22 +288,122 @@ mod tests {
         );
     }
 
+    /// What a file that could not be read in full loads as.
+    fn held(
+        requested_at: &str,
+        blocked_until: Option<&str>,
+        rate_limit_strikes: u32,
+    ) -> (AccountState, bool) {
+        let state = AccountState {
+            last_result: Some(LastResult::Failed {
+                message: DAMAGED.to_owned(),
+            }),
+            requested_at: Some(ts(requested_at)),
+            blocked_until: blocked_until.map(ts),
+            rate_limit_strikes,
+            ..AccountState::default()
+        };
+        (state, true)
+    }
+
     #[test]
-    fn a_missing_or_damaged_file_starts_afresh() {
+    fn a_missing_file_starts_afresh() {
         let dir = tempfile::tempdir().expect("temp dir");
         let store = StateStore::new(dir.path().to_path_buf());
 
-        assert_eq!(store.load("missing"), AccountState::default());
+        assert_eq!(
+            store
+                .load("missing", ts("2099-01-01T00:00:00Z"))
+                .expect("loads"),
+            (AccountState::default(), false)
+        );
+    }
 
-        fs::write(dir.path().join("damaged.json"), "{ not json").expect("writes");
-        assert_eq!(store.load("damaged"), AccountState::default());
+    #[test]
+    fn a_damaged_file_counts_as_a_request_sent_now() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let store = StateStore::new(dir.path().to_path_buf());
+        let now = "2099-01-01T00:02:00Z";
+
+        for (key, damage) in [
+            ("not-json", "{ not json"),
+            (
+                "cut-off",
+                r#"{"version":1,"state":{"requested_at":"2099-01-01T00:00"#,
+            ),
+            ("empty", ""),
+            ("no-state", r#"{"version":1}"#),
+            (
+                "bad-time",
+                r#"{"version":1,"state":{"requested_at":"yesterday"}}"#,
+            ),
+        ] {
+            fs::write(dir.path().join(format!("{key}.json")), damage).expect("writes");
+
+            assert_eq!(
+                store.load(key, ts(now)).expect("loads"),
+                held(now, None, 0),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_that_no_longer_parses_in_full_keeps_its_hold() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let store = StateStore::new(dir.path().to_path_buf());
+        let now = ts("2099-01-01T00:02:00Z");
+        // A snapshot written by another version: a window this version cannot read.
+        let unknown_snapshot = r#"{"kind":"snapshot","snapshot":{"windows":[{"shape":"new"}]}}"#;
+
+        fs::write(
+            dir.path().join("same-version.json"),
+            format!(
+                r#"{{"version":1,"state":{{"last_result":{unknown_snapshot},
+                "requested_at":"2099-01-01T00:00:00Z","blocked_until":"2099-01-01T00:30:00Z",
+                "rate_limit_strikes":2}}}}"#
+            ),
+        )
+        .expect("writes");
+        assert_eq!(
+            store.load("same-version", now).expect("loads"),
+            held("2099-01-01T00:00:00Z", Some("2099-01-01T00:30:00Z"), 2)
+        );
 
         fs::write(
             dir.path().join("future.json"),
+            r#"{"version":99,"state":{"requested_at":"2099-01-01T00:01:00Z","new_field":true}}"#,
+        )
+        .expect("writes");
+        assert_eq!(
+            store.load("future", now).expect("loads"),
+            held("2099-01-01T00:01:00Z", None, 0)
+        );
+
+        // Another version that records no request time still holds from now.
+        fs::write(
+            dir.path().join("future-empty.json"),
             r#"{"version":99,"state":{"rate_limit_strikes":3}}"#,
         )
         .expect("writes");
-        assert_eq!(store.load("future"), AccountState::default());
+        assert_eq!(
+            store.load("future-empty", now).expect("loads"),
+            held("2099-01-01T00:02:00Z", None, 3)
+        );
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_an_error() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let store = StateStore::new(dir.path().to_path_buf());
+        // A directory where the file should be, which no platform can read as a file.
+        fs::create_dir(dir.path().join("unreadable.json")).expect("creates");
+
+        assert!(
+            store
+                .load("unreadable", ts("2099-01-01T00:00:00Z"))
+                .is_err()
+        );
     }
 
     #[test]

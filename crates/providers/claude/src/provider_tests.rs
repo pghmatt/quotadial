@@ -1143,6 +1143,15 @@ async fn an_answer_that_cannot_be_saved_fails_the_fetch() {
     assert_eq!(harness.requests().await, 1);
 }
 
+/// The account's state file in the test cache directory.
+fn state_file(harness: &Harness, account: &Account) -> PathBuf {
+    harness
+        .cache
+        .path()
+        .join("claude")
+        .join(format!("{}.json", state::account_key(account)))
+}
+
 /// Everything QuotaDial wrote to its cache directory, as text.
 fn cache_contents(harness: &Harness) -> String {
     let dir = harness.cache.path().join("claude");
@@ -1184,4 +1193,89 @@ async fn a_token_quoted_in_anthropics_error_is_never_shown_or_saved() {
     );
     assert_eq!(harness.usage_requests().await, 1);
     assert_no_token(&cache_contents(&harness));
+}
+
+#[tokio::test]
+async fn a_damaged_state_file_still_holds_the_floor() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    provider.fetch(&account).await.expect("first fetch");
+
+    // Two minutes later the saved state is unreadable, so it counts as a request sent now.
+    harness.advance(2);
+    std::fs::write(
+        state_file(&harness, &account),
+        r#"{"version":1,"state":{"requ"#,
+    )
+    .expect("damages the state file");
+    let held = provider.fetch(&account).await;
+    assert_eq!(
+        held.expect_err("holds").to_string(),
+        "claude: request failed: QuotaDial could not read its saved state for this account, so \
+         the last answer is lost. QuotaDial asks Anthropic at most every 5 minutes, so the next \
+         request is after 2099-01-01T00:07:00Z."
+    );
+    assert_eq!(harness.usage_requests().await, 1);
+
+    // The hold was saved again, so later fetches end it on time instead of restarting it.
+    harness.advance(3);
+    assert!(
+        provider
+            .fetch(&account)
+            .await
+            .expect_err("still holds")
+            .to_string()
+            .ends_with("next request is after 2099-01-01T00:07:00Z.")
+    );
+    harness.advance(2);
+    let fresh = provider.fetch(&account).await.expect("fetches");
+    assert_eq!(fresh.status, Status::Ok);
+    assert_eq!(harness.usage_requests().await, 2);
+}
+
+#[tokio::test]
+async fn a_state_file_that_no_longer_parses_keeps_its_floor_and_block() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness.mount_usage(usage_ok()).await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+    provider.fetch(&account).await.expect("first fetch");
+
+    // As if a later QuotaDial changed the snapshot shape without a new format version, after a
+    // 429 that blocks requests until 00:30.
+    std::fs::write(
+        state_file(&harness, &account),
+        json!({
+            "version": 1,
+            "state": {
+                "last_result": { "kind": "snapshot", "snapshot": { "windows": [{ "shape": "new" }] } },
+                "requested_at": "2099-01-01T00:00:00Z",
+                "blocked_until": "2099-01-01T00:30:00Z",
+                "rate_limit_strikes": 1
+            }
+        })
+        .to_string(),
+    )
+    .expect("rewrites the state file");
+
+    harness.advance(10);
+    let blocked = provider.fetch(&account).await.expect("replays");
+    assert_eq!(blocked.status, Status::RateLimited);
+    assert_eq!(
+        blocked.error.as_deref(),
+        Some(
+            "Anthropic is rate-limiting usage requests, so QuotaDial will ask again after \
+             2099-01-01T00:30:00Z."
+        )
+    );
+    assert_eq!(harness.usage_requests().await, 1);
+
+    harness.advance(20);
+    let fresh = provider.fetch(&account).await.expect("fetches");
+    assert_eq!(fresh.status, Status::Ok);
+    assert_eq!(harness.usage_requests().await, 2);
 }
