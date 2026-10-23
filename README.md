@@ -9,7 +9,9 @@ server and a SKILL.md. It runs on macOS, Windows and Linux.
 **Status: pre-alpha.** `quotadial status` and `quotadial watch` show Claude and ChatGPT/Codex
 usage. `quotadial daemon` polls for every consumer and serves a local HTTP API, and `quotadial mcp`
 is an MCP server for agents, with [a skill](skills/quotadial/SKILL.md) that tells them how to use
-it. See [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes.
+it. See [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes. The tray app
+([apps/tray](apps/tray)) shows the tightest limit in the menu bar or tray and runs the daemon
+itself; see [docs/INSTALL.md](docs/INSTALL.md) to install or build it.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the
 product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 

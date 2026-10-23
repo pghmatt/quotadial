@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the QuotaDial window may do: read the meter and hear when it changes.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

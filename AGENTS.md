@@ -48,9 +48,10 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history, the single-instance lock |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
-| `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon) and the `quotadial` MCP server |
+| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, used by the CLI and the tray app |
+| `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
-| `apps/tray` | Tauri 2 + TypeScript/React tray app (placeholder) |
+| `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
 | `scripts/` | Repo tooling, such as `public-prd.sh` |
@@ -99,4 +100,15 @@ cargo run -p quotadial -- status --json                 # the same as JSON
 cargo run -p quotadial --bin qd -- status               # via the qd alias
 scripts/public-prd.sh                                   # regenerate docs/PRD-public.md
 scripts/public-prd.sh --check                           # the public-copy check CI runs
+```
+
+The tray app, from `apps/tray` (its Rust side is a separate workspace in `src-tauri`):
+
+```sh
+npm ci                                   # the window's dependencies
+npm run build                            # type-check, build the window, check its 150 KB budget
+npm run cli                              # build the CLI the app bundles (Tauri needs it to compile)
+(cd src-tauri && cargo test)             # the app's tests; also cargo fmt and clippy, as CI runs them
+npx tauri dev                            # run the app from source
+npx tauri build                          # the app and its installer, in src-tauri/target/release/bundle
 ```
