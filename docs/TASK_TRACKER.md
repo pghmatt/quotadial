@@ -270,6 +270,17 @@ so they became #10.
   keeps its own floor and finds its sign-in in 2 seconds the first time and 1 second after. Every
   poll now sends a request: at 0, 5, 10 and 15 minutes. With the old timing it gave 0, 10 and 15,
   checked by reverting the fix.
+- **Live check on Matt's Mac, 2026-10-23.** The app was quit and the fixed `quotadial daemon` ran on
+  its own from 18:20:50Z. The real fetch times in `history.db`:
+
+  | Account | Old poller (the app, before) | Fixed daemon |
+  | --- | --- | --- |
+  | Codex, 2-minute floor | every 4 minutes: 17:52, 17:56, 18:00, 18:04, 18:08 | every 2 minutes: 18:20:51, 18:22:51, 18:24:52, 18:26:52, 18:28:53, 18:30:53 |
+  | Each of 6 Claude accounts, 5-minute floor | every 10 minutes: 17:44, 17:54, 18:04 | 18:25:50 to 18:25:52, then 18:30:51 to 18:30:53 |
+
+  At 18:30:50 the old timing would have replayed the cache, since the 18:25:5x requests were not
+  yet 5 minutes old. The two accounts waiting for a sign-in send no request, as before. The app was
+  started again afterwards.
 
 ### M3 PR 5: every stored Claude sign-in (#34)
 
