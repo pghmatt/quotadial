@@ -337,6 +337,8 @@ pub(crate) struct Found {
     /// Why the Keychain could not be listed, when it could not. Each folder's item was then looked
     /// up by its name, and an item whose folder is unknown could not be found.
     pub(crate) unlisted: Option<String>,
+    /// `extra_dirs` entries left out because they are not full paths.
+    pub(crate) skipped: Vec<PathBuf>,
 }
 
 /// Finds every Claude Code sign-in stored on this machine, one per account (#34): this shell's
@@ -377,25 +379,21 @@ pub(crate) fn locate_all(
         scoped.push(env.default_only());
     }
     let own_dir = env.scoped_dir();
-    scoped.extend(
-        candidate_dirs(env, extra_dirs)
-            .into_iter()
-            .filter(|dir| Some(dir) != own_dir.as_ref())
-            .map(|dir| env.for_config_dir(&dir)),
-    );
-    // Without the listing, a keychain that fails one lookup is not asked again, so a keychain
-    // that has stopped answering costs one lookup's wait, not one per folder.
-    let mut keychain_answers = true;
+    let candidates = candidate_dirs(env, extra_dirs);
+    let mut search = Search {
+        items: items.as_deref(),
+        keychain,
+        keychain_answers: true,
+    };
     for env in &scoped {
-        let found = match &items {
-            Some(items) => stored(env, items),
-            None if keychain_answers => locate(env, keychain).unwrap_or_else(|_| {
-                keychain_answers = false;
-                locate(env, &NoKeychain).ok().flatten()
-            }),
-            None => locate(env, &NoKeychain).ok().flatten(),
-        };
-        logins.extend(found);
+        logins.extend(search.folder(env));
+    }
+    for dir in candidates
+        .dirs
+        .iter()
+        .filter(|dir| Some(*dir) != own_dir.as_ref())
+    {
+        logins.extend(search.candidate(env, dir));
     }
     for item in items.iter().flatten() {
         if !logins
@@ -417,7 +415,67 @@ pub(crate) fn locate_all(
     Ok(Found {
         logins: one_per_account(logins, has_own),
         unlisted,
+        skipped: candidates.skipped,
     })
+}
+
+/// How folders are searched in one [`locate_all`]: through the Keychain's listing, or without it,
+/// by each item's name.
+struct Search<'a> {
+    items: Option<&'a [Item]>,
+    keychain: &'a dyn Keychain,
+    /// Without the listing, a keychain that fails one lookup is not asked again, so a keychain
+    /// that has stopped answering costs one lookup's wait, not one per folder.
+    keychain_answers: bool,
+}
+
+impl Search<'_> {
+    /// The sign-in Claude Code keeps for `env`'s folder.
+    fn folder(&mut self, env: &Environment) -> Option<Login> {
+        match self.items {
+            Some(items) => stored(env, items),
+            None if self.keychain_answers => locate(env, self.keychain).unwrap_or_else(|_| {
+                self.keychain_answers = false;
+                locate(env, &NoKeychain).ok().flatten()
+            }),
+            None => locate(env, &NoKeychain).ok().flatten(),
+        }
+    }
+
+    /// The sign-in kept for the candidate folder `dir`. Claude Code names a folder's Keychain item
+    /// after the exact text it was given, so with the listing each way of writing the folder is
+    /// tried, and the one that matches is the one its fix names (#39).
+    fn candidate(&mut self, env: &Environment, dir: &str) -> Option<Login> {
+        let matched = self.items.and_then(|items| {
+            spellings(dir)
+                .into_iter()
+                .map(|spelling| env.for_config_dir(&spelling))
+                .find(|env| {
+                    let service = env.keychain_service();
+                    items.iter().any(|item| item.service == service)
+                })
+        });
+        self.folder(&matched.unwrap_or_else(|| env.for_config_dir(dir)))
+    }
+}
+
+/// The ways Claude Code may have been given `dir`: as written, with and without a trailing
+/// separator, and with links resolved, as when the home folder is reached through one.
+fn spellings(dir: &str) -> Vec<String> {
+    let separator = std::path::MAIN_SEPARATOR;
+    let mut spellings: Vec<String> = Vec::new();
+    let real = std::fs::canonicalize(dir)
+        .ok()
+        .map(|real| real.display().to_string());
+    for written in std::iter::once(dir.to_owned()).chain(real) {
+        let bare = written.trim_end_matches(separator).to_owned();
+        for spelling in [bare.clone(), format!("{bare}{separator}")] {
+            if !spellings.contains(&spelling) {
+                spellings.push(spelling);
+            }
+        }
+    }
+    spellings
 }
 
 /// The sign-in stored for `env`'s folder, found among the listed Keychain `items` or as its
@@ -453,11 +511,23 @@ fn stored(env: &Environment, items: &[Item]) -> Option<Login> {
     ))
 }
 
+/// The folders [`candidate_dirs`] found.
+#[derive(Debug, Default)]
+pub(crate) struct Candidates {
+    /// Full paths, sorted.
+    pub(crate) dirs: Vec<String>,
+    /// `extra_dirs` entries left out because they are not full paths.
+    pub(crate) skipped: Vec<PathBuf>,
+}
+
 /// Folders that may hold a Claude Code sign-in besides the default one, as `CLAUDE_CONFIG_DIR`
 /// would name them: `~/.claude-*` and other `~/.claude…` folders, the account folders Codus keeps
-/// in `~/.codus/accounts`, and `extra_dirs`.
-pub(crate) fn candidate_dirs(env: &Environment, extra_dirs: &[PathBuf]) -> Vec<String> {
+/// in `~/.codus/accounts`, and `extra_dirs`. An `extra_dirs` entry must be a full path or start
+/// with `~`: a relative one would mean a different folder for every process, and could never match
+/// the Keychain item Claude Code made for it (#39).
+pub(crate) fn candidate_dirs(env: &Environment, extra_dirs: &[PathBuf]) -> Candidates {
     let mut dirs = BTreeSet::new();
+    let mut skipped = Vec::new();
     if let Some(home) = &env.home {
         dirs.extend(folders_in(home, |name| {
             name.starts_with(".claude") && name != ".claude"
@@ -466,12 +536,14 @@ pub(crate) fn candidate_dirs(env: &Environment, extra_dirs: &[PathBuf]) -> Vec<S
         // Windows too, and hashes to the same Keychain item.
         dirs.extend(folders_in(&home.join(".codus").join("accounts"), |_| true));
     }
-    for dir in extra_dirs {
-        let dir = match (dir.strip_prefix("~"), &env.home) {
+    for entry in extra_dirs {
+        let dir = match (entry.strip_prefix("~"), &env.home) {
             (Ok(rest), Some(home)) => home.join(rest),
-            _ => dir.clone(),
+            _ => entry.clone(),
         };
-        if dir.file_name().is_some_and(|name| name == "*") {
+        if !dir.is_absolute() {
+            skipped.push(entry.clone());
+        } else if dir.file_name().is_some_and(|name| name == "*") {
             if let Some(parent) = dir.parent() {
                 dirs.extend(folders_in(parent, |_| true));
             }
@@ -479,7 +551,10 @@ pub(crate) fn candidate_dirs(env: &Environment, extra_dirs: &[PathBuf]) -> Vec<S
             dirs.insert(dir.display().to_string());
         }
     }
-    dirs.into_iter().collect()
+    Candidates {
+        dirs: dirs.into_iter().collect(),
+        skipped,
+    }
 }
 
 /// The folders directly inside `parent` whose names pass `keep`, as full paths. A link to a folder
@@ -936,7 +1011,7 @@ mod tests {
         );
         std::os::unix::fs::symlink(&real, home.path().join(".claude-linked")).expect("links");
 
-        let dirs = candidate_dirs(&env_in(home.path()), &[]);
+        let dirs = candidate_dirs(&env_in(home.path()), &[]).dirs;
 
         assert_eq!(
             dirs,
@@ -997,6 +1072,123 @@ mod tests {
             "the folders' credentials files are still read: one subscription"
         );
         assert!(matches!(found.logins[0].source, LoginSource::File(_)));
+    }
+
+    /// A keychain listing exactly the items for `services`. Reading secrets is not allowed.
+    struct Listed {
+        services: Vec<String>,
+    }
+
+    impl Keychain for Listed {
+        fn find(
+            &self,
+            service: &str,
+            _account: Option<&str>,
+        ) -> std::result::Result<Option<ItemInfo>, String> {
+            Ok(self
+                .services
+                .iter()
+                .any(|known| known == service)
+                .then(|| ItemInfo {
+                    modified: Some("20991231000000Z".to_owned()),
+                }))
+        }
+
+        fn read(
+            &self,
+            _service: &str,
+            _account: Option<&str>,
+        ) -> std::result::Result<Option<Secret>, String> {
+            panic!("locating a sign-in must never read a secret");
+        }
+
+        fn list(&self, _prefix: &str) -> std::result::Result<Vec<Item>, String> {
+            Ok(self
+                .services
+                .iter()
+                .map(|service| Item {
+                    service: service.clone(),
+                    account: Some("example".into()),
+                    info: ItemInfo {
+                        modified: Some("20991231000000Z".to_owned()),
+                    },
+                })
+                .collect())
+        }
+    }
+
+    #[test]
+    fn a_folder_given_to_claude_code_with_a_trailing_separator_is_still_its_own() {
+        let home = tempfile::tempdir().expect("temp dir");
+        let work = home.path().join(".claude-work");
+        std::fs::create_dir_all(&work).expect("makes the folder");
+        let env = env_in(home.path());
+        // As `CLAUDE_CONFIG_DIR=~/.claude-work/ claude` would name it.
+        let written = format!("{}{}", work.display(), std::path::MAIN_SEPARATOR);
+        let service = env.for_config_dir(&written).keychain_service();
+
+        let found = locate_all(
+            &env,
+            &Listed {
+                services: vec![service.clone()],
+            },
+            &[],
+        )
+        .expect("locates");
+
+        assert_eq!(found.logins.len(), 1);
+        assert_eq!(found.logins[0].service(), Some(service.as_str()));
+        assert_eq!(
+            found.logins[0].folder,
+            Folder::Named(PathBuf::from(&written)),
+            "named as Claude Code was given it, so its fix makes the same item again"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_reached_through_a_linked_home_matches_the_real_path() {
+        let real = tempfile::tempdir().expect("temp dir");
+        let work = real.path().join(".claude-work");
+        std::fs::create_dir_all(&work).expect("makes the folder");
+        let links = tempfile::tempdir().expect("temp dir");
+        let home = links.path().join("home");
+        std::os::unix::fs::symlink(real.path(), &home).expect("links");
+        let env = env_in(&home);
+        // Claude Code was given the real path.
+        let real_work = std::fs::canonicalize(&work).expect("resolves");
+        let service = env
+            .for_config_dir(&real_work.display().to_string())
+            .keychain_service();
+
+        let found = locate_all(
+            &env,
+            &Listed {
+                services: vec![service.clone()],
+            },
+            &[],
+        )
+        .expect("locates");
+
+        assert_eq!(found.logins.len(), 1);
+        assert_eq!(found.logins[0].folder, Folder::Named(real_work));
+    }
+
+    #[test]
+    fn a_relative_extra_folder_is_left_out() {
+        let home = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(home.path().join("elsewhere")).expect("makes the folder");
+
+        let candidates = candidate_dirs(
+            &env_in(home.path()),
+            &[PathBuf::from("claude-work"), PathBuf::from("~/elsewhere")],
+        );
+
+        assert_eq!(candidates.skipped, [PathBuf::from("claude-work")]);
+        assert_eq!(
+            candidates.dirs,
+            [home.path().join("elsewhere").display().to_string()]
+        );
     }
 
     #[test]

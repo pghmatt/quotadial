@@ -47,6 +47,12 @@ pub struct AccountState {
     pub bypassed_floor: bool,
     /// The sign-in generation of the request that produced `last_good`.
     pub last_good_generation: Option<String>,
+    /// For a sign-in that does not say whose it is: the account the provider named for its token,
+    /// kept whatever the answer to the request that followed, so the provider is asked once per
+    /// token.
+    pub named: Option<Account>,
+    /// The sign-in generation `named` belongs to.
+    pub named_generation: Option<String>,
 }
 
 /// The outcome of the latest request.
@@ -345,6 +351,8 @@ mod tests {
             rate_limit_strikes: 2,
             bypassed_floor: true,
             last_good_generation: Some("20991230000000Z".into()),
+            named: Some(account(Some("org-1"))),
+            named_generation: Some("20991231000000Z".into()),
         };
 
         let _lock = store.lock(&key, LOCK_WAIT).expect("locks");

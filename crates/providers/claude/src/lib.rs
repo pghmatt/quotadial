@@ -124,7 +124,7 @@ impl ClaudeProvider {
         let mut logins = found.logins;
         logins.retain(|login| !not_accounts.excludes(login));
         if let Some(max) = self.max_accounts {
-            logins.truncate(max);
+            self.keep_subscriptions(&mut logins, max);
         }
         self.logins
             .lock()
@@ -134,8 +134,39 @@ impl ClaudeProvider {
             .unlisted
             .iter()
             .map(|reason| advice::unlisted(reason))
+            .chain(found.skipped.iter().map(|dir| advice::skipped_dir(dir)))
             .collect();
         Ok(logins)
+    }
+
+    /// Keeps the sign-ins of the first `max` subscriptions, this shell's own first (the
+    /// `max_accounts` setting). A sign-in that does not say whose it is counts as the account an
+    /// earlier answer named for its token, so two sign-ins of one subscription count once (#39).
+    /// One not named yet counts as its own until it is.
+    fn keep_subscriptions(&self, logins: &mut Vec<Login>, max: usize) {
+        let store = self.store().ok();
+        let now = self.clock.now();
+        let mut counted: Vec<Account> = Vec::new();
+        logins.retain(|login| {
+            let account = login.account();
+            let subscription = login
+                .identity
+                .is_none()
+                .then_some(store.as_ref())
+                .flatten()
+                .and_then(|store| store.load(&quotadial_poll::account_key(&account), now).ok())
+                .and_then(|(state, _)| known_account(login, &state, &account))
+                .unwrap_or(account);
+            if counted.iter().any(|known| known.same_as(&subscription)) {
+                // Another sign-in of a subscription already kept: it adds no row.
+                return true;
+            }
+            let kept = counted.len() < max;
+            if kept {
+                counted.push(subscription);
+            }
+            kept
+        });
     }
 
     /// Remembers that `login`, a Keychain item whose folder is unknown, holds no Claude account,
@@ -148,7 +179,7 @@ impl ClaudeProvider {
         else {
             return;
         };
-        if login.folder != Folder::Unknown {
+        if login.folder != Folder::Unknown || login.generation.is_none() {
             return;
         }
         let (service, generation) = (service.clone(), login.generation.clone());
@@ -271,12 +302,11 @@ impl ClaudeProvider {
     }
 
     /// Fetches for `named`, the account the profile has just named for `login`'s token, under that
-    /// account's own lock and floor, and remembers whose the token is in the sign-in's own state
-    /// (`known_account`), so the profile is asked once per token (D-049).
+    /// account's own lock and floor. `key` is the sign-in's own, already locked.
     async fn request_as(
         &self,
         store: &StateStore,
-        (key, state): (&str, &mut AccountState),
+        key: &str,
         login: &Login,
         credentials: &Credentials,
         named: Account,
@@ -284,49 +314,38 @@ impl ClaudeProvider {
     ) -> Result<Snapshot> {
         let named_key = quotadial_poll::account_key(&named);
         if named_key == key {
+            let mut state = Self::prepare(store, key, None, now)?;
             return self
-                .send(store, key, state, login, credentials, named)
+                .send(store, key, &mut state, login, credentials, named)
                 .await;
         }
-        let snapshot = {
-            // Locked after the sign-in's own key, as in `fetch_as`.
-            let _lock = store.lock_account(&named_key).await?;
-            let mut named_state = Self::prepare(store, &named_key, None, now)?;
-            match quotadial_poll::decide(
-                &POLICY,
-                &named_state,
-                &named,
-                login.generation.as_deref(),
-                now,
-            ) {
-                Decision::Request => {
-                    self.send(
-                        store,
-                        &named_key,
-                        &mut named_state,
-                        login,
-                        credentials,
-                        named,
-                    )
-                    .await?
-                }
-                Decision::Replay(snapshot) => *snapshot,
-                Decision::Wait(reason) => {
-                    return Err(Error::Request {
-                        provider: ID,
-                        reason,
-                    });
-                }
+        // Locked after the sign-in's own key, as in `fetch_as`.
+        let _lock = store.lock_account(&named_key).await?;
+        let mut named_state = Self::prepare(store, &named_key, None, now)?;
+        match quotadial_poll::decide(
+            &POLICY,
+            &named_state,
+            &named,
+            login.generation.as_deref(),
+            now,
+        ) {
+            Decision::Request => {
+                self.send(
+                    store,
+                    &named_key,
+                    &mut named_state,
+                    login,
+                    credentials,
+                    named,
+                )
+                .await
             }
-        };
-        if snapshot.status == Status::Ok {
-            state.login_generation.clone_from(&login.generation);
-            state.last_good = Some(snapshot.clone());
-            state.last_good_generation.clone_from(&login.generation);
-            // A record that cannot be kept only means the profile is asked again next time.
-            let _ = store.save(key, state);
+            Decision::Replay(snapshot) => Ok(*snapshot),
+            Decision::Wait(reason) => Err(Error::Request {
+                provider: ID,
+                reason,
+            }),
         }
-        Ok(snapshot)
     }
 
     /// Reads `login`'s token and checks, without asking Anthropic, that it can be used: the
@@ -629,12 +648,17 @@ impl NotAccounts {
         std::fs::rename(temporary, dir.join(Self::FILE))
     }
 
+    /// Whether `login` is an item recorded as not an account, unchanged since. An item with no
+    /// modification time cannot be told apart from a rewritten one, so it is never left out (#39).
     fn excludes(&self, login: &Login) -> bool {
         match &login.source {
-            LoginSource::Keychain { service, .. } if login.folder == Folder::Unknown => self
-                .0
-                .get(service)
-                .is_some_and(|generation| *generation == login.generation),
+            LoginSource::Keychain { service, .. }
+                if login.folder == Folder::Unknown && login.generation.is_some() =>
+            {
+                self.0
+                    .get(service)
+                    .is_some_and(|generation| *generation == login.generation)
+            }
             _ => false,
         }
     }
@@ -736,8 +760,16 @@ impl Provider for ClaudeProvider {
             // account the token belongs to, whichever of its sign-ins asks first.
             if let Some(identity) = self.api()?.profile(&credentials.access_token).await {
                 let named = named(account, &identity);
+                // Remembered before the request, whatever its answer, so the next fetch goes
+                // straight to the named account's floor without reading the token or asking the
+                // profile again (#39). A record that cannot be kept only means the profile is asked
+                // again next time.
+                state.named = Some(named.clone());
+                state.named_generation.clone_from(&login.generation);
+                state.login_generation.clone_from(&login.generation);
+                let _ = store.save(&key, &state);
                 return self
-                    .request_as(&store, (&key, &mut state), &login, &credentials, named, now)
+                    .request_as(&store, &key, &login, &credentials, named, now)
                     .await;
             }
         }
@@ -771,17 +803,27 @@ fn credentials_error(source: &LoginSource, reason: String) -> Error {
     }
 }
 
-/// The account Anthropic named for this sign-in on an earlier request, so the profile is asked once
-/// per token rather than on every request. An environment token's state is kept per token (its
-/// account id is a hash of the token), so it cannot name another token's account. A Keychain or
-/// file sign-in counts only while its token is the one that earlier request used.
+/// The account Anthropic named for this sign-in's token earlier, so the profile is asked once per
+/// token rather than on every request: the one the profile named (`named`), or else the one an
+/// earlier answer was recorded for. An environment token's state is kept per token (its account id
+/// is a hash of the token), so it cannot name another token's account. A Keychain or file sign-in
+/// counts only while its token is the one that was named.
 fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Option<Account> {
-    let same_token = matches!(login.source, LoginSource::Environment(_))
-        || (login.generation.is_some() && login.generation == state.last_good_generation);
-    if !same_token {
-        return None;
-    }
-    let known = &state.last_good.as_ref()?.account;
+    let same_token = |generation: &Option<String>| {
+        matches!(login.source, LoginSource::Environment(_))
+            || (login.generation.is_some() && login.generation == *generation)
+    };
+    let known = state
+        .named
+        .as_ref()
+        .filter(|_| same_token(&state.named_generation))
+        .or_else(|| {
+            state
+                .last_good
+                .as_ref()
+                .filter(|_| same_token(&state.last_good_generation))
+                .map(|snapshot| &snapshot.account)
+        })?;
     (known.account_id != stand_in.account_id).then(|| Account {
         plan: stand_in.plan.clone().or_else(|| known.plan.clone()),
         sign_in: stand_in.sign_in.clone(),
