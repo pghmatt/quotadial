@@ -14,6 +14,7 @@ CLI already store and never writes them.
 | `quotadial watch --json` | One line of JSON per refresh, the same report as `status --json` |
 | `quotadial daemon` | Runs the daemon until Ctrl-C: the one poller every consumer shares, with history and the local API |
 | `quotadial daemon --port <port>` | The same, with the API on another port; 0 lets the system choose a free one |
+| `quotadial mcp` | Runs the MCP server named `quotadial` on standard input and output, for agents |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -112,6 +113,34 @@ processes can list.
 Headroom uses the numbers as last fetched. A `tightest.resets_at` in the past means the window has
 reset since, and the daemon fetches again within 10 minutes.
 
+## The MCP server
+
+`quotadial mcp` is an MCP server named `quotadial` that an agent starts and talks to over standard
+input and output. To add it, with `quotadial` on your `PATH`:
+
+```sh
+claude mcp add quotadial -- quotadial mcp     # Claude Code
+codex mcp add quotadial -- quotadial mcp      # Codex
+```
+
+Its three tools only read:
+
+| Tool | Answer |
+| --- | --- |
+| `get_usage` | The same report as `status --json` |
+| `get_account_headroom` | The same ranking as `GET /v1/headroom` |
+| `list_alerts` | `{ "alerts": [] }`: QuotaDial has no alert rules yet, so the list stays empty until they arrive |
+
+`get_usage` and `get_account_headroom` take an optional `provider`, `claude` or `codex`, that limits
+the answer to that provider's accounts. Each answer comes as JSON text and, for agents that speak
+MCP 2025-06-18 or later, as structured content too. Like `status`, the server asks the daemon while
+one runs and otherwise fetches for itself, keeping every provider's floor. A wrong argument, or a
+running daemon that does not answer, comes back as a tool error that names the fix.
+
+[`skills/quotadial/SKILL.md`](../skills/quotadial/SKILL.md) tells agents when to check their usage
+and how, including the HTTP API's shape. Copy its folder into `~/.claude/skills/` for Claude Code or
+`~/.codex/skills/` for Codex.
+
 ## Text output
 
 ```text
@@ -205,7 +234,8 @@ Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the outpu
 | 1 | At least one provider or account produced none (see `errors`), the daemon is running but its API did not answer, or the output could not be written | The output could not be written |
 | 2 | The arguments were not understood | The same |
 
-Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does. When a running
+`mcp` exits with 0 when the agent closes its input, and 1 if it cannot read its input or write
+its answers. Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does. When a running
 daemon does not answer, `status` prints why on standard error; `watch` shows it in place of the
 status, or with `--json` prints it on standard error and keeps refreshing.
 

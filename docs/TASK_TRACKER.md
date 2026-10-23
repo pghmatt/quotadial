@@ -11,8 +11,8 @@ Codex halves of #4 and #5), #3 (PR #18), #11, #12, #14 and #15 (PR #19), and the
 unconfirmed-0% rule, #20 (PR #21), and #13 with P-012 (PR #22). M1 is done but the captures that
 cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008).
 
-M2 (manager's go-ahead, 2026-10-23) comes in three PRs: the daemon and its store (#23, PR #26), the
-local API and its token (#24, PR #27), then the MCP server and SKILL.md (#25). P-001 to P-009 are accepted and in the PRD,
+M2 (manager's go-ahead, 2026-10-23) came in three PRs: the daemon and its store (#23, PR #26), the
+local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR #28). M2 is done. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -40,7 +40,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | --- | --- | --- |
 | #23 Daemon with one shared poller and SQLite history | Done (PR #26) | `quotadial daemon`; adaptive interval; WAL history in the OS data directory; one daemon at a time (D-053, D-054) |
 | #24 Local API on 127.0.0.1 with a bearer token; the CLI asks the daemon | Done (PR #27) | `GET /v1/status` and `GET /v1/headroom` on `127.0.0.1:47115`, a private bearer token and a host check; `status` and `watch` ask a running daemon and fetch for themselves only when none runs (D-056 to D-061) |
-| #25 MCP server and SKILL.md | To do | Next |
+| #25 MCP server and SKILL.md | Done (PR #28) | `quotadial mcp`, the `quotadial` MCP server with `get_usage`, `get_account_headroom` and `list_alerts`; `skills/quotadial/SKILL.md` documents the HTTP API for agents (D-062 to D-064) |
 
 ## Kickoff
 
@@ -226,6 +226,41 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M2 #25: the MCP server and SKILL.md
+
+- `quotadial_api::mcp::serve` reads JSON-RPC lines and writes one reply per line. It is generic
+  over its input and output, so the tests run it in memory. The CLI's `quotadial mcp` hands it
+  standard input and output, the provider ids, and the same daemon-first `report` that `status`
+  uses (D-062).
+- Tools (D-063): `get_usage`, `get_account_headroom` and `list_alerts`, all read-only. Their
+  answers are JSON text in `status --json`'s order, plus `structuredContent` for clients on
+  revision 2025-06-18 or later. An optional `provider` narrows the first two. Wrong arguments and
+  an unanswered daemon are tool errors that name the fix.
+- `skills/quotadial/SKILL.md` (D-064): when to check, the three ways to ask, the HTTP API's shape,
+  status codes and data folders, how to pass the token unseen, and when to warn the user.
+- `docs/CLI.md` has a section on the MCP server, with the `claude mcp add` and `codex mcp add`
+  commands (both checked against the installed CLIs' help). The README lists the daemon and the
+  MCP server.
+- Live check, 2026-10-23 13:52Z, on Matt's Mac, with the daemon running:
+  - A scripted session agreed on 2025-11-25 and ranked Claude at 91% (Session) above Codex at 37%
+    (Weekly), both fresh from the APIs. `get_usage` with `provider: codex` returned only the Codex
+    account, and `list_alerts` returned `{"alerts": []}`.
+  - The official MCP Inspector CLI (2.12.0) listed the three tools, called `get_account_headroom`
+    with `provider=claude`, and got the tool error for `provider=gemini`.
+  - Claude Code 2.1.286's health check (`claude mcp get`) reported the server "Connected". It was
+    added with local scope for a throwaway folder and removed afterwards.
+  - With the daemon stopped, the server fetched for itself, and both accounts replayed from the
+    cache inside their floors.
+  - The PRD's M2 test, "Claude Code can call the skill and read headroom": a one-off `claude -p`
+    with Haiku, the skill in a throwaway project and `--mcp-config` for `quotadial mcp`. It found
+    the skill, called `get_account_headroom`, and answered Claude 91% (Session, resets 15:40Z) and
+    Codex 36% (Weekly, resets Oct 29).
+  - The first run tried a made-up shell command before the tool. The skill now says the MCP tools
+    are tools, not commands, and that the CLI's only command for this is `status --json`. The
+    second run went straight to the tool.
+- Test count: 284 (core 21, poll 36, daemon 17, API 26, Claude 101 plus the opt-in Keychain test,
+  Codex 54, CLI unit 20, CLI binaries 9).
 
 ### M2 #24: the local API and its token
 

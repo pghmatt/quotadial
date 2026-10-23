@@ -1,6 +1,6 @@
 [package]
 name = "quotadial-api"
-description = "QuotaDial's local HTTP API: the daemon's server on 127.0.0.1 and the client the CLI uses."
+description = "QuotaDial's local HTTP API and MCP server: the daemon's server on 127.0.0.1, the client the CLI uses, and the quotadial MCP server."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,7 +18,7 @@ quotadial-daemon.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["net", "rt", "sync", "macros", "time"] }
+tokio = { workspace = true, features = ["io-util", "net", "rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
 async-trait.workspace = true

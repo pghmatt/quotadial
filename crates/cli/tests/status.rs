@@ -300,3 +300,60 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
         assert!(!data.join("daemon.json").exists());
     }
 }
+
+#[test]
+fn mcp_answers_an_agent_on_standard_input_and_output() {
+    let home = empty_home("mcp");
+    let mut mcp = command(env!("CARGO_BIN_EXE_quotadial"), &["mcp"], &home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the MCP server starts");
+    let mut stdin = mcp.stdin.take().expect("stdin");
+    for message in [
+        json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "clientInfo": { "name": "test", "version": "1.0" },
+        } }),
+        json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "get_usage", "arguments": {},
+        } }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+            "name": "get_account_headroom",
+        } }),
+    ] {
+        writeln!(stdin, "{message}").expect("sends");
+    }
+    // The agent hangs up, and the server ends.
+    drop(stdin);
+    let output = mcp.wait_with_output().expect("exits");
+
+    assert!(output.status.success(), "exit status {:?}", output.status);
+    assert_eq!(String::from_utf8(output.stderr.clone()).expect("UTF-8"), "");
+    let replies: Vec<Value> = stdout(&output)
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("one JSON message per line"))
+        .collect();
+    assert_eq!(replies.len(), 4, "the notification gets no reply");
+    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "quotadial");
+    assert_eq!(replies[0]["result"]["protocolVersion"], "2025-11-25");
+    let tools: Vec<&str> = replies[1]["result"]["tools"]
+        .as_array()
+        .expect("tools")
+        .iter()
+        .map(|tool| tool["name"].as_str().expect("a name"))
+        .collect();
+    assert_eq!(tools, ["get_usage", "get_account_headroom", "list_alerts"]);
+    assert_eq!(
+        replies[2]["result"]["structuredContent"],
+        json!({ "snapshots": [], "errors": [] })
+    );
+    assert_eq!(
+        replies[3]["result"]["structuredContent"],
+        json!({ "accounts": [], "errors": [] })
+    );
+}

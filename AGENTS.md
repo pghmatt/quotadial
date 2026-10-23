@@ -48,10 +48,10 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history, the single-instance lock |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
-| `crates/api` (`quotadial-api`) | The local HTTP API: the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon |
+| `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon) and the `quotadial` MCP server |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `apps/tray` | Tauri 2 + TypeScript/React tray app (placeholder) |
-| `skills/quotadial/SKILL.md` | Agent skill (placeholder) |
+| `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
 | `scripts/` | Repo tooling, such as `public-prd.sh` |
 | `docs/` | Public PRD, public-scope rule, decisions log, task tracker |
