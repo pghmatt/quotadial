@@ -7,7 +7,8 @@ Progress and implementation notes. Update this file with every change.
 The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #10, then the
 ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branch off `main`,
 self-review, live check, PR, merge when CI is green. #10 is done (PR #16), #2 (PR #17, with the
-Codex halves of #4 and #5) and #3 (PR #18). #11 to #15 are next. P-001 to P-009 are accepted and in the PRD,
+Codex halves of #4 and #5), #3 (PR #18), and #11, #12, #14 and #15 (PR #19). #13 waits for the
+manager's choice, asked on the issue: a new `other` window kind (P-014) or a note in the error. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -22,11 +23,11 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | #5 Live endpoint check | Done but one check (PR #9, PR #17) | Claude (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011); a 429 was not provoked on purpose. Codex (D-039): headers, the response shape (P-003 confirmed, P-013), Pro's single weekly window, the 401 body |
 | #7 Signed remote schema file | Deferred (D-035) | Split out of #1 (D-025) |
 | #10 Review fixes from PR #8 | Done (PR #16) | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
-| #11 `spawn_blocking` for version detection and Keychain find | To do | Next |
-| #12 No `claude` spawn for the User-Agent version | To do | |
-| #13 Surface unknown buckets without a known prefix | To do | Coordinate with #7 |
-| #14 Test gaps: two orgs, bounded profile requests, no token in the cache | To do | |
-| #15 Zeroize secrets, fixed `JoinError` message | To do | |
+| #11 `spawn_blocking` for version detection and Keychain find | Done (PR #19) | The version spawn is gone (#12); the Keychain lookups in `fetch` run in `spawn_blocking` (D-048) |
+| #12 No `claude` spawn for the User-Agent version | Done (PR #19) | A fixed `claude-code/2.1.286` (D-048) |
+| #13 Surface unknown buckets without a known prefix | Waiting for the manager | Asked on the issue: a new `other` window kind (P-014, recommended) or a note in the error |
+| #14 Test gaps: two orgs, bounded profile requests, no token in the cache | Done (PR #19) | The profile is now asked once per token (D-049); the three tests added, the one that could not fail removed |
+| #15 Zeroize secrets, fixed `JoinError` message | Done (PR #19) | Secrets wiped on drop, no copies of the refresh token, fixed message (D-050) |
 
 ## Kickoff
 
@@ -212,6 +213,29 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M1 #11, #12, #14 and #15: the review follow-ups
+
+- #12 and #11 (D-048): no more `claude --version`; the User-Agent is the fixed
+  `claude-code/2.1.286`. The Keychain lookups in `fetch` run in `spawn_blocking`.
+  `discover_accounts` is synchronous by the `Provider` trait, so M2's daemon should call it from a
+  blocking task.
+- #14 (D-049): an unnamed Keychain or file sign-in was named by `/api/oauth/profile` on every usage
+  request. It is now named once per token, through `AccountState.last_good_generation`. Tests: one
+  account in two organizations keeps two sets of numbers; an unnamed sign-in is named once per
+  token, and again after a new token; no cache file holds the access or refresh token, or their hex
+  encoding, after a Keychain fetch and a file fetch. The poll crate's test that could not fail is
+  gone.
+- #15 (D-050): `Secret` is wiped on drop and has no `PartialEq`. The Claude and Codex parsers
+  deserialize only the fields QuotaDial uses, so the refresh token is skipped without a copy; the
+  access token, ID token, API key and hex-decoded payloads sit in `Zeroizing` buffers; the Keychain
+  read trims the secret in place instead of copying it, and the process reader reserves room so
+  the buffer is not reallocated. A Keychain read that panics reports "reading it stopped
+  unexpectedly; try again", tested with a panicking fake keychain.
+- #13 waits for the manager: unknown buckets need either a new `other` window kind (P-014) or a
+  note in the error. The question is on the issue.
+- Test count: 229 (core 19, poll 34, Claude 101 plus the opt-in Keychain test, Codex 53, CLI unit
+  16, CLI binaries 6).
 
 ### M1 #3: CLI `status`, `--json` and `watch`
 
