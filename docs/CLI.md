@@ -51,8 +51,8 @@ codex user@example.com (pro): stale
   names the fix or when QuotaDial tries again.
 
 `watch` clears the terminal before each refresh and ends with when it was updated and how often
-each provider is asked. Piped into another program, it prints each refresh after the last, without
-escape codes.
+each provider is asked. Piped into another program, and on Windows, it prints each refresh after
+the last, without escape codes.
 
 ## JSON output
 

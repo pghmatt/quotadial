@@ -220,7 +220,7 @@ so they became #10.
   numbers predate a reset. JSON is unchanged and keeps absolute UTC times.
 - `watch` refreshes every minute and relies on each provider's floor (5 minutes for Anthropic, 2
   for ChatGPT), so most refreshes show cached numbers with a growing age. It clears the terminal
-  only when stdout is one, ends each refresh with when it was updated and how often each provider
+  only when stdout is one and not on Windows (whose console needs unsafe code to read escape codes), ends each refresh with when it was updated and how often each provider
   is asked, and stops with Ctrl-C or when its reader goes away. `watch --json` prints one compact
   report per line.
 - Every error names the fix or when QuotaDial tries again: a failed request with nothing cached

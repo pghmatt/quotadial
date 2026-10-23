@@ -121,7 +121,9 @@ fn watch(json: bool) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let providers = providers();
-    let redraw = !json && io::stdout().is_terminal();
+    // The Windows console shows escape codes as text unless a program turns them on, which needs
+    // unsafe code, so on Windows each refresh simply follows the last.
+    let redraw = !json && io::stdout().is_terminal() && !cfg!(windows);
     runtime.block_on(async {
         loop {
             let report = collect(&providers).await;
