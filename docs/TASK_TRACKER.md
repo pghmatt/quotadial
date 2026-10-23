@@ -24,6 +24,14 @@ M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). It
 - the two fixes from the manager's review of PR #36, which came in after it merged: a Keychain that
   cannot be listed is searched folder by folder, and the listing has a longer timeout (PR #38).
 
+M3 is done. Both parts of its test pass on Matt's Mac:
+- the release workflow builds a dmg, an msi, a deb and an AppImage;
+- a first launch with an empty data folder shows a number in the tray after 1.0 second, with no
+  typing.
+
+The review's six smaller items are #39. The M4 plan, alerts and history, is #40 and waits for the
+manager's approval. A `v0.1.0` tag, which drafts the first release, waits for Matt's go-ahead.
+
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
 - P-010 is decided (D-034).
@@ -70,7 +78,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 4: builds | Done (PR #35) | The Release workflow builds the CLI for four platforms and the app as a universal dmg, an msi, a deb and an AppImage; a tag drafts a pre-release (D-076) |
 | PR 5: every stored Claude sign-in (#34) | Done (PR #36) | Every Claude Code sign-in on the machine is an account, one row per subscription, each naming its sign-in (P-015) and the folder to sign in from; `config.json` with `extra_config_dirs` and `max_accounts`; names for accounts in the app; a lasting order; one floor per subscription whichever sign-in asks (D-077 to D-086) |
 | Fix: poll at the floor | Done (PR #37) | The daemon counts each account's next poll from when its answer came back, so a moving account is asked every 5 minutes, not every 10 (D-087) |
-| Fix: the review of #36 | In review (PR #38) | A failed Keychain listing keeps this shell's own sign-in and finds each folder's item by name, with a warning in `errors`; the listing gets a 20-second timeout (D-088) |
+| Fix: the review of #36 | Done (PR #38) | A failed Keychain listing keeps this shell's own sign-in and finds each folder's item by name, with a warning in `errors`; the listing gets a 20-second timeout (D-088) |
 
 ## Kickoff
 
@@ -278,7 +286,11 @@ so they became #10.
   - `collect` and the daemon show warnings beside the accounts, with any token blanked out;
   - the listing's timeout message.
 - 318 tests in the workspace.
-- Opened afterwards: the follow-up issue with the review's six smaller items.
+- Opened afterwards: #39, the follow-up issue with the review's six smaller items.
+- **M3's first-run test, 2026-10-23.** The app built from `main` (0c25cdd) was launched with an
+  empty data folder (`open --env QUOTADIAL_DATA_DIR=…`). Its tray showed a number after 1.0 second.
+  The provider cache was kept, so no account was asked twice inside its floor. From a cold cache
+  the first number would wait for one usage request, about a second more.
 
 ### M3: polling at the floor (D-087)
 
