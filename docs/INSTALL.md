@@ -51,6 +51,16 @@ it for the menu.
 The dial and number appear in the panel's tray area. GNOME needs the AppIndicator extension for
 that; Ubuntu has it on already.
 
+## Settings
+
+**Settings**, at the bottom of the popover, has these choices:
+- Open QuotaDial when you log in.
+- Notify you when an account needs signing in again, or when a limit passes 90%. Each
+  notification comes once: again only after the account has worked in between, or after the limit
+  resets.
+- Show or hide each provider. A hidden provider still has its usage read for the `quotadial`
+  command.
+
 ## The `quotadial` command
 
 The app carries the same `quotadial` command as a standalone build of the CLI. While the app runs,

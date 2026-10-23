@@ -252,3 +252,41 @@ summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+
+.settings {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+fieldset {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.choice input {
+  margin: 0;
+}
+
+.done {
+  margin-top: 12px;
+}
+
+footer button + button {
+  margin-left: -2px;
+}

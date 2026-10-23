@@ -17,7 +17,7 @@ local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR 
 M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its four PRs:
 - PR 1, the scaffold with the daemon running inside the app (PR #31);
 - PR 2, the popover (PR #32);
-- PR 3, settings and notifications;
+- PR 3, settings and notifications (PR #33);
 - PR 4, builds for macOS, Windows and Linux. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
@@ -53,8 +53,8 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | Step | Status | Notes |
 | --- | --- | --- |
 | PR 1: scaffold, the daemon in the app, the bundled CLI | Done (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
-| PR 2: popover | In review (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
-| PR 3: settings and notifications | To do | Two fixed notifications: sign-in needed, a window passed 90% (D-065) |
+| PR 2: popover | Done (PR #32) | Opens beside the tray, hides on blur or Escape, fits its content; every window with a meter, reset, source and age; the macOS popover material (D-072, D-073); P-015 asked on #29 |
+| PR 3: settings and notifications | In review (PR #33) | Settings panel in the popover; launch at login; show or hide providers; the two notifications, each once per occurrence (D-074, D-075) |
 | PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
 
 ## Kickoff
@@ -241,6 +241,42 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3 PR 3: settings and notifications
+
+- `settings.rs` (D-074):
+  - It keeps `Settings` (`notify_sign_in`, `notify_high`, `hidden_providers`) in the app's config
+    folder as `settings.json`, 0600, through a temporary file and a rename.
+  - A damaged or partial file falls back field by field.
+  - `Settings::shown` drops hidden providers from what the tray and the popover show. The daemon
+    still polls them for the CLI and the MCP server.
+- `notify.rs` (D-075):
+  - `Sent::check` returns the notices a report calls for: sign-in needed once until the account
+    works again, and passed 90% once per reset, keyed by the reset time.
+  - It never notices an unconfirmed reading, and it skips hidden providers and notifications that
+    are switched off.
+  - It keeps accounts missing from a report.
+  - `notified.json` (0600) stops a restart from repeating a notice.
+- The app (`lib.rs`):
+  - `tauri-plugin-notification` shows the notices, and `tauri-plugin-autostart` turns opening at
+    login on and off (a LaunchAgent on macOS). Launch at login is read from the system, not stored.
+  - The commands `settings` and `set_settings` back the popover's Settings panel.
+  - Switching a notification on rechecks the latest report at once.
+- The popover: a Settings button opens a panel with three parts: open at login, the two
+  notifications, and a checkbox per shipped provider. Each change applies at once and errors show
+  in the panel. The JavaScript is 18.8 KB.
+- Live check, 2026-10-23 16:16Z, release build on Matt's Mac. I drove the panel through macOS
+  accessibility.
+  - **Panel:** it showed opening at login off, both notifications on, and Claude and Codex shown.
+  - **Open at login:** turning it on wrote `~/Library/LaunchAgents/QuotaDial.plist`, which runs
+    the app at load. Turning it off removed it.
+  - **Hiding a provider:** hiding Codex changed the tray from 79% (Codex Weekly) to 10% (Claude
+    Weekly) and saved `{"hidden_providers": ["codex"]}` in `settings.json` (0600, folder 0700).
+    `quotadial status` still listed both accounts. Showing Codex again brought back 79%.
+  - **Notifications:** none fired, because no limit reached 90% and no sign-in expired.
+    `notified.json` was not written. The rules are covered by tests; Codex Weekly was at 79%.
+- Test count: tray app 21 (feed 3, meter 6, icons 5, settings 3, notifications 4); the core
+  workspace is unchanged at 292.
 
 ### M3 PR 2: the popover
 

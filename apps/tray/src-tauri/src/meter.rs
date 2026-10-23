@@ -230,7 +230,7 @@ fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
 }
 
 /// The name people know a provider by.
-fn provider_name(id: &str) -> &str {
+pub(crate) fn provider_name(id: &str) -> &str {
     match id {
         "claude" => "Claude",
         "codex" => "Codex",

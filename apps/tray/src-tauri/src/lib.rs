@@ -6,22 +6,30 @@
 mod feed;
 mod icon;
 mod meter;
+mod notify;
+mod settings;
 
+use std::path::PathBuf;
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use quotadial_core::StatusReport;
 use quotadial_daemon::DataDir;
+use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, RunEvent, WebviewWindow, WindowEvent, Wry};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
+use tauri_plugin_notification::NotificationExt as _;
 use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::sync::watch;
 
 use crate::feed::{Role, Timing, Update};
-use crate::meter::Meter;
+use crate::meter::{Meter, provider_name};
+use crate::notify::Sent;
+use crate::settings::Settings;
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -50,6 +58,12 @@ struct AppState {
     hidden_at: Mutex<Option<Instant>>,
     /// When the popover last opened, and how.
     opened: Mutex<Option<(Instant, Opened)>>,
+    settings: Mutex<Settings>,
+    /// The notifications already sent.
+    sent: Mutex<Sent>,
+    /// Where the settings and the record of sent notifications are kept, if the system names a
+    /// folder for them.
+    files: Option<Files>,
 }
 
 /// How the popover was opened, which decides whether losing focus closes it.
@@ -64,6 +78,11 @@ enum Opened {
     Otherwise,
 }
 
+struct Files {
+    settings: PathBuf,
+    sent: PathBuf,
+}
+
 #[derive(Default)]
 struct Known {
     report: Option<StatusReport>,
@@ -73,14 +92,107 @@ struct Known {
 
 impl AppState {
     fn meter(&self) -> Meter {
+        let settings = self
+            .settings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let known = self.known.lock().unwrap_or_else(PoisonError::into_inner);
+        let shown = known.report.as_ref().map(|report| settings.shown(report));
         Meter::new(
-            known.report.as_ref(),
+            shown.as_ref(),
             known.problem.as_deref(),
             known.role,
             Utc::now(),
         )
     }
+}
+
+/// The settings as the popover shows them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct SettingsView {
+    /// Whether QuotaDial opens when the user logs in, as the system says.
+    launch_at_login: bool,
+    notify_sign_in: bool,
+    notify_high: bool,
+    providers: Vec<ProviderChoice>,
+}
+
+/// A provider the user can show or hide.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct ProviderChoice {
+    id: String,
+    name: String,
+    shown: bool,
+}
+
+/// The settings, for the popover's settings panel.
+#[tauri::command]
+fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    SettingsView {
+        launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+        notify_sign_in: settings.notify_sign_in,
+        notify_high: settings.notify_high,
+        providers: quotadial_providers::all()
+            .iter()
+            .map(|provider| ProviderChoice {
+                id: provider.id().to_owned(),
+                name: provider_name(provider.id()).to_owned(),
+                shown: settings.shows(provider.id()),
+            })
+            .collect(),
+    }
+}
+
+/// Changes the settings from the popover, keeps them, and shows the result.
+///
+/// # Errors
+///
+/// What went wrong turning launch at login on or off, or keeping the settings, for the popover to
+/// show.
+#[tauri::command]
+fn set_settings(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    view: SettingsView,
+) -> Result<SettingsView, String> {
+    let autolaunch = app.autolaunch();
+    if autolaunch.is_enabled().unwrap_or(false) != view.launch_at_login {
+        let changed = if view.launch_at_login {
+            autolaunch.enable()
+        } else {
+            autolaunch.disable()
+        };
+        changed.map_err(|error| format!("QuotaDial could not change opening at login: {error}"))?;
+    }
+    let settings = Settings {
+        notify_sign_in: view.notify_sign_in,
+        notify_high: view.notify_high,
+        hidden_providers: view
+            .providers
+            .iter()
+            .filter(|provider| !provider.shown)
+            .map(|provider| provider.id.clone())
+            .collect(),
+    };
+    if let Some(files) = &state.files {
+        settings
+            .save(&files.settings)
+            .map_err(|error| format!("QuotaDial could not keep its settings: {error}"))?;
+    }
+    *state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = settings;
+    // A notification just switched on speaks up about what is already true.
+    notify(&app);
+    refresh(&app);
+    Ok(self::settings(app.clone(), state))
 }
 
 /// The popover asks for the meter when it opens; after that it hears the `meter` event.
@@ -128,7 +240,19 @@ pub fn run() {
             },
         ))
         .plugin(tauri_plugin_positioner::init())
-        .invoke_handler(tauri::generate_handler![meter, fit, hide, quit])
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .invoke_handler(tauri::generate_handler![
+            meter,
+            fit,
+            hide,
+            quit,
+            settings,
+            set_settings
+        ])
         .on_window_event(|window, event| match event {
             // Closing the popover hides it; the app lives in the tray until it is quit.
             WindowEvent::CloseRequested { api, .. } => {
@@ -160,12 +284,29 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let (quit, quitting) = watch::channel(false);
             let (stopped_tx, stopped) = watch::channel(false);
+            let files = app.path().app_config_dir().ok().map(|folder| Files {
+                settings: folder.join("settings.json"),
+                sent: folder.join("notified.json"),
+            });
             app.manage(AppState {
                 known: Mutex::default(),
                 quit,
                 stopped,
                 hidden_at: Mutex::default(),
                 opened: Mutex::default(),
+                settings: Mutex::new(
+                    files
+                        .as_ref()
+                        .map(|files| Settings::load(&files.settings))
+                        .unwrap_or_default(),
+                ),
+                sent: Mutex::new(
+                    files
+                        .as_ref()
+                        .map(|files| Sent::load(&files.sent))
+                        .unwrap_or_default(),
+                ),
+                files,
             });
             build_tray(app.handle())?;
             start_feed(app.handle().clone(), quitting, stopped_tx);
@@ -245,6 +386,7 @@ fn start_feed(app: AppHandle, quitting: watch::Receiver<bool>, stopped: watch::S
 
 /// Keeps an update and shows it.
 fn receive(app: &AppHandle, update: Update) {
+    let new_numbers = matches!(update, Update::Report(_));
     {
         let state = app.state::<AppState>();
         let mut known = state.known.lock().unwrap_or_else(PoisonError::into_inner);
@@ -258,7 +400,47 @@ fn receive(app: &AppHandle, update: Update) {
             Update::Role(role) => known.role = Some(role),
         }
     }
+    if new_numbers {
+        notify(app);
+    }
     refresh(app);
+}
+
+/// Sends the notifications the latest report calls for, and keeps the record of what was sent.
+fn notify(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let Some(report) = state
+        .known
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .report
+        .clone()
+    else {
+        return;
+    };
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let mut sent = state.sent.lock().unwrap_or_else(PoisonError::into_inner);
+    let before = sent.clone();
+    let notices = sent.check(&report, &settings, Utc::now());
+    for notice in notices {
+        // Best effort: a notification the system refuses still leaves the number in the tray.
+        let _ = app
+            .notification()
+            .builder()
+            .title(notice.title)
+            .body(notice.body)
+            .show();
+    }
+    if *sent != before
+        && let Some(files) = &state.files
+    {
+        // A record that cannot be kept only means a notice may come again after a restart.
+        let _ = sent.save(&files.sent);
+    }
 }
 
 /// Brings the tray and the window up to date.
