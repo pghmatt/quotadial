@@ -12,7 +12,8 @@ CLI already store and never writes them.
 | `quotadial status --json` | The same, as JSON, for scripts and agents |
 | `quotadial watch` | Keeps showing the status, refreshing every minute, until Ctrl-C |
 | `quotadial watch --json` | One line of JSON per refresh, the same report as `status --json` |
-| `quotadial daemon` | Runs the daemon until Ctrl-C: the one poller every consumer shares, with history |
+| `quotadial daemon` | Runs the daemon until Ctrl-C: the one poller every consumer shares, with history and the local API |
+| `quotadial daemon --port <port>` | The same, with the API on another port; 0 lets the system choose a free one |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -21,7 +22,8 @@ No command asks a provider more often than its own limit, counted across every Q
 on the machine: Anthropic at most once every 5 minutes per account, and ChatGPT at most once every
 2 minutes. In between, a command shows the last numbers again, marked as coming from the cache,
 with their age. `watch` refreshes every minute, so most refreshes show cached numbers whose age
-keeps growing until the provider may be asked again.
+keeps growing until the provider may be asked again. While the daemon runs, `status` and `watch`
+ask it instead of asking providers themselves.
 
 When a provider answers 429, QuotaDial waits as long as the `Retry-After` header says, or else 5,
 10, 20, 40 and then 60 minutes as 429s repeat, and keeps the last numbers on screen meanwhile.
@@ -30,8 +32,9 @@ session logs stand in, marked as coming from them.
 
 ## The daemon
 
-`quotadial daemon` runs until Ctrl-C. While it runs it is the only thing that asks providers for
-usage, and the local API (next) and the MCP server read what it last found.
+`quotadial daemon` runs until Ctrl-C, or on Linux and macOS until it is sent `SIGTERM`, as a
+service manager does. While it runs it is the only thing that asks providers for usage: `status`,
+`watch`, the local API (next) and the MCP server read what it last found.
 
 - It asks each account no more often than its provider's floor, and slows to every 10 minutes once
   the account's numbers have been still for 10 minutes. A change in usage is what counts as
@@ -43,6 +46,71 @@ usage, and the local API (next) and the MCP server read what it last found.
 - Only one daemon runs at a time; a second one says so and exits with status 1.
 - A restarted daemon shows the numbers it stored last, marked as coming from the cache, until its
   first poll.
+- It serves the local API on `127.0.0.1:47115`, or the port given with `--port`, and starts by
+  printing where the API is and where its token is kept, never the token itself. If the port is
+  taken, it says so and exits with status 1.
+- `status` and `watch` find it through `daemon.json` in the same folder, which holds its process id
+  and port while it runs. With no daemon running they fetch for themselves. If a daemon is running
+  but its API does not answer, they say so and name the fix rather than polling in its place.
+
+## The local API
+
+The daemon answers two requests, on `127.0.0.1` only:
+
+| Request | Answer |
+| --- | --- |
+| `GET /v1/status` | The same report as `status --json` (see JSON output below) |
+| `GET /v1/headroom` | Every account ranked by the room left in its tightest window |
+
+Every request needs the token from the `token` file in the data directory, as
+`Authorization: Bearer <token>`. The daemon creates it on its first start, 64 hex characters that
+only the user can read, and keeps it across restarts. A request without it, or with another, gets
+401. A request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` gets 403, so a web page
+cannot reach the API by pointing a name of its own at `127.0.0.1`. Errors are JSON, such as
+`{ "error": "..." }`, with 404 for any other path and 405 for any other method.
+
+On macOS, for example:
+
+```sh
+token="$HOME/Library/Application Support/quotadial/token"
+curl -H @<(printf 'Authorization: Bearer %s\n' "$(cat "$token")") http://127.0.0.1:47115/v1/headroom
+```
+
+`printf` is built into the shell, so the token never appears in a command line that other
+processes can list.
+
+```json
+{
+  "accounts": [
+    {
+      "account": { "provider": "claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
+      "status": "ok",
+      "headroom_pct": 92.0,
+      "tightest": {
+        "kind": "session",
+        "label": "Session",
+        "used_pct": 8.0,
+        "resets_at": "2099-01-01T05:00:00Z",
+        "window_seconds": 18000,
+        "source": "api",
+        "fetched_at": "2099-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "errors": []
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `accounts[]` | Every account with a snapshot, the most headroom first. Equal headroom goes to the account whose tightest window resets sooner. Accounts without windows, such as one whose sign-in expired, come last |
+| `headroom_pct` | 100 minus the tightest window's `used_pct`, from 0 to 100. Left out when the account has no windows |
+| `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length and when it was fetched. Left out when the account has no windows |
+| `status`, `error` | As in `status --json` |
+| `errors[]` | As in `status --json` |
+
+Headroom uses the numbers as last fetched. A `tightest.resets_at` in the past means the window has
+reset since, and the daemon fetches again within 10 minutes.
 
 ## Text output
 
@@ -134,11 +202,13 @@ Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the outpu
 | Code | `status` | `watch` |
 | --- | --- | --- |
 | 0 | Every account produced a snapshot, whatever its status. Check each snapshot's `status` | Its output was closed, as when piped into `head` |
-| 1 | At least one provider or account produced none (see `errors`), or the output could not be written | The output could not be written |
+| 1 | At least one provider or account produced none (see `errors`), the daemon is running but its API did not answer, or the output could not be written | The output could not be written |
 | 2 | The arguments were not understood | The same |
 
-Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does.
+Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does. When a running
+daemon does not answer, `status` prints why on standard error; `watch` shows it in place of the
+status, or with `--json` prints it on standard error and keeps refreshing.
 
 An agent deciding whether to start a long job can read `status --json`, find the tightest window
 with `"status": "ok"` and a fresh `fetched_at`, and compare its `used_pct` and `resets_at` with the
-job's needs.
+job's needs. With the daemon running, `GET /v1/headroom` does that ranking for it.

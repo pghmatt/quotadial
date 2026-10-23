@@ -58,6 +58,18 @@ impl DataDir {
     pub fn lock(&self) -> PathBuf {
         self.0.join("daemon.lock")
     }
+
+    /// The local API's bearer token.
+    #[must_use]
+    pub fn token(&self) -> PathBuf {
+        self.0.join("token")
+    }
+
+    /// Where the running daemon says which port its API listens on.
+    #[must_use]
+    pub fn runtime(&self) -> PathBuf {
+        self.0.join("daemon.json")
+    }
 }
 
 #[cfg(test)]
@@ -73,6 +85,8 @@ mod tests {
 
         assert_eq!(dir.history(), temp.path().join("quotadial/history.db"));
         assert_eq!(dir.lock(), temp.path().join("quotadial/daemon.lock"));
+        assert_eq!(dir.token(), temp.path().join("quotadial/token"));
+        assert_eq!(dir.runtime(), temp.path().join("quotadial/daemon.json"));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

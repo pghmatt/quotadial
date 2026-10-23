@@ -48,7 +48,7 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history, the single-instance lock |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
-| `crates/api` (`quotadial-api`) | Local HTTP API and the MCP server |
+| `crates/api` (`quotadial-api`) | The local HTTP API: the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `apps/tray` | Tauri 2 + TypeScript/React tray app (placeholder) |
 | `skills/quotadial/SKILL.md` | Agent skill (placeholder) |
@@ -78,6 +78,9 @@ Nothing is named `usage`, the PRD's old working name.
   code.
 - QuotaDial's own cache lives in the OS cache directory under `quotadial/`, with private file
   permissions. It holds derived data only (snapshots, times, counters), never a token.
+- The local API listens on `127.0.0.1` only. Its bearer token is QuotaDial's own and lives only in
+  `token` in the data directory (0600): print where it is, never its value, and send it only while
+  `daemon.lock` shows a daemon running.
 - Tests never touch the real Keychain, the official CLIs' files or the network. Inject fakes and a
   local HTTP server instead. The one exception is an `#[ignore]`d test that runs only with
   `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, which CI never sets.

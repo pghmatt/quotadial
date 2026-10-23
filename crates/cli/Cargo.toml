@@ -26,16 +26,18 @@ path = "src/bin/qd.rs"
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
+quotadial-api.workspace = true
 quotadial-core.workspace = true
 quotadial-daemon.workspace = true
 quotadial-provider-claude.workspace = true
 quotadial-provider-codex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["rt", "time", "signal"] }
+tokio = { workspace = true, features = ["rt", "time", "signal", "sync", "macros"] }
 
 [dev-dependencies]
 async-trait.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

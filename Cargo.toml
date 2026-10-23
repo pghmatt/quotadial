@@ -23,13 +23,16 @@ publish = false
 quotadial-core = { path = "crates/core" }
 quotadial-poll = { path = "crates/poll" }
 quotadial-daemon = { path = "crates/daemon" }
+quotadial-api = { path = "crates/api" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
 async-trait = "0.1.92"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 clap = { version = "4.6.7", features = ["derive"] }
 dirs = "7.0.0"
+getrandom = "0.4.3"
 # rustls with the operating system's certificate store; no OpenSSL to install on Linux.
 # SQLite compiled in, so no system library is needed on any platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
