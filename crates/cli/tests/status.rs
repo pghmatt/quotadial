@@ -22,6 +22,7 @@ fn command(binary: &str, args: &[&str], home: &Path) -> Command {
         .env("USERPROFILE", home)
         .env("CLAUDE_CONFIG_DIR", home.join(".claude"))
         .env("CODEX_HOME", home.join(".codex"))
+        .env("QUOTADIAL_DATA_DIR", home.join("data"))
         .env_remove("CLAUDE_CODE_OAUTH_TOKEN")
         .env_remove("ANTHROPIC_API_KEY")
         .env_remove("OPENAI_API_KEY");
@@ -129,4 +130,35 @@ fn watch_prints_the_status_and_when_it_refreshes() {
         "{output}"
     );
     assert!(!output.contains('\x1b'), "no escape codes when piped");
+}
+
+#[test]
+fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
+    let home = empty_home("daemon");
+    let mut first = command(env!("CARGO_BIN_EXE_quotadial"), &["daemon"], &home)
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the daemon starts");
+    let mut line = String::new();
+    BufReader::new(first.stdout.take().expect("stdout"))
+        .read_line(&mut line)
+        .expect("reads");
+
+    let second = run(env!("CARGO_BIN_EXE_quotadial"), &["daemon"], &home);
+    first.kill().expect("stops");
+    first.wait().expect("exits");
+
+    assert!(
+        line.starts_with(
+            "QuotaDial daemon running. It asks claude at most every 5 min and codex at most every 2 \
+             min, keeps history in "
+        ),
+        "{line}"
+    );
+    assert!(home.join("data").join("history.db").exists());
+    assert!(!second.status.success());
+    assert_eq!(
+        String::from_utf8(second.stderr).expect("UTF-8"),
+        "quotadial: a QuotaDial daemon is already running.\n"
+    );
 }

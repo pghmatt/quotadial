@@ -131,6 +131,16 @@ impl Snapshot {
         Self::without_windows(account, Status::AuthRequired, reason)
     }
 
+    /// The same snapshot with any token blanked out of its error text, whichever provider wrote
+    /// it.
+    #[must_use]
+    pub fn without_secrets(mut self) -> Self {
+        self.error = self
+            .error
+            .map(|error| crate::redact_secrets(&error).into_owned());
+        self
+    }
+
     /// The same snapshot served again from QuotaDial's own store: every window that came from the
     /// API now says it came from the cache. `fetched_at` keeps the time of the original fetch.
     #[must_use]
