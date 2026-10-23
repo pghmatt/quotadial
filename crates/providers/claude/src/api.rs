@@ -3,11 +3,12 @@
 //! Ported from CodexBar's `Providers/Claude/ClaudeOAuth/ClaudeOAuthUsageFetcher.swift` and checked
 //! against Claude Code 2.1.286, whose plain usage read is `GET /api/oauth/usage` with no query
 //! string, `anthropic-beta: oauth-2025-04-20` and `User-Agent: claude-code/<version>`. QuotaDial
-//! sends exactly that, so it needs none of CodexBar's `?cedar_ember=1` first attempt and retry.
+//! sends exactly that, so it needs none of CodexBar's `?cedar_ember=1` first attempt and retry. The
+//! version is the one checked live, not the installed one: learning that would mean running
+//! another program for a header that D-032 found is not required (D-048).
 //! Redirects are never followed and only HTTPS is spoken outside tests, so the bearer token only
 //! ever goes to the configured host.
 
-use std::process::Command;
 use std::time::Duration;
 
 use quotadial_core::{Secret, outside_text};
@@ -16,18 +17,16 @@ use reqwest::{Client, Response, StatusCode, redirect};
 use serde_json::Value;
 
 use crate::identity::{self, Identity};
-use crate::process;
 
 pub(crate) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const USAGE_PATH: &str = "/api/oauth/usage";
 const PROFILE_PATH: &str = "/api/oauth/profile";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
-/// CodexBar's stand-in when `claude --version` cannot be run.
-const FALLBACK_CLAUDE_CODE_VERSION: &str = "2.1.0";
+/// Claude Code's User-Agent, at the version QuotaDial was checked against (D-034, D-048).
+pub(crate) const USER_AGENT_VALUE: &str = "claude-code/2.1.286";
 /// How long a request may take, start to finish.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 /// Usage responses are a few kilobytes. Anything this large is not one.
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 
@@ -69,17 +68,12 @@ pub(crate) enum UsageError {
 pub(crate) struct Api {
     client: Client,
     base_url: String,
-    user_agent: String,
     timeout: Duration,
 }
 
 impl Api {
     /// `timeout` is [`TIMEOUT`] except in tests.
-    pub(crate) fn new(
-        base_url: &str,
-        user_agent: String,
-        timeout: Duration,
-    ) -> Result<Self, String> {
+    pub(crate) fn new(base_url: &str, timeout: Duration) -> Result<Self, String> {
         let client = Client::builder()
             .timeout(timeout)
             .connect_timeout(CONNECT_TIMEOUT.min(timeout))
@@ -91,7 +85,6 @@ impl Api {
         Ok(Self {
             client,
             base_url: base_url.trim_end_matches('/').to_owned(),
-            user_agent,
             timeout,
         })
     }
@@ -104,7 +97,7 @@ impl Api {
             .get(format!("{}{USAGE_PATH}", self.base_url))
             .bearer_auth(token.expose())
             .header("anthropic-beta", OAUTH_BETA)
-            .header(USER_AGENT, &self.user_agent)
+            .header(USER_AGENT, USER_AGENT_VALUE)
             .header(ACCEPT, "application/json")
             .header(CONTENT_TYPE, "application/json")
             .send()
@@ -143,7 +136,7 @@ impl Api {
             .client
             .get(format!("{}{PROFILE_PATH}", self.base_url))
             .bearer_auth(token.expose())
-            .header(USER_AGENT, &self.user_agent)
+            .header(USER_AGENT, USER_AGENT_VALUE)
             .header(CONTENT_TYPE, "application/json")
             .header(CACHE_CONTROL, "no-cache")
             .send()
@@ -237,66 +230,10 @@ fn error_message(body: &[u8]) -> Option<String> {
     outside_text(value.get("error")?.get("message")?.as_str()?, 200)
 }
 
-/// `claude-code/<version>`, the User-Agent Claude Code sends.
-pub(crate) fn user_agent(claude_code_version: Option<&str>) -> String {
-    format!(
-        "claude-code/{}",
-        claude_code_version.unwrap_or(FALLBACK_CLAUDE_CODE_VERSION)
-    )
-}
-
-/// The installed Claude Code's version, from `claude --version`, which prints for example
-/// `2.1.286 (Claude Code)`.
-pub(crate) fn detect_claude_code_version() -> Option<String> {
-    let mut command = Command::new("claude");
-    command.arg("--version");
-    let finished = process::run(command, VERSION_TIMEOUT).ok()?;
-    if !finished.status.success() {
-        return None;
-    }
-    parse_version(&String::from_utf8_lossy(&finished.stdout))
-}
-
-/// The first word of `claude --version`, if it looks like a version number. Anything else would
-/// not be safe to put in a header.
-fn parse_version(output: &str) -> Option<String> {
-    let word = output.split_whitespace().next()?;
-    let looks_like_version = word.starts_with(|c: char| c.is_ascii_digit())
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
-    looks_like_version.then(|| word.to_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn the_user_agent_names_claude_code() {
-        assert_eq!(user_agent(Some("2.1.286")), "claude-code/2.1.286");
-        assert_eq!(user_agent(None), "claude-code/2.1.0");
-    }
-
-    #[test]
-    fn versions_are_read_from_claude_version_output() {
-        assert_eq!(
-            parse_version("2.1.286 (Claude Code)\n").as_deref(),
-            Some("2.1.286")
-        );
-        assert_eq!(
-            parse_version("2.2.0-beta.1\n").as_deref(),
-            Some("2.2.0-beta.1")
-        );
-        assert_eq!(parse_version("claude: command not found"), None);
-        assert_eq!(
-            parse_version("2.1.286\r\nX-Injected: yes"),
-            Some("2.1.286".to_owned())
-        );
-        assert_eq!(parse_version("2.1\u{7f}"), None);
-        assert_eq!(parse_version(""), None);
-    }
 
     #[test]
     fn statuses_are_classified() {
