@@ -35,7 +35,8 @@ session logs stand in, marked as coming from them.
 
 `quotadial daemon` runs until Ctrl-C, or on Linux and macOS until it is sent `SIGTERM`, as a
 service manager does. While it runs it is the only thing that asks providers for usage: `status`,
-`watch`, the local API (next) and the MCP server read what it last found.
+`watch`, the local API (next) and the MCP server read what it last found. The tray app runs the
+same daemon itself when none is running, so with the app open there is no need to start one.
 
 - It asks each account no more often than its provider's floor, and slows to every 10 minutes once
   the account's numbers have been still for 10 minutes. A change in usage is what counts as
@@ -52,7 +53,9 @@ service manager does. While it runs it is the only thing that asks providers for
   taken, it says so and exits with status 1.
 - `status` and `watch` find it through `daemon.json` in the same folder, which holds its process id
   and port while it runs. With no daemon running they fetch for themselves. If a daemon is running
-  but its API does not answer, they say so and name the fix rather than polling in its place.
+  but its API does not answer, they say so and name the fix rather than polling in its place. A
+  daemon that stops while being asked, as when the tray app quits, hands over: once its lock is
+  released, they fetch for themselves.
 
 ## The local API
 

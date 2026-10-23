@@ -14,14 +14,11 @@ cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager c
 M2 (manager's go-ahead, 2026-10-23) came in three PRs: the daemon and its store (#23, PR #26), the
 local API and its token (#24, PR #27), and the MCP server and SKILL.md (#25, PR #28). M2 is done.
 
-M3, the tray app, waits for the manager's approval of the plan in #29. The plan has four PRs:
-- the scaffold, with the daemon running inside the app;
-- the popover;
-- settings and notifications;
-- builds for macOS, Windows and Linux.
-
-It needs four decisions: signing, which notifications belong in M3 rather than M4, one process,
-and no UI kit. P-001 to P-009 are accepted and in the PRD,
+M3, the tray app: the manager approved the plan in #29 on 2026-10-23 (D-065). Its four PRs:
+- PR 1, the scaffold with the daemon running inside the app (PR #31);
+- PR 2, the popover;
+- PR 3, settings and notifications;
+- PR 4, builds for macOS, Windows and Linux. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -50,6 +47,15 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | #23 Daemon with one shared poller and SQLite history | Done (PR #26) | `quotadial daemon`; adaptive interval; WAL history in the OS data directory; one daemon at a time (D-053, D-054) |
 | #24 Local API on 127.0.0.1 with a bearer token; the CLI asks the daemon | Done (PR #27) | `GET /v1/status` and `GET /v1/headroom` on `127.0.0.1:47115`, a private bearer token and a host check; `status` and `watch` ask a running daemon and fetch for themselves only when none runs (D-056 to D-061) |
 | #25 MCP server and SKILL.md | Done (PR #28) | `quotadial mcp`, the `quotadial` MCP server with `get_usage`, `get_account_headroom` and `list_alerts`; `skills/quotadial/SKILL.md` documents the HTTP API for agents (D-062 to D-064) |
+
+## M3
+
+| Step | Status | Notes |
+| --- | --- | --- |
+| PR 1: scaffold, the daemon in the app, the bundled CLI | In review (PR #31) | Tauri 2 app in `apps/tray`; runs or follows the daemon through the shared `Host`; the tray title and icons (D-066); clean handover on quit (D-068); `docs/INSTALL.md` |
+| PR 2: popover | To do | |
+| PR 3: settings and notifications | To do | Two fixed notifications: sign-in needed, a window passed 90% (D-065) |
+| PR 4: builds | To do | A universal dmg, an msi, an AppImage and a deb from CI, attached to a tagged release |
 
 ## Kickoff
 
@@ -235,6 +241,54 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M3 PR 1: the scaffold, the daemon in the app, the bundled CLI
+
+- Shared code first:
+  - `quotadial_api::Host` runs the daemon for `quotadial daemon` and the app alike (D-067).
+  - `Poller::run` abandons a poll in progress when stopped.
+  - `Latest::subscribe` says when the report changes.
+  - The client hands over to a direct fetch when the daemon stops mid-answer and releases its lock
+    within 2 seconds (D-068).
+  - The shipped providers moved to `quotadial-providers`, and the wording to `quotadial_core::text`
+    (D-071).
+- `apps/tray`:
+  - The window is Vite 8, Preact 11 and TypeScript 7 (D-070), plain CSS with the system font. It
+    builds to 15 KB of JavaScript, and `scripts/check-size.mjs` holds it under 150 KB.
+  - `src-tauri` is its own Cargo workspace (D-069):
+    - `feed.rs` runs the daemon, follows a standalone one, takes over when it stops, and moves to a
+      free port when 47115 is taken.
+    - `meter.rs` holds the tightest share used, its level (70% and 90%) and the account lines.
+    - `icon.rs` draws the dial and the Windows number.
+    - `lib.rs` has the tray, its menu (accounts, Open, Quit), the window, one instance only, no Dock
+      icon, and quitting only after the daemon stops, including when macOS quits the app without
+      asking.
+- The CLI is bundled with `scripts/prepare-cli.mjs` as an `externalBin`, so the Mac app carries it
+  at `Contents/MacOS/quotadial`. The app's own binary is `quotadial-tray`, so the two do not collide
+  on macOS's case-insensitive disk. The Mac app is signed ad hoc.
+- CI has a `tray` job on all three systems: the window's types, build and size, the CLI, then fmt,
+  clippy and tests. `docs/INSTALL.md` covers opening unsigned builds and putting the CLI on the
+  `PATH`.
+- Live check, 2026-10-23 15:25Z to 15:35Z, on Matt's Mac (Apple Silicon), with the release build:
+  - **Startup:** the number was in the menu bar 1.0 s after launch: "73%", read through the
+    accessibility API. The app held the lock and announced port 47115.
+  - **Bundled CLI:** `QuotaDial.app/Contents/MacOS/quotadial status` answered from the app's
+    daemon in 10 ms, with both accounts fresh from the APIs. A `qd` link to it works too.
+  - **Window:** it showed 73% in amber, with both accounts. A second launch showed the first
+    instance's window and exited.
+  - **Clean quit:** quitting through macOS, while the CLI asked every 100 ms, gave 50 calls and no
+    failures. The app answered 13 of them and handed the other 37 to direct fetches. `daemon.json`
+    was gone and the history closed.
+  - **Takeover:** with `quotadial daemon` started first, the app followed it, showing 74%. When that
+    daemon stopped, the app took over in 4.0 s.
+  - **Signature:** `codesign --verify --deep --strict` passes on the ad hoc signed bundle (16.5 MB;
+    the dmg is 7.8 MB).
+  - **Not done:** I did not click the tray menu's Quit, because the menu bar auto-hides on this Mac
+    and I did not want to drive the mouse. That path runs the same stop as above, from Tauri's
+    exit request.
+- Test count: 292 in the core workspace (core 25, poll 36, daemon 19, API 30, providers 1, Claude
+  101 plus the opt-in Keychain test, Codex 54, CLI unit 17, CLI binaries 9), and 12 in the tray app
+  (feed 3, meter 4, icons 5). Four wording tests moved from the CLI to core with the code.
 
 ### M2 #25: the MCP server and SKILL.md
 

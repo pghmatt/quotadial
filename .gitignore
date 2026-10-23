@@ -43,3 +43,6 @@ apps/tray/src-tauri/gen/schemas/
 .vscode/*
 !.vscode/extensions.json
 *.swp
+
+# The CLI the tray app bundles, built by apps/tray/scripts/prepare-cli.mjs.
+apps/tray/src-tauri/binaries/

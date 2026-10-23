@@ -5,17 +5,14 @@
 
 use std::io::{self, IsTerminal, Write};
 use std::process::ExitCode;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
-use quotadial_api::{DEFAULT_PORT, Runtime, Token};
-use quotadial_core::{ExtraUsage, Provider, Source, Status, StatusReport, collect};
-use quotadial_daemon::{DataDir, History, Instance, InstanceError, Poller};
-use quotadial_provider_claude::ClaudeProvider;
-use quotadial_provider_codex::CodexProvider;
+use quotadial_api::{DEFAULT_PORT, Host, HostError};
+use quotadial_core::{Provider, StatusReport, collect, text};
+use quotadial_daemon::DataDir;
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -67,14 +64,6 @@ pub fn run() -> ExitCode {
     }
 }
 
-/// Every provider QuotaDial ships, in display order.
-fn providers() -> Vec<Box<dyn Provider>> {
-    vec![
-        Box::new(ClaudeProvider::new()),
-        Box::new(CodexProvider::new()),
-    ]
-}
-
 fn runtime() -> Option<tokio::runtime::Runtime> {
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -107,7 +96,8 @@ fn status(json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let report = match runtime.block_on(report(&providers(), DataDir::from_env().as_ref())) {
+    let providers = quotadial_providers::all();
+    let report = match runtime.block_on(report(&providers, DataDir::from_env().as_ref())) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("quotadial: {error}");
@@ -133,7 +123,7 @@ fn watch(json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = providers();
+    let providers = quotadial_providers::all();
     let dir = DataDir::from_env();
     // The Windows console shows escape codes as text unless a program turns them on, which needs
     // unsafe code, so on Windows each refresh simply follows the last.
@@ -165,7 +155,7 @@ fn mcp() -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = providers();
+    let providers = quotadial_providers::all();
     let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
     let dir = DataDir::from_env();
     let served = runtime.block_on(quotadial_api::mcp::serve(
@@ -193,134 +183,45 @@ fn daemon(port: u16) -> ExitCode {
         );
         return ExitCode::FAILURE;
     };
-    let _instance = match Instance::acquire(&dir) {
-        Ok(instance) => instance,
-        Err(error @ InstanceError::AlreadyRunning) => {
-            eprintln!("quotadial: {error}.");
-            return ExitCode::FAILURE;
-        }
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not use {}: {error}; check that you can write to it.",
-                dir.path().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    // A daemon that crashed left its port behind, and another program may hold that port now.
-    Runtime::remove(&dir);
-    let history = match History::open(&dir.history()) {
-        Ok(history) => Arc::new(history),
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not open the history at {}: {error}",
-                dir.history().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    let token = match Token::load_or_create(&dir) {
-        Ok(token) => token,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not create the API token at {}: {error}; check that you can \
-                 write to it.",
-                dir.token().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers: Vec<Arc<dyn Provider>> = providers().into_iter().map(Arc::from).collect();
-    let code = runtime.block_on(serve_daemon(&dir, providers, history, token, port));
-    Runtime::remove(&dir);
-    code
-}
-
-/// Listens on `port`, says where, then polls and serves until stopped.
-async fn serve_daemon(
-    dir: &DataDir,
-    providers: Vec<Arc<dyn Provider>>,
-    history: Arc<History>,
-    token: Token,
-    port: u16,
-) -> ExitCode {
-    let listener = match quotadial_api::bind(port).await {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not listen on 127.0.0.1:{port}: {error}; another program may \
-                 be using the port, so choose another with --port."
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    let announced = listener.local_addr().and_then(|address| {
-        let runtime = Runtime {
-            pid: std::process::id(),
-            port: address.port(),
-            started_at: Utc::now(),
-        };
-        runtime.write(dir).map(|()| runtime)
-    });
-    let port = match announced {
-        Ok(runtime) => runtime.port,
-        Err(error) => {
-            eprintln!(
-                "quotadial: could not write {}: {error}; check that you can write to it.",
-                dir.runtime().display()
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    say(format_args!(
-        "QuotaDial daemon running. It asks {}, keeps history in {}, and is the only thing that \
-         polls while it runs.",
-        limits(&providers),
-        dir.history().display()
-    ));
-    say(format_args!(
-        "Its API is at http://127.0.0.1:{port}, for requests with the token in {}. Press Ctrl-C \
-         to stop.",
-        dir.token().display()
-    ));
-    let poller = Poller::new(providers, history);
-    let latest = poller.latest();
-    let (stop, stopped) = tokio::sync::watch::channel(false);
-    let until_stopped = |mut stopped: tokio::sync::watch::Receiver<bool>| async move {
-        // A closed channel also means stop.
-        let _ = stopped.wait_for(|stop| *stop).await;
-    };
-    let serve = async {
-        let served =
-            quotadial_api::serve(listener, latest, token, until_stopped(stopped.clone())).await;
-        // A daemon whose API has stopped serves no one, so it stops polling too, and consumers
-        // fetch for themselves again.
-        let _ = stop.send(true);
-        served
-    };
-    let signalled = async {
-        tokio::select! {
-            () = shutdown_signal() => {
-                let _ = stop.send(true);
+    let providers = quotadial_providers::all();
+    runtime.block_on(async {
+        let limits = limits(&providers);
+        let host = match Host::start(dir, providers, port).await {
+            Ok(host) => host,
+            Err(error @ HostError::Listen { .. }) => {
+                eprintln!("quotadial: {error}, so choose another with --port.");
+                return ExitCode::FAILURE;
             }
-            () = until_stopped(stopped.clone()) => {}
+            Err(error) => {
+                eprintln!("quotadial: {error}.");
+                return ExitCode::FAILURE;
+            }
+        };
+        say(format_args!(
+            "QuotaDial daemon running. It asks {limits}, keeps history in {}, and is the only thing \
+             that polls while it runs.",
+            host.dir().history().display()
+        ));
+        say(format_args!(
+            "Its API is at http://127.0.0.1:{}, for requests with the token in {}. Press Ctrl-C \
+             to stop.",
+            host.port(),
+            host.dir().token().display()
+        ));
+        match host.run(shutdown_signal()).await {
+            Ok(()) => {
+                say(format_args!("QuotaDial daemon stopped."));
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("quotadial: the API stopped: {error}");
+                ExitCode::FAILURE
+            }
         }
-    };
-    let (served, (), ()) =
-        tokio::join!(serve, poller.run(until_stopped(stopped.clone())), signalled);
-    match served {
-        Ok(()) => {
-            say(format_args!("QuotaDial daemon stopped."));
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            eprintln!("quotadial: the API stopped: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }
 
 /// Prints a line from the daemon, which keeps running when nothing reads its output any more.
@@ -362,7 +263,7 @@ fn limits<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
             format!(
                 "{} at most every {}",
                 provider.id(),
-                duration(
+                text::duration(
                     TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
                 )
             )
@@ -393,9 +294,9 @@ fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()
 
 /// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated
 /// and how often each provider is asked. `redraw` clears the terminal first.
-fn write_frame(
+fn write_frame<P: AsRef<dyn Provider>>(
     report: Result<&StatusReport, &Unanswered>,
-    providers: &[Box<dyn Provider>],
+    providers: &[P],
     now: DateTime<Utc>,
     redraw: bool,
     out: &mut impl Write,
@@ -427,7 +328,7 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
         if let Some(plan) = &account.plan {
             write!(out, " ({plan})")?;
         }
-        writeln!(out, ": {}", status_label(snapshot.status))?;
+        writeln!(out, ": {}", text::status_label(snapshot.status))?;
         for window in snapshot.windows_tightest_first() {
             let unconfirmed = if window.unconfirmed {
                 ", unconfirmed until the next fetch agrees"
@@ -439,13 +340,13 @@ fn write_text(report: &StatusReport, now: DateTime<Utc>, out: &mut impl Write) -
                 "  {}: {:.0}% used{unconfirmed}, {}, from {} {}",
                 window.label,
                 window.used_pct,
-                resets(window.resets_at, now),
-                source_label(window.source),
-                ago(window.fetched_at, now),
+                text::resets(window.resets_at, now),
+                text::source_label(window.source),
+                text::ago(window.fetched_at, now),
             )?;
         }
         if let Some(extra) = &snapshot.extra_usage {
-            writeln!(out, "  Extra usage: {}", extra_usage_text(extra))?;
+            writeln!(out, "  Extra usage: {}", text::extra_usage(extra))?;
         }
         if let Some(error) = &snapshot.error {
             writeln!(out, "  {error}")?;
@@ -461,82 +362,19 @@ fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-/// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
-fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
-    match resets_at {
-        None => "no reset time reported".to_owned(),
-        Some(at) if at > now => format!("resets in {}", duration(at - now)),
-        Some(at) => format!("reset {} ago", duration(now - at)),
-    }
-}
-
-/// For example `4 min ago`, or `just now`.
-fn ago(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
-    if now - at < TimeDelta::minutes(1) {
-        return "just now".to_owned();
-    }
-    format!("{} ago", duration(now - at))
-}
-
-/// For example `under a minute`, `45 min`, `2 h 10 min` or `3 d 4 h`, rounded down.
-fn duration(length: TimeDelta) -> String {
-    let minutes = length.num_minutes();
-    let (days, hours) = (minutes / (24 * 60), minutes / 60 % 24);
-    match (days, hours, minutes % 60) {
-        _ if minutes < 1 => "under a minute".to_owned(),
-        (0, 0, minutes) => format!("{minutes} min"),
-        (0, hours, 0) => format!("{hours} h"),
-        (0, hours, minutes) => format!("{hours} h {minutes} min"),
-        (days, 0, _) => format!("{days} d"),
-        (days, hours, _) => format!("{days} d {hours} h"),
-    }
-}
-
-/// For example `on, 12.50 of 50.00 USD used (25%)`, `on, 1056.44 credits left`, or `off`.
-fn extra_usage_text(extra: &ExtraUsage) -> String {
-    if !extra.enabled {
-        return "off".to_owned();
-    }
-    let mut text = "on".to_owned();
-    if let (Some(used), Some(limit)) = (extra.used, extra.limit) {
-        let currency = extra.currency.as_deref().unwrap_or("USD");
-        text.push_str(&format!(", {used:.2} of {limit:.2} {currency} used"));
-    }
-    if let Some(used_pct) = extra.used_pct {
-        text.push_str(&format!(" ({used_pct:.0}%)"));
-    }
-    if let Some(balance) = extra.balance {
-        text.push_str(&format!(", {balance:.2} credits left"));
-    }
-    text
-}
-
-fn status_label(status: Status) -> &'static str {
-    match status {
-        Status::Ok => "ok",
-        Status::Stale => "stale",
-        Status::AuthRequired => "sign-in required",
-        Status::RateLimited => "rate limited",
-        Status::Unsupported => "unsupported",
-    }
-}
-
-fn source_label(source: Source) -> &'static str {
-    match source {
-        Source::Api => "the API",
-        Source::LocalLog => "local logs",
-        Source::Cache => "cache",
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
-    use quotadial_core::{Account, Error, Result, Snapshot, Window, WindowKind};
+    use quotadial_api::{Runtime, Token};
+    use quotadial_core::{
+        Account, Error, ExtraUsage, Result, Snapshot, Source, Status, Window, WindowKind,
+    };
+    use quotadial_daemon::{History, Instance, Poller};
     use serde_json::{Value, json};
 
     use super::*;
@@ -805,43 +643,6 @@ mod tests {
     }
 
     #[test]
-    fn durations_read_naturally_and_round_down() {
-        assert_eq!(duration(TimeDelta::seconds(59)), "under a minute");
-        assert_eq!(duration(TimeDelta::minutes(45)), "45 min");
-        assert_eq!(duration(TimeDelta::hours(2)), "2 h");
-        assert_eq!(
-            duration(TimeDelta::minutes(130) + TimeDelta::seconds(59)),
-            "2 h 10 min"
-        );
-        assert_eq!(duration(TimeDelta::days(3)), "3 d");
-        assert_eq!(
-            duration(TimeDelta::days(3) + TimeDelta::hours(4) + TimeDelta::minutes(5)),
-            "3 d 4 h"
-        );
-    }
-
-    #[test]
-    fn reset_times_and_ages_are_relative_to_now() {
-        assert_eq!(
-            resets(Some(ts("2099-01-01T05:00:00Z")), now()),
-            "resets in 4 h 56 min"
-        );
-        assert_eq!(
-            resets(Some(ts("2099-01-01T00:01:00Z")), now()),
-            "reset 3 min ago",
-            "numbers from before a reset say so"
-        );
-        assert_eq!(resets(None, now()), "no reset time reported");
-        assert_eq!(ago(ts("2099-01-01T00:00:00Z"), now()), "4 min ago");
-        assert_eq!(ago(ts("2099-01-01T00:03:30Z"), now()), "just now");
-        assert_eq!(
-            ago(ts("2099-01-01T00:09:00Z"), now()),
-            "just now",
-            "a clock that moved back"
-        );
-    }
-
-    #[test]
     fn a_watch_refresh_says_when_it_was_updated_and_how_often_providers_are_asked() {
         let providers: Vec<Box<dyn Provider>> = vec![Box::new(ScriptedProvider {
             discovery_fails: false,
@@ -882,34 +683,6 @@ mod tests {
         let parsed: Value = serde_json::from_str(&line).expect("valid JSON");
         let pretty: Value = serde_json::from_str(&render(&report, true)).expect("valid JSON");
         assert_eq!(parsed, pretty);
-    }
-
-    #[test]
-    fn extra_usage_that_is_off_says_so() {
-        let extra = ExtraUsage {
-            enabled: false,
-            used_pct: None,
-            used: None,
-            limit: None,
-            currency: None,
-            balance: None,
-        };
-
-        assert_eq!(extra_usage_text(&extra), "off");
-    }
-
-    #[test]
-    fn a_credit_balance_is_shown() {
-        let extra = ExtraUsage {
-            enabled: true,
-            used_pct: None,
-            used: None,
-            limit: None,
-            currency: None,
-            balance: Some(1_056.436_375),
-        };
-
-        assert_eq!(extra_usage_text(&extra), "on, 1056.44 credits left");
     }
 
     #[tokio::test]
@@ -1050,6 +823,47 @@ mod tests {
 
         report(&providers, None).await.expect("fetches");
         assert_eq!(cli.fetches(), 2, "with no data directory at all");
+    }
+
+    #[tokio::test]
+    async fn when_the_daemon_quits_mid_answer_the_cli_fetches_for_itself() {
+        use tokio::io::AsyncReadExt;
+
+        let (_temp, dir) = data_dir();
+        let instance = Instance::acquire(&dir).expect("holds the daemon lock");
+        Token::load_or_create(&dir).expect("makes a token");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binds");
+        Runtime {
+            pid: std::process::id(),
+            port: listener.local_addr().expect("address").port(),
+            started_at: Utc::now(),
+        }
+        .write(&dir)
+        .expect("writes the runtime file");
+        // The tray app takes the question and quits before answering; its lock goes a moment
+        // after its connection, as a process's do.
+        let quitting = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accepts");
+            let _ = stream.read(&mut [0_u8; 4096]).await;
+            drop(stream);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            drop(instance);
+        });
+        let cli = Arc::new(CountingProvider::default());
+
+        let shown = report(&[Arc::clone(&cli) as Arc<dyn Provider>], Some(&dir))
+            .await
+            .expect("no error reaches the user");
+
+        assert_eq!(
+            cli.fetches(),
+            1,
+            "the CLI fetched for itself once the daemon was gone"
+        );
+        assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
+        quitting.await.expect("the daemon quit");
     }
 
     #[tokio::test]

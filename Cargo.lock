@@ -1256,8 +1256,7 @@ dependencies = [
  "quotadial-api",
  "quotadial-core",
  "quotadial-daemon",
- "quotadial-provider-claude",
- "quotadial-provider-codex",
+ "quotadial-providers",
  "serde",
  "serde_json",
  "tempfile",
@@ -1356,6 +1355,15 @@ dependencies = [
  "tokio",
  "wiremock",
  "zeroize",
+]
+
+[[package]]
+name = "quotadial-providers"
+version = "0.1.0"
+dependencies = [
+ "quotadial-core",
+ "quotadial-provider-claude",
+ "quotadial-provider-codex",
 ]
 
 [[package]]

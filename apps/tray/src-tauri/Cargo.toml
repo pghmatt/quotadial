@@ -1,0 +1,49 @@
+[package]
+name = "quotadial-tray"
+description = "QuotaDial's tray app: the meter in the menu bar or system tray, running the daemon."
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Matt Fowkes"]
+repository = "https://github.com/pghmatt/quotadial"
+homepage = "https://quotadial.com"
+publish = false
+
+# Its own workspace, so the core workspace at the repository root builds without Node or a webview
+# toolkit. It uses the core crates by path.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+quotadial-api = { path = "../../../crates/api" }
+quotadial-core = { path = "../../../crates/core" }
+quotadial-daemon = { path = "../../../crates/daemon" }
+quotadial-providers = { path = "../../../crates/providers/all" }
+serde = { version = "1.0.229", features = ["derive"] }
+tauri = { version = "2.12.5", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5.4"
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
+
+[dev-dependencies]
+async-trait = "0.1.92"
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+# As in the core workspace.
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[profile.release]
+# Smaller app; the tray's work is light.
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
