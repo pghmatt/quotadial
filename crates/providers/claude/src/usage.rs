@@ -77,6 +77,9 @@ const ROUTINES_KEYS: [&str; 7] = [
     "cowork",
 ];
 
+/// More decimal places than any currency uses; a larger `decimal_places` is ignored.
+const MAX_DECIMAL_PLACES: u32 = 6;
+
 /// Top-level keys that are not limit windows, although `extra_usage` has a `utilization`.
 const NOT_WINDOWS: [&str; 4] = ["extra_usage", "iguana_necktie", "cedar_ember", "limits"];
 
@@ -250,15 +253,24 @@ fn humanize(key: &str) -> String {
     }
 }
 
-/// `extra_usage`, with amounts converted from cents, as CodexBar does: "OAuth extra usage is always
-/// in cents, including Enterprise spend-only responses".
+/// `extra_usage`, with amounts converted from minor units. The live response (2026-10-23) carries
+/// `decimal_places`, which says how many; the new `spend` object spells the same thing as
+/// `amount_minor` with an `exponent`. When `decimal_places` is missing, amounts are cents, as
+/// CodexBar found: "OAuth extra usage is always in cents, including Enterprise spend-only
+/// responses".
 fn extra_usage(value: &Value) -> Option<ExtraUsage> {
     if !value.is_object() {
         return None;
     }
-    let cents = |key| value.get(key).and_then(number).map(|cents| cents / 100.0);
-    let used = cents("used_credits");
-    let limit = cents("monthly_limit");
+    let scale = value
+        .get("decimal_places")
+        .and_then(Value::as_u64)
+        .and_then(|places| u32::try_from(places).ok())
+        .filter(|places| *places <= MAX_DECIMAL_PLACES)
+        .map_or(100.0, |places| 10_f64.powi(places.cast_signed()));
+    let amount = |key| value.get(key).and_then(number).map(|minor| minor / scale);
+    let used = amount("used_credits");
+    let limit = amount("monthly_limit");
     let currency = value
         .get("currency")
         .and_then(Value::as_str)
@@ -294,6 +306,8 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// A live response from 2026-10-23, committed as Anthropic sent it: it holds no identifiers.
+    const LIVE_FIXTURE: &str = include_str!("../../../../fixtures/claude/oauth-usage.json");
     const USAGE_FIXTURE: &str =
         include_str!("../../../../fixtures/claude/oauth-usage.synthetic.json");
     const SCOPED_FIXTURE: &str =
@@ -323,6 +337,47 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn maps_a_live_response() {
+        let body: Value = serde_json::from_str(LIVE_FIXTURE).expect("fixture is valid JSON");
+        let reading = read(&body, fetched_at());
+
+        // The per-model buckets are null; the scoped weekly limit comes from `limits[]`. The
+        // breakdown, the `spend` object and the code-named nulls are not windows.
+        assert_eq!(
+            summary(&reading),
+            [
+                (WindowKind::Session, "Session", 4.0, 18_000, None),
+                (WindowKind::Weekly, "Weekly", 6.0, 604_800, None),
+                (
+                    WindowKind::ModelWeekly,
+                    "Weekly (Fable)",
+                    0.0,
+                    604_800,
+                    Some("fable")
+                ),
+            ]
+        );
+        assert_eq!(
+            reading.windows[0].resets_at,
+            Some(ts("2026-10-23T04:10:00.451650Z"))
+        );
+        assert_eq!(
+            reading.windows[2].resets_at,
+            Some(ts("2026-10-26T23:00:00Z"))
+        );
+        assert_eq!(
+            reading.extra_usage,
+            Some(ExtraUsage {
+                enabled: false,
+                used_pct: None,
+                used: None,
+                limit: None,
+                currency: None,
+            })
+        );
     }
 
     #[test]
@@ -511,6 +566,28 @@ mod tests {
             }
         );
         assert!(read(&json!([1, 2]), fetched_at()).windows.is_empty());
+    }
+
+    #[test]
+    fn extra_usage_amounts_follow_decimal_places() {
+        let usage = |places: Value| {
+            extra_usage(&json!({
+                "is_enabled": true,
+                "monthly_limit": 50_000,
+                "used_credits": 12_345,
+                "currency": "JPY",
+                "decimal_places": places
+            }))
+            .expect("extra usage")
+        };
+
+        assert_eq!(usage(json!(0)).used, Some(12_345.0));
+        assert_eq!(usage(json!(3)).limit, Some(50.0));
+        // Missing, or not a sensible count: cents, as CodexBar found.
+        assert_eq!(usage(json!(null)).used, Some(123.45));
+        assert_eq!(usage(json!(40)).used, Some(123.45));
+        assert_eq!(usage(json!("2")).used, Some(123.45));
+        assert_eq!(usage(json!(0)).currency.as_deref(), Some("JPY"));
     }
 
     #[test]

@@ -4,20 +4,21 @@ Progress and implementation notes. Update this file with every change.
 
 ## Current focus
 
-M1 issue #1 (Claude provider) is built and in review on branch `feat/claude-provider`. Matt
-approved its plan and all five recommendations on 2026-10-22 (D-021 to D-025). Next: #2 (Codex
-provider). Proposals P-001 to P-009 in `docs/DECISIONS.md` wait for the manager; P-001 and P-002
-are approved by Matt and already in the code.
+Staying on Claude, at Matt's request (2026-10-23): the Codex provider (#2) waits. M1 #1 (Claude
+provider) is merged (PR #8, 2026-10-23, at Matt's go-ahead), which closed #1. The Claude halves of
+#4 (fixtures) and #5 (live checks) are done in PR #9. The Claude work left waits for the manager:
+proposals P-001 to P-011 in `docs/DECISIONS.md` (P-001 and P-002 are approved by Matt and already
+in the code), and the hosting and signing key for #7.
 
 ## M1
 
 | Issue | Status | Notes |
 | --- | --- | --- |
-| #1 Claude provider | In review | Reads Claude Code's sign-in, fetches `/api/oauth/usage`, 5-minute floor and 429 backoff across processes; verified live on Matt's Mac |
+| #1 Claude provider | Done (PR #8) | Reads Claude Code's sign-in, fetches `/api/oauth/usage`, 5-minute floor and 429 backoff across processes; verified live on Matt's Mac |
 | #2 Codex provider | To do | |
 | #3 CLI `status`, `--json`, `watch` | Partly done | `status` and `status --json` work; `watch` to do |
-| #4 Redacted fixtures | To do | Claude fixtures are still synthetic (D-008) |
-| #5 Live endpoint check | Partly done | Claude usage request verified live on 2026-10-22 with the PRD's headers (below). Still to do: whether the User-Agent is required, `?cedar_ember=1`, idle buckets, the profile endpoint, 429 behaviour, and all of Codex |
+| #4 Redacted fixtures | Claude done (PR #9) | Live usage and redacted profile captures committed (D-033); Codex to do |
+| #5 Live endpoint check | Claude done (PR #9) | Claude checked live on 2026-10-23 (D-032): User-Agent not required (P-010), `?cedar_ember=1`, idle buckets, the profile, today's shape (P-011). A 429 was not provoked on purpose. Codex to do |
 | #7 Signed remote schema file | To do | Split out of #1 (D-025) |
 
 ## Kickoff
@@ -154,6 +155,29 @@ Modules in `crates/providers/claude/src/`, each naming the CodexBar files it fol
   8. Two waits had no deadline: a subprocess's output, and the account lock (now 2 minutes).
 - `fixtures/claude/oauth-usage-scoped.synthetic.json` uses a made-up key,
   `seven_day_example_model`, to show an unknown bucket appearing by name.
+- Merged into `main` on 2026-10-23 as squash commit `97ffcae` (PR #8), with CI green on Linux,
+  macOS and Windows. The merge closed #1.
+
+### M1 #4 and #5: Claude live checks and fixtures
+
+- Five live requests on 2026-10-22 and 2026-10-23, at least 5 minutes apart. They were sent by a
+  small script outside the repo that reads the sign-in as QuotaDial does, never prints the token,
+  refuses to run within 5 minutes of the previous request (its own or QuotaDial's), and saves raw
+  responses only to the gitignored `fixtures/claude/raw/`. Results are in D-032.
+- Anthropic's usage response has grown well past what CodexBar decodes: per-model limits moved to
+  `limits[]`, and there are `spend` (usage credits), `seven_day_breakdown` and 17 code-named
+  fields. QuotaDial's mapping needed no change for them, because it shows only objects with a
+  `utilization` and `weekly_scoped` limits. It now scales extra usage by `decimal_places`.
+- The profile fallback now reads the plan from `organization.organization_type`.
+- Windows Credential Manager (P-008): Claude Code 2.1.286 names a `windows-credman` store but the
+  binary does not show the credential's target name. Building it now would mean guessing, so P-008
+  waits until someone can check a real Windows sign-in with the flag on.
+- Test count: 152 (core 9, Claude 126, Codex 3, CLI unit 10, CLI binaries 4).
+- PR #9 was stacked on #8. Deleting #8's branch after its merge closed #9 instead of retargeting
+  it, so the branch was restored, #9 reopened and pointed at `main`, and the branch deleted again.
+  `main` was then merged into `feat/claude-live-checks`; the content is unchanged, because `main`
+  after the squash is identical to #9's old base. For stacked PRs, point the child at `main`
+  before deleting the parent's branch.
 
 ### Step 4: findings that shape M1
 
