@@ -4,8 +4,10 @@
 //! (`.claude.json`) when it signs in. Reading that file costs no request against Anthropic's
 //! rate-limited API (decision D-024). `GET /api/oauth/profile` is the fallback for sign-ins with no
 //! account config, such as `CLAUDE_CODE_OAUTH_TOKEN`. Claude Code 2.1.286 validates that response
-//! as `{ account: { uuid, email }, organization: { uuid } }` and reads the plan name from
-//! `organization.plan_display_name`; the other spellings accepted here are the ones CodexBar's
+//! as `{ account: { uuid, email }, organization: { uuid } }`. The live response (2026-10-23) also
+//! names the plan in `organization.organization_type` and `organization.rate_limit_tier`, the same
+//! values Claude Code copies into `oauthAccount`; Claude Code itself reads
+//! `organization.plan_display_name`. The flat spellings accepted here are the ones CodexBar's
 //! `OAuthProfileResponse` (`Providers/Claude/ClaudeOAuth/ClaudeOAuthUsageFetcher.swift`) accepts.
 
 use std::path::Path;
@@ -67,7 +69,11 @@ pub(crate) fn from_profile(body: &Value) -> Option<Identity> {
         org_uuid: organization
             .and_then(|organization| text(organization, &["uuid"]))
             .or_else(|| text(body, &["organizationUuid", "organization_uuid"])),
-        plan: organization.and_then(|organization| tier_plan(organization, &["plan_display_name"])),
+        plan: organization.and_then(|organization| {
+            text(organization, &["organization_type"])
+                .and_then(|kind| plan::from_organization_type(&kind))
+                .or_else(|| tier_plan(organization, &["rate_limit_tier", "plan_display_name"]))
+        }),
     })
 }
 
@@ -95,6 +101,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// A live response from 2026-10-23 with names, email, IDs and dates replaced.
+    const LIVE_PROFILE_FIXTURE: &str =
+        include_str!("../../../../fixtures/claude/oauth-profile.json");
     const PROFILE_FIXTURE: &str =
         include_str!("../../../../fixtures/claude/oauth-profile.synthetic.json");
 
@@ -159,6 +168,44 @@ mod tests {
             from_account_config(Path::new("/nonexistent/quotadial/.claude.json")),
             None
         );
+    }
+
+    #[test]
+    fn decodes_a_live_profile() {
+        let body: Value =
+            serde_json::from_str(LIVE_PROFILE_FIXTURE).expect("fixture is valid JSON");
+
+        assert_eq!(
+            from_profile(&body),
+            Some(Identity {
+                account_uuid: "00000000-0000-0000-0000-000000000001".into(),
+                email: Some("user@example.com".into()),
+                org_uuid: Some("00000000-0000-0000-0000-000000000002".into()),
+                plan: Some("max".into()),
+            })
+        );
+    }
+
+    #[test]
+    fn the_profile_plan_falls_back_to_the_tier_then_the_display_name() {
+        let profile = |organization: Value| {
+            from_profile(&json!({
+                "account": { "uuid": "00000000-0000-0000-0000-000000000001" },
+                "organization": organization
+            }))
+            .expect("identity")
+            .plan
+        };
+
+        assert_eq!(
+            profile(json!({ "rate_limit_tier": "default_claude_pro" })).as_deref(),
+            Some("pro")
+        );
+        assert_eq!(
+            profile(json!({ "plan_display_name": "Team" })).as_deref(),
+            Some("team")
+        );
+        assert_eq!(profile(json!({})), None);
     }
 
     #[test]

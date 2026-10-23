@@ -22,8 +22,7 @@ use crate::secret::Secret;
 const TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-TOKEN-0123456789";
 const SERVICE: &str = "Claude Code-credentials";
 const USAGE_FIXTURE: &str = include_str!("../../../../fixtures/claude/oauth-usage.synthetic.json");
-const PROFILE_FIXTURE: &str =
-    include_str!("../../../../fixtures/claude/oauth-profile.synthetic.json");
+const PROFILE_FIXTURE: &str = include_str!("../../../../fixtures/claude/oauth-profile.json");
 
 struct ManualClock(Mutex<DateTime<Utc>>);
 
