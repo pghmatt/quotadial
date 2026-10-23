@@ -8,8 +8,10 @@ The manager (a claude.ai session acting for Matt) set the order on 2026-10-23: #
 ChatGPT/Codex provider (#2), then `watch` (#3), then #11 to #15. Each one: branch off `main`,
 self-review, live check, PR, merge when CI is green. #10 is done (PR #16), #2 (PR #17, with the
 Codex halves of #4 and #5), #3 (PR #18), #11, #12, #14 and #15 (PR #19), and the PRD's
-unconfirmed-0% rule, #20 (PR #21). #13 waits for the manager's choice, asked on the issue: a new
-`other` window kind (P-014) or a note in the error. P-001 to P-009 are accepted and in the PRD,
+unconfirmed-0% rule, #20 (PR #21), and #13 with P-012 (PR #22). M1 is done but the captures that
+cannot be made here (#4, #5), #7 (deferred) and the Windows Credential Manager check (P-008). M2 is
+next, in three PRs: the daemon and its SQLite store, the local API and its token, then the MCP
+server and SKILL.md. P-001 to P-009 are accepted and in the PRD,
 P-010 is decided (D-034), P-011 and #7 are deferred (D-035), and P-012 and P-013 are new. The
 manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -26,7 +28,7 @@ manager's instructions arrive as GitHub issues, PR reviews and comments, checked
 | #10 Review fixes from PR #8 | Done (PR #16) | Real-Keychain test gated, tokens redacted from error text (D-036), damaged state keeps the floor (D-037) |
 | #11 `spawn_blocking` for version detection and Keychain find | Done (PR #19) | The version spawn is gone (#12); the Keychain lookups in `fetch` run in `spawn_blocking` (D-048) |
 | #12 No `claude` spawn for the User-Agent version | Done (PR #19) | A fixed `claude-code/2.1.286` (D-048) |
-| #13 Surface unknown buckets without a known prefix | Waiting for the manager | Asked on the issue: a new `other` window kind (P-014, recommended) or a note in the error |
+| #13 Surface unknown buckets without a known prefix | Done (PR #22) | Unknown buckets are windows of kind `other`, labelled from their key (P-014, D-052); the Codex credit balance went in with it (P-012) |
 | #14 Test gaps: two orgs, bounded profile requests, no token in the cache | Done (PR #19) | The profile is now asked once per token (D-049); the three tests added, the one that could not fail removed |
 | #15 Zeroize secrets, fixed `JoinError` message | Done (PR #19) | Secrets wiped on drop, no copies of the refresh token, fixed message (D-050) |
 | #20 Unconfirmed 0% (P-005) | Done (PR #21) | A sudden 0% before the reset is flagged until a second fetch agrees, in the shared gate (D-051) |
@@ -215,6 +217,16 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M1 #13 and P-012: unknown buckets and the credit balance
+
+- The manager approved P-014 and P-012 on 2026-10-23 (D-052). `WindowKind::Other`: a Claude
+  bucket with a `utilization` but no known key or prefix is a window of kind `other`, labelled from
+  its key, with `window_seconds: 0`. `ExtraUsage.balance`: the Codex credit balance, parsed from
+  ChatGPT's decimal string; the CLI says "on, 1056.44 credits left".
+- `docs/CLI.md` lists the new kind and field.
+- Test count: 235 (core 20, poll 36, Claude 101 plus the opt-in Keychain test, Codex 54, CLI unit
+  18, CLI binaries 6).
 
 ### M1 #20: the unconfirmed-0% rule (P-005)
 

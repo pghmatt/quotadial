@@ -145,16 +145,22 @@ pub(crate) fn read(body: &Value, fetched_at: DateTime<Utc>) -> Reading {
         ));
     }
     for (key, bucket) in unknown_buckets(buckets) {
-        let (kind, name, window_seconds) = if let Some(name) = key.strip_prefix("seven_day_") {
-            (WindowKind::Weekly, name, SEVEN_DAYS)
+        // A known prefix gives the length; any other bucket appears by name, its length unknown,
+        // until #7's signed schema can name it (P-014).
+        let (kind, label, window_seconds) = if let Some(name) = key.strip_prefix("seven_day_") {
+            (
+                WindowKind::Weekly,
+                format!("Weekly ({})", humanize(name)),
+                SEVEN_DAYS,
+            )
         } else if let Some(name) = key.strip_prefix("five_hour_") {
-            (WindowKind::Session, name, FIVE_HOURS)
+            (
+                WindowKind::Session,
+                format!("Session ({})", humanize(name)),
+                FIVE_HOURS,
+            )
         } else {
-            continue;
-        };
-        let label = match kind {
-            WindowKind::Session => format!("Session ({})", humanize(name)),
-            _ => format!("Weekly ({})", humanize(name)),
+            (WindowKind::Other, humanize(key), 0)
         };
         windows.extend(window(kind, label, window_seconds, None, bucket));
     }
@@ -288,6 +294,7 @@ fn extra_usage(value: &Value) -> Option<ExtraUsage> {
         used,
         limit,
         currency,
+        balance: None,
     })
 }
 
@@ -377,6 +384,7 @@ mod tests {
                 used: None,
                 limit: None,
                 currency: None,
+                balance: None,
             })
         );
     }
@@ -425,6 +433,7 @@ mod tests {
                 used: None,
                 limit: None,
                 currency: None,
+                balance: None,
             })
         );
     }
@@ -471,6 +480,7 @@ mod tests {
                 used: Some(12.5),
                 limit: Some(50.0),
                 currency: Some("USD".into()),
+                balance: None,
             })
         );
     }
@@ -488,11 +498,11 @@ mod tests {
     }
 
     #[test]
-    fn unknown_buckets_need_a_length_from_their_key() {
+    fn unknown_buckets_appear_by_name() {
         let body = json!({
             "five_hour_fable": { "utilization": 5.0, "resets_at": null },
             "seven_day_haiku": { "utilization": 6.0 },
-            "monthly_mystery": { "utilization": 7.0 },
+            "monthly_mystery": { "utilization": 7.0, "resets_at": "2099-02-01T00:00:00Z" },
             "notice": { "message": "hello" }
         });
         let reading = read(&body, fetched_at());
@@ -501,9 +511,16 @@ mod tests {
             summary(&reading),
             [
                 (WindowKind::Session, "Session (Fable)", 5.0, 18_000, None),
+                (WindowKind::Other, "Monthly mystery", 7.0, 0, None),
                 (WindowKind::Weekly, "Weekly (Haiku)", 6.0, 604_800, None),
             ]
         );
+        let monthly = reading
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::Other)
+            .expect("the unknown bucket");
+        assert_eq!(monthly.resets_at, Some(ts("2099-02-01T00:00:00Z")));
     }
 
     #[test]

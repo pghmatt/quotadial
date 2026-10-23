@@ -97,7 +97,7 @@ the last, without escape codes.
 | --- | --- |
 | `snapshots[]` | One per account. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
 | `account.plan`, `account.org` | Left out when the provider does not say |
-| `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily` or `credits` |
+| `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily`, `credits`, or `other` for a limit QuotaDial does not know yet, shown by its provider's name with `window_seconds` 0 |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
 | `windows[].window_seconds` | The window's length, such as 18000 for five hours or 604800 for a week |
@@ -105,7 +105,7 @@ the last, without escape codes.
 | `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the CLI's own logs) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
 | `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
-| `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`. Left out when the provider does not say |
+| `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`, or `balance`, the credits left in the provider's own units. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
 | `errors[]` | Providers or accounts that produced no snapshot, each with a message that names the fix |
