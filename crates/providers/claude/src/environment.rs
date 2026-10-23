@@ -15,10 +15,9 @@
 
 use std::path::PathBuf;
 
+use quotadial_core::Secret;
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
-
-use crate::secret::Secret;
 
 const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
 

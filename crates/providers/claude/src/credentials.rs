@@ -5,10 +5,10 @@
 //! what QuotaDial needs is kept. The refresh token is never read: refreshing is Claude Code's job.
 
 use chrono::{DateTime, Utc};
+use quotadial_core::Secret;
 use serde_json::Value;
 
 use crate::plan;
-use crate::secret::Secret;
 
 /// The scope Anthropic's usage endpoint requires.
 const PROFILE_SCOPE: &str = "user:profile";

@@ -12,7 +12,7 @@
 //! setting and prompts after every token refresh. Its experimental `security` reader
 //! (`ClaudeOAuthCredentials+SecurityCLIReader.swift`) is the approach used here.
 
-use crate::secret::Secret;
+use quotadial_core::Secret;
 
 /// Read access to the keychain holding Claude Code's sign-in.
 pub(crate) trait Keychain: Send + Sync {
@@ -65,9 +65,10 @@ mod security_cli {
     use std::process::Command;
     use std::time::Duration;
 
+    use quotadial_core::Secret;
+
     use super::{ItemInfo, Keychain};
     use crate::process::{self, RunError};
-    use crate::secret::Secret;
 
     /// The macOS login keychain, through `/usr/bin/security`.
     pub(super) struct SecurityCli;

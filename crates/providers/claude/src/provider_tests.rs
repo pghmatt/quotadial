@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{Source, WindowKind};
+use quotadial_core::{Secret, Source, WindowKind};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use wiremock::matchers::{header, method, path};
@@ -17,7 +17,6 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
 use crate::keychain::ItemInfo;
-use crate::secret::Secret;
 
 const TOKEN: &str = "sk-ant-oat01-QUOTADIAL-TEST-TOKEN-0123456789";
 const SERVICE: &str = "Claude Code-credentials";
@@ -238,6 +237,11 @@ async fn discovered(provider: &ClaudeProvider) -> Account {
     let mut accounts = provider.discover_accounts().expect("discovers");
     assert_eq!(accounts.len(), 1, "one Claude account per shell");
     accounts.remove(0)
+}
+
+#[test]
+fn the_floor_matches_the_public_constant() {
+    assert_eq!(POLICY.floor.to_std().expect("positive"), MIN_POLL_INTERVAL);
 }
 
 #[tokio::test]
@@ -1149,7 +1153,7 @@ fn state_file(harness: &Harness, account: &Account) -> PathBuf {
         .cache
         .path()
         .join("claude")
-        .join(format!("{}.json", state::account_key(account)))
+        .join(format!("{}.json", quotadial_poll::account_key(account)))
 }
 
 /// Everything QuotaDial wrote to its cache directory, as text.
@@ -1278,4 +1282,30 @@ async fn a_state_file_that_no_longer_parses_keeps_its_floor_and_block() {
     let fresh = provider.fetch(&account).await.expect("fetches");
     assert_eq!(fresh.status, Status::Ok);
     assert_eq!(harness.usage_requests().await, 2);
+}
+
+#[tokio::test]
+async fn a_redirect_is_never_followed() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    harness
+        .mount_usage(ResponseTemplate::new(302).insert_header(
+            "location",
+            format!("{}/elsewhere", harness.server.uri()).as_str(),
+        ))
+        .await;
+    let provider = harness.provider();
+    let account = discovered(&provider).await;
+
+    let result = provider.fetch(&account).await;
+
+    assert_eq!(
+        result.expect_err("fails").to_string(),
+        "claude: request failed: Anthropic's usage endpoint answered HTTP 302."
+    );
+    assert_eq!(
+        harness.requests().await,
+        1,
+        "only the usage request was sent"
+    );
 }

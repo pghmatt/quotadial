@@ -2,18 +2,22 @@
 
 use std::fmt;
 
-/// An OAuth token. `Debug` prints `Secret(redacted)` and there is deliberately no `Display`, so
-/// formatting a struct that holds one never reveals it. The value comes out only through
-/// [`Secret::expose`], at the one place it is sent: the `Authorization` header.
+/// A token or credential file's contents. `Debug` prints `Secret(redacted)` and there is
+/// deliberately no `Display`, so formatting a struct that holds one never reveals it. The value
+/// comes out only through [`Secret::expose`], at the one place it is used, such as the
+/// `Authorization` header.
 #[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Secret(String);
+pub struct Secret(String);
 
 impl Secret {
-    pub(crate) fn new(value: impl Into<String>) -> Self {
+    /// Wraps a secret value.
+    pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
 
-    pub(crate) fn expose(&self) -> &str {
+    /// The value itself. Call it only where the value is used, never to format or log it.
+    #[must_use]
+    pub fn expose(&self) -> &str {
         &self.0
     }
 }

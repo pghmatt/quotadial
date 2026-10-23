@@ -8,13 +8,12 @@ use std::io;
 use std::path::PathBuf;
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use quotadial_core::{Account, Error, Result};
+use quotadial_core::{Account, Error, Result, Secret};
 
 use crate::ID;
 use crate::environment::{Environment, sha256_hex};
 use crate::identity::{self, Identity};
 use crate::keychain::Keychain;
-use crate::secret::Secret;
 
 /// Where a sign-in's token lives.
 #[derive(Debug, Clone)]

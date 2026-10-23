@@ -1,11 +1,12 @@
-//! What QuotaDial remembers about each Claude account between runs, so the 5-minute floor and the
-//! 429 backoff hold across separate `quotadial` processes.
+//! What QuotaDial remembers about each account between runs, so the floor and the 429 backoff
+//! hold across separate `quotadial` processes.
 //!
-//! Each account has a JSON file in the user's cache directory (`quotadial/claude/` under
+//! Each account has a JSON file in the user's cache directory (`quotadial/<provider>/` under
 //! `~/Library/Caches`, `$XDG_CACHE_HOME` or `%LOCALAPPDATA%`), holding derived data only:
 //! snapshots, times and counters, never a token. A lock file beside it keeps two processes from
 //! both deciding to send a request. M2's SQLite store replaces this.
 
+use std::fmt;
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -13,43 +14,43 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{Account, Snapshot};
+use quotadial_core::{Account, Error, Snapshot};
 use serde::{Deserialize, Serialize};
-
-use crate::environment::sha256_hex;
+use sha2::{Digest, Sha256};
 
 const FORMAT_VERSION: u32 = 1;
 
 /// How long a process waits for another to finish with an account before giving up. The holder
-/// needs at most a Keychain read (30 s), `claude --version` (5 s) and two requests (30 s each).
-pub(crate) const LOCK_WAIT: Duration = Duration::from_secs(120);
+/// needs at most a credential read (30 s for a Keychain read), a few seconds of setup and two
+/// requests (30 s each).
+pub const LOCK_WAIT: Duration = Duration::from_secs(120);
 
 /// One account's saved state.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub(crate) struct AccountState {
+pub struct AccountState {
     /// The latest snapshot with numbers, shown again, marked as cache, while Anthropic is
     /// rate-limiting or failing.
-    pub(crate) last_good: Option<Snapshot>,
+    pub last_good: Option<Snapshot>,
     /// What the latest request produced, replayed until the floor allows the next one.
-    pub(crate) last_result: Option<LastResult>,
+    pub last_result: Option<LastResult>,
     /// When QuotaDial last sent a usage request for this account.
-    pub(crate) requested_at: Option<DateTime<Utc>>,
+    pub requested_at: Option<DateTime<Utc>>,
     /// The sign-in generation that request used (see `Login::generation`).
-    pub(crate) login_generation: Option<String>,
+    pub login_generation: Option<String>,
     /// No request is sent before this time, after a 429.
-    pub(crate) blocked_until: Option<DateTime<Utc>>,
+    pub blocked_until: Option<DateTime<Utc>>,
     /// 429 answers in a row, for the exponential backoff.
-    pub(crate) rate_limit_strikes: u32,
+    pub rate_limit_strikes: u32,
     /// The latest request went out inside the floor, as the one retry allowed after a rejected
     /// sign-in. Another such retry waits for the floor.
-    pub(crate) bypassed_floor: bool,
+    pub bypassed_floor: bool,
 }
 
 /// The outcome of the latest request.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(crate) enum LastResult {
+pub enum LastResult {
     /// A snapshot, whatever its status.
     Snapshot { snapshot: Box<Snapshot> },
     /// An answer QuotaDial could not use, such as an HTTP 503.
@@ -84,45 +85,83 @@ const DAMAGED: &str =
 
 /// The file name for an account's state: a hash of its identity, which keeps the name short and
 /// safe on every file system.
-pub(crate) fn account_key(account: &Account) -> String {
+#[must_use]
+pub fn account_key(account: &Account) -> String {
     let identity = format!(
         "{}\n{}\n{}",
         account.provider,
         account.org.as_deref().unwrap_or_default(),
         account.account_id
     );
-    sha256_hex(&identity)[..16].to_owned()
+    Sha256::digest(identity.as_bytes())
+        .iter()
+        .take(8)
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
-/// The directory of saved account state.
+/// The directory of one provider's saved account state.
 #[derive(Debug, Clone)]
-pub(crate) struct StateStore {
+pub struct StateStore {
+    provider: &'static str,
     dir: PathBuf,
 }
 
 /// Holds an account's lock until dropped.
 #[derive(Debug)]
-pub(crate) struct StateLock {
+pub struct StateLock {
     _file: File,
 }
 
 impl StateStore {
-    /// `quotadial/claude` in the user's cache directory.
-    pub(crate) fn default_dir() -> Option<PathBuf> {
-        dirs::cache_dir().map(|dir| dir.join("quotadial").join("claude"))
+    /// `quotadial/<provider>` in the user's cache directory.
+    #[must_use]
+    pub fn default_dir(provider: &str) -> Option<PathBuf> {
+        dirs::cache_dir().map(|dir| dir.join("quotadial").join(provider))
     }
 
-    pub(crate) fn new(dir: PathBuf) -> Self {
-        Self { dir }
+    /// The store for `provider`'s accounts in `dir`.
+    #[must_use]
+    pub fn new(provider: &'static str, dir: PathBuf) -> Self {
+        Self { provider, dir }
     }
 
-    pub(crate) fn dir(&self) -> &Path {
+    /// Where the files are.
+    #[must_use]
+    pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    /// The error for a cache that cannot be used, naming where it is.
+    pub fn error(&self, reason: &dyn fmt::Display) -> Error {
+        Error::Cache {
+            provider: self.provider,
+            location: self.dir.display().to_string(),
+            reason: reason.to_string(),
+        }
+    }
+
+    /// Takes an account's lock without blocking the async runtime while another process holds
+    /// it, giving up after [`LOCK_WAIT`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Cache`] when the directory cannot be used or the lock is held too long.
+    pub async fn lock_account(&self, key: &str) -> Result<StateLock, Error> {
+        let (store, key) = (self.clone(), key.to_owned());
+        tokio::task::spawn_blocking(move || store.lock(&key, LOCK_WAIT))
+            .await
+            .map_err(|_| self.error(&"the task waiting for the account's lock stopped"))?
+            .map_err(|error| self.error(&error))
     }
 
     /// Takes an account's lock, waiting up to `wait` while another QuotaDial process holds it.
     /// Creating the lock file also proves the directory is writable before any request is sent.
-    pub(crate) fn lock(&self, key: &str, wait: Duration) -> io::Result<StateLock> {
+    ///
+    /// # Errors
+    ///
+    /// Any error creating the directory or the lock file, or [`io::ErrorKind::TimedOut`].
+    pub fn lock(&self, key: &str, wait: Duration) -> io::Result<StateLock> {
         create_private_dir(&self.dir)?;
         let file = private_file(&self.dir.join(format!("{key}.lock")), false)?;
         let deadline = Instant::now() + wait;
@@ -155,7 +194,11 @@ impl StateStore {
     /// block and the 429 count. If no request time can be read, it counts as a request sent at
     /// `now`. A file that cannot be read at all is an error, so no request is sent. Either way a
     /// damaged file never lets a request out early.
-    pub(crate) fn load(&self, key: &str, now: DateTime<Utc>) -> io::Result<(AccountState, bool)> {
+    ///
+    /// # Errors
+    ///
+    /// Any error reading the file other than its being missing.
+    pub fn load(&self, key: &str, now: DateTime<Utc>) -> io::Result<(AccountState, bool)> {
         let bytes = match fs::read(self.path(key)) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -185,7 +228,11 @@ impl StateStore {
 
     /// Saves the account's state, replacing the old file in one step so a crash cannot leave half a
     /// file. Call it while holding the account's lock.
-    pub(crate) fn save(&self, key: &str, state: &AccountState) -> io::Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Any error writing or renaming the file.
+    pub fn save(&self, key: &str, state: &AccountState) -> io::Result<()> {
         let temporary = self.dir.join(format!("{key}.json.tmp"));
         let mut writer = BufWriter::new(private_file(&temporary, true)?);
         let file = StateFile {
@@ -196,6 +243,18 @@ impl StateStore {
         writer.flush()?;
         drop(writer);
         fs::rename(&temporary, self.path(key))
+    }
+
+    /// Saves the state after an answer, trying twice: a lost 429 block would let the next request
+    /// out too soon.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Cache`] when both tries fail, so the fetch fails rather than hide the problem.
+    pub fn save_answer(&self, key: &str, state: &AccountState) -> Result<(), Error> {
+        self.save(key, state)
+            .or_else(|_| self.save(key, state))
+            .map_err(|error| self.error(&error))
     }
 
     fn path(&self, key: &str) -> PathBuf {
@@ -256,7 +315,7 @@ mod tests {
     #[test]
     fn state_round_trips_through_the_cache_directory() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().join("quotadial").join("claude"));
+        let store = StateStore::new("claude", dir.path().join("quotadial").join("claude"));
         let key = account_key(&account(None));
         let state = AccountState {
             last_good: None,
@@ -309,7 +368,7 @@ mod tests {
     #[test]
     fn a_missing_file_starts_afresh() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
 
         assert_eq!(
             store
@@ -322,7 +381,7 @@ mod tests {
     #[test]
     fn a_damaged_file_counts_as_a_request_sent_now() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         let now = "2099-01-01T00:02:00Z";
 
         for (key, damage) in [
@@ -351,7 +410,7 @@ mod tests {
     #[test]
     fn a_file_that_no_longer_parses_in_full_keeps_its_hold() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         let now = ts("2099-01-01T00:02:00Z");
         // A snapshot written by another version: a window this version cannot read.
         let unknown_snapshot = r#"{"kind":"snapshot","snapshot":{"windows":[{"shape":"new"}]}}"#;
@@ -395,7 +454,7 @@ mod tests {
     #[test]
     fn a_file_that_cannot_be_read_is_an_error() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         // A directory where the file should be, which no platform can read as a file.
         fs::create_dir(dir.path().join("unreadable.json")).expect("creates");
 
@@ -409,7 +468,7 @@ mod tests {
     #[test]
     fn the_saved_file_holds_no_token() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         let snapshot = Snapshot {
             account: account(None),
             windows: Vec::new(),
@@ -439,7 +498,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().join("claude"));
+        let store = StateStore::new("claude", dir.path().join("claude"));
         let _lock = store.lock("account", LOCK_WAIT).expect("locks");
         store
             .save("account", &AccountState::default())
@@ -455,7 +514,7 @@ mod tests {
     #[test]
     fn a_lock_held_too_long_is_given_up_on() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         let _held = store.lock("account", LOCK_WAIT).expect("locks");
 
         let error = store
@@ -472,7 +531,7 @@ mod tests {
     #[test]
     fn a_second_lock_waits_for_the_first() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let store = StateStore::new(dir.path().to_path_buf());
+        let store = StateStore::new("claude", dir.path().to_path_buf());
         let first = store.lock("account", LOCK_WAIT).expect("locks");
 
         let other = store.clone();

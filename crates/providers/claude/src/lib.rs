@@ -10,17 +10,13 @@
 
 mod advice;
 mod api;
-mod clock;
 mod credentials;
 mod environment;
-mod gate;
 mod identity;
 mod keychain;
 mod login;
 mod plan;
 mod process;
-mod secret;
-mod state;
 mod usage;
 
 #[cfg(test)]
@@ -32,18 +28,16 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use quotadial_core::{Account, Error, Provider, Result, Snapshot, Status};
+use chrono::{DateTime, TimeDelta, Utc};
+use quotadial_core::{Account, Error, Provider, Result, Secret, Snapshot, Status};
+use quotadial_poll::{AccountState, Clock, Decision, Policy, StateStore, SystemClock};
 
 use crate::api::{Api, UsageError, UsageResponse};
-use crate::clock::{Clock, SystemClock};
 use crate::credentials::{Credentials, ParseError};
 use crate::environment::Environment;
-use crate::gate::Decision;
 use crate::identity::Identity;
 use crate::keychain::Keychain;
 use crate::login::{Login, LoginSource};
-use crate::state::{StateLock, StateStore};
 use crate::usage::Reading;
 
 /// The provider id used in [`Account::provider`].
@@ -52,6 +46,14 @@ pub const ID: &str = "claude";
 /// Anthropic rate-limits its usage endpoint aggressively, so QuotaDial polls it at most once every
 /// five minutes per account.
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+/// The floor between requests, enforced across every QuotaDial process, and how messages name
+/// Anthropic and Claude Code.
+const POLICY: Policy = Policy {
+    service: "Anthropic",
+    cli: "Claude Code",
+    floor: TimeDelta::minutes(5),
+};
 
 /// Reads Claude usage with the login Claude Code already stores.
 pub struct ClaudeProvider {
@@ -73,7 +75,7 @@ impl ClaudeProvider {
             env: Environment::from_process(),
             keychain: Arc::from(keychain::system()),
             clock: Arc::new(SystemClock),
-            state_dir: StateStore::default_dir(),
+            state_dir: StateStore::default_dir(ID),
             base_url: api::DEFAULT_BASE_URL.to_owned(),
             claude_code_version: OnceLock::new(),
             request_timeout: api::TIMEOUT,
@@ -109,7 +111,7 @@ impl ClaudeProvider {
     fn store(&self) -> Result<StateStore> {
         self.state_dir
             .clone()
-            .map(StateStore::new)
+            .map(|dir| StateStore::new(ID, dir))
             .ok_or_else(|| Error::Cache {
                 provider: ID,
                 location: "the user's cache directory".to_owned(),
@@ -139,7 +141,7 @@ impl ClaudeProvider {
                 }
             }
             LoginSource::File(path) => match std::fs::read_to_string(path) {
-                Ok(text) => secret::Secret::new(text),
+                Ok(text) => Secret::new(text),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     return Ok(Stored::SignedOut);
                 }
@@ -162,7 +164,7 @@ impl ClaudeProvider {
         login: &Login,
         credentials: &Credentials,
         mut account: Account,
-        state: &mut state::AccountState,
+        state: &mut AccountState,
         now: DateTime<Utc>,
     ) -> std::result::Result<Snapshot, RequestFailure> {
         let request_error = |reason| Error::Request {
@@ -179,7 +181,7 @@ impl ClaudeProvider {
             // Anthropic may have counted it, so it is recorded like any answer QuotaDial cannot use.
             Err(UsageError::NoAnswer(reason)) => {
                 return state
-                    .record_failure(format!("Anthropic did not answer: {reason}."), now)
+                    .record_failure(&POLICY, format!("Anthropic did not answer: {reason}."), now)
                     .map_err(|reason| RequestFailure::Error(request_error(reason)));
             }
         };
@@ -209,14 +211,15 @@ impl ClaudeProvider {
             UsageResponse::RateLimited { retry_after } => {
                 let retry_after = retry_after
                     .as_deref()
-                    .and_then(|value| gate::retry_after(value, now));
-                state.record_rate_limit(&account, retry_after, now)
+                    .and_then(|value| quotadial_poll::retry_after(value, now));
+                state.record_rate_limit(&POLICY, &account, retry_after, now)
             }
             UsageResponse::Failed { status, message } => state
-                .record_failure(advice::failed(status, message.as_deref()), now)
+                .record_failure(&POLICY, advice::failed(status, message.as_deref()), now)
                 .map_err(|reason| RequestFailure::Error(request_error(reason)))?,
             UsageResponse::Invalid(reason) => state
                 .record_failure(
+                    &POLICY,
                     format!("Anthropic's answer could not be read: {reason}."),
                     now,
                 )
@@ -291,10 +294,10 @@ impl Provider for ClaudeProvider {
 
     async fn fetch(&self, account: &Account) -> Result<Snapshot> {
         let store = self.store()?;
-        let key = state::account_key(account);
+        let key = quotadial_poll::account_key(account);
         // Everything below runs under the account's lock, so the sign-in found, the token read
         // and the answer saved belong to one moment, and two processes send one request.
-        let _lock = lock(&store, &key).await?;
+        let _lock = store.lock_account(&key).await?;
 
         let Some(login) = self.locate()? else {
             return Ok(Snapshot::auth_required(account.clone(), advice::SIGNED_OUT));
@@ -307,21 +310,19 @@ impl Provider for ClaudeProvider {
         }
 
         let now = self.clock.now();
-        let (mut state, damaged) = store
-            .load(&key, now)
-            .map_err(|error| cache_error(&store, &error))?;
+        let (mut state, damaged) = store.load(&key, now).map_err(|error| store.error(&error))?;
         // A damaged file is saved again at once, so the hold it now records cannot restart.
         let mut changed = damaged;
         changed |= state.reanchor(now);
         if login.identity.is_none() && !matches!(login.source, LoginSource::Environment(_)) {
-            changed |= state.forget_numbers_after_new_sign_in(login.generation.as_deref());
+            changed |= state.forget_numbers_after_new_sign_in(&POLICY, login.generation.as_deref());
         }
         if changed {
             store
                 .save(&key, &state)
-                .map_err(|error| cache_error(&store, &error))?;
+                .map_err(|error| store.error(&error))?;
         }
-        match gate::decide(&state, account, login.generation.as_deref(), now) {
+        match quotadial_poll::decide(&POLICY, &state, account, login.generation.as_deref(), now) {
             Decision::Request => {}
             Decision::Replay(snapshot) => return Ok(*snapshot),
             Decision::Wait(reason) => {
@@ -382,23 +383,23 @@ impl Provider for ClaudeProvider {
         // Save the floor before sending, so it holds even if QuotaDial stops mid-request. If the
         // cache cannot be written, no request is sent.
         let before = state.clone();
-        state.start_request(now, login.generation.clone());
+        state.start_request(&POLICY, now, login.generation.clone());
         store
             .save(&key, &state)
-            .map_err(|error| cache_error(&store, &error))?;
+            .map_err(|error| store.error(&error))?;
 
         match Self::request(api, &login, &credentials, account, &mut state, now).await {
             Err(RequestFailure::NotSent(message)) => {
                 // Nothing left this machine, so the floor is put back as it was. If this save
                 // fails, the floor simply holds for 5 minutes.
                 let _ = store.save(&key, &before);
-                gate::unanswered(&before, &message).map_err(|reason| Error::Request {
+                quotadial_poll::unanswered(&before, &message).map_err(|reason| Error::Request {
                     provider: ID,
                     reason,
                 })
             }
             answered => {
-                save_answer(&store, &key, &state)?;
+                store.save_answer(&key, &state)?;
                 answered.map_err(RequestFailure::into_error)
             }
         }
@@ -414,32 +415,6 @@ impl Provider for ClaudeProvider {
 
     fn min_poll_interval(&self) -> Duration {
         MIN_POLL_INTERVAL
-    }
-}
-
-/// Takes the account's lock without blocking the async runtime while another process holds it.
-async fn lock(store: &StateStore, key: &str) -> Result<StateLock> {
-    let (blocking_store, key) = (store.clone(), key.to_owned());
-    tokio::task::spawn_blocking(move || blocking_store.lock(&key, state::LOCK_WAIT))
-        .await
-        .map_err(|error| cache_error(store, &error))?
-        .map_err(|error| cache_error(store, &error))
-}
-
-/// Saves the state after an answer, trying twice: a lost 429 block would let the next request out
-/// too soon. If both tries fail, the fetch fails rather than hide the problem.
-fn save_answer(store: &StateStore, key: &str, state: &state::AccountState) -> Result<()> {
-    store
-        .save(key, state)
-        .or_else(|_| store.save(key, state))
-        .map_err(|error| cache_error(store, &error))
-}
-
-fn cache_error(store: &StateStore, reason: &dyn fmt::Display) -> Error {
-    Error::Cache {
-        provider: ID,
-        location: store.dir().display().to_string(),
-        reason: reason.to_string(),
     }
 }
 
@@ -459,11 +434,7 @@ fn same_account(a: &Account, b: &Account) -> bool {
 /// The account Anthropic named for this environment token on an earlier request. The state is
 /// kept per token (its account id is a hash of the token), so it cannot name another token's
 /// account. Other sign-ins without a known account are always asked about again.
-fn known_account(
-    login: &Login,
-    state: &state::AccountState,
-    stand_in: &Account,
-) -> Option<Account> {
+fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Option<Account> {
     if !matches!(login.source, LoginSource::Environment(_)) {
         return None;
     }
@@ -483,7 +454,7 @@ fn named(account: Account, identity: &Identity) -> Account {
     }
 }
 
-fn auth_failure(state: &mut state::AccountState, account: Account, reason: String) -> Snapshot {
+fn auth_failure(state: &mut AccountState, account: Account, reason: String) -> Snapshot {
     let snapshot = Snapshot::auth_required(account, reason);
     state.record_auth_failure(&snapshot);
     snapshot

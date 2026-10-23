@@ -1167,13 +1167,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "quotadial-poll"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "quotadial-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "quotadial-provider-claude"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "dirs",
  "quotadial-core",
+ "quotadial-poll",
  "reqwest",
  "serde",
  "serde_json",
@@ -1189,9 +1203,15 @@ name = "quotadial-provider-codex"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
+ "chrono",
  "quotadial-core",
+ "quotadial-poll",
+ "reqwest",
  "serde_json",
+ "tempfile",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]

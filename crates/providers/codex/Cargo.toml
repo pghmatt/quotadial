@@ -11,11 +11,17 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+base64.workspace = true
+chrono.workspace = true
 quotadial-core.workspace = true
+quotadial-poll.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
+wiremock.workspace = true
 
 [lints]
 workspace = true
