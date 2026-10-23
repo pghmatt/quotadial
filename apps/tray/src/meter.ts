@@ -44,3 +44,18 @@ export interface Window {
   fetched: string;
   unconfirmed: boolean;
 }
+
+/** The settings, as `settings` returns them and `set_settings` takes them. */
+export interface Settings {
+  /** Whether QuotaDial opens when you log in, as the system says. */
+  launch_at_login: boolean;
+  notify_sign_in: boolean;
+  notify_high: boolean;
+  providers: ProviderChoice[];
+}
+
+export interface ProviderChoice {
+  id: string;
+  name: string;
+  shown: boolean;
+}

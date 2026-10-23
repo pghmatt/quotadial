@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import type { Account, Meter, Window } from "./meter";
+import { SettingsPanel } from "./settings";
 
 /** The popover: the tightest window's share used, every account's windows, and what is wrong. */
 export function App() {
@@ -59,6 +60,7 @@ export function App() {
 }
 
 function Contents({ meter }: { meter: Meter }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <>
       <header class="summary">
@@ -67,10 +69,16 @@ function Contents({ meter }: { meter: Meter }) {
         </p>
         <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
       </header>
-      {meter.accounts.map((account, index) => (
-        <AccountSection key={`${account.provider} ${account.name}`} account={account} index={index} />
-      ))}
-      {meter.problems.length > 0 && (
+      {settingsOpen && <SettingsPanel onDone={() => setSettingsOpen(false)} />}
+      {!settingsOpen &&
+        meter.accounts.map((account, index) => (
+          <AccountSection
+            key={`${account.provider} ${account.name}`}
+            account={account}
+            index={index}
+          />
+        ))}
+      {!settingsOpen && meter.problems.length > 0 && (
         <section class="problems" aria-label="Problems">
           <ul>
             {meter.problems.map((problem) => (
@@ -81,6 +89,11 @@ function Contents({ meter }: { meter: Meter }) {
       )}
       <footer>
         <p class="origin">{meter.origin ?? ""}</p>
+        {!settingsOpen && (
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
+        )}
         <button type="button" onClick={() => void invoke("quit")}>
           Quit QuotaDial
         </button>
