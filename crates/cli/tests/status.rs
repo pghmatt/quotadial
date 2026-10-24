@@ -460,3 +460,38 @@ fn alert_rules_are_added_listed_turned_off_and_removed_in_plain_words() {
     assert_eq!(json["firings"], json!([]));
     std::fs::remove_dir_all(&home).expect("cleans up");
 }
+
+#[test]
+fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
+    let home = empty_home("doctor");
+    let output = run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home);
+
+    assert!(output.status.success(), "exit status {:?}", output.status);
+    let text = stdout(&output);
+    let first = text.lines().next().expect("a first line");
+    assert!(
+        first.starts_with(&format!("QuotaDial {} on ", env!("CARGO_PKG_VERSION"))),
+        "{first}"
+    );
+    for line in [
+        "Licence: QuotaDial Free, with no licence key.",
+        "Daemon: not running",
+        "Numbers: from a direct fetch",
+        "Accounts (0):",
+        "  none found",
+        "Settings in effect:",
+        "  history_days: 30",
+        "  cost_scan: on",
+    ] {
+        assert!(
+            text.lines().any(|shown| shown == line),
+            "{line:?} in\n{text}"
+        );
+    }
+    let home_text = home.display().to_string();
+    assert!(
+        !text.contains(&home_text),
+        "the home folder is written ~:\n{text}"
+    );
+    assert!(text.contains("Data folder: ~/data"), "{text}");
+}

@@ -133,6 +133,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v7
         with:
           path: dist
@@ -141,8 +142,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The notes are the version's section of CHANGELOG.md (D-101); a tag with none fails here.
+          {
+            echo "Pre-release builds, not signed yet. docs/INSTALL.md says how to open them on each system."
+            echo
+            scripts/release-notes.sh "${GITHUB_REF_NAME#v}"
+          } > notes.md
           # The artifacts keep their folders (deb/, appimage/), so collect the files themselves.
           mapfile -t files < <(find dist -type f | sort)
           gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
             --title "QuotaDial $GITHUB_REF_NAME" \
-            --notes "Pre-release builds, not signed yet. docs/INSTALL.md says how to open them on each system."
+            --notes-file notes.md

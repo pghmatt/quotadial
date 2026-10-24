@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, Window } from "./meter";
 import { SettingsPanel } from "./settings";
@@ -60,12 +61,29 @@ export function App() {
   );
 }
 
-/** What the popover shows below its number: the accounts, the settings, or the history. */
-type Panel = "accounts" | "settings" | "history";
+/** What the popover shows below its number: the accounts, the settings, the history, or Help. */
+type Panel = "accounts" | "settings" | "history" | "help";
 
 function Contents({ meter }: { meter: Meter }) {
   const [panel, setPanel] = useState<Panel>("accounts");
   const accounts = panel === "accounts";
+
+  // The tray menu's Help opens the popover at Help.
+  useEffect(() => {
+    let stopListening: (() => void) | undefined;
+    let closed = false;
+    void listen<Panel>("panel", (event) => setPanel(event.payload)).then((stop) => {
+      if (closed) {
+        stop();
+      } else {
+        stopListening = stop;
+      }
+    });
+    return () => {
+      closed = true;
+      stopListening?.();
+    };
+  }, []);
   return (
     <>
       <header class="summary">
@@ -81,6 +99,7 @@ function Contents({ meter }: { meter: Meter }) {
       </header>
       {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
       {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}
+      {panel === "help" && <HelpPanel onDone={() => setPanel("accounts")} />}
       {accounts &&
         meter.accounts.map((account, index) => (
           <AccountSection
@@ -116,6 +135,11 @@ function Contents({ meter }: { meter: Meter }) {
         {accounts && (
           <button type="button" onClick={() => setPanel("settings")}>
             Settings
+          </button>
+        )}
+        {accounts && (
+          <button type="button" onClick={() => setPanel("help")}>
+            Help
           </button>
         )}
         <button type="button" onClick={() => void invoke("quit")}>

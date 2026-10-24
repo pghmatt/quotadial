@@ -232,13 +232,15 @@ meter::-webkit-meter-even-less-good-value {
 
 footer {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   padding-top: 8px;
 }
 
 .origin {
+  flex: 1 0 100%;
   margin: 0;
   color: var(--muted);
   font-size: 11px;
@@ -524,3 +526,44 @@ footer button + button {
   padding-left: 16px;
 }
 
+.help {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.help h2 {
+  margin-bottom: 4px;
+}
+
+.help h3 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.help p {
+  margin: 0 0 6px;
+}
+
+.help ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
+.help li + li {
+  margin-top: 3px;
+}
+
+.help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bar-normal);
+  text-decoration: underline;
+}

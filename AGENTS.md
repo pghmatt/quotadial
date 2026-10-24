@@ -56,7 +56,8 @@ Nothing is named `usage`, the PRD's old working name.
 | `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
-| `scripts/` | Repo tooling, such as `public-prd.sh`, and `update-prices.sh`, which refreshes the price table from models.dev when a release is made |
+| `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, and `release-notes.sh`, which takes a release's notes from `CHANGELOG.md` |
+| `CHANGELOG.md` | Every change people will notice, newest first, in Keep a Changelog form |
 | `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, and the licence key format |
 
 ## Conventions
@@ -89,6 +90,10 @@ Nothing is named `usage`, the PRD's old working name.
   `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, which CI never sets.
 - `cargo fmt`, `cargo clippy -D warnings` and `cargo test` must pass on macOS, Windows and Linux
   before anything merges to `main`. CI enforces this and `main` is protected.
+- Every pull request that changes what people see adds a line under `## [Unreleased]` in
+  `CHANGELOG.md`, in plain words, one line per change. The version bump before a tag renames that
+  section to the version and its date. The app's Help shows it and the Release workflow takes the
+  release's notes from it, so a note is never written twice (D-101).
 
 ## Commands
 
@@ -103,6 +108,8 @@ cargo run -p quotadial --bin qd -- status               # via the qd alias
 scripts/public-prd.sh                                   # regenerate docs/PRD-public.md
 scripts/public-prd.sh --check                           # the public-copy check CI runs
 scripts/update-prices.sh                                # before tagging a release: refresh crates/cost/prices.json from models.dev, review the diff, commit
+scripts/release-notes.sh 0.3.0                          # the notes the Release workflow puts on v0.3.0, from CHANGELOG.md
+cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)
 ```
 

@@ -298,6 +298,30 @@ impl Standing {
     }
 }
 
+impl Standing {
+    /// What the copy is without the licence's id, for text that may be shared, such as the
+    /// diagnostics Send feedback attaches.
+    #[must_use]
+    pub fn without_id(&self) -> String {
+        match (&self.licence, self.tier) {
+            (Some(licence), Tier::Pro) => match licence.until {
+                Some(until) => format!("QuotaDial Pro until {until}"),
+                None => "QuotaDial Pro, with a licence that does not end".to_owned(),
+            },
+            (
+                Some(Licence {
+                    until: Some(until), ..
+                }),
+                Tier::Free,
+            ) => {
+                format!("QuotaDial Free: the licence ended on {until}")
+            }
+            // With no licence, the sentence names none.
+            _ => self.text.clone(),
+        }
+    }
+}
+
 /// The keys a licence may be signed with: QuotaDial's, and in a debug build the test key.
 fn trusted() -> Vec<[u8; 32]> {
     let mut keys = vec![QUOTADIAL];
@@ -520,6 +544,37 @@ mod tests {
         let newer = standing(Some("QD2.abc.def"));
         assert_eq!(newer.tier, Tier::Free);
         assert!(newer.text.contains("newer QuotaDial"), "{}", newer.text);
+    }
+
+    #[test]
+    fn a_standing_without_its_id_is_safe_to_share() {
+        let today = day("2026-11-01");
+        let without = |key: Option<&str>| Standing::of(key, today).without_id();
+
+        assert_eq!(
+            without(Some(&licence(None).sign(&TEST_SEED))),
+            "QuotaDial Pro, with a licence that does not end"
+        );
+        assert_eq!(
+            without(Some(&licence(Some("2027-10-24")).sign(&TEST_SEED))),
+            "QuotaDial Pro until 2027-10-24"
+        );
+        assert_eq!(
+            without(Some(&licence(Some("2026-10-31")).sign(&TEST_SEED))),
+            "QuotaDial Free: the licence ended on 2026-10-31"
+        );
+        assert_eq!(without(None), "QuotaDial Free, with no licence key.");
+        for key in [
+            licence(None),
+            licence(Some("2027-10-24")),
+            licence(Some("2026-10-31")),
+        ] {
+            assert!(
+                !Standing::of(Some(&key.sign(&TEST_SEED)), today)
+                    .without_id()
+                    .contains("ls-1234")
+            );
+        }
     }
 
     #[test]

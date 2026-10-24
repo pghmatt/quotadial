@@ -6,6 +6,7 @@
 
 mod alert;
 mod cost;
+mod diagnostics;
 mod error;
 pub mod licence;
 mod model;
@@ -19,6 +20,7 @@ mod tier;
 
 pub use alert::{Condition, EXAMPLES, Occurrence, Rule, RuleError, Scope};
 pub use cost::{Cost, ModelCost, Tokens};
+pub use diagnostics::{Diagnostics, mask_emails};
 pub use error::{Error, Result};
 pub use licence::{KeyError, Licence, Plan, Standing};
 pub use model::{Account, ExtraUsage, Pace, Snapshot, Source, Status, Window, WindowKind};
