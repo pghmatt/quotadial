@@ -19,11 +19,11 @@ use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Duration;
 
 use chrono::Utc;
-use quotadial_core::{Account, Provider, ProviderError, Snapshot, StatusReport};
+use quotadial_core::{Account, Provider, ProviderError, Snapshot, StatusPage, StatusReport};
 use tokio::sync::watch;
 use tokio::time::Instant;
 
-use crate::{Deliverer, History, Webhook, deliver_due};
+use crate::{Deliverer, History, STATUS_EVERY, StatusReader, Webhook, deliver_due};
 
 /// Numbers that moved this recently keep an account at its provider's floor.
 pub const ACTIVE_FOR: Duration = Duration::from_secs(10 * 60);
@@ -43,6 +43,8 @@ pub struct Latest(Arc<Shared>);
 #[derive(Debug, Default)]
 struct Shared {
     providers: RwLock<Vec<ProviderState>>,
+    /// What the providers' status pages last said (D-096).
+    status_pages: RwLock<Vec<StatusPage>>,
     /// Told whenever the report changes, so a consumer such as the tray app need not ask.
     changed: watch::Sender<()>,
     /// The newest firing of an alert rule to tell, so the tray app can tell it.
@@ -76,7 +78,28 @@ impl Latest {
                 }
             }
         }
+        report.status_pages = self
+            .0
+            .status_pages
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         report.normalized()
+    }
+
+    /// Keeps `page` as its provider's status, and tells consumers.
+    fn set_status_page(&self, page: StatusPage) {
+        {
+            let mut pages = self
+                .0
+                .status_pages
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            pages.retain(|known| known.provider != page.provider);
+            pages.push(page);
+            pages.sort_by(|a, b| a.provider.cmp(&b.provider));
+        }
+        self.0.changed.send_replace(());
     }
 
     /// A receiver whose `changed()` completes each time the report may have changed. It reports
@@ -116,6 +139,14 @@ struct Tracked {
     last: Option<Snapshot>,
 }
 
+/// The status pages a poller reads, and its reader.
+#[derive(Clone)]
+struct StatusPages {
+    reader: StatusReader,
+    /// Each page, as `(provider, url)`.
+    pages: Arc<[(String, String)]>,
+}
+
 /// The daemon's poller.
 pub struct Poller {
     providers: Vec<Arc<dyn Provider>>,
@@ -127,6 +158,11 @@ pub struct Poller {
     alerts_at: Instant,
     /// Where told alerts are also sent (D-094).
     webhooks: Arc<[Webhook]>,
+    /// The status pages to read, when they are read (D-096).
+    status: Option<StatusPages>,
+    status_at: Instant,
+    /// Held while the status pages are being read.
+    reading: Arc<tokio::sync::Mutex<()>>,
     deliverer: Option<Deliverer>,
     /// Held while alerts are being sent, so a slow webhook never holds up polling and two rounds
     /// never send the same alert at once.
@@ -149,6 +185,11 @@ impl Poller {
     #[must_use]
     pub fn new(providers: Vec<Arc<dyn Provider>>, history: Arc<History>) -> Self {
         let latest = Latest::default();
+        *latest
+            .0
+            .status_pages
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = history.status_pages().unwrap_or_default();
         let stored = history.latest().unwrap_or_default();
         latest.update(|states| {
             *states = providers
@@ -180,7 +221,21 @@ impl Poller {
             webhooks: Arc::new([]),
             deliverer: None,
             delivering: Arc::default(),
+            status: None,
+            status_at: now,
+            reading: Arc::default(),
         }
+    }
+
+    /// The poller, also reading each provider's status page in `pages`, as `(provider, url)`,
+    /// every [`STATUS_EVERY`] while it has an account with that provider (D-096).
+    #[must_use]
+    pub fn with_status_pages(mut self, pages: Vec<(String, String)>) -> Self {
+        self.status = StatusReader::new().ok().map(|reader| StatusPages {
+            reader,
+            pages: pages.into(),
+        });
+        self
     }
 
     /// The poller, also sending told alerts to `webhooks`.
@@ -244,26 +299,63 @@ impl Poller {
             self.check_alerts().await;
             self.alerts_at = Instant::now() + ALERTS_EVERY;
         }
+        if self.status.is_some() && now >= self.status_at {
+            self.read_status_pages();
+            self.status_at = now + STATUS_EVERY;
+        }
+        let status_at = self.status.as_ref().map(|_| self.status_at);
         self.tracked
             .values()
             .map(|tracked| tracked.due)
             .chain([self.discover_at, self.prune_at, self.alerts_at])
+            .chain(status_at)
             .min()
             .unwrap_or(self.discover_at)
     }
 
+    /// Reads the status pages of the providers the poller has accounts with, in their own task,
+    /// unless a round is still reading. Each page read is kept, in the history too, and the alert
+    /// rules are checked against it.
+    fn read_status_pages(&self) {
+        let Some(StatusPages { reader, pages }) = self.status.clone() else {
+            return;
+        };
+        let Ok(reading) = Arc::clone(&self.reading).try_lock_owned() else {
+            return;
+        };
+        let wanted: Vec<(String, String)> = pages
+            .iter()
+            .filter(|(provider, _)| {
+                self.tracked
+                    .values()
+                    .any(|tracked| self.providers[tracked.provider].id() == provider.as_str())
+            })
+            .cloned()
+            .collect();
+        let (history, latest) = (Arc::clone(&self.history), self.latest.clone());
+        tokio::spawn(async move {
+            for (provider, url) in wanted {
+                let before = latest
+                    .report()
+                    .status_pages
+                    .into_iter()
+                    .find(|page| page.provider == provider);
+                if let Some(page) = reader.read(&provider, &url, before.as_ref()).await {
+                    let stored = (Arc::clone(&history), page.clone());
+                    let _ =
+                        tokio::task::spawn_blocking(move || stored.0.record_status_page(&stored.1))
+                            .await;
+                    latest.set_status_page(page);
+                }
+            }
+            check_alerts(&history, &latest).await;
+            drop(reading);
+        });
+    }
+
     /// Checks the alert rules against what was last found, and tells consumers of any firing.
     async fn check_alerts(&self) {
-        let (history, report) = (Arc::clone(&self.history), self.latest.report());
-        // A failed check is tried again within a minute; a firing is recorded once whenever it is.
-        let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now()))
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .and_then(|fired| fired.iter().map(|firing| firing.id).max());
-        if let Some(newest) = fired {
-            self.latest.0.fired.send_replace(newest);
-        }
+        check_alerts(&self.history, &self.latest).await;
         self.deliver();
     }
 
@@ -421,6 +513,20 @@ impl Poller {
                 None => state.accounts.push((account, result)),
             }
         });
+    }
+}
+
+/// Checks the alert rules against what `latest` last found, and tells its consumers of any firing.
+/// A failed check is tried again within a minute; a firing is recorded once whenever it is.
+async fn check_alerts(history: &Arc<History>, latest: &Latest) {
+    let (history, report) = (Arc::clone(history), latest.report());
+    let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now()))
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .and_then(|fired| fired.iter().map(|firing| firing.id).max());
+    if let Some(newest) = fired {
+        latest.0.fired.send_replace(newest);
     }
 }
 
@@ -953,6 +1059,56 @@ mod tests {
             .await
             .expect("the webhook got the new history's 90% alert");
         assert!(bodies.lock().expect("lock")[0].contains("Codex Session passed 90%"));
+    }
+
+    // Real time, since the status page is read over a real socket.
+    #[tokio::test]
+    async fn the_status_page_of_a_provider_with_accounts_is_read_and_kept() {
+        let (_dir, history) = history();
+        let page = crate::test_support::status_page(
+            r#"{"status": {"indicator": "minor", "description": "Partial System Degradation"}}"#,
+        )
+        .await;
+        // Claude's page answers too, but the poller has no Claude account, so it is not read.
+        let claude_page = crate::test_support::status_page(
+            r#"{"status": {"indicator": "none", "description": "All Systems Operational"}}"#,
+        )
+        .await;
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let mut poller =
+            poller(vec![Arc::clone(&codex)], Arc::clone(&history)).with_status_pages(vec![
+                ("codex".into(), page.clone()),
+                ("claude".into(), claude_page),
+            ]);
+
+        poller.poll_due().await;
+
+        let read = async {
+            loop {
+                let pages = poller.latest().report().status_pages;
+                if !pages.is_empty() {
+                    return pages;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        };
+        let pages = tokio::time::timeout(Duration::from_secs(5), read)
+            .await
+            .expect("the page is read");
+        assert_eq!(
+            pages.len(),
+            1,
+            "no account with Claude, so its page is not read"
+        );
+        assert_eq!(pages[0].provider, "codex");
+        assert_eq!(pages[0].indicator, quotadial_core::Indicator::Minor);
+        assert_eq!(pages[0].url, page);
+        assert!(pages[0].since.is_some());
+        assert_eq!(
+            history.status_pages().expect("reads"),
+            pages,
+            "kept for the next start, before it is shown"
+        );
     }
 
     #[tokio::test(start_paused = true)]

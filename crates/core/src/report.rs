@@ -1,6 +1,7 @@
 //! What QuotaDial reports for every account at one moment: the shape `quotadial status --json`
 //! prints and the daemon's local API serves (`docs/CLI.md`).
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Provider, Snapshot, Status, redact_secrets};
@@ -12,6 +13,51 @@ pub struct StatusReport {
     pub snapshots: Vec<Snapshot>,
     /// Providers or accounts that produced no snapshot.
     pub errors: Vec<ProviderError>,
+    /// What the providers' status pages say, while the daemon reads them (D-096). Left out of a
+    /// direct fetch.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub status_pages: Vec<StatusPage>,
+}
+
+/// What a provider's status page says: how bad things are, in the page's own words.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatusPage {
+    /// The provider id, such as `claude`.
+    pub provider: String,
+    pub indicator: Indicator,
+    /// The page's words, such as "Partial System Degradation".
+    pub description: String,
+    /// The page, for people.
+    pub url: String,
+    /// When QuotaDial first saw the page's current trouble. Left out when all is well.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub since: Option<DateTime<Utc>>,
+    /// When QuotaDial last read the page.
+    pub checked_at: DateTime<Utc>,
+}
+
+/// How bad a status page says things are, least first, as Statuspage names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Indicator {
+    /// All is well.
+    None,
+    /// Planned maintenance.
+    Maintenance,
+    /// Some of the service is degraded.
+    Minor,
+    /// A large part of the service is down.
+    Major,
+    /// The service is down.
+    Critical,
+}
+
+impl Indicator {
+    /// Whether the page reports an incident: anything worse than planned maintenance.
+    #[must_use]
+    pub fn is_incident(self) -> bool {
+        self >= Self::Minor
+    }
 }
 
 /// A provider or account that produced no snapshot, for example because its credentials were
@@ -190,6 +236,7 @@ mod tests {
                 snapshot("b", "newer", Status::Ok, "2099-01-01T00:03:00Z"),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let merged = report.normalized();
@@ -227,6 +274,7 @@ mod tests {
                 named("claude", "2", "personal@example.com"),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let sorted = report.normalized();

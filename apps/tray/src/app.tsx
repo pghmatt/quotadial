@@ -73,6 +73,11 @@ function Contents({ meter }: { meter: Meter }) {
           {meter.percent === null ? "–" : `${meter.percent}%`}
         </p>
         <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
+        {meter.incidents.map((incident) => (
+          <p class="incident" key={incident} role="status">
+            {"\u26a0"} {incident}
+          </p>
+        ))}
       </header>
       {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
       {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}

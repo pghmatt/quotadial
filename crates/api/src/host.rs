@@ -16,7 +16,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use quotadial_core::Provider;
 use quotadial_daemon::{
-    Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Poller,
+    Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Poller, STATUS_PAGES,
 };
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -141,7 +141,16 @@ impl Host {
         .write(&dir)
         .map_err(announce)?;
         let history = Arc::new(history);
-        let poller = Poller::new(providers, Arc::clone(&history)).with_webhooks(config.webhooks);
+        let mut poller =
+            Poller::new(providers, Arc::clone(&history)).with_webhooks(config.webhooks);
+        if config.status_pages {
+            poller = poller.with_status_pages(
+                STATUS_PAGES
+                    .iter()
+                    .map(|(provider, url)| ((*provider).to_owned(), (*url).to_owned()))
+                    .collect(),
+            );
+        }
         Ok(Self {
             dir,
             instance,

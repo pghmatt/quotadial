@@ -12,7 +12,7 @@ use std::fmt;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{Account, Pace, Snapshot, Status, Window, WindowKind, text};
+use crate::{Account, Pace, Snapshot, Status, StatusPage, Window, WindowKind, text};
 
 /// The forms the grammar reads, offered when it cannot read a rule.
 pub const EXAMPLES: [&str; 3] = [
@@ -42,6 +42,8 @@ pub enum Condition {
     },
     /// An account needs signing in again.
     SignIn,
+    /// A provider's status page reports an incident (D-096).
+    Incident,
 }
 
 /// Which accounts and windows a rule covers: all of them, unless it names a provider or a window.
@@ -107,6 +109,7 @@ impl Rule {
     /// - `run out` or `pace`: a window running out before it resets;
     /// - `reset` alone: a window resetting;
     /// - `sign in`, `log in` or `expired`: an account needing to sign in again;
+    /// - `incident`, `outage` or `down`: a provider's status page reporting an incident;
     /// - `session`, `weekly`, `daily`, a model such as `opus`, or a label in quotes: the window;
     /// - `claude` or `codex` (also `anthropic`, `chatgpt`, `openai`): the provider.
     ///
@@ -164,6 +167,9 @@ impl Rule {
                 "login" | "signin" | "sign-in" | "log-in" | "expire" | "expires" | "expired" => {
                     read.sign_in = true;
                 }
+                "incident" | "incidents" | "outage" | "outages" | "down" | "degraded" => {
+                    read.incident = true;
+                }
                 "session" | "5-hour" | "five-hour" => read.kind("session")?,
                 "weekly" | "week" => read.kind("weekly")?,
                 "daily" => read.kind("daily")?,
@@ -177,6 +183,8 @@ impl Rule {
         let condition = match read {
             Read { sign_in: true, .. } if read.is_only_sign_in() => Condition::SignIn,
             Read { sign_in: true, .. } => return Err(unread()),
+            Read { incident: true, .. } if read.is_only_incident() => Condition::Incident,
+            Read { incident: true, .. } => return Err(unread()),
             Read {
                 minutes: Some(minutes),
                 reset: true,
@@ -231,6 +239,9 @@ impl Rule {
         if !self.scope.covers_account(&snapshot.account) {
             return Vec::new();
         }
+        if self.condition == Condition::Incident {
+            return Vec::new();
+        }
         if self.condition == Condition::SignIn {
             return if snapshot.status == Status::AuthRequired {
                 vec![Occurrence {
@@ -277,7 +288,7 @@ impl Rule {
                         let passed = last_reset(window)?;
                         (passed <= window.fetched_at).then_some(Some(passed))?
                     }
-                    Condition::SignIn => return None,
+                    Condition::SignIn | Condition::Incident => return None,
                 };
                 Some(Occurrence {
                     label: Some(window.label.clone()),
@@ -288,6 +299,46 @@ impl Rule {
                     pace: window.pace.clone(),
                     note: None,
                 })
+            })
+            .collect()
+    }
+
+    /// Where this incident rule holds among `pages`: each page it covers that reports an
+    /// incident, keyed by when QuotaDial first saw it, so it is told once however long it lasts.
+    #[must_use]
+    pub fn incidents<'a>(&self, pages: &'a [StatusPage]) -> Vec<(&'a StatusPage, Occurrence)> {
+        if self.condition != Condition::Incident {
+            return Vec::new();
+        }
+        pages
+            .iter()
+            .filter(|page| {
+                page.indicator.is_incident()
+                    && self
+                        .scope
+                        .provider
+                        .as_ref()
+                        .is_none_or(|provider| *provider == page.provider)
+            })
+            .map(|page| {
+                (
+                    page,
+                    Occurrence {
+                        label: None,
+                        scope_model: None,
+                        instance: page.since,
+                        used_pct: None,
+                        resets_at: None,
+                        pace: None,
+                        note: Some(format!(
+                            "{} says: {}.",
+                            page.url
+                                .trim_start_matches("https://")
+                                .trim_end_matches('/'),
+                            page.description
+                        )),
+                    },
+                )
             })
             .collect()
     }
@@ -335,6 +386,10 @@ impl Rule {
             Condition::BeforeReset { .. } => (
                 format!("{provider} {window} resets soon"),
                 format!("{name}: {used}{resets}."),
+            ),
+            Condition::Incident => (
+                format!("{provider} has an incident"),
+                occurrence.note.clone().unwrap_or_default(),
             ),
             Condition::SignIn => (
                 format!("{provider} needs you to sign in again"),
@@ -393,6 +448,16 @@ impl fmt::Display for Rule {
                 ),
                 None => write!(formatter, "when an account needs to sign in again"),
             },
+            Condition::Incident => match provider {
+                Some(provider) => write!(
+                    formatter,
+                    "when {provider}'s status page reports an incident"
+                ),
+                None => write!(
+                    formatter,
+                    "when a provider's status page reports an incident"
+                ),
+            },
         }
     }
 }
@@ -436,6 +501,7 @@ struct Read {
     before: bool,
     runs_out: bool,
     sign_in: bool,
+    incident: bool,
     /// A window's label, in quotes.
     label: Option<String>,
     /// A model, such as `opus`.
@@ -486,8 +552,18 @@ impl Read {
         once(&mut self.provider, provider.to_owned(), "provider")
     }
 
+    /// Whether only an incident was asked for: an incident rule covers whole providers.
+    fn is_only_incident(&self) -> bool {
+        self.names_nothing_else() && !self.sign_in
+    }
+
     /// Whether only a sign-in was asked for: a sign-in rule covers whole accounts.
     fn is_only_sign_in(&self) -> bool {
+        self.names_nothing_else() && !self.incident
+    }
+
+    /// Whether the rule names no share, time, reset, running out or window.
+    fn names_nothing_else(&self) -> bool {
         self.pct.is_none()
             && self.minutes.is_none()
             && !self.reset
@@ -699,6 +775,58 @@ mod tests {
         for (written, condition, scope) in cases {
             assert_eq!(rule(written), Rule { condition, scope }, "{written:?}");
         }
+    }
+
+    #[test]
+    fn an_incident_rule_watches_the_status_pages_it_covers() {
+        assert_eq!(
+            rule("tell me when claude has an incident"),
+            Rule {
+                condition: Condition::Incident,
+                scope: scope(Some("claude"), None),
+            }
+        );
+        assert_eq!(rule("warn me about outages").condition, Condition::Incident);
+        assert!(Rule::parse("tell me when the session has an outage").is_err());
+        assert!(Rule::parse("tell me about outages and when I need to sign in").is_err());
+        assert_eq!(
+            rule("tell me when codex is down").to_string(),
+            "when Codex's status page reports an incident"
+        );
+
+        let page = |provider: &str, indicator| StatusPage {
+            provider: provider.into(),
+            indicator,
+            description: "Partial System Degradation".into(),
+            url: "https://status.openai.com".into(),
+            since: Some(at(-30)),
+            checked_at: at(0),
+        };
+        let pages = [
+            page("claude", crate::Indicator::Maintenance),
+            page("codex", crate::Indicator::Minor),
+        ];
+        let any = rule("warn me about outages");
+        let held = any.incidents(&pages);
+        assert_eq!(held.len(), 1, "maintenance is no incident");
+        assert_eq!(held[0].0.provider, "codex");
+        assert_eq!(held[0].1.instance, Some(at(-30)), "keyed by when it began");
+        assert_eq!(
+            any.message(&account("codex"), &held[0].1, at(0)),
+            (
+                "Codex has an incident".to_owned(),
+                "status.openai.com says: Partial System Degradation.".to_owned()
+            )
+        );
+        assert!(
+            rule("tell me when claude is down")
+                .incidents(&pages)
+                .is_empty()
+        );
+        assert!(
+            rule("warn me at 80%").incidents(&pages).is_empty(),
+            "only incident rules"
+        );
     }
 
     #[test]

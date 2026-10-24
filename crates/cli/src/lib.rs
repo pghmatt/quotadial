@@ -11,7 +11,7 @@ use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
-use quotadial_core::{Provider, StatusReport, collect, text};
+use quotadial_core::{Indicator, Provider, StatusReport, collect, text};
 use quotadial_daemon::{
     AddError, Alerts, Config, DataDir, History, HistoryError, Series, SeriesQuery, Webhook,
 };
@@ -742,6 +742,21 @@ fn write_text(
             writeln!(out, "  {error}")?;
         }
     }
+    for page in report
+        .status_pages
+        .iter()
+        .filter(|page| page.indicator != Indicator::None)
+    {
+        let since = page
+            .since
+            .map(|since| format!(" since {}", text::ago(since, now)))
+            .unwrap_or_default();
+        writeln!(
+            out,
+            "{} status page: {}{since} ({})",
+            page.provider, page.description, page.url
+        )?;
+    }
     for error in &report.errors {
         writeln!(out, "error: {}", error.message)?;
     }
@@ -1008,6 +1023,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(
@@ -1027,6 +1043,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(
@@ -1045,6 +1062,7 @@ mod tests {
                 snapshot(account(), Source::Api),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1065,6 +1083,7 @@ mod tests {
                 "Run `claude` to sign in again.",
             )],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1196,6 +1215,36 @@ mod tests {
     }
 
     #[test]
+    fn a_status_page_in_trouble_gets_a_line() {
+        let page = |provider: &str, indicator, description: &str| quotadial_core::StatusPage {
+            provider: provider.into(),
+            indicator,
+            description: description.into(),
+            url: format!("https://status.{provider}.example"),
+            since: (indicator != Indicator::None).then(|| ts("2099-01-01T00:00:00Z")),
+            checked_at: now(),
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(account(), Source::Api)],
+            errors: Vec::new(),
+            status_pages: vec![
+                page("claude", Indicator::None, "All Systems Operational"),
+                page("codex", Indicator::Minor, "Partial System Degradation"),
+            ],
+        };
+
+        let shown = render(&report, false);
+        assert!(
+            shown.ends_with(
+                "\ncodex status page: Partial System Degradation since 4 min ago \
+                 (https://status.codex.example)\n"
+            ),
+            "{shown}"
+        );
+        assert!(!shown.contains("claude status page"), "all is well there");
+    }
+
+    #[test]
     fn text_marks_an_unconfirmed_zero() {
         let mut snapshot = snapshot(account(), Source::Api);
         snapshot.windows[0].used_pct = 0.0;
@@ -1203,6 +1252,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(
@@ -1220,6 +1270,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(
@@ -1245,6 +1296,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(
@@ -1265,6 +1317,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot(account(), Source::Cache)],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1293,6 +1346,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");

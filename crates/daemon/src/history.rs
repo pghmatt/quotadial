@@ -23,8 +23,9 @@ pub const KEEP_DAYS: u32 = 30;
 pub const MAX_KEEP_DAYS: u32 = 365;
 
 /// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`, version 3 the
-/// alert rules and their firings, and version 4 where each firing was sent.
-const SCHEMA_VERSION: i32 = 4;
+/// alert rules and their firings, version 4 where each firing was sent, and version 5 the status
+/// pages' last readings.
+const SCHEMA_VERSION: i32 = 5;
 
 /// The history database.
 #[derive(Debug)]
@@ -128,7 +129,11 @@ impl History {
                  unconfirmed INTEGER NOT NULL,
                  PRIMARY KEY (provider, org, account_id, label, scope_model, fetched_at)
              ) WITHOUT ROWID;
-             CREATE INDEX IF NOT EXISTS readings_by_time ON readings (fetched_at);",
+             CREATE INDEX IF NOT EXISTS readings_by_time ON readings (fetched_at);
+             CREATE TABLE IF NOT EXISTS status_pages (
+                 provider TEXT PRIMARY KEY,
+                 page TEXT NOT NULL
+             );",
         )?;
         if version < 2 {
             // Version 1 kept whole snapshots only. Their windows become readings, so a window's

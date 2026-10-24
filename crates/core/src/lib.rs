@@ -21,6 +21,6 @@ pub use model::{Account, ExtraUsage, Pace, Snapshot, Source, Status, Window, Win
 pub use pace::{MIN_READINGS, MIN_SPAN, Reading};
 pub use provider::Provider;
 pub use redact::{REDACTED, outside_text, redact_secrets};
-pub use report::{ProviderError, StatusReport, collect};
+pub use report::{Indicator, ProviderError, StatusPage, StatusReport, collect};
 pub use secret::Secret;
 pub use tier::{ProFeature, Tier, tier};

@@ -592,10 +592,20 @@ fn fixed() -> Vec<Arc<dyn Provider>> {
     vec![Arc::new(Fixed(40.0))]
 }
 
+/// A data folder whose settings leave out the status pages, so a host started in it never reaches
+/// the internet.
+fn offline(temp: &tempfile::TempDir) -> DataDir {
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    dir.create().expect("creates");
+    std::fs::write(dir.path().join("config.json"), r#"{"status_pages": false}"#)
+        .expect("writes the settings");
+    dir
+}
+
 #[tokio::test]
 async fn a_host_serves_until_stopped_then_leaves_nothing_behind() {
     let temp = tempfile::tempdir().expect("temp dir");
-    let dir = DataDir::new(temp.path().join("quotadial"));
+    let dir = offline(&temp);
     let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
     let (port, latest) = (host.port(), host.latest());
     assert_eq!(Runtime::read(&dir).map(|runtime| runtime.port), Some(port));
@@ -630,7 +640,7 @@ async fn a_host_serves_until_stopped_then_leaves_nothing_behind() {
 #[tokio::test]
 async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
     let temp = tempfile::tempdir().expect("temp dir");
-    let dir = DataDir::new(temp.path().join("quotadial"));
+    let dir = offline(&temp);
     let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
     let (stop, stopped) = oneshot::channel::<()>();
     let running = tokio::spawn(host.run(async {
@@ -669,7 +679,7 @@ async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
 #[tokio::test]
 async fn a_second_host_and_a_taken_port_are_refused_with_the_reason() {
     let temp = tempfile::tempdir().expect("temp dir");
-    let dir = DataDir::new(temp.path().join("quotadial"));
+    let dir = offline(&temp);
     let first = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
 
     let second = Host::start(dir.clone(), fixed(), 0)

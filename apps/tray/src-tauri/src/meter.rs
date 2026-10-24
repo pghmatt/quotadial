@@ -53,6 +53,9 @@ pub struct Meter {
     pub accounts: Vec<AccountView>,
     /// What needs the user's attention and belongs to no account, each naming the fix.
     pub problems: Vec<String>,
+    /// The providers whose status pages report an incident, such as "Codex: Partial System
+    /// Degradation" (D-096).
+    pub incidents: Vec<String>,
     /// Where the numbers come from, such as "Running the daemon, port 47115".
     pub origin: Option<String>,
 }
@@ -120,6 +123,7 @@ impl Meter {
             headline: None,
             accounts: Vec::new(),
             problems: problem.map(str::to_owned).into_iter().collect(),
+            incidents: Vec::new(),
             origin: role.map(|role| match role {
                 Role::Running { port } => format!("Running the daemon, port {port}"),
                 Role::Following => "Reading `quotadial daemon`".to_owned(),
@@ -162,14 +166,33 @@ impl Meter {
         meter
             .problems
             .extend(report.errors.iter().map(|error| error.message.clone()));
+        meter.incidents = report
+            .status_pages
+            .iter()
+            .filter(|page| page.indicator.is_incident())
+            .map(|page| {
+                format!(
+                    "{}: {}",
+                    text::provider_name(&page.provider),
+                    page.description
+                )
+            })
+            .collect();
         meter
     }
 
-    /// The text beside the tray icon, such as "42%", or "–" before there are numbers.
+    /// The text beside the tray icon, such as "42%", or "–" before there are numbers, with "⚠"
+    /// while a provider has an incident.
     #[must_use]
     pub fn title(&self) -> String {
-        self.percent
-            .map_or_else(|| "–".to_owned(), |percent| format!("{percent}%"))
+        let number = self
+            .percent
+            .map_or_else(|| "–".to_owned(), |percent| format!("{percent}%"));
+        if self.incidents.is_empty() {
+            number
+        } else {
+            format!("{number} \u{26a0}")
+        }
     }
 
     /// One line per account, then the problems: the tray menu's information.
@@ -181,6 +204,11 @@ impl Meter {
             lines.extend(account.note.iter().filter(|_| !account.ok).cloned());
         }
         lines.extend(self.problems.iter().cloned());
+        lines.extend(
+            self.incidents
+                .iter()
+                .map(|incident| format!("Status: {incident}")),
+        );
         lines
     }
 
@@ -380,7 +408,47 @@ mod tests {
                 ),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         }
+    }
+
+    #[test]
+    fn an_incident_puts_a_mark_beside_the_number_and_says_what_it_is() {
+        let mut report = two_accounts();
+        report.status_pages = vec![
+            quotadial_core::StatusPage {
+                provider: "codex".into(),
+                indicator: quotadial_core::Indicator::Minor,
+                description: "Partial System Degradation".into(),
+                url: "https://status.openai.com".into(),
+                since: Some(at("2099-01-01T00:00:00Z")),
+                checked_at: now(),
+            },
+            quotadial_core::StatusPage {
+                provider: "claude".into(),
+                indicator: quotadial_core::Indicator::Maintenance,
+                description: "Scheduled maintenance".into(),
+                url: "https://status.claude.com".into(),
+                since: None,
+                checked_at: now(),
+            },
+        ];
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        assert_eq!(meter.incidents, ["Codex: Partial System Degradation"]);
+        assert!(meter.title().ends_with("% \u{26a0}"), "{}", meter.title());
+        assert!(
+            meter
+                .lines()
+                .contains(&"Status: Codex: Partial System Degradation".to_owned())
+        );
+        assert!(
+            !Meter::new(Some(&two_accounts()), None, None, now())
+                .title()
+                .contains('\u{26a0}'),
+            "no mark without an incident"
+        );
     }
 
     #[test]
@@ -398,6 +466,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot("claude", None, vec![filling, lasting])],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -495,6 +564,7 @@ mod tests {
                     vec![window("Session", used_pct, "2099-01-01T02:00:00Z")],
                 )],
                 errors: Vec::new(),
+                status_pages: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -519,6 +589,7 @@ mod tests {
                 provider: "codex".into(),
                 message: "codex: could not read credentials from ~/.codex/auth.json".into(),
             }],
+            status_pages: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -558,6 +629,7 @@ mod tests {
                 ),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());

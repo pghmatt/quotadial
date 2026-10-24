@@ -29,6 +29,13 @@ shapes the live account does not show.
 | `wham-usage.synthetic.json` | CodexBar's field names | A Plus plan's session and weekly windows, credits turned off |
 | `rollout.jsonl` | A live Codex CLI session log, 2026-10-23, reduced to its event shapes with ids, paths and text replaced | `session_meta` naming the creating account and user, `token_count` events with rate limits (one for the `premium` limit), other events after the last one |
 
+## Status pages
+
+| File | Source | Covers |
+| --- | --- | --- |
+| `status/claude-status.json` | Live `GET https://status.claude.com/api/v2/status.json`, 2026-10-23, as sent (a public page) | All systems operational |
+| `status/openai-status.json` | Live `GET https://status.openai.com/api/v2/status.json`, 2026-10-23, as sent (a public page) | A minor incident: "Partial System Degradation" |
+
 ## Redacting a capture
 
 1. Save the live response under `fixtures/<provider>/raw/`. That folder is gitignored. Use a tool

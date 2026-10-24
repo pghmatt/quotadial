@@ -102,7 +102,7 @@ impl Settings {
             .any(|hidden| hidden == provider)
     }
 
-    /// `report` without the providers that are hidden.
+    /// `report` without the providers that are hidden, their accounts, errors and status pages.
     #[must_use]
     pub fn shown(&self, report: &StatusReport) -> StatusReport {
         StatusReport {
@@ -116,6 +116,12 @@ impl Settings {
                 .errors
                 .iter()
                 .filter(|error| self.shows(&error.provider))
+                .cloned()
+                .collect(),
+            status_pages: report
+                .status_pages
+                .iter()
+                .filter(|page| self.shows(&page.provider))
                 .cloned()
                 .collect(),
         }
@@ -252,6 +258,7 @@ mod tests {
                 provider: "codex".into(),
                 message: "codex: request failed".into(),
             }],
+            status_pages: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -266,5 +273,28 @@ mod tests {
         assert!(shown.errors.is_empty());
         assert!(settings.shows("claude"));
         assert!(!settings.shows("codex"));
+    }
+
+    #[test]
+    fn a_hidden_providers_status_page_leaves_the_report_too() {
+        let page = |provider: &str| quotadial_core::StatusPage {
+            provider: provider.into(),
+            indicator: quotadial_core::Indicator::Minor,
+            description: "Partial System Degradation".into(),
+            url: format!("https://status.{provider}.example"),
+            since: None,
+            checked_at: chrono::DateTime::<chrono::Utc>::MIN_UTC,
+        };
+        let report = StatusReport {
+            snapshots: Vec::new(),
+            errors: Vec::new(),
+            status_pages: vec![page("claude"), page("codex")],
+        };
+        let settings = Settings {
+            hidden_providers: vec!["codex".into()],
+            ..Settings::default()
+        };
+
+        assert_eq!(settings.shown(&report).status_pages, [page("claude")]);
     }
 }

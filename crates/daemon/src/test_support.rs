@@ -49,3 +49,26 @@ pub async fn receiver(status: &'static str) -> (String, Arc<Mutex<Vec<String>>>)
     });
     (address, bodies)
 }
+
+/// A status page on this machine that answers every request with `body`, and its address.
+pub async fn status_page(body: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("binds");
+    let address = format!("http://{}", listener.local_addr().expect("address"));
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buffer = [0_u8; 4096];
+            let _ = stream.read(&mut buffer).await;
+            let _ = stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: \
+                         {}\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await;
+        }
+    });
+    address
+}

@@ -145,6 +145,7 @@ mod tests {
                 snapshot("codex", &[("Weekly", 55.0, Some("2099-01-05T00:00:00Z"))]),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -188,6 +189,7 @@ mod tests {
                 provider: "other".into(),
                 message: "other: could not read credentials".into(),
             }],
+            status_pages: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -218,6 +220,7 @@ mod tests {
                 snapshot("codex", &[("Weekly", 85.0, Some("2099-01-05T00:00:00Z"))]),
             ],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -239,6 +242,7 @@ mod tests {
         let report = StatusReport {
             snapshots: vec![snapshot("claude", &[("Weekly", 104.0, None)])],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         };
 
         assert_eq!(rank(&report).accounts[0].headroom_pct, Some(0.0));

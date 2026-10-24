@@ -30,6 +30,9 @@ pub struct Config {
     /// How many days of history to keep: 30 unless `history_days` says otherwise, up to 365.
     /// Keeping more than 30 is a Pro feature (D-090).
     pub history_days: u32,
+    /// Whether the daemon reads the providers' status pages (D-096): on unless `status_pages` is
+    /// `false`.
+    pub status_pages: bool,
     /// What the settings could not be used for, each naming the fix, such as a webhook that is not
     /// an `https` address. Never the address itself.
     pub warnings: Vec<String>,
@@ -110,6 +113,7 @@ impl Default for Config {
             max_accounts: None,
             webhooks: Vec::new(),
             history_days: KEEP_DAYS,
+            status_pages: true,
             warnings: Vec::new(),
         }
     }
@@ -129,6 +133,7 @@ impl Config {
         let mut config = Self {
             extra_config_dirs: setting(&settings, "extra_config_dirs").unwrap_or_default(),
             max_accounts: setting(&settings, "max_accounts").filter(|max| *max >= 1),
+            status_pages: setting(&settings, "status_pages").unwrap_or(true),
             ..Self::default()
         };
         if let Some(days) = setting::<u32>(&settings, "history_days") {
@@ -273,6 +278,18 @@ mod tests {
         }
         let (_temp, dir) = written(r#"{"history_days": "ninety"}"#);
         assert_eq!(Config::load(&dir).history_days, 30, "the wrong kind");
+    }
+
+    #[test]
+    fn status_pages_are_read_unless_turned_off() {
+        assert!(Config::default().status_pages);
+        let (_temp, dir) = written(r#"{"status_pages": false}"#);
+        assert!(!Config::load(&dir).status_pages);
+        let (_temp, dir) = written(r#"{"status_pages": "no"}"#);
+        assert!(
+            Config::load(&dir).status_pages,
+            "the wrong kind keeps the default"
+        );
     }
 
     #[test]

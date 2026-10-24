@@ -82,6 +82,9 @@ that; Ubuntu has it on already.
   the tray's menu in place of it. Accounts are listed by the name shown. Clear the name to go back
   to the email address.
 
+While a provider's status page reports an incident, ⚠ appears beside the tray's number and the
+popover names the incident under it.
+
 **History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
 each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
 

@@ -300,7 +300,7 @@ impl Server<'_> {
     }
 }
 
-/// `report` with only `provider`'s accounts and errors, or all of them.
+/// `report` with only `provider`'s accounts, errors and status page, or all of them.
 fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
     let Some(provider) = provider else {
         return report;
@@ -315,6 +315,11 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .errors
             .into_iter()
             .filter(|error| error.provider == provider)
+            .collect(),
+        status_pages: report
+            .status_pages
+            .into_iter()
+            .filter(|page| page.provider == provider)
             .collect(),
     }
 }
@@ -430,6 +435,7 @@ mod tests {
                 provider: "codex".into(),
                 message: "codex: request failed: Could not reach ChatGPT.".into(),
             }],
+            status_pages: Vec::new(),
         }
     }
 
@@ -602,6 +608,24 @@ mod tests {
             }],
             firings: Vec::new(),
         }
+    }
+
+    #[test]
+    fn narrowing_to_a_provider_keeps_its_status_page_only() {
+        let mut report = report();
+        let page = |provider: &str| quotadial_core::StatusPage {
+            provider: provider.into(),
+            indicator: quotadial_core::Indicator::Minor,
+            description: "Degraded".into(),
+            url: format!("https://status.{provider}.example"),
+            since: None,
+            checked_at: at("2099-01-01T00:00:00Z"),
+        };
+        report.status_pages = vec![page("claude"), page("codex")];
+
+        let narrowed = only(report, Some("codex"));
+
+        assert_eq!(narrowed.status_pages, [page("codex")]);
     }
 
     #[tokio::test]

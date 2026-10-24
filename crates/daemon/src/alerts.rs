@@ -13,7 +13,7 @@
 
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{
-    Account, Condition, Occurrence, ProFeature, Rule, Snapshot, StatusReport, Window, tier,
+    Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Window, text, tier,
 };
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
@@ -280,11 +280,28 @@ impl History {
                     now,
                 );
                 for occurrence in occurrences {
-                    if let Some(firing) = self.fire(&stored, snapshot, &occurrence, quiet, now)?
+                    if let Some(firing) = self.fire(&stored, account, &occurrence, quiet, now)?
                         && !quiet
                     {
                         told.push(firing);
                     }
+                }
+            }
+            // An incident belongs to a provider, not an account, so it is kept under the
+            // provider's name.
+            for (page, occurrence) in stored.rule.incidents(&report.status_pages) {
+                let provider = Account {
+                    provider: page.provider.clone(),
+                    account_id: String::new(),
+                    display_name: text::provider_name(&page.provider).to_owned(),
+                    plan: None,
+                    org: None,
+                    sign_in: None,
+                };
+                if let Some(firing) = self.fire(&stored, &provider, &occurrence, quiet, now)?
+                    && !quiet
+                {
+                    told.push(firing);
                 }
             }
             if quiet {
@@ -362,17 +379,16 @@ impl History {
         Ok(resets_at.flatten().as_deref().and_then(parse_time))
     }
 
-    /// Records `occurrence` of `stored` for `snapshot`'s account, unless it was recorded before.
-    /// Returns the new firing.
+    /// Records `occurrence` of `stored` for `account`, unless it was recorded before. Returns the
+    /// new firing.
     fn fire(
         &self,
         stored: &StoredRule,
-        snapshot: &Snapshot,
+        account: &Account,
         occurrence: &Occurrence,
         quiet: bool,
         now: DateTime<Utc>,
     ) -> Result<Option<Firing>, HistoryError> {
-        let account = &snapshot.account;
         let org = account.org.as_deref().unwrap_or_default();
         let label = occurrence.label.as_deref().unwrap_or_default();
         let scope_model = occurrence.scope_model.as_deref().unwrap_or_default();
@@ -478,7 +494,9 @@ impl From<HistoryError> for AddError {
 fn allowed(condition: &Condition) -> bool {
     match condition {
         Condition::Threshold { .. } | Condition::Reset | Condition::SignIn => true,
-        Condition::RunsOut | Condition::BeforeReset { .. } => tier().allows(ProFeature::AlertRules),
+        Condition::RunsOut | Condition::BeforeReset { .. } | Condition::Incident => {
+            tier().allows(ProFeature::AlertRules)
+        }
     }
 }
 
@@ -530,7 +548,7 @@ pub(crate) fn parse_time(text: &str) -> Option<DateTime<Utc>> {
 
 #[cfg(test)]
 mod tests {
-    use quotadial_core::{Source, Status, WindowKind};
+    use quotadial_core::{Snapshot, Source, Status, WindowKind};
 
     use super::*;
 
@@ -575,6 +593,7 @@ mod tests {
                 error: None,
             }],
             errors: Vec::new(),
+            status_pages: Vec::new(),
         }
     }
 
@@ -691,6 +710,56 @@ mod tests {
                 .expect("checks")
                 .is_empty(),
             "not recorded twice"
+        );
+    }
+
+    #[test]
+    fn an_incident_is_told_once_while_it_lasts_and_again_for_the_next() {
+        let (_dir, history) = with_rule("warn me about outages");
+        let with_page = |indicator, since| {
+            let mut report = report(10.0, 0, 300);
+            report.status_pages = vec![quotadial_core::StatusPage {
+                provider: "codex".into(),
+                indicator,
+                description: "Partial System Degradation".into(),
+                url: "https://status.openai.com".into(),
+                since,
+                checked_at: at(0),
+            }];
+            report
+        };
+        let degraded = with_page(quotadial_core::Indicator::Minor, Some(at(-5)));
+
+        assert_eq!(told(&history, &degraded, 0), ["Codex has an incident"]);
+        assert!(
+            told(&history, &degraded, 5).is_empty(),
+            "still the same incident"
+        );
+        assert!(
+            told(
+                &history,
+                &with_page(quotadial_core::Indicator::None, None),
+                10
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            told(
+                &history,
+                &with_page(quotadial_core::Indicator::Major, Some(at(60))),
+                60
+            ),
+            ["Codex has an incident"],
+            "a new incident"
+        );
+        let firings = history.firings(0, at(-60)).expect("reads");
+        assert_eq!(
+            firings[0].account, "Codex",
+            "kept under the provider's name"
+        );
+        assert_eq!(
+            firings[0].body,
+            "status.openai.com says: Partial System Degradation."
         );
     }
 
