@@ -354,3 +354,100 @@ footer button + button {
   flex: 1;
   min-width: 0;
 }
+
+.history {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.period {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.period button[aria-pressed="true"] {
+  background: var(--bar-normal);
+  color: #fff;
+}
+
+.account-history + .account-history {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.account-history h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chart {
+  margin: 0 0 8px;
+}
+
+.chart figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: var(--bar);
+}
+
+.chart .used {
+  fill: none;
+  stroke: var(--bar-normal);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .limit {
+  stroke: var(--bar-warning);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.heatmap {
+  margin: 4px 0 0;
+}
+
+.heat-row {
+  display: grid;
+  grid-template-columns: 44px repeat(24, 1fr);
+  gap: 1px;
+  margin-top: 1px;
+}
+
+.heat-day,
+.heat-hour {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 10px;
+}
+
+.heat-cell {
+  height: 10px;
+  border-radius: 2px;
+  background: var(--bar-normal);
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.history-actions .done {
+  margin-top: 0;
+}

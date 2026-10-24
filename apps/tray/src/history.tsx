@@ -1,0 +1,158 @@
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "preact/hooks";
+
+import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
+
+/** How far back the view can go, in days. */
+const PERIODS = [7, 30];
+
+/**
+ * The history view: each account's windows charted over the last 7 or 30 days, when it was used
+ * by hour of the day, and an export of every reading as CSV.
+ */
+export function HistoryPanel({ onDone }: { onDone: () => void }) {
+  const [days, setDays] = useState(PERIODS[0]);
+  const [view, setView] = useState<HistoryView | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    // An answer for a period no longer chosen is dropped, however late it comes.
+    let chosen = true;
+    invoke<HistoryView>("history", { days })
+      .then((next) => {
+        if (chosen) {
+          setView(next);
+          setProblem(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (chosen) {
+          setProblem(String(error));
+        }
+      });
+    return () => {
+      chosen = false;
+    };
+  }, [days]);
+
+  const exportReadings = () => {
+    invoke<string>("export_history", { days })
+      .then((where) => {
+        setSaved(where);
+        setProblem(null);
+      })
+      .catch((error: unknown) => setProblem(String(error)));
+  };
+
+  return (
+    <section class="history" aria-label="History">
+      <h2>History</h2>
+      <div class="period" role="group" aria-label="How far back">
+        {PERIODS.map((period) => (
+          <button
+            type="button"
+            key={period}
+            aria-pressed={period === days}
+            onClick={() => setDays(period)}
+          >
+            {period} days
+          </button>
+        ))}
+      </div>
+      {view && view.accounts.length > 0 && <p class="detail">{view.span}</p>}
+      {view && view.accounts.length === 0 && (
+        <p class="detail">No readings in the last {days} days yet.</p>
+      )}
+      {view?.accounts.map((account) => (
+        <AccountCharts key={account.key} account={account} />
+      ))}
+      {saved && (
+        <p class="detail" role="status">
+          {saved}
+        </p>
+      )}
+      {problem && (
+        <p class="note" role="alert">
+          {problem}
+        </p>
+      )}
+      <div class="history-actions">
+        <button type="button" onClick={exportReadings}>
+          Export CSV
+        </button>
+        <button type="button" class="done" onClick={onDone}>
+          Done
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function AccountCharts({ account }: { account: AccountHistory }) {
+  return (
+    <section class="account-history" aria-label={`${account.provider} ${account.name}`}>
+      <h3>
+        <span class="provider">{account.provider}</span> {account.name}
+      </h3>
+      {account.windows.map((chart) => (
+        <Chart key={chart.label} chart={chart} />
+      ))}
+      <HeatmapGrid heatmap={account.heatmap} />
+    </section>
+  );
+}
+
+/** A window's share used over the period, with a dashed line at 90%. */
+function Chart({ chart }: { chart: WindowChart }) {
+  const line = chart.points
+    .map(([along, used]) => `${(along * 100).toFixed(2)},${(100 - used).toFixed(2)}`)
+    .join(" ");
+  return (
+    <figure class="chart">
+      <figcaption>
+        <span>{chart.label}</span>
+        <span class="detail">
+          latest {Math.floor(chart.latest)}%, highest {Math.floor(chart.highest)}%
+        </span>
+      </figcaption>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={chart.summary}>
+        <line class="limit" x1="0" y1="10" x2="100" y2="10" />
+        <polyline class="used" points={line} />
+      </svg>
+    </figure>
+  );
+}
+
+/** When the account was used: a row per day, a column per hour, darker for more. */
+function HeatmapGrid({ heatmap }: { heatmap: Heatmap }) {
+  if (heatmap.most <= 0) {
+    return <p class="detail">No use in {heatmap.window.toLowerCase()} readings in this period.</p>;
+  }
+  return (
+    <figure class="heatmap" aria-label={`When it was used, by hour, from ${heatmap.window} readings`}>
+      <figcaption class="detail">When it was used, by hour ({heatmap.window.toLowerCase()})</figcaption>
+      {heatmap.cells.map((hours, day) => (
+        <div class="heat-row" key={heatmap.days[day]}>
+          <span class="heat-day">{heatmap.days[day]}</span>
+          {hours.map((used, hour) => (
+            <span
+              class="heat-cell"
+              key={hour}
+              style={{ opacity: used > 0 ? 0.15 + (0.85 * used) / heatmap.most : 0.06 }}
+              title={`${heatmap.days[day]}, ${hour}:00: ${Math.round(used)}% used`}
+            />
+          ))}
+        </div>
+      ))}
+      <div class="heat-row heat-hours" aria-hidden="true">
+        <span class="heat-day" />
+        {[0, 6, 12, 18].map((hour) => (
+          <span class="heat-hour" key={hour} style={{ gridColumn: `${hour + 2} / span 6` }}>
+            {hour}
+          </span>
+        ))}
+      </div>
+    </figure>
+  );
+}

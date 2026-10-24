@@ -7,16 +7,16 @@
 
 use std::path::Path;
 
-use quotadial_core::Secret;
+use quotadial_core::{ProFeature, Secret, tier};
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::DataDir;
+use crate::{DataDir, KEEP_DAYS, MAX_KEEP_DAYS};
 
 /// QuotaDial's settings.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     /// More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them
     /// (#34). `~` is the home folder, and a folder ending in `/*` adds every folder inside it.
@@ -27,6 +27,9 @@ pub struct Config {
     /// Where each alert is sent besides the app's notifications: `alert_webhooks` as JSON, and
     /// `slack_webhook` as a Slack message.
     pub webhooks: Vec<Webhook>,
+    /// How many days of history to keep: 30 unless `history_days` says otherwise, up to 365.
+    /// Keeping more than 30 is a Pro feature (D-090).
+    pub history_days: u32,
     /// What the settings could not be used for, each naming the fix, such as a webhook that is not
     /// an `https` address. Never the address itself.
     pub warnings: Vec<String>,
@@ -100,6 +103,18 @@ impl PartialEq for Webhook {
     }
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            extra_config_dirs: Vec::new(),
+            max_accounts: None,
+            webhooks: Vec::new(),
+            history_days: KEEP_DAYS,
+            warnings: Vec::new(),
+        }
+    }
+}
+
 impl Config {
     /// The settings in `dir`, or the defaults.
     #[must_use]
@@ -116,6 +131,22 @@ impl Config {
             max_accounts: setting(&settings, "max_accounts").filter(|max| *max >= 1),
             ..Self::default()
         };
+        if let Some(days) = setting::<u32>(&settings, "history_days") {
+            if !(1..=MAX_KEEP_DAYS).contains(&days) {
+                config.warnings.push(format!(
+                    "history_days in {} must be from 1 to {MAX_KEEP_DAYS}, so QuotaDial keeps \
+                     {KEEP_DAYS} days.",
+                    path.display()
+                ));
+            } else if days > KEEP_DAYS && !tier().allows(ProFeature::LongHistory) {
+                config.warnings.push(format!(
+                    "Keeping more than {KEEP_DAYS} days of history needs QuotaDial Pro, so it \
+                     keeps {KEEP_DAYS}."
+                ));
+            } else {
+                config.history_days = days;
+            }
+        }
         let addresses = setting::<Vec<String>>(&settings, "alert_webhooks")
             .unwrap_or_default()
             .into_iter()
@@ -222,6 +253,26 @@ mod tests {
 
         let (_temp, dir) = written("not json");
         assert_eq!(Config::load(&dir), Config::default(), "a damaged file");
+    }
+
+    #[test]
+    fn history_is_kept_30_days_unless_set_from_1_to_365() {
+        assert_eq!(Config::default().history_days, 30);
+        let (_temp, dir) = written(r#"{"history_days": 90}"#);
+        assert_eq!(Config::load(&dir).history_days, 90);
+
+        for wrong in ["0", "400"] {
+            let (_temp, dir) = written(&format!(r#"{{"history_days": {wrong}}}"#));
+            let config = Config::load(&dir);
+            assert_eq!(config.history_days, 30, "{wrong}");
+            assert_eq!(config.warnings.len(), 1, "{wrong}");
+            assert!(config.warnings[0].starts_with("history_days in "));
+            assert!(
+                config.warnings[0].ends_with("must be from 1 to 365, so QuotaDial keeps 30 days.")
+            );
+        }
+        let (_temp, dir) = written(r#"{"history_days": "ninety"}"#);
+        assert_eq!(Config::load(&dir).history_days, 30, "the wrong kind");
     }
 
     #[test]

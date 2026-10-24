@@ -37,8 +37,9 @@ M4, alerts and history: the manager approved the plan in #40 on 2026-10-23, with
 two additions (D-090, D-091). Its PRs, in order:
 - PR 1, the pace of every window (P-016, D-092), merged (PR #43);
 - PR 2, alert rules written in plain words, and the one `tier()` check (D-093), merged (PR #44);
-- PR 2b, alerts sent to a webhook and Slack (D-094), in review;
-- PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view;
+- PR 2b, alerts sent to a webhook and Slack (D-094), merged (PR #45);
+- PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view (D-095), in
+  review (PR #46);
 - PR 4, the providers' status pages and an incident badge;
 - PR 5, the week's API-equivalent cost, from a bundled price table.
 
@@ -98,7 +99,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | --- | --- | --- |
 | PR 1: pace | Done (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
 | PR 2: alert rules | Done (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
-| PR 2b: alerts to webhooks and Slack | In review (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
+| PR 2b: alerts to webhooks and Slack | Done (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
+| PR 3: history | In review (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
 
 ## Kickoff
 
@@ -284,6 +286,40 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M4 PR 3: history (D-095)
+
+- **Keeping:** `History::keeping(days)` (1 to `MAX_KEEP_DAYS`, 365) sets what `prune` keeps.
+  `Config::history_days` comes from `history_days`, 30 by default. Past 30 needs
+  `ProFeature::LongHistory`, and a value out of range keeps 30 with a warning. `Host::start` loads
+  the settings once, for the history and the webhooks.
+- **Series** (`crates/daemon/src/series.rs`): `History::series(SeriesQuery)` groups the readings
+  table's rows by account and window, leaves out unconfirmed readings, and names each account
+  from its newest snapshot. `Series::activity` gives the rise at each reading, counting from 0
+  after a reset (a fall, or a passed reset time). `write_csv` moved here from the CLI, so the CLI
+  and the app write the same CSV.
+- **API:** `GET /v1/history` with `since`, `provider`, `account` and `window` (axum's `query`
+  feature). A bad `since` gets a 400 that names the form.
+- **CLI:** `quotadial history [--since 7d|24h|90m|<RFC 3339>] [--provider] [--account] [--window]
+  [--csv | --json]` reads the history directly. The text has a line per window: a 28-mark chart of
+  the period (`▁` to `█`, a space for no reading), the latest reading and its age, and the highest.
+- **The app:** `history.rs` builds the view: shown accounts, account names, charts thinned to 240
+  points (the latest always kept), and a heatmap of the shortest window's use by local day and
+  hour, generic over the time zone so tests run in UTC. `export` writes the CSV to Downloads. The
+  window's `history.tsx` has the 7- and 30-day buttons, an SVG line per window with a dashed line
+  at 90%, the heatmap grid and Export CSV. The footer gains History beside Settings.
+- **Tests:** keeping 90 days and at most 365; series grouped and named, narrowed by time,
+  provider, account and window; unconfirmed readings left out; activity across a reset; CSV
+  quoting; `GET /v1/history`; `--since` forms and the text with its chart; the app's view (hidden
+  providers, names, charts), the heatmap by day and hour, thinning and the export.
+- **Live check on Matt's Mac**, on copies of the data folder:
+  - `quotadial history --since 12h` drew each account's windows (the weekly limit at 99% as a solid
+    bar, the sessions' hours of use); `--csv` gave 1,077 rows for the 12 hours.
+  - The app, built under another name: the History view had the period buttons, each account's
+    charts with the 90% line, and the heatmap (Friday's use at 13:00, 15:00 and 16:00 local). With
+    history only from that morning, the lines first hugged the charts' right edge, so a young
+    history is now charted from its first reading, and the view says "Since Fri 23 at 09:16, when
+    the history begins."
 
 ### M4 PR 2b: alerts to webhooks and Slack (D-094)
 

@@ -1,5 +1,5 @@
-//! The daemon's HTTP server, bound to `127.0.0.1` only: `GET /v1/status`, `GET /v1/headroom`, and
-//! the alert rules at `/v1/alerts` (D-093).
+//! The daemon's HTTP server, bound to `127.0.0.1` only: `GET /v1/status`, `GET /v1/headroom`,
+//! `GET /v1/history` (D-095), and the alert rules at `/v1/alerts` (D-093).
 //!
 //! Every request must carry the bearer token and be addressed to `127.0.0.1` or `localhost` at the
 //! API's own port. The token keeps other users and web pages from reading usage or changing rules;
@@ -13,14 +13,14 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, Request, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, patch};
-use chrono::Utc;
+use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::StatusReport;
-use quotadial_daemon::{AddError, Alerts, History, HistoryError, Latest};
+use quotadial_daemon::{AddError, Alerts, History, HistoryError, Latest, Series, SeriesQuery};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::net::TcpListener;
@@ -75,6 +75,7 @@ fn router(state: AppState) -> Router {
     Router::new()
         .route("/v1/status", get(status).fallback(only_reads))
         .route("/v1/headroom", get(headroom).fallback(only_reads))
+        .route("/v1/history", get(history).fallback(only_reads))
         .route(
             "/v1/alerts",
             get(alerts).post(add_alert).fallback(alerts_methods),
@@ -138,6 +139,48 @@ async fn status(State(state): State<AppState>) -> Json<StatusReport> {
 
 async fn headroom(State(state): State<AppState>) -> Json<HeadroomReport> {
     Json(rank(&state.latest.report()))
+}
+
+/// What `GET /v1/history` takes: since when, from 7 days ago by default, and which provider,
+/// account and window.
+#[derive(Deserialize)]
+struct HistoryParams {
+    since: Option<String>,
+    provider: Option<String>,
+    account: Option<String>,
+    window: Option<String>,
+}
+
+/// What `GET /v1/history` answers.
+#[derive(serde::Serialize)]
+struct HistoryAnswer {
+    series: Vec<Series>,
+}
+
+async fn history(State(state): State<AppState>, query: Query<HistoryParams>) -> Response {
+    let Query(params) = query;
+    let since = match params.since.as_deref().map(DateTime::parse_from_rfc3339) {
+        None => Utc::now() - TimeDelta::days(7),
+        Some(Ok(since)) => since.with_timezone(&Utc),
+        Some(Err(_)) => {
+            return error(
+                StatusCode::BAD_REQUEST,
+                "since must be a time in RFC 3339, such as 2099-01-01T00:00:00Z.",
+            );
+        }
+    };
+    let query = SeriesQuery {
+        since,
+        provider: params.provider,
+        account: params.account,
+        window: params.window,
+    };
+    let history = Arc::clone(&state.history);
+    match tokio::task::spawn_blocking(move || history.series(&query)).await {
+        Ok(Ok(series)) => Json(HistoryAnswer { series }).into_response(),
+        Ok(Err(error)) => unreadable(&error),
+        Err(_) => stopped(),
+    }
 }
 
 /// What `POST /v1/alerts` takes.
@@ -214,8 +257,8 @@ async fn remove_alert(State(state): State<AppState>, Path(id): Path<i64>) -> Res
 async fn not_found() -> Response {
     error(
         StatusCode::NOT_FOUND,
-        "QuotaDial's API has GET /v1/status, GET /v1/headroom, GET and POST /v1/alerts, and \
-         PATCH and DELETE /v1/alerts/<id>.",
+        "QuotaDial's API has GET /v1/status, GET /v1/headroom, GET /v1/history, GET and POST \
+         /v1/alerts, and PATCH and DELETE /v1/alerts/<id>.",
     )
 }
 

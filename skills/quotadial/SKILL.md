@@ -45,6 +45,7 @@ runs, `daemon.json` in QuotaDial's data folder holds the port it chose. Three re
 | `GET /v1/status` | The usage report (see below) |
 | `GET /v1/headroom` | The accounts ranked by headroom (see below) |
 | `GET /v1/alerts` | The user's alert rules, and what they told in the last week |
+| `GET /v1/history` | Each window's readings since `since` (RFC 3339, 7 days by default), to see how fast use usually goes |
 
 The API can also add, change and remove alert rules (`POST /v1/alerts`, `PATCH` and `DELETE`
 `/v1/alerts/<id>`). They are the user's: change them only when the user asks you to.

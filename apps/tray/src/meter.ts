@@ -92,3 +92,43 @@ export interface ProviderChoice {
   name: string;
   shown: boolean;
 }
+
+/** The history view, as `history` returns it. */
+export interface HistoryView {
+  /** How many days back it goes. */
+  days: number;
+  /** What the charts span, such as "The last 7 days." */
+  span: string;
+  accounts: AccountHistory[];
+}
+
+export interface AccountHistory {
+  key: string;
+  /** Such as "Claude". */
+  provider: string;
+  /** The name the user gave the account, or its email address. */
+  name: string;
+  windows: WindowChart[];
+  heatmap: Heatmap;
+}
+
+export interface WindowChart {
+  label: string;
+  /** Each reading's place along the period, from 0 to 1, and its share used. */
+  points: [number, number][];
+  latest: number;
+  highest: number;
+  /** For screen readers, such as "Session: latest 8%, highest 11% in the last 7 days". */
+  summary: string;
+}
+
+export interface Heatmap {
+  /** The window the use is counted in, such as "Session". */
+  window: string;
+  /** A label per day, oldest first, such as "Mon 20". */
+  days: string[];
+  /** Per day, the share used in each of its 24 hours, local time. */
+  cells: number[][];
+  /** The largest cell, which the others are shaded against. */
+  most: number;
+}
