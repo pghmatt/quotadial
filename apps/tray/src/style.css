@@ -564,6 +564,6 @@ button.link {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--bar-normal);
+  color: var(--text);
   text-decoration: underline;
 }

@@ -127,8 +127,43 @@ impl Diagnostics {
         {
             text = text.replace(&home, "~");
         }
-        mask_emails(&redact_secrets(&text))
+        text = mask_emails(&redact_secrets(&text));
+        // The account's name can be in a path outside the home folder too, such as a data folder
+        // that QUOTADIAL_DATA_DIR puts in a temporary folder named after it. Email addresses are
+        // cut first, so one that starts with the name is still cut to its first letters.
+        if let Some(user) = home
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())
+        {
+            text = without_word(&text, user, "[user]");
+        }
+        text
     }
+}
+
+/// `text` with every whole-word `word` replaced by `with`, where a word is bounded by anything but
+/// ASCII letters and digits. A word of fewer than 3 characters is left alone, since it could be
+/// part of anything.
+fn without_word(text: &str, word: &str, with: &str) -> String {
+    if word.chars().count() < 3 {
+        return text.to_owned();
+    }
+    let bounded = |c: Option<char>| c.is_none_or(|c| !c.is_ascii_alphanumeric());
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(word) {
+        let before = rest[..at].chars().next_back();
+        let after = rest[at + word.len()..].chars().next();
+        out.push_str(&rest[..at]);
+        if bounded(before) && bounded(after) {
+            out.push_str(with);
+        } else {
+            out.push_str(word);
+        }
+        rest = &rest[at + word.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `text` with every email address cut to the first letter of its name and of its domain, and the
@@ -272,6 +307,29 @@ mod tests {
              Settings in effect:\n  \
              history_days: 30\n  \
              alert webhooks: hooks.slack.com\n"
+        );
+    }
+
+    #[test]
+    fn the_account_s_name_is_hidden_outside_the_home_folder_too() {
+        let mut facts = diagnostics();
+        facts.data_folder = "/private/tmp/claude-501/-Users-someone--work/data".into();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains("Data folder: /private/tmp/claude-501/-Users-[user]--work/data"),
+            "{text}"
+        );
+        assert!(!text.contains("someone"), "{text}");
+        assert_eq!(
+            without_word("someones someone_x xsomeone", "someone", "[user]"),
+            "someones [user]_x xsomeone"
+        );
+        assert_eq!(
+            without_word("me at home", "me", "[user]"),
+            "me at home",
+            "too short to be sure"
         );
     }
 

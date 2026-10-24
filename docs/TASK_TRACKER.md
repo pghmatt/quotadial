@@ -342,8 +342,9 @@ so they became #10.
   then what Free leaves out, the status pages, the problems, and the settings in effect. The home
   folder becomes `~`, tokens go through `redact_secrets`, and `mask_emails` cuts each address to
   `m***@a***.com` (ASCII names with a dotted domain; a property test checks that no whole address
-  is left and that nothing panics). `Standing::without_id` says what the copy is without the
-  licence's id.
+  is left and that nothing panics). The account's name, the home folder's last part, becomes
+  `[user]` wherever it is a whole word, as in a data folder outside the home folder; the live check
+  found that case. `Standing::without_id` says what the copy is without the licence's id.
 - **Gathering** (`crates/api/src/diagnostics.rs`): `gather(dir, report, numbers_from, now)`, from
   the licensing, `daemon.lock` and `daemon.json`, and `config.json`; `system()` from `sw_vers`,
   `/etc/os-release` or `ver`; `feedback_url(text)`, a new GitHub issue with the text in the body,
