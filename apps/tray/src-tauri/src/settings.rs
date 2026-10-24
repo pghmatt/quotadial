@@ -102,7 +102,8 @@ impl Settings {
             .any(|hidden| hidden == provider)
     }
 
-    /// `report` without the providers that are hidden, their accounts, errors and status pages.
+    /// `report` without the providers that are hidden, their accounts, errors, status pages and
+    /// costs.
     #[must_use]
     pub fn shown(&self, report: &StatusReport) -> StatusReport {
         StatusReport {
@@ -122,6 +123,12 @@ impl Settings {
                 .status_pages
                 .iter()
                 .filter(|page| self.shows(&page.provider))
+                .cloned()
+                .collect(),
+            costs: report
+                .costs
+                .iter()
+                .filter(|cost| self.shows(&cost.provider))
                 .cloned()
                 .collect(),
         }
@@ -259,6 +266,7 @@ mod tests {
                 message: "codex: request failed".into(),
             }],
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -276,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn a_hidden_providers_status_page_leaves_the_report_too() {
+    fn a_hidden_providers_status_page_and_cost_leave_the_report_too() {
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
             indicator: quotadial_core::Indicator::Minor,
@@ -285,16 +293,30 @@ mod tests {
             since: None,
             checked_at: chrono::DateTime::<chrono::Utc>::MIN_UTC,
         };
+        let cost = |provider: &str| quotadial_core::Cost {
+            provider: provider.into(),
+            since: chrono::DateTime::<chrono::Utc>::MIN_UTC,
+            until: chrono::DateTime::<chrono::Utc>::MIN_UTC,
+            usd: 12.5,
+            requests: 3,
+            tokens: quotadial_core::Tokens::default(),
+            models: Vec::new(),
+            prices_updated: "2026-10-23".into(),
+            notes: Vec::new(),
+        };
         let report = StatusReport {
             snapshots: Vec::new(),
             errors: Vec::new(),
             status_pages: vec![page("claude"), page("codex")],
+            costs: vec![cost("claude"), cost("codex")],
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
             ..Settings::default()
         };
 
-        assert_eq!(settings.shown(&report).status_pages, [page("claude")]);
+        let shown = settings.shown(&report);
+        assert_eq!(shown.status_pages, [page("claude")]);
+        assert_eq!(shown.costs, [cost("claude")]);
     }
 }

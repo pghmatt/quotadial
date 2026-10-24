@@ -135,7 +135,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
 }
 
 /// Starts `daemon --port 0` and returns it with its output after the two lines it starts with.
-fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 2]) {
+fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 3]) {
     let mut daemon = command(
         env!("CARGO_BIN_EXE_quotadial"),
         &["daemon", "--port", "0"],
@@ -145,7 +145,7 @@ fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 2]) {
     .spawn()
     .expect("the daemon starts");
     let mut reader = BufReader::new(daemon.stdout.take().expect("stdout"));
-    let mut lines = [String::new(), String::new()];
+    let mut lines = [String::new(), String::new(), String::new()];
     for line in &mut lines {
         reader.read_line(line).expect("reads");
     }
@@ -199,7 +199,7 @@ fn get(port: u16, path: &str, token: Option<&str>) -> (String, String) {
 #[test]
 fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
     let home = empty_home("daemon");
-    let (first, reader, [line, _]) = start_daemon(&home);
+    let (first, reader, [line, _, costs]) = start_daemon(&home);
 
     let second = run(
         env!("CARGO_BIN_EXE_quotadial"),
@@ -215,7 +215,14 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
         ),
         "{line}"
     );
+    assert!(
+        costs.starts_with(
+            "Every 10 minutes it reads the token counts in Claude Code's and the Codex CLI's logs"
+        ),
+        "{costs}"
+    );
     assert!(home.join("data").join("history.db").exists());
+    assert!(home.join("data").join("costs.db").exists());
     assert!(!second.status.success());
     assert_eq!(
         String::from_utf8(second.stderr).expect("UTF-8"),
@@ -231,7 +238,7 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
 #[test]
 fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let home = empty_home("daemon-api");
-    let (daemon, reader, [_, line]) = start_daemon(&home);
+    let (daemon, reader, [_, line, _]) = start_daemon(&home);
     let data = home.join("data");
     let runtime: Value = serde_json::from_slice(
         &std::fs::read(data.join("daemon.json")).expect("the daemon says where it listens"),

@@ -54,7 +54,7 @@ impl Environment {
         }
     }
 
-    fn default_config_dir(&self) -> Option<PathBuf> {
+    pub(crate) fn default_config_dir(&self) -> Option<PathBuf> {
         self.home.as_ref().map(|home| home.join(".claude"))
     }
 

@@ -779,3 +779,14 @@ async fn an_answer_over_a_mebibyte_is_not_read() {
          2 minutes, so the next request is after 2026-10-23T12:02:00Z."
     );
 }
+
+#[tokio::test]
+async fn the_logs_are_the_cli_s_sessions_and_their_archive() {
+    let harness = Harness::new().await;
+    let home = harness.codex_home.path();
+
+    assert_eq!(
+        harness.provider().log_folders(),
+        [home.join("sessions"), home.join("archived_sessions")]
+    );
+}

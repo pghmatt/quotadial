@@ -126,6 +126,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `error` | Why the status is not `ok`, naming the fix, such as "Run `claude` to sign in again." |
 | `errors[]` | Providers or accounts that produced nothing, and places a provider could not look in for accounts, each with a message naming the fix |
 | `status_pages[]` | While the daemon runs, what each provider's status page says: `indicator` (`none`, `maintenance`, `minor`, `major`, `critical`) and `description`. A `minor` or worse incident can slow or fail requests, so mention it before a long job |
+| `costs[]` | While the daemon runs, what the last 7 days of local use of each provider would have cost at API prices: `usd`, `requests`, `tokens` and `models[]`, with `until`, when the logs were read, and `notes`, what it leaves out. An estimate at standard API prices, not a bill: the plan's price is what the user pays |
 
 ## Headroom
 

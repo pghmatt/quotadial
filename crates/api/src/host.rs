@@ -14,7 +14,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::Utc;
-use quotadial_core::Provider;
+use quotadial_core::{ProFeature, Provider, tier};
+use quotadial_cost::CostScan;
 use quotadial_daemon::{
     Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Poller, STATUS_PAGES,
 };
@@ -151,6 +152,14 @@ impl Host {
                     .collect(),
             );
         }
+        // The cost scan's database is a cache: one that cannot be opened means no costs, not no
+        // daemon.
+        if config.cost_scan
+            && tier().allows(ProFeature::CostScan)
+            && let Ok(scan) = CostScan::open(&dir.costs())
+        {
+            poller = poller.with_costs(scan);
+        }
         Ok(Self {
             dir,
             instance,
@@ -172,6 +181,12 @@ impl Host {
     #[must_use]
     pub fn dir(&self) -> &DataDir {
         &self.dir
+    }
+
+    /// Whether the daemon reads the CLIs' logs for the week's cost (D-097).
+    #[must_use]
+    pub fn scans_costs(&self) -> bool {
+        self.poller.scans_costs()
     }
 
     /// What the poller last found, for consumers in the same process, such as the tray app.

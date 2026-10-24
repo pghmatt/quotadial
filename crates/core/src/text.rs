@@ -5,7 +5,7 @@ use std::path::Path;
 
 use chrono::{DateTime, TimeDelta, Utc};
 
-use crate::{ExtraUsage, Pace, Source, Status};
+use crate::{Cost, ExtraUsage, ModelCost, Pace, Source, Status};
 
 /// `path` with `~` for the home folder, as people write it, such as `~/.codex/auth.json`.
 #[must_use]
@@ -63,6 +63,72 @@ pub fn provider_name(id: &str) -> &str {
 #[must_use]
 pub fn percent(pct: f64) -> String {
     format!("{}", (pct * 10.0).round() / 10.0)
+}
+
+/// A whole number with commas between the thousands, such as `1,204`.
+#[must_use]
+pub fn thousands(count: u64) -> String {
+    let digits = count.to_string();
+    let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    grouped
+}
+
+/// A count of something, such as `1 request` or `1,204 requests`.
+#[must_use]
+pub fn plural(count: u64, noun: &str) -> String {
+    if count == 1 {
+        format!("1 {noun}")
+    } else {
+        format!("{} {noun}s", thousands(count))
+    }
+}
+
+/// An amount in US dollars as people write it: `$1,234` from $100 up, `$12.34` below that,
+/// `under $0.01` for less than a cent, and `$0` for nothing.
+#[must_use]
+pub fn usd(amount: f64) -> String {
+    if amount.is_nan() || amount <= 0.0 {
+        "$0".to_owned()
+    } else if amount < 0.01 {
+        "under $0.01".to_owned()
+    } else if amount < 100.0 {
+        format!("${amount:.2}")
+    } else {
+        format!("${}", thousands(amount.round() as u64))
+    }
+}
+
+/// A provider's cost, such as `$1,234 at API prices over the last 7 days, from 51,234 requests`,
+/// or `no requests in the last 7 days`.
+#[must_use]
+pub fn cost(cost: &Cost) -> String {
+    let days = (cost.until - cost.since).num_days();
+    if cost.requests == 0 {
+        return format!("no requests in the last {days} days");
+    }
+    format!(
+        "{} at API prices over the last {days} days, from {}",
+        usd(cost.usd),
+        plural(cost.requests, "request")
+    )
+}
+
+/// A model's part of a cost, such as `claude-opus-5-5: $1,000, 41,000 requests`, or `no price`
+/// in place of the amount when the price table has none.
+#[must_use]
+pub fn model_cost(model: &ModelCost) -> String {
+    format!(
+        "{}: {}, {}",
+        model.model,
+        model.usd.map_or_else(|| "no price".to_owned(), usd),
+        plural(model.requests, "request")
+    )
 }
 
 /// For example `4 min ago`, or `just now`.
@@ -265,5 +331,63 @@ mod tests {
         };
 
         assert_eq!(extra_usage(&extra), "on, 1056.44 credits left");
+    }
+
+    #[test]
+    fn counts_and_money_read_as_people_write_them() {
+        assert_eq!(thousands(0), "0");
+        assert_eq!(thousands(999), "999");
+        assert_eq!(thousands(1_204), "1,204");
+        assert_eq!(thousands(12_345_678), "12,345,678");
+        assert_eq!(plural(1, "request"), "1 request");
+        assert_eq!(plural(0, "request"), "0 requests");
+        assert_eq!(plural(51_234, "request"), "51,234 requests");
+
+        assert_eq!(usd(0.0), "$0");
+        assert_eq!(usd(f64::NAN), "$0");
+        assert_eq!(usd(0.004), "under $0.01");
+        assert_eq!(usd(12.345), "$12.35");
+        assert_eq!(usd(99.99), "$99.99");
+        assert_eq!(usd(1_234.5), "$1,235");
+    }
+
+    #[test]
+    fn a_cost_says_what_the_week_would_have_cost() {
+        let until = DateTime::parse_from_rfc3339("2026-10-24T00:00:00Z")
+            .expect("valid")
+            .with_timezone(&Utc);
+        let mut cost = Cost {
+            provider: "claude".to_owned(),
+            since: until - TimeDelta::days(7),
+            until,
+            usd: 1_234.4,
+            requests: 51_234,
+            tokens: crate::Tokens::default(),
+            models: Vec::new(),
+            prices_updated: "2026-10-23".to_owned(),
+            notes: Vec::new(),
+        };
+
+        assert_eq!(
+            super::cost(&cost),
+            "$1,234 at API prices over the last 7 days, from 51,234 requests"
+        );
+        cost.requests = 0;
+        cost.usd = 0.0;
+        assert_eq!(super::cost(&cost), "no requests in the last 7 days");
+
+        let mut model = ModelCost {
+            model: "claude-opus-5-5".to_owned(),
+            usd: Some(1_000.25),
+            requests: 41_000,
+            tokens: crate::Tokens::default(),
+        };
+        assert_eq!(
+            model_cost(&model),
+            "claude-opus-5-5: $1,000, 41,000 requests"
+        );
+        model.usd = None;
+        model.requests = 1;
+        assert_eq!(model_cost(&model), "claude-opus-5-5: no price, 1 request");
     }
 }

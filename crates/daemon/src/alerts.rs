@@ -594,6 +594,7 @@ mod tests {
             }],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         }
     }
 

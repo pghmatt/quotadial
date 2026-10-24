@@ -14,6 +14,7 @@ axum.workspace = true
 chrono.workspace = true
 getrandom.workspace = true
 quotadial-core.workspace = true
+quotadial-cost.workspace = true
 quotadial-daemon.workspace = true
 reqwest.workspace = true
 serde.workspace = true

@@ -26,6 +26,8 @@ pub use deliver::{Deliverer, payload};
 pub use deliveries::{DELIVER_WITHIN, Delivery, deliver_due};
 pub use history::{History, HistoryError, KEEP_DAYS, MAX_KEEP_DAYS};
 pub use instance::{Instance, InstanceError};
-pub use poller::{ACTIVE_FOR, ALERTS_EVERY, DISCOVER_EVERY, IDLE_EVERY, Latest, Poller};
+pub use poller::{
+    ACTIVE_FOR, ALERTS_EVERY, COSTS_EVERY, DISCOVER_EVERY, IDLE_EVERY, Latest, Poller,
+};
 pub use series::{Point, Series, SeriesQuery, write_csv};
 pub use status_pages::{STATUS_EVERY, STATUS_PAGES, StatusReader, parse as parse_status_page};

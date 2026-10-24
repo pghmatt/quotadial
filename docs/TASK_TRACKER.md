@@ -40,8 +40,8 @@ two additions (D-090, D-091). Its PRs, in order:
 - PR 2b, alerts sent to a webhook and Slack (D-094), merged (PR #45);
 - PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view (D-095),
   merged (PR #46);
-- PR 4, the providers' status pages and an incident badge (D-096), in review (PR #47);
-- PR 5, the week's API-equivalent cost, from a bundled price table.
+- PR 4, the providers' status pages and an incident badge (D-096), merged (PR #47);
+- PR 5, the week's API-equivalent cost, from a bundled price table (D-097), in review (PR #48).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -101,7 +101,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 2: alert rules | Done (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
 | PR 2b: alerts to webhooks and Slack | Done (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
 | PR 3: history | Done (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
-| PR 4: provider status | In review (PR #47) | The daemon reads status.claude.com and status.openai.com every 5 minutes for providers with accounts; `status_pages` in the report; the incident rule, once per incident; a line in `status`, ⚠ beside the tray's number and the incident in the popover; `status_pages` setting (D-096) |
+| PR 4: provider status | Done (PR #47) | The daemon reads status.claude.com and status.openai.com every 5 minutes for providers with accounts; `status_pages` in the report; the incident rule, once per incident; a line in `status`, ⚠ beside the tray's number and the incident in the popover; `status_pages` setting (D-096) |
+| PR 5: the week's cost | In review (PR #48) | `quotadial-cost` reads the usage fields of Claude Code's and the Codex CLI's logs into `costs.db`, once per line, and prices the last 7 days from `prices.json` (models.dev, refreshed by `scripts/update-prices.sh`); `costs` in the report and `/v1/headroom`; a line per provider in `status`, the MCP tools and the popover; `cost_scan` setting; `ProFeature::CostScan` (D-097) |
 
 ## Kickoff
 
@@ -287,6 +288,70 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M4 PR 5: the week's cost (D-097)
+
+- **Prices** (`crates/cost/src/prices.rs`): `scripts/update-prices.sh [<api.json>]` turns
+  models.dev's `api.json` into `crates/cost/prices.json` with jq: Anthropic's and OpenAI's models,
+  each `input`, `output`, `cache_read`, `cache_write` and `above { tokens, ... }`, per million
+  tokens; `above` is the smallest context tier, or the older `context_over_200k` at 200,000
+  tokens. It was run on 2026-10-23 (17 Anthropic and 47 OpenAI models). `Price::of(tokens)` prices
+  one request: the `above` price for all of it when its context (input, cache read and cache write)
+  is over `above.tokens`, the input price for a missing cache price, and twice the input price for
+  Claude's hour-long cache writes. `Prices::of(provider, model)` matches exactly, then without
+  Bedrock's, Vertex's or OpenAI's spelling, then without a date. NOTICE credits models.dev (MIT).
+- **Reading** (`read.rs`, `claude.rs`, `codex.rs`): `read::lines` hands each complete line from an
+  offset, in steps of a byte budget, skipping lines over 64 MiB unkept, and leaves a last line
+  still being written. A line is parsed only when `memchr` finds the words its kind must have, into
+  structs with only the usage fields (serde skips the rest). Claude: an `assistant` line with
+  `message.usage` and `message.model`, keyed `claude:{message.id}:{requestId}` or by `sessionId`;
+  a proxy's estimate is skipped. Codex: `token_usage_record` keyed `codex:{response_id}`, the model
+  from the session's latest `turn_context`, the cache taken out of `input_tokens`; `token_count`
+  events are only counted, to name sessions from older CLIs.
+- **Store** (`store.rs`, `costs.db` in the data folder, 0600): `files` (path, length, how far read,
+  the Codex session's model and counts) and `requests` (the SHA-256 of the key, cut to 8 bytes, as
+  `INTEGER PRIMARY KEY`; provider, time, model, five token counts), upserted keeping the part with
+  the most output. Requests older than 8 days are pruned, and a log neither listed this week nor
+  found is forgotten. Another schema version starts the cache again.
+- **Scan** (`scan.rs`): `CostScan::scan(folders, now)` resolves each folder (so Codus's linked
+  `projects` folders are read once), lists the logs written in the week, reads what each gained
+  (from the start if it got shorter), keeps each 256 MiB step as it finishes, and adds up the week
+  per provider and model, pricing each request on its own. Notes name unpriced models, requests
+  with no model, and Codex sessions with no records.
+- **Daemon:** `Provider::log_folders` (Claude: `projects` in this shell's folder, the default and
+  every candidate; Codex: `sessions` and `archived_sessions`). `Poller::with_costs` scans every
+  `COSTS_EVERY` (10 minutes) in a blocking task behind a `tokio::sync::Mutex`, for providers with
+  accounts, and keeps the costs in `Latest`; a failed scan keeps the last costs, which carry their
+  age. `Host::start` turns it on unless `"cost_scan": false`, when `tier()` allows `CostScan` and
+  `costs.db` opens, and `quotadial daemon` says so as it starts, with how to turn it off. Hosts in
+  tests set `"cost_scan": false` beside `"status_pages": false`, so no test reads this machine's
+  logs.
+- **Where it shows:** `StatusReport.costs` and `HeadroomReport.costs` (left out when empty); a line
+  per provider in `status` and `watch`, each model's part when there are several, and the notes;
+  the MCP tools' descriptions; the popover's section under the accounts, with "By model", and a
+  line per provider in the tray's menu and tooltip. Shared wording in `text::cost`,
+  `text::model_cost`, `text::usd`, `text::plural` and `text::thousands`.
+- **Tests:** prices (each kind, the cache fallback, hour-long writes, the long-context tier, cloud
+  spellings and dates, the bundled table pricing the models in use), the line reader (offsets, a
+  partial last line, long and too-long lines, the budget), Claude and Codex lines (keys, tokens,
+  estimates, broken or unrelated lines, the model from the turn), the store (most output wins, the
+  keeping time, restart, another version, 0600), scans of synthetic logs (streamed parts, copies,
+  subagents and a workflow's subagents, a linked folder, the long-context price, unrecorded
+  sessions, appended and rewritten logs, the week only), each provider's log folders, the poller
+  reading only providers with accounts, the setting, the CLI's lines, headroom, the MCP filter, the
+  tray's view and hidden providers.
+- **Live check on Matt's Mac:** a test daemon from this branch, built for release, on a copy of
+  the data folder. Its first scan read the week's logs (283 Claude Code files, 11.5 GB, and 117
+  Codex files, 10.9 GB) in about 13 seconds, with the files in the page cache, and made a 17 MB
+  `costs.db`. For the week to 2026-10-24T00:30:45Z it priced three Claude models and three Codex
+  models, every model in use. An independent count in Python, written from the same rules but
+  sharing no code, agreed on every model's requests, all five token counts and the dollars to the
+  cent. (The amounts went to Matt, not here.) Ten minutes later the second scan read only the new
+  lines, in under a second. The app, built under another name and following the test daemon,
+  showed both providers' lines under the accounts.
+- **Mutation checks:** breaking each of 16 rules in turn fails a test. Two slipped through at
+  first, and their tests were made sharper: the week's start (a request kept for its eighth day
+  but not counted) and a log that got shorter (its new request must count).
 
 ### M4 PR 4: provider status (D-096)
 

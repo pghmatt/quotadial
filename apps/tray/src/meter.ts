@@ -13,6 +13,22 @@ export interface Meter {
   incidents: string[];
   /** Where the numbers come from, such as "Running the daemon, port 47115". */
   origin: string | null;
+  /** What each provider's week would have cost at API prices, while the daemon reads the logs. */
+  costs: Cost[];
+}
+
+/** What a provider's week would have cost at API prices. */
+export interface Cost {
+  /** Such as "Claude". */
+  provider: string;
+  /** Such as "$1,234 at API prices over the last 7 days, from 51,234 requests". */
+  summary: string;
+  /** When the logs were read, and the prices' date. */
+  detail: string;
+  /** Each model's part, the costliest first, when there is more than one model. */
+  models: string[];
+  /** What the cost leaves out. */
+  notes: string[];
 }
 
 export type Level = "unknown" | "normal" | "warning" | "high";

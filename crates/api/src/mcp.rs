@@ -300,7 +300,7 @@ impl Server<'_> {
     }
 }
 
-/// `report` with only `provider`'s accounts, errors and status page, or all of them.
+/// `report` with only `provider`'s accounts, errors, status page and cost, or all of them.
 fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
     let Some(provider) = provider else {
         return report;
@@ -320,6 +320,11 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .status_pages
             .into_iter()
             .filter(|page| page.provider == provider)
+            .collect(),
+        costs: report
+            .costs
+            .into_iter()
+            .filter(|cost| cost.provider == provider)
             .collect(),
     }
 }
@@ -347,7 +352,10 @@ fn tools(providers: &[&str]) -> Value {
                             share used (used_pct), when it resets (resets_at), where the number \
                             came from (source), when it was fetched (fetched_at) and, while the \
                             daemon runs, its pace (pace.pct_per_hour, and pace.runs_out_at when it \
-                            runs out before it resets). The same JSON as `quotadial status --json`.",
+                            runs out before it resets). While the daemon runs, costs gives what \
+                            the week's local use of each provider would have cost at API prices \
+                            (usd, requests, tokens and models). The same JSON as `quotadial \
+                            status --json`.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -356,8 +364,9 @@ fn tools(providers: &[&str]) -> Value {
             "description": "The accounts ranked by headroom, the room left in each account's \
                             tightest window: headroom_pct is 100 minus that window's share used, \
                             and tightest is the window, with when it resets and its pace. The most \
-                            headroom comes first. Use it before a long job to check that an \
-                            account has room left.",
+                            headroom comes first, and costs is the week's cost of each provider at \
+                            API prices, while the daemon runs. Use it before a long job to check \
+                            that an account has room left.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -436,6 +445,7 @@ mod tests {
                 message: "codex: request failed: Could not reach ChatGPT.".into(),
             }],
             status_pages: Vec::new(),
+            costs: Vec::new(),
         }
     }
 
@@ -611,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn narrowing_to_a_provider_keeps_its_status_page_only() {
+    fn narrowing_to_a_provider_keeps_its_status_page_and_cost_only() {
         let mut report = report();
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
@@ -621,11 +631,24 @@ mod tests {
             since: None,
             checked_at: at("2099-01-01T00:00:00Z"),
         };
+        let cost = |provider: &str| quotadial_core::Cost {
+            provider: provider.into(),
+            since: at("2098-12-25T00:00:00Z"),
+            until: at("2099-01-01T00:00:00Z"),
+            usd: 1.5,
+            requests: 2,
+            tokens: quotadial_core::Tokens::default(),
+            models: Vec::new(),
+            prices_updated: "2026-10-23".into(),
+            notes: Vec::new(),
+        };
         report.status_pages = vec![page("claude"), page("codex")];
+        report.costs = vec![cost("claude"), cost("codex")];
 
         let narrowed = only(report, Some("codex"));
 
         assert_eq!(narrowed.status_pages, [page("codex")]);
+        assert_eq!(narrowed.costs, [cost("codex")]);
     }
 
     #[tokio::test]

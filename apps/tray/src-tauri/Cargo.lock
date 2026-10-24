@@ -3128,6 +3128,7 @@ dependencies = [
  "chrono",
  "getrandom 0.4.3",
  "quotadial-core",
+ "quotadial-cost",
  "quotadial-daemon",
  "reqwest",
  "serde",
@@ -3147,12 +3148,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "quotadial-cost"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "memchr",
+ "quotadial-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "quotadial-daemon"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
  "quotadial-core",
+ "quotadial-cost",
  "reqwest",
  "rusqlite",
  "serde",

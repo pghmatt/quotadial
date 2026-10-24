@@ -20,6 +20,8 @@ pub enum ProFeature {
     AlertDelivery,
     /// History kept up to a year, rather than 30 days.
     LongHistory,
+    /// The week's API-equivalent cost of local use, from the CLIs' logs.
+    CostScan,
 }
 
 /// This copy's tier: Pro for every copy until M5's licensing.
@@ -36,7 +38,10 @@ impl Tier {
             (Self::Pro, _) => true,
             (
                 Self::Free,
-                ProFeature::AlertRules | ProFeature::AlertDelivery | ProFeature::LongHistory,
+                ProFeature::AlertRules
+                | ProFeature::AlertDelivery
+                | ProFeature::LongHistory
+                | ProFeature::CostScan,
             ) => false,
         }
     }
@@ -53,6 +58,7 @@ mod tests {
             ProFeature::AlertRules,
             ProFeature::AlertDelivery,
             ProFeature::LongHistory,
+            ProFeature::CostScan,
         ] {
             assert!(tier().allows(feature));
             assert!(!Tier::Free.allows(feature));

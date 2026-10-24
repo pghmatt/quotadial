@@ -33,6 +33,9 @@ pub struct Config {
     /// Whether the daemon reads the providers' status pages (D-096): on unless `status_pages` is
     /// `false`.
     pub status_pages: bool,
+    /// Whether the daemon reads Claude Code's and the Codex CLI's session logs for the week's
+    /// API-equivalent cost (D-097): on unless `cost_scan` is `false`.
+    pub cost_scan: bool,
     /// What the settings could not be used for, each naming the fix, such as a webhook that is not
     /// an `https` address. Never the address itself.
     pub warnings: Vec<String>,
@@ -114,6 +117,7 @@ impl Default for Config {
             webhooks: Vec::new(),
             history_days: KEEP_DAYS,
             status_pages: true,
+            cost_scan: true,
             warnings: Vec::new(),
         }
     }
@@ -134,6 +138,7 @@ impl Config {
             extra_config_dirs: setting(&settings, "extra_config_dirs").unwrap_or_default(),
             max_accounts: setting(&settings, "max_accounts").filter(|max| *max >= 1),
             status_pages: setting(&settings, "status_pages").unwrap_or(true),
+            cost_scan: setting(&settings, "cost_scan").unwrap_or(true),
             ..Self::default()
         };
         if let Some(days) = setting::<u32>(&settings, "history_days") {
@@ -288,6 +293,18 @@ mod tests {
         let (_temp, dir) = written(r#"{"status_pages": "no"}"#);
         assert!(
             Config::load(&dir).status_pages,
+            "the wrong kind keeps the default"
+        );
+    }
+
+    #[test]
+    fn the_cost_scan_runs_unless_turned_off() {
+        assert!(Config::default().cost_scan);
+        let (_temp, dir) = written(r#"{"cost_scan": false}"#);
+        assert!(!Config::load(&dir).cost_scan);
+        let (_temp, dir) = written(r#"{"cost_scan": 0}"#);
+        assert!(
+            Config::load(&dir).cost_scan,
             "the wrong kind keeps the default"
         );
     }

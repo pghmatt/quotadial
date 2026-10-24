@@ -88,6 +88,7 @@ html.solid .popover {
 
 .account,
 .problems,
+.costs,
 footer {
   margin-top: 12px;
   padding-top: 10px;
@@ -457,3 +458,31 @@ footer button + button {
   color: var(--warning);
   font-size: 12px;
 }
+
+.cost + .cost {
+  margin-top: 8px;
+}
+
+.cost p {
+  margin: 0;
+}
+
+.cost .provider {
+  font-weight: 600;
+}
+
+.models {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.models summary {
+  cursor: pointer;
+}
+
+.models ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+

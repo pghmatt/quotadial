@@ -85,6 +85,10 @@ that; Ubuntu has it on already.
 While a provider's status page reports an incident, ⚠ appears beside the tray's number and the
 popover names the incident under it.
 
+Under the accounts, the popover shows what the last 7 days of Claude Code and Codex use would have
+cost at each provider's API prices, read from their session logs, with each model's part. How it is
+worked out, and the setting that turns it off, are in [`CLI.md`](CLI.md#the-weeks-cost).
+
 **History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
 each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
 

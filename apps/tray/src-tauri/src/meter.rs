@@ -58,6 +58,24 @@ pub struct Meter {
     pub incidents: Vec<String>,
     /// Where the numbers come from, such as "Running the daemon, port 47115".
     pub origin: Option<String>,
+    /// What each provider's week would have cost at API prices, while the daemon reads the logs
+    /// (D-097).
+    pub costs: Vec<CostView>,
+}
+
+/// What a provider's week would have cost at API prices.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CostView {
+    /// Such as "Claude".
+    pub provider: String,
+    /// Such as "$1,234 at API prices over the last 7 days, from 51,234 requests".
+    pub summary: String,
+    /// When the logs were read, and the prices' date.
+    pub detail: String,
+    /// Each model's part, the costliest first, when there is more than one model.
+    pub models: Vec<String>,
+    /// What the cost leaves out.
+    pub notes: Vec<String>,
 }
 
 /// One account, as the popover shows it.
@@ -124,6 +142,7 @@ impl Meter {
             accounts: Vec::new(),
             problems: problem.map(str::to_owned).into_iter().collect(),
             incidents: Vec::new(),
+            costs: Vec::new(),
             origin: role.map(|role| match role {
                 Role::Running { port } => format!("Running the daemon, port {port}"),
                 Role::Following => "Reading `quotadial daemon`".to_owned(),
@@ -178,6 +197,25 @@ impl Meter {
                 )
             })
             .collect();
+        meter.costs = report
+            .costs
+            .iter()
+            .map(|cost| CostView {
+                provider: text::provider_name(&cost.provider).to_owned(),
+                summary: text::cost(cost),
+                detail: format!(
+                    "Read {}, at the prices of {}",
+                    text::ago(cost.until, now),
+                    cost.prices_updated
+                ),
+                models: if cost.models.len() > 1 {
+                    cost.models.iter().map(text::model_cost).collect()
+                } else {
+                    Vec::new()
+                },
+                notes: cost.notes.clone(),
+            })
+            .collect();
         meter
     }
 
@@ -208,6 +246,11 @@ impl Meter {
             self.incidents
                 .iter()
                 .map(|incident| format!("Status: {incident}")),
+        );
+        lines.extend(
+            self.costs
+                .iter()
+                .map(|cost| format!("{}: {}", cost.provider, cost.summary)),
         );
         lines
     }
@@ -409,6 +452,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         }
     }
 
@@ -452,6 +496,64 @@ mod tests {
     }
 
     #[test]
+    fn each_provider_s_week_shows_what_it_would_have_cost() {
+        let model = |name: &str, usd: Option<f64>, requests: u64| quotadial_core::ModelCost {
+            model: name.into(),
+            usd,
+            requests,
+            tokens: quotadial_core::Tokens::default(),
+        };
+        let cost = |provider: &str, models: Vec<quotadial_core::ModelCost>| quotadial_core::Cost {
+            provider: provider.into(),
+            since: now() - chrono::TimeDelta::minutes(4) - chrono::TimeDelta::days(7),
+            until: now() - chrono::TimeDelta::minutes(4),
+            usd: models.iter().filter_map(|model| model.usd).sum(),
+            requests: models.iter().map(|model| model.requests).sum(),
+            tokens: quotadial_core::Tokens::default(),
+            models,
+            prices_updated: "2026-10-23".into(),
+            notes: Vec::new(),
+        };
+        let mut report = two_accounts();
+        report.costs = vec![
+            cost(
+                "claude",
+                vec![model("claude-opus-5-5", Some(1_234.4), 51_234)],
+            ),
+            cost(
+                "codex",
+                vec![
+                    model("gpt-6-astra", Some(20.0), 900),
+                    model("gpt-5.5", Some(3.5), 100),
+                ],
+            ),
+        ];
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        assert_eq!(
+            meter.costs[0],
+            CostView {
+                provider: "Claude".into(),
+                summary: "$1,234 at API prices over the last 7 days, from 51,234 requests".into(),
+                detail: "Read 4 min ago, at the prices of 2026-10-23".into(),
+                models: Vec::new(),
+                notes: Vec::new(),
+            }
+        );
+        assert_eq!(
+            meter.costs[1].models,
+            [
+                "gpt-6-astra: $20.00, 900 requests",
+                "gpt-5.5: $3.50, 100 requests"
+            ]
+        );
+        assert!(meter.lines().contains(
+            &"Codex: $23.50 at API prices over the last 7 days, from 1,000 requests".to_owned()
+        ));
+    }
+
+    #[test]
     fn a_window_shows_its_pace_and_whether_it_runs_out_before_it_resets() {
         let mut filling = window("Weekly", 62.0, "2099-01-03T04:00:00Z");
         filling.pace = Some(Pace {
@@ -467,6 +569,7 @@ mod tests {
             snapshots: vec![snapshot("claude", None, vec![filling, lasting])],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -565,6 +668,7 @@ mod tests {
                 )],
                 errors: Vec::new(),
                 status_pages: Vec::new(),
+                costs: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -590,6 +694,7 @@ mod tests {
                 message: "codex: could not read credentials from ~/.codex/auth.json".into(),
             }],
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -630,6 +735,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());

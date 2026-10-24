@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -52,4 +53,10 @@ pub trait Provider: Send + Sync {
 
     /// The shortest interval at which this provider's endpoint may be polled for one account.
     fn min_poll_interval(&self) -> Duration;
+
+    /// The folders where the official CLI writes its session logs, which the cost scan reads for
+    /// token counts (D-097). None by default.
+    fn log_folders(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
 }
