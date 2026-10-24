@@ -1,7 +1,7 @@
 [package]
 name = "quotadial-tray"
 description = "QuotaDial's tray app: the meter in the menu bar or system tray, running the daemon."
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 authors = ["Matt Fowkes"]
