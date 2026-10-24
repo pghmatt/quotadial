@@ -70,7 +70,10 @@ queue, by its numbers:
 - 1, licence keys (D-099), merged (PR #55);
 - 2, the Free and Pro gates (D-100), in review (PR #56);
 - 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md`;
-- 4, checkout in Lemon Squeezy's test mode, with the signing step proposed on #54;
+- 4, checkout in Lemon Squeezy's test mode, with the signing step decided on #54: a Pages Function
+  signs with a second, online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on
+  Matt's Mac), reached from the receipt's `#licence=` link, and the ended-licence sentence then
+  names where a new key comes from (the review of PR #55);
 - 5, the website in `site/`, built but not deployed, and the shareable image;
 - 6, signing and updates, each turning on when its secrets exist;
 - 7 to 12, hardening: resilience, security, accessibility, the OpenAPI spec, package managers, and
@@ -364,6 +367,9 @@ so they became #10.
 - **Docs:** `docs/CLI.md` (QuotaDial Free and Pro, and the Pro features in Accounts, Settings,
   Alerts, the week's cost, History, the API, MCP, text and JSON output), `docs/INSTALL.md`, the
   README, SKILL.md and AGENTS.md.
+- **The review of PR #55:** `docs/CLI.md` now leads with `quotadial licence add` and its prompt,
+  then the pipe, then the argument, which stays in the shell's history. Its other note, the
+  ended-licence sentence naming where a new key comes from, waits for the key page (PR 4).
 - **Tests:** 482 in the workspace (13 new) and 35 in the app (1 new). Tests that use Pro features
   keep a test-key licence in their own data folder; Free tests sit beside them, including a key
   added while the CLI's daemon runs, which turns `/v1/headroom` from 403 to 200 with no restart.

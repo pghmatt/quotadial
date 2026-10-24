@@ -327,13 +327,16 @@ email when Pro is bought. QuotaDial checks a key on this machine against the pub
 with no network call, each time it reads it (`docs/LICENSING.md`).
 
 ```
-$ quotadial licence add QD1.eyJpZCI6IjEyMzQiLCJpc3N1ZWQiOiIyMDI2LTEwLTI0IiwicGxhbiI6InBybyJ9.…
+$ quotadial licence add
+Paste your licence key, then press Return:
+QD1.eyJpZCI6IjEyMzQiLCJpc3N1ZWQiOiIyMDI2LTEwLTI0IiwicGxhbiI6InBybyJ9.…
 Added the licence key: QuotaDial Pro, licence 1234.
 ```
 
-- With no key given, `licence add` asks for it. A key pasted over several lines, as an email may
-  wrap it, is read until it is whole. A key can be piped in too, as in `pbpaste | quotadial
-  licence add`.
+- `licence add` asks for the key. A key pasted over several lines, as an email may wrap it, is read
+  until it is whole.
+- A key can also be piped in, as in `pbpaste | quotadial licence add`, or given as an argument for
+  a script, though an argument stays in the shell's history.
 - The key is kept in `licence` in the data directory, readable only by you, and replaces any key
   kept before.
 - A key that gives nothing is not kept: the command says why and what to do, and exits with 1.
