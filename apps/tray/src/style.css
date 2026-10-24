@@ -316,7 +316,8 @@ footer button + button {
 }
 
 .name-choice input,
-.add-alert input {
+.add-alert input,
+.add-licence input {
   padding: 3px 6px;
   border: 1px solid var(--rule);
   border-radius: 5px;
@@ -345,15 +346,26 @@ footer button + button {
   font-size: 12px;
 }
 
-.add-alert {
+.add-alert,
+.add-licence {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
 
-.add-alert input {
+.add-alert input,
+.add-licence input {
   flex: 1;
   min-width: 0;
+}
+
+.licence-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.remove-licence {
+  margin-top: 6px;
 }
 
 .history {

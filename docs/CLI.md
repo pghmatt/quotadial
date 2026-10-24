@@ -21,6 +21,9 @@ CLI already store and never writes them.
 | `quotadial alerts on <number>`, `quotadial alerts off <number>` | Turns the rule with that number on or off |
 | `quotadial history` | Shows how each window was used over the last 7 days, a line each with a small chart |
 | `quotadial history --since 30d --csv` | Every reading since then as CSV; `--json` gives the same as `GET /v1/history`. `--provider`, `--account` and `--window` narrow it |
+| `quotadial licence` | Says whether this copy is QuotaDial Free or QuotaDial Pro, and from which licence; `licence show --json` gives the same as JSON |
+| `quotadial licence add [<key>]` | Adds a licence key for QuotaDial Pro, or asks for one to be pasted |
+| `quotadial licence remove` | Removes the licence key |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -277,6 +280,43 @@ claude user@example.com
 The app's **History** button shows each account's windows charted over the last 7 or 30 days, a
 heatmap of when it was used by hour of the day, and an **Export CSV** button that saves the
 readings to the Downloads folder.
+
+## Licence
+
+QuotaDial Free needs no key. A licence key adds QuotaDial Pro: it starts with `QD1.` and comes by
+email when Pro is bought. QuotaDial checks a key on this machine against the public key it carries,
+with no network call, each time it reads it (`docs/LICENSING.md`).
+
+```
+$ quotadial licence add QD1.eyJpZCI6IjEyMzQiLCJpc3N1ZWQiOiIyMDI2LTEwLTI0IiwicGxhbiI6InBybyJ9.…
+Added the licence key: QuotaDial Pro, licence 1234.
+```
+
+- With no key given, `licence add` asks for it. A key pasted over several lines, as an email may
+  wrap it, is read until it is whole. A key can be piped in too, as in `pbpaste | quotadial
+  licence add`.
+- The key is kept in `licence` in the data directory, readable only by you, and replaces any key
+  kept before.
+- A key that gives nothing is not kept: the command says why and what to do, and exits with 1.
+- `licence remove` removes the key. `license` works as well as `licence`.
+
+`quotadial licence` says what this copy is in one sentence:
+
+| Sentence | When |
+| --- | --- |
+| `QuotaDial Free, with no licence key.` | No key is kept |
+| `QuotaDial Pro, licence 1234.` | The key holds a licence that does not end |
+| `QuotaDial Pro until 2027-10-24, licence 1234.` | The licence's last day is 2027-10-24. It holds through that day |
+| `QuotaDial Free: licence 1234 ended on 2027-10-24. A new key brings QuotaDial Pro back.` | That day has passed |
+| `QuotaDial Free: its licence key doesn't check out. …` | The kept key was changed or damaged |
+| `QuotaDial Free: its licence key is for a newer QuotaDial. Update QuotaDial to use it.` | The key is for a plan or format this version does not know |
+
+`licence show --json` gives `tier` (`free` or `pro`), `text` (that sentence) and, when the key holds
+a licence, even one that has ended, `licence`: its `id`, `plan`, `issued` day and, for a licence
+that ends, `until`.
+
+For now, a copy with no key still has every feature. Which features need Pro comes with the next
+update.
 
 ## The local API
 

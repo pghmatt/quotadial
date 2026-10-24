@@ -1,8 +1,12 @@
-//! What this copy of QuotaDial may do (D-090). Licensing comes in M5; until then every copy has every
-//! feature. Each feature the Pro tier holds asks [`tier`] here, so licensing changes one place.
+//! What this copy of QuotaDial may do (D-090). A licence key decides the tier ([`crate::Standing`],
+//! D-099), and the gates turn on in M5's next PR; until then every copy has every feature. Each
+//! feature the Pro tier holds asks [`tier`] here, so licensing changes one place.
+
+use serde::Serialize;
 
 /// A tier of QuotaDial.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Tier {
     /// The free tier.
     Free,
@@ -24,7 +28,8 @@ pub enum ProFeature {
     CostScan,
 }
 
-/// This copy's tier: Pro for every copy until M5's licensing.
+/// This copy's tier: Pro for every copy until M5's gates turn on, when it becomes the tier of the
+/// licence key the copy keeps.
 #[must_use]
 pub fn tier() -> Tier {
     Tier::Pro

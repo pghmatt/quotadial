@@ -9,10 +9,10 @@ use std::io;
 use std::path::Path;
 
 use chrono::TimeDelta;
-use quotadial_daemon::Firing;
+use quotadial_daemon::{Firing, write_private};
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{Settings, key, write_private};
+use crate::settings::{Settings, key};
 
 /// A firing older than this when the app first sees it is not told.
 pub const TELL_WITHIN: TimeDelta = TimeDelta::minutes(15);

@@ -43,7 +43,7 @@ Nothing is named `usage`, the PRD's old working name.
 
 | Path | Contents |
 | --- | --- |
-| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, and the one `tier()` check for Pro features |
+| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, licence keys and the public key they are checked against (`docs/LICENSING.md`), and the one `tier()` check for Pro features |
 | `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock |
 | `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
@@ -52,11 +52,12 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app |
 | `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
+| `crates/issue` (`quotadial-issue`) | The tool that makes QuotaDial's licence signing key and signs licence keys with it (`docs/LICENSING.md`). No release carries it |
 | `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
 | `scripts/` | Repo tooling, such as `public-prd.sh`, and `update-prices.sh`, which refreshes the price table from models.dev when a release is made |
-| `docs/` | Public PRD, public-scope rule, decisions log, task tracker |
+| `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, and the licence key format |
 
 ## Conventions
 
@@ -102,6 +103,7 @@ cargo run -p quotadial --bin qd -- status               # via the qd alias
 scripts/public-prd.sh                                   # regenerate docs/PRD-public.md
 scripts/public-prd.sh --check                           # the public-copy check CI runs
 scripts/update-prices.sh                                # before tagging a release: refresh crates/cost/prices.json from models.dev, review the diff, commit
+cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)
 ```
 
 The tray app, from `apps/tray` (its Rust side is a separate workspace in `src-tauri`):

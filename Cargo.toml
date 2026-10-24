@@ -13,6 +13,7 @@ members = [
     "crates/providers/all",
     "crates/api",
     "crates/cli",
+    "crates/issue",
 ]
 
 [workspace.package]
@@ -39,9 +40,12 @@ base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 clap = { version = "4.6.7", features = ["derive"] }
 dirs = "7.0.0"
+# Licence keys are checked with Ed25519 signatures (D-099); only verifying and signing are needed.
+ed25519-dalek = { version = "3.0.0", default-features = false, features = ["zeroize"] }
 getrandom = "0.4.3"
 # SIMD search for the words that mark a usage line in multi-gigabyte logs.
 memchr = "2.8.3"
+proptest = "1.12.0"
 # rustls with the operating system's certificate store; no OpenSSL to install on Linux.
 # SQLite compiled in, so no system library is needed on any platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
