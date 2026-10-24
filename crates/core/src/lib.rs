@@ -5,6 +5,7 @@
 //! model" and "Provider trait" sections (`docs/PRD-public.md`) field for field.
 
 mod alert;
+mod cost;
 mod error;
 mod model;
 mod pace;
@@ -16,6 +17,7 @@ pub mod text;
 mod tier;
 
 pub use alert::{Condition, EXAMPLES, Occurrence, Rule, RuleError, Scope};
+pub use cost::{Cost, ModelCost, Tokens};
 pub use error::{Error, Result};
 pub use model::{Account, ExtraUsage, Pace, Snapshot, Source, Status, Window, WindowKind};
 pub use pace::{MIN_READINGS, MIN_SPAN, Reading};

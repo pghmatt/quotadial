@@ -5,6 +5,7 @@ resolver = "3"
 exclude = ["apps/tray/src-tauri"]
 members = [
     "crates/core",
+    "crates/cost",
     "crates/poll",
     "crates/daemon",
     "crates/providers/claude",
@@ -25,6 +26,7 @@ publish = false
 
 [workspace.dependencies]
 quotadial-core = { path = "crates/core" }
+quotadial-cost = { path = "crates/cost" }
 quotadial-poll = { path = "crates/poll" }
 quotadial-daemon = { path = "crates/daemon" }
 quotadial-api = { path = "crates/api" }
@@ -38,6 +40,8 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 clap = { version = "4.6.7", features = ["derive"] }
 dirs = "7.0.0"
 getrandom = "0.4.3"
+# SIMD search for the words that mark a usage line in multi-gigabyte logs.
+memchr = "2.8.3"
 # rustls with the operating system's certificate store; no OpenSSL to install on Linux.
 # SQLite compiled in, so no system library is needed on any platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }

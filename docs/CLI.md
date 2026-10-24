@@ -101,6 +101,7 @@ apply. A change applies the next time a command, the daemon or the app starts.
 | `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message. None by default |
 | `history_days` | How many days of history the daemon keeps, from 1 to 365. 30 by default |
 | `status_pages` | `false` stops the daemon reading the providers' status pages. On by default |
+| `cost_scan` | `false` stops the daemon reading Claude Code's and the Codex CLI's session logs for the week's cost. On by default |
 
 A webhook's address works like a password: a Slack address holds its channel's key. QuotaDial never
 prints one, and names a webhook only by its host. Keep `config.json` readable only by you
@@ -222,6 +223,35 @@ this off.
 - A page that cannot be read keeps its last reading. When QuotaDial first saw a trouble is kept in
   the history, so an incident rule tells each incident once, even across a restart.
 
+## The week's cost
+
+While the daemon runs, it works out what the last 7 days of local use would have cost at each
+provider's API prices: every model request in Claude Code's and the Codex CLI's session logs,
+priced from a table that comes with each release. It reads the logs of the providers it has
+accounts with, every 10 minutes, and makes no request to anyone. `"cost_scan": false` in
+`config.json` turns this off.
+
+- It reads only each log line's token counts, model, time and request ids: never a prompt, a reply
+  or a file's content. Claude Code's logs are the `projects` folder of every folder QuotaDial looks
+  in for sign-ins, a folder linked from several places read once; the Codex CLI's are `sessions` and
+  `archived_sessions` in `$CODEX_HOME` or `~/.codex`.
+- A request counts once, however many times its logs repeat it: a streamed response is written in
+  parts, and a resumed session copies earlier requests into its new log.
+- Prices are per model and kind of token: input, output, and reading and writing the prompt cache.
+  A request whose context is over a model's long-context size costs the higher price for all of it,
+  and Claude's hour-long cache writes cost twice the input price. Standard prices only: no batch,
+  priority or regional rates.
+- What a scan read is kept in `costs.db` in the data directory, so each log is read once and then
+  only what was added to it. The first scan of a busy week's logs takes a while; until it ends,
+  there is no cost to show. Deleting `costs.db` costs one more full read.
+- The report (`status --json`, `GET /v1/status`, `get_usage`) and `GET /v1/headroom` carry `costs`,
+  one per provider. `status` and `watch` add a line for each, such as `claude cost: $1,234 at API
+  prices over the last 7 days, from 51,234 requests (read 3 min ago)`, then each model's part when
+  there are several, and what the cost leaves out. The app shows the same under the accounts.
+- A model the price table does not have is listed with its requests and no price, and left out of
+  the total, which says so. Codex sessions from CLIs older than the per-request usage records are
+  left out too, since their running totals are copied between sessions; the cost says how many.
+
 ## History
 
 The daemon keeps every reading of every window for 30 days, or as many as `history_days` says,
@@ -308,6 +338,7 @@ processes can list.
 | `tightest` | The window closest to its limit, as in `status --json`: when it resets, its length, when it was fetched and its pace. For an account that cannot be used now, the last one known. Left out when the account has no windows |
 | `status`, `error` | As in `status --json` |
 | `errors[]` | As in `status --json` |
+| `costs[]` | As in `status --json`: what the week's local use of each provider would have cost at API prices. Left out until the daemon has read the logs |
 
 Headroom uses the numbers as last fetched. A `tightest.resets_at` in the past means the window has
 reset since, and the daemon fetches again within 10 minutes.
@@ -434,7 +465,7 @@ codex user@example.com (pro): stale
   with one line that says so:
 
   ```text
-  Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each window also shows how fast it fills.
+  Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each window also shows how fast it fills, and each provider what the week would have cost at API prices.
   ```
 - A status other than `ok` is followed by one sentence that says why and names the fix, such as
   "Run `claude` to sign in again."
@@ -479,6 +510,25 @@ the last, without escape codes.
   ],
   "errors": [
     { "provider": "codex", "message": "codex: could not read credentials from ..." }
+  ],
+  "costs": [
+    {
+      "provider": "claude",
+      "since": "2098-12-25T00:00:00Z",
+      "until": "2099-01-01T00:00:00Z",
+      "usd": 870.48,
+      "requests": 12000,
+      "tokens": { "input": 120000, "output": 9000000, "cache_read": 2000000000, "cache_write": 40000000, "cache_write_1h": 30000000 },
+      "models": [
+        {
+          "model": "claude-opus-5-5",
+          "usd": 870.48,
+          "requests": 12000,
+          "tokens": { "input": 120000, "output": 9000000, "cache_read": 2000000000, "cache_write": 40000000, "cache_write_1h": 30000000 }
+        }
+      ],
+      "prices_updated": "2026-10-23"
+    }
   ]
 }
 ```
@@ -502,6 +552,7 @@ the last, without escape codes.
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
 | `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts, each with a message that names the fix |
 | `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
+| `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 

@@ -2206,3 +2206,30 @@ fn an_item_with_no_modification_time_is_never_left_out() {
     assert!(timed.excludes(&item(Some("20990101000000Z"))));
     assert!(!timed.excludes(&item(Some("20990102000000Z"))));
 }
+
+#[tokio::test]
+async fn the_logs_are_in_every_folder_a_sign_in_is_looked_for_in() {
+    let harness = Harness::new().await;
+    let home = harness.home.path();
+    for dir in [".claude", ".claude-work", ".codus/accounts/.pending-1"] {
+        std::fs::create_dir_all(home.join(dir)).expect("makes the folder");
+    }
+    let scoped = Environment {
+        config_dir: Some(home.join(".claude-work").display().to_string()),
+        ..harness.env()
+    };
+
+    let folders = harness
+        .provider_with(scoped, &harness.server.uri())
+        .log_folders();
+
+    assert_eq!(
+        folders,
+        [
+            home.join(".claude-work/projects"),
+            home.join(".claude/projects"),
+            home.join(".codus/accounts/.pending-1/projects"),
+        ],
+        "this shell's first, each once"
+    );
+}

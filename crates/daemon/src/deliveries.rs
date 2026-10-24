@@ -203,6 +203,7 @@ mod tests {
             }],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         assert_eq!(history.check(&report, Utc::now()).expect("checks").len(), 1);
         (dir, history)

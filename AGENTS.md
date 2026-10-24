@@ -46,6 +46,7 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, and the one `tier()` check for Pro features |
 | `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock |
+| `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
 | `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app |
@@ -54,7 +55,7 @@ Nothing is named `usage`, the PRD's old working name.
 | `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
-| `scripts/` | Repo tooling, such as `public-prd.sh` |
+| `scripts/` | Repo tooling, such as `public-prd.sh`, and `update-prices.sh`, which refreshes the price table from models.dev when a release is made |
 | `docs/` | Public PRD, public-scope rule, decisions log, task tracker |
 
 ## Conventions
@@ -100,6 +101,7 @@ cargo run -p quotadial -- status --json                 # the same as JSON
 cargo run -p quotadial --bin qd -- status               # via the qd alias
 scripts/public-prd.sh                                   # regenerate docs/PRD-public.md
 scripts/public-prd.sh --check                           # the public-copy check CI runs
+scripts/update-prices.sh                                # before tagging a release: refresh crates/cost/prices.json from models.dev, review the diff, commit
 ```
 
 The tray app, from `apps/tray` (its Rust side is a separate workspace in `src-tauri`):

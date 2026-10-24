@@ -11,15 +11,18 @@
 //! come before the gate allows a request. Accounts are rediscovered every minute, so a new sign-in
 //! appears and a removed one goes. Every answer goes to the history, and each window of an `ok`
 //! answer gets its pace from it (P-016). The alert rules are checked after every round of polls and
-//! every minute between, for a time before a reset (D-093).
+//! every minute between, for a time before a reset (D-093). Every 10 minutes the CLIs' logs are
+//! read for the week's API-equivalent cost (D-097).
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Duration;
 
 use chrono::Utc;
-use quotadial_core::{Account, Provider, ProviderError, Snapshot, StatusPage, StatusReport};
+use quotadial_core::{Account, Cost, Provider, ProviderError, Snapshot, StatusPage, StatusReport};
+use quotadial_cost::CostScan;
 use tokio::sync::watch;
 use tokio::time::Instant;
 
@@ -35,6 +38,9 @@ pub const DISCOVER_EVERY: Duration = Duration::from_secs(60);
 const PRUNE_EVERY: Duration = Duration::from_secs(60 * 60);
 /// How often the alert rules are checked between polls, for a time before a reset.
 pub const ALERTS_EVERY: Duration = Duration::from_secs(60);
+/// How often the CLIs' logs are read for the week's cost. Each reading reads only what the logs
+/// gained since the last.
+pub const COSTS_EVERY: Duration = Duration::from_secs(10 * 60);
 
 /// What the poller last found, shared with every consumer.
 #[derive(Debug, Clone, Default)]
@@ -45,6 +51,8 @@ struct Shared {
     providers: RwLock<Vec<ProviderState>>,
     /// What the providers' status pages last said (D-096).
     status_pages: RwLock<Vec<StatusPage>>,
+    /// The week's cost of each provider, from the last scan of the logs (D-097).
+    costs: RwLock<Vec<Cost>>,
     /// Told whenever the report changes, so a consumer such as the tray app need not ask.
     changed: watch::Sender<()>,
     /// The newest firing of an alert rule to tell, so the tray app can tell it.
@@ -84,7 +92,19 @@ impl Latest {
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
+        report.costs = self
+            .0
+            .costs
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         report.normalized()
+    }
+
+    /// Keeps `costs` as the week's, and tells consumers.
+    fn set_costs(&self, costs: Vec<Cost>) {
+        *self.0.costs.write().unwrap_or_else(PoisonError::into_inner) = costs;
+        self.0.changed.send_replace(());
     }
 
     /// Keeps `page` as its provider's status, and tells consumers.
@@ -163,6 +183,11 @@ pub struct Poller {
     status_at: Instant,
     /// Held while the status pages are being read.
     reading: Arc<tokio::sync::Mutex<()>>,
+    /// The cost scan, when the logs are read (D-097).
+    costs: Option<Arc<CostScan>>,
+    costs_at: Instant,
+    /// Held while the logs are being read, so a long first reading is never begun twice.
+    scanning: Arc<tokio::sync::Mutex<()>>,
     deliverer: Option<Deliverer>,
     /// Held while alerts are being sent, so a slow webhook never holds up polling and two rounds
     /// never send the same alert at once.
@@ -224,7 +249,18 @@ impl Poller {
             status: None,
             status_at: now,
             reading: Arc::default(),
+            costs: None,
+            costs_at: now,
+            scanning: Arc::default(),
         }
+    }
+
+    /// The poller, also reading the logs of the providers it has accounts with into `scan` every
+    /// [`COSTS_EVERY`], for the week's cost (D-097).
+    #[must_use]
+    pub fn with_costs(mut self, scan: CostScan) -> Self {
+        self.costs = Some(Arc::new(scan));
+        self
     }
 
     /// The poller, also reading each provider's status page in `pages`, as `(provider, url)`,
@@ -252,6 +288,12 @@ impl Poller {
     #[must_use]
     pub fn latest(&self) -> Latest {
         self.latest.clone()
+    }
+
+    /// Whether the poller reads the logs for the week's cost.
+    #[must_use]
+    pub fn scans_costs(&self) -> bool {
+        self.costs.is_some()
     }
 
     /// Polls until `shutdown` completes. A poll in progress then is abandoned: providers save the
@@ -303,14 +345,58 @@ impl Poller {
             self.read_status_pages();
             self.status_at = now + STATUS_EVERY;
         }
+        if self.costs.is_some() && now >= self.costs_at {
+            self.scan_costs();
+            self.costs_at = now + COSTS_EVERY;
+        }
         let status_at = self.status.as_ref().map(|_| self.status_at);
+        let costs_at = self.costs.as_ref().map(|_| self.costs_at);
         self.tracked
             .values()
             .map(|tracked| tracked.due)
             .chain([self.discover_at, self.prune_at, self.alerts_at])
             .chain(status_at)
+            .chain(costs_at)
             .min()
             .unwrap_or(self.discover_at)
+    }
+
+    /// Reads what the logs of the providers the poller has accounts with gained, in its own task
+    /// off the async runtime, unless a scan is still reading, and keeps the week's costs. A scan
+    /// that fails keeps the last costs, which carry their age.
+    fn scan_costs(&self) {
+        let Some(scan) = self.costs.clone() else {
+            return;
+        };
+        let Ok(scanning) = Arc::clone(&self.scanning).try_lock_owned() else {
+            return;
+        };
+        let providers: Vec<Arc<dyn Provider>> = self
+            .providers
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| {
+                self.tracked
+                    .values()
+                    .any(|tracked| tracked.provider == *index)
+            })
+            .map(|(_, provider)| Arc::clone(provider))
+            .collect();
+        let latest = self.latest.clone();
+        tokio::spawn(async move {
+            let found = tokio::task::spawn_blocking(move || {
+                let folders: Vec<(String, Vec<PathBuf>)> = providers
+                    .iter()
+                    .map(|provider| (provider.id().to_owned(), provider.log_folders()))
+                    .collect();
+                scan.scan(&folders, Utc::now())
+            })
+            .await;
+            if let Ok(Ok(costs)) = found {
+                latest.set_costs(costs);
+            }
+            drop(scanning);
+        });
     }
 
     /// Reads the status pages of the providers the poller has accounts with, in their own task,
@@ -577,6 +663,8 @@ mod tests {
         warnings: Mutex<Vec<String>>,
         /// How long each fetch takes.
         delay: Duration,
+        /// Where its CLI's logs are.
+        logs: Mutex<Vec<PathBuf>>,
     }
 
     impl Scripted {
@@ -591,6 +679,7 @@ mod tests {
                 fetched: Mutex::default(),
                 warnings: Mutex::default(),
                 delay: Duration::ZERO,
+                logs: Mutex::default(),
             }
         }
 
@@ -652,6 +741,10 @@ mod tests {
 
         fn min_poll_interval(&self) -> Duration {
             self.floor
+        }
+
+        fn log_folders(&self) -> Vec<PathBuf> {
+            self.logs.lock().expect("lock").clone()
         }
     }
 
@@ -1010,6 +1103,49 @@ mod tests {
                 runs_out_at: Some(base() + TimeDelta::minutes(90)),
             })
         );
+    }
+
+    // Real time, since the scan reads files off the async runtime.
+    #[tokio::test]
+    async fn the_logs_of_providers_with_accounts_are_read_for_the_week_s_cost() {
+        let (dir, history) = history();
+        let written = (Utc::now() - TimeDelta::hours(1)).to_rfc3339();
+        let rollout = dir
+            .path()
+            .join("codex/sessions/2026/10/23/rollout-2026-10-23T09-00-00-a.jsonl");
+        std::fs::create_dir_all(rollout.parent().expect("a folder")).expect("makes it");
+        std::fs::write(
+            &rollout,
+            format!(
+                "{{\"timestamp\":\"{written}\",\"type\":\"turn_context\",\"payload\":{{\"model\":\"gpt-6-astra\"}}}}\n\
+                 {{\"timestamp\":\"{written}\",\"type\":\"token_usage_record\",\"payload\":{{\"response_id\":\"r1\",\"usage\":{{\"input_tokens\":100000,\"cached_input_tokens\":0,\"output_tokens\":1000}}}}}}\n"
+            ),
+        )
+        .expect("writes");
+        let codex = Arc::new(Scripted::new("codex", 2));
+        *codex.logs.lock().expect("lock") = vec![dir.path().join("codex/sessions")];
+        // Signed out: its logs are not read.
+        let claude = Arc::new(Scripted::new("claude", 5));
+        claude.set_accounts(Ok(Vec::new()));
+        *claude.logs.lock().expect("lock") = vec![dir.path().join("codex/sessions")];
+        let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
+        let mut poller = poller(vec![Arc::clone(&codex), claude], history).with_costs(scan);
+
+        poller.poll_due().await;
+        let mut costs = Vec::new();
+        for _ in 0..200 {
+            costs = poller.latest().report().costs;
+            if !costs.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        assert_eq!(costs.len(), 1, "{costs:?}");
+        assert_eq!(costs[0].provider, "codex");
+        assert_eq!(costs[0].requests, 1);
+        assert_eq!(costs[0].models[0].model, "gpt-6-astra");
+        assert!(costs[0].usd > 0.0);
     }
 
     #[tokio::test(start_paused = true)]

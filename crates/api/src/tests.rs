@@ -592,14 +592,35 @@ fn fixed() -> Vec<Arc<dyn Provider>> {
     vec![Arc::new(Fixed(40.0))]
 }
 
-/// A data folder whose settings leave out the status pages, so a host started in it never reaches
-/// the internet.
+/// A data folder whose settings leave out the status pages and the cost scan, so a host started in
+/// it never reaches the internet or reads this machine's logs.
 fn offline(temp: &tempfile::TempDir) -> DataDir {
     let dir = DataDir::new(temp.path().join("quotadial"));
     dir.create().expect("creates");
-    std::fs::write(dir.path().join("config.json"), r#"{"status_pages": false}"#)
-        .expect("writes the settings");
+    std::fs::write(
+        dir.path().join("config.json"),
+        r#"{"status_pages": false, "cost_scan": false}"#,
+    )
+    .expect("writes the settings");
     dir
+}
+
+#[tokio::test]
+async fn the_cost_scan_is_on_unless_turned_off() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let host = Host::start(offline(&temp), fixed(), 0)
+        .await
+        .expect("starts");
+    assert!(!host.scans_costs());
+    drop(host);
+
+    // Started, never run: nothing is polled or read.
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = DataDir::new(temp.path().join("quotadial"));
+    dir.create().expect("creates");
+    let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+    assert!(host.scans_costs());
+    assert!(dir.costs().exists(), "its database is made");
 }
 
 #[tokio::test]

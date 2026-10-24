@@ -10,7 +10,8 @@ server and a SKILL.md. It runs on macOS, Windows and Linux.
 usage. `quotadial daemon` polls for every consumer, keeps the history that gives each window its
 pace (how fast it fills, and whether it runs out before it resets), checks alert rules written in
 plain words (`quotadial alerts add "warn me at 80%"`), keeps 30 days of history (`quotadial
-history`), watches the providers' status pages for incidents, and serves a local HTTP API, and
+history`), watches the providers' status pages for incidents, works out what the week's local use
+would have cost at API prices, and serves a local HTTP API, and
 `quotadial mcp` is an MCP server for agents, with [a skill](skills/quotadial/SKILL.md) that tells
 them how to use it. See [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes. The tray app
 ([apps/tray](apps/tray)) shows the tightest limit in the menu bar or tray and runs the daemon

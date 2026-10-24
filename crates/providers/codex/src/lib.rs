@@ -408,6 +408,14 @@ impl Provider for CodexProvider {
     fn min_poll_interval(&self) -> Duration {
         MIN_POLL_INTERVAL
     }
+
+    /// `sessions` and `archived_sessions` in the Codex CLI's folder.
+    fn log_folders(&self) -> Vec<PathBuf> {
+        self.env
+            .codex_dir()
+            .map(|dir| vec![dir.join("sessions"), dir.join("archived_sessions")])
+            .unwrap_or_default()
+    }
 }
 
 /// The account `auth.json` names: the ChatGPT user in a ChatGPT account (workspace), so one person

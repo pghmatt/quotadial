@@ -1,11 +1,12 @@
 //! `GET /v1/headroom`: which account has the most room left now. The PRD's cross-provider "what's
 //! open" query: each account's headroom is 100% minus its tightest window's share used, and accounts
-//! are ranked by it, then by how soon that window resets.
+//! are ranked by it, then by how soon that window resets. Beside them is what the week's local use
+//! of each provider would have cost at API prices (D-097).
 
 use std::cmp::Ordering;
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{Account, ProviderError, Status, StatusReport, Window};
+use quotadial_core::{Account, Cost, ProviderError, Status, StatusReport, Window};
 use serde::{Deserialize, Serialize};
 
 /// Every account's headroom, the most first, then the accounts that have none to offer now.
@@ -16,6 +17,10 @@ pub struct HeadroomReport {
     pub accounts: Vec<Headroom>,
     /// Providers or accounts that produced no snapshot.
     pub errors: Vec<ProviderError>,
+    /// What the week's local use of each provider would have cost at API prices, while the daemon
+    /// reads the logs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
 }
 
 /// One account's headroom.
@@ -76,6 +81,7 @@ pub fn rank(report: &StatusReport) -> HeadroomReport {
     HeadroomReport {
         accounts,
         errors: report.errors.clone(),
+        costs: report.costs.clone(),
     }
 }
 
@@ -146,6 +152,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -190,6 +197,7 @@ mod tests {
                 message: "other: could not read credentials".into(),
             }],
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -221,6 +229,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -243,8 +252,36 @@ mod tests {
             snapshots: vec![snapshot("claude", &[("Weekly", 104.0, None)])],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(rank(&report).accounts[0].headroom_pct, Some(0.0));
+    }
+
+    #[test]
+    fn the_week_s_costs_sit_beside_the_accounts() {
+        let cost = Cost {
+            provider: "codex".into(),
+            since: ts("2098-12-25T00:00:00Z"),
+            until: ts("2099-01-01T00:00:00Z"),
+            usd: 312.5,
+            requests: 4_000,
+            tokens: quotadial_core::Tokens::default(),
+            models: Vec::new(),
+            prices_updated: "2026-10-23".into(),
+            notes: Vec::new(),
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot("codex", &[("Weekly", 55.0, None)])],
+            errors: Vec::new(),
+            status_pages: Vec::new(),
+            costs: vec![cost.clone()],
+        };
+
+        let ranked = rank(&report);
+
+        assert_eq!(ranked.costs, [cost]);
+        let json = serde_json::to_value(rank(&StatusReport::default())).expect("serializes");
+        assert!(json.get("costs").is_none(), "left out when there are none");
     }
 }

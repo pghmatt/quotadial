@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { HistoryPanel } from "./history";
-import type { Account, Meter, Window } from "./meter";
+import type { Account, Cost, Meter, Window } from "./meter";
 import { SettingsPanel } from "./settings";
 
 /** The popover: the tightest window's share used, every account's windows, and what is wrong. */
@@ -98,6 +98,7 @@ function Contents({ meter }: { meter: Meter }) {
           </ul>
         </section>
       )}
+      {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
       <footer>
         <p class="origin">{meter.origin ?? ""}</p>
         {accounts && (
@@ -146,6 +147,37 @@ function AccountSection({ account, index }: { account: Account; index: number })
         <summary>How QuotaDial reads this sign-in</summary>
         <p>{account.sign_in}</p>
       </details>
+    </section>
+  );
+}
+
+/** What each provider's week would have cost at API prices, from the CLIs' logs. */
+function Costs({ costs }: { costs: Cost[] }) {
+  return (
+    <section class="costs" aria-label="The week at API prices">
+      {costs.map((cost) => (
+        <div class="cost" key={cost.provider}>
+          <p>
+            <span class="provider">{cost.provider}</span> {cost.summary}
+          </p>
+          <p class="detail">{cost.detail}</p>
+          {cost.models.length > 0 && (
+            <details class="models">
+              <summary>By model</summary>
+              <ul>
+                {cost.models.map((model) => (
+                  <li key={model}>{model}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {cost.notes.map((note) => (
+            <p class="detail" key={note}>
+              {note}
+            </p>
+          ))}
+        </div>
+      ))}
     </section>
   );
 }

@@ -589,6 +589,13 @@ fn daemon(port: u16) -> ExitCode {
             let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
             say(format_args!("It sends alerts to {} too.", hosts.join(", ")));
         }
+        if host.scans_costs() {
+            say(format_args!(
+                "Every 10 minutes it reads the token counts in Claude Code's and the Codex CLI's \
+                 logs for the week's cost at API prices; \"cost_scan\": false in config.json \
+                 turns that off."
+            ));
+        }
         for warning in &config.warnings {
             eprintln!("quotadial: warning: {warning}");
         }
@@ -757,6 +764,23 @@ fn write_text(
             page.provider, page.description, page.url
         )?;
     }
+    for cost in &report.costs {
+        writeln!(
+            out,
+            "{} cost: {} (read {})",
+            cost.provider,
+            text::cost(cost),
+            text::ago(cost.until, now)
+        )?;
+        if cost.models.len() > 1 {
+            for model in &cost.models {
+                writeln!(out, "  {}", text::model_cost(model))?;
+            }
+        }
+        for note in &cost.notes {
+            writeln!(out, "  {note}")?;
+        }
+    }
     for error in &report.errors {
         writeln!(out, "error: {}", error.message)?;
     }
@@ -768,7 +792,8 @@ fn write_text(
         writeln!(
             out,
             "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
-             window also shows how fast it fills."
+             window also shows how fast it fills, and each provider what the week would have \
+             cost at API prices."
         )?;
     }
     Ok(())
@@ -1024,6 +1049,7 @@ mod tests {
             snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(
@@ -1044,6 +1070,7 @@ mod tests {
             snapshots: vec![snapshot],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(
@@ -1063,6 +1090,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1074,7 +1102,8 @@ mod tests {
         assert_eq!(shown.matches("Pace needs the daemon").count(), 1);
         assert!(shown.ends_with(
             "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
-             window also shows how fast it fills.\n"
+             window also shows how fast it fills, and each provider what the week would have \
+             cost at API prices.\n"
         ));
 
         let expired = StatusReport {
@@ -1084,6 +1113,7 @@ mod tests {
             )],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1215,6 +1245,61 @@ mod tests {
     }
 
     #[test]
+    fn each_provider_s_cost_gets_a_line_with_its_models_and_notes() {
+        let model = |name: &str, usd: Option<f64>, requests: u64| quotadial_core::ModelCost {
+            model: name.into(),
+            usd,
+            requests,
+            tokens: quotadial_core::Tokens::default(),
+        };
+        let cost = |provider: &str, models: Vec<quotadial_core::ModelCost>, notes: Vec<String>| {
+            quotadial_core::Cost {
+                provider: provider.into(),
+                since: now() - chrono::TimeDelta::minutes(3) - chrono::TimeDelta::days(7),
+                until: now() - chrono::TimeDelta::minutes(3),
+                usd: models.iter().filter_map(|model| model.usd).sum(),
+                requests: models.iter().map(|model| model.requests).sum(),
+                tokens: quotadial_core::Tokens::default(),
+                models,
+                prices_updated: "2026-10-23".into(),
+                notes,
+            }
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(account(), Source::Api)],
+            errors: Vec::new(),
+            status_pages: Vec::new(),
+            costs: vec![
+                cost(
+                    "claude",
+                    vec![model("claude-opus-5-5", Some(1_000.25), 41_000)],
+                    Vec::new(),
+                ),
+                cost(
+                    "codex",
+                    vec![
+                        model("gpt-6-astra", Some(23.5), 900),
+                        model("unknown", None, 1),
+                    ],
+                    vec!["1 request named no model, so it is left out.".into()],
+                ),
+            ],
+        };
+
+        let shown = render(&report, false);
+
+        let expected = [
+            "claude cost: $1,000 at API prices over the last 7 days, from 41,000 requests (read 3 min ago)",
+            "codex cost: $23.50 at API prices over the last 7 days, from 901 requests (read 3 min ago)",
+            "  gpt-6-astra: $23.50, 900 requests",
+            "  unknown: no price, 1 request",
+            "  1 request named no model, so it is left out.",
+            "",
+        ];
+        assert!(shown.ends_with(&expected.join("\n")), "{shown}");
+    }
+
+    #[test]
     fn a_status_page_in_trouble_gets_a_line() {
         let page = |provider: &str, indicator, description: &str| quotadial_core::StatusPage {
             provider: provider.into(),
@@ -1231,6 +1316,7 @@ mod tests {
                 page("claude", Indicator::None, "All Systems Operational"),
                 page("codex", Indicator::Minor, "Partial System Degradation"),
             ],
+            costs: Vec::new(),
         };
 
         let shown = render(&report, false);
@@ -1253,6 +1339,7 @@ mod tests {
             snapshots: vec![snapshot],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(
@@ -1271,6 +1358,7 @@ mod tests {
             snapshots: vec![snapshot],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(
@@ -1297,6 +1385,7 @@ mod tests {
             snapshots: vec![snapshot],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         assert_eq!(
@@ -1318,6 +1407,7 @@ mod tests {
             snapshots: vec![snapshot(account(), Source::Cache)],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1347,6 +1437,7 @@ mod tests {
             snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");

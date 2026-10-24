@@ -4,7 +4,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Provider, Snapshot, Status, redact_secrets};
+use crate::{Cost, Error, Provider, Snapshot, Status, redact_secrets};
 
 /// A snapshot per account, and every provider or account that produced none.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -17,6 +17,10 @@ pub struct StatusReport {
     /// direct fetch.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub status_pages: Vec<StatusPage>,
+    /// What the week's local use of each provider would have cost on its API, while the daemon
+    /// reads the logs (D-097). Left out of a direct fetch.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
 }
 
 /// What a provider's status page says: how bad things are, in the page's own words.
@@ -237,6 +241,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let merged = report.normalized();
@@ -275,6 +280,7 @@ mod tests {
             ],
             errors: Vec::new(),
             status_pages: Vec::new(),
+            costs: Vec::new(),
         };
 
         let sorted = report.normalized();

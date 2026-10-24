@@ -788,6 +788,26 @@ impl Provider for ClaudeProvider {
     fn min_poll_interval(&self) -> Duration {
         MIN_POLL_INTERVAL
     }
+
+    /// `projects` in each folder sign-ins are looked for in: this shell's, the default and every
+    /// candidate, as Claude Code writes a session's log beside the sign-in it used.
+    fn log_folders(&self) -> Vec<PathBuf> {
+        let mut folders: Vec<PathBuf> = Vec::new();
+        let candidates = login::candidate_dirs(&self.env, &self.extra_dirs).dirs;
+        for dir in self
+            .env
+            .config_dir()
+            .into_iter()
+            .chain(self.env.default_config_dir())
+            .chain(candidates.into_iter().map(PathBuf::from))
+        {
+            let projects = dir.join("projects");
+            if !folders.contains(&projects) {
+                folders.push(projects);
+            }
+        }
+        folders
+    }
 }
 
 /// Why a credentials file could not be read, and the fix.

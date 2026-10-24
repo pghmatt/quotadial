@@ -53,6 +53,12 @@ impl DataDir {
         self.0.join("history.db")
     }
 
+    /// What the cost scan has read of the CLIs' logs (D-097): a cache, rebuilt when deleted.
+    #[must_use]
+    pub fn costs(&self) -> PathBuf {
+        self.0.join("costs.db")
+    }
+
     /// The lock that keeps a second daemon from starting.
     #[must_use]
     pub fn lock(&self) -> PathBuf {
@@ -84,6 +90,7 @@ mod tests {
         dir.create().expect("creates");
 
         assert_eq!(dir.history(), temp.path().join("quotadial/history.db"));
+        assert_eq!(dir.costs(), temp.path().join("quotadial/costs.db"));
         assert_eq!(dir.lock(), temp.path().join("quotadial/daemon.lock"));
         assert_eq!(dir.token(), temp.path().join("quotadial/token"));
         assert_eq!(dir.runtime(), temp.path().join("quotadial/daemon.json"));
