@@ -90,6 +90,27 @@ jobs:
         working-directory: apps/tray/src-tauri
         run: cargo test --locked
 
+  # The website's key page (site/, D-102): its function turns a paid receipt's key into a licence key
+  # signed as QuotaDial checks them, tested against Lemon Squeezy's documented answers.
+  site:
+    name: site
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - name: Types
+        run: npm run check
+      - name: Test
+        run: npm test
+
   # docs/PUBLIC_SCOPE.md: the full PRD stays private; only the generated public copy is committed.
   public-scope:
     name: public-scope
@@ -116,11 +137,12 @@ jobs:
   ci-success:
     name: ci-success
     if: always()
-    needs: [check, tray, public-scope]
+    needs: [check, tray, site, public-scope]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed
         run: |
           test "${{ needs.check.result }}" = "success"
           test "${{ needs.tray.result }}" = "success"
+          test "${{ needs.site.result }}" = "success"
           test "${{ needs.public-scope.result }}" = "success"

@@ -58,6 +58,7 @@ Nothing is named `usage`, the PRD's old working name.
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
 | `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, and `release-notes.sh`, which takes a release's notes from `CHANGELOG.md` |
 | `CHANGELOG.md` | Every change people will notice, newest first, in Keep a Changelog form |
+| `site/` | The website's Cloudflare Pages project. For now its function, `POST /api/key`, which turns a paid Lemon Squeezy receipt's key into a QuotaDial licence key (`docs/LICENSING.md`), in TypeScript run by Node 22 |
 | `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, and the licence key format |
 
 ## Conventions
@@ -110,6 +111,7 @@ scripts/public-prd.sh --check                           # the public-copy check 
 scripts/update-prices.sh                                # before tagging a release: refresh crates/cost/prices.json from models.dev, review the diff, commit
 scripts/release-notes.sh 0.3.0                          # the notes the Release workflow puts on v0.3.0, from CHANGELOG.md
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
+(cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)
 ```
 

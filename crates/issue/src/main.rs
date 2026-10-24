@@ -17,7 +17,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand};
-use quotadial_core::licence::{self, KeyError, Licence, Plan, QUOTADIAL, TEST_SEED};
+use quotadial_core::licence::{self, ISSUER, KeyError, Licence, Plan, QUOTADIAL, TEST_SEED};
 use zeroize::Zeroizing;
 
 /// Make QuotaDial's licence signing key, or sign a licence key with it.
@@ -35,7 +35,8 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Make a new signing key, in a file readable only by you, and print its public half. A key
-    /// that is there already is never replaced.
+    /// that is there already is never replaced. QuotaDial has two: the root key, offline, and the
+    /// issuing key the website signs with (`--key-file .../issuing-key.pem`).
     Keygen,
     /// Print the signing key's public half, as base64 and as the bytes crates/core keeps.
     Public,
@@ -55,7 +56,7 @@ enum Command {
         #[arg(long)]
         test: bool,
     },
-    /// Say what a licence key holds, and whether QuotaDial's key or the test key signed it.
+    /// Say what a licence key holds, and which of QuotaDial's keys, or the test key, signed it.
     Check {
         /// The key.
         key: String,
@@ -128,8 +129,8 @@ fn keygen(path: &Path) -> Result<[u8; 32], String> {
     Ok(licence::public_key(&seed))
 }
 
-/// The licence key for `id`, signed with `seed`, refusing a signing key that is not QuotaDial's or
-/// the test key, since keys it signed would not check out.
+/// The licence key for `id`, signed with `seed`, refusing a signing key that is not one QuotaDial
+/// carries (the root or the issuing key) or the test key, since keys it signed would not check out.
 fn sign(
     seed: &[u8; 32],
     id: String,
@@ -137,7 +138,7 @@ fn sign(
     until: Option<NaiveDate>,
 ) -> Result<String, String> {
     let public = licence::public_key(seed);
-    if public != QUOTADIAL && public != licence::public_key(&TEST_SEED) {
+    if ![QUOTADIAL, ISSUER, licence::public_key(&TEST_SEED)].contains(&public) {
         return Err(
             "this signing key is not the one QuotaDial carries, so keys it signed would not check \
              out. `quotadial-issue public` prints the bytes for crates/core/src/licence.rs."
@@ -162,7 +163,8 @@ fn sign(
 /// What `key` holds and who signed it, or why it holds nothing.
 fn check(key: &str) -> String {
     let signer = [
-        ("QuotaDial's key", QUOTADIAL),
+        ("QuotaDial's root key", QUOTADIAL),
+        ("QuotaDial's issuing key", ISSUER),
         (
             "the test key, which only debug builds trust",
             licence::public_key(&TEST_SEED),
@@ -199,12 +201,15 @@ fn describe(public: &[u8; 32]) -> String {
         })
         .collect();
     let carried = if *public == QUOTADIAL {
-        "QuotaDial carries this key."
+        "This is QuotaDial's root key, which QuotaDial carries as QUOTADIAL."
+    } else if *public == ISSUER {
+        "This is QuotaDial's issuing key, which QuotaDial carries as ISSUER."
     } else {
-        "QuotaDial does not carry this key yet: put these bytes in crates/core/src/licence.rs."
+        "QuotaDial carries neither: put these bytes in crates/core/src/licence.rs, as QUOTADIAL \
+         for the root key or ISSUER for the issuing key."
     };
     format!(
-        "Public half (base64): {}\nconst QUOTADIAL: [u8; 32] = [\n{}\n];\n{carried}",
+        "Public half (base64): {}\nAs bytes: [\n{}\n]\n{carried}",
         STANDARD.encode(public),
         rows.join("\n")
     )
@@ -338,6 +343,8 @@ mod tests {
                 .expect_err("refused")
                 .contains("not the one QuotaDial carries")
         );
+        assert!(describe(&ISSUER).contains("QuotaDial's issuing key"));
+        assert!(describe(&QUOTADIAL).contains("QuotaDial's root key"));
     }
 
     #[test]

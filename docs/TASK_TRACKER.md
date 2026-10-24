@@ -69,11 +69,10 @@ M5, licensing and release: the manager approved the plan in #49 on 2026-10-24, w
 queue, by its numbers:
 - 1, licence keys (D-099), merged (PR #55);
 - 2, the Free and Pro gates (D-100), merged (PR #56);
-- 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md` (D-101), in review (PR #57);
-- 4, checkout in Lemon Squeezy's test mode, with the signing step decided on #54: a Pages Function
-  signs with a second, online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on
-  Matt's Mac), reached from the receipt's `#licence=` link, and the ended-licence sentence then
-  names where a new key comes from (the review of PR #55);
+- 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md` (D-101), merged (PR #57);
+- 4, the key page's function, decided on #54 (D-102), in review (PR #58): it signs with a second,
+  online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
+  from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
 - 5, the website in `site/`, built but not deployed, and the shareable image;
 - 6, signing and updates, each turning on when its secrets exist;
 - 7 to 12, hardening: resilience, security, accessibility, the OpenAPI spec, package managers, and
@@ -147,7 +146,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | --- | --- | --- |
 | 1: licence keys | Done (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
 | 2: Free and Pro | Done (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
-| 3: help and feedback | In review (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
+| 3: help and feedback | Done (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
+| 4: the key page's function | In review (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
 
 ## Kickoff
 
@@ -333,6 +333,29 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 PR 4: the key page's function (D-102)
+
+- **Two keys:** `quotadial-issue keygen --key-file .../issuing-key.pem` made the issuing key on
+  Matt's Mac beside the root key. Core trusts `QUOTADIAL` and `ISSUER` (and the test key in a debug
+  build); `quotadial-issue sign` takes either, and `public` and `check` name which it is.
+- **Core:** `KeyError::OrderKey` for a pasted Lemon Squeezy key (a UUID), which says the receipt's
+  link gives QuotaDial's key; the ended-licence sentence now names the renewal at
+  `quotadial.com/pro` (the review of PR #55).
+- **The function** (`site/`): `lib/licence.ts` signs as `crates/core` does (alphabetical JSON with
+  no spaces, `QD1.` signed with it, base64url) and reads the PKCS #8 file `keygen` writes;
+  `lib/lemonsqueezy.ts` posts to `/v1/licenses/validate` as a form, follows no redirect, and reads
+  the documented answer, treating 5xx and a failed fetch as unreachable and an odd body as
+  unreadable; `lib/key.ts` checks the configuration, the key's shape (a UUID, before any request),
+  `valid`, the status (`inactive` or `active`), the store and product, and the dates, then signs;
+  `functions/api/key.ts` takes `{ "licence" }` and answers JSON with `Cache-Control: no-store`.
+- **Tests:** 10 under Node's test runner, with Lemon Squeezy's documented answer as the fixture
+  (`site/test/fixtures/README.md`) and the test key: the documented keys byte for byte, the same
+  key for the same receipt, a new `inactive` key and one that does not end, every refusal, no
+  request for text that is not a receipt's key, an unset environment, and the function's headers.
+  `tsc` checks the types with TypeScript 7.0.2, as the app's window does.
+- **Docs:** `docs/LICENSING.md` (the two keys, the key page, its environment and rate limit, if the
+  issuing key leaks, changing the root key), the changelog, AGENTS.md and D-102.
 
 ### M5 PR 3: help and feedback (D-101)
 

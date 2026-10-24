@@ -115,16 +115,23 @@ fn a_key_can_be_piped_in_wrapped_or_given_in_pieces() {
 fn a_key_that_gives_nothing_is_refused_with_the_fix() {
     let data = data_dir("refused");
 
-    let refused = quotadial(
-        &["licence", "add", "80e15db5-c796-436b-850c-8f9c98a48abe"],
-        &data,
-        None,
-    );
+    let refused = quotadial(&["licence", "add", "hello"], &data, None);
     assert_eq!(refused.status.code(), Some(1));
     assert_eq!(
         text(&refused.stderr),
         "quotadial: That isn't a QuotaDial licence key, which starts with QD1. Copy the whole key \
          from the email it came in.\n"
+    );
+    let order = quotadial(
+        &["licence", "add", "80e15db5-c796-436b-850c-8f9c98a48abe"],
+        &data,
+        None,
+    );
+    assert_eq!(order.status.code(), Some(1));
+    assert!(
+        text(&order.stderr).contains("your order's key from the receipt"),
+        "{}",
+        text(&order.stderr)
     );
 
     let cut = key("cli-3");
