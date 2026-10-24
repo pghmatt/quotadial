@@ -21,11 +21,19 @@ use crate::Tier;
 /// What every key starts with: QuotaDial's first key format.
 pub const PREFIX: &str = "QD1";
 
-/// The public half of the key QuotaDial's licences are signed with. Its private half is kept off
-/// this repository, by whoever issues keys (`docs/LICENSING.md`).
+/// The public half of QuotaDial's root key. Its private half stays offline, on Matt's Mac and in
+/// his password manager, and signs only by hand (`docs/LICENSING.md`).
 pub const QUOTADIAL: [u8; 32] = [
     0x08, 0x30, 0x07, 0x67, 0xee, 0xdd, 0xbd, 0xfc, 0xf2, 0x61, 0xb5, 0xa8, 0x74, 0xb5, 0xe4, 0xac,
     0x01, 0x67, 0xb1, 0x56, 0x14, 0x19, 0x7c, 0xf5, 0x80, 0xe2, 0x93, 0x9a, 0x69, 0xf9, 0x69, 0x91,
+];
+
+/// The public half of QuotaDial's issuing key, which the website's key page signs with (#54). Its
+/// private half lives online, as the page's secret, so it is the one most likely to leak: a release
+/// that drops it, with a new issuing key beside the root, ends what a leaked one signed.
+pub const ISSUER: [u8; 32] = [
+    0x92, 0x71, 0x03, 0x90, 0x9c, 0x8d, 0xc7, 0x29, 0x93, 0x1e, 0x1b, 0xdc, 0xe9, 0xcf, 0x5a, 0x3f,
+    0x58, 0x75, 0xa9, 0x2c, 0x5a, 0xc3, 0xf9, 0xd1, 0x1b, 0x27, 0xa6, 0x3b, 0xbe, 0x3f, 0xa1, 0x38,
 ];
 
 /// The private half of the test key, public on purpose: tests sign licences with it, and only a
@@ -67,6 +75,9 @@ pub enum Plan {
 pub enum KeyError {
     /// The text is not a QuotaDial key at all.
     NotAKey,
+    /// The text is the key from a Lemon Squeezy receipt, which the key page turns into
+    /// QuotaDial's.
+    OrderKey,
     /// The signature does not match: part of the key is missing or changed, or QuotaDial did not
     /// issue it.
     DoesNotCheckOut,
@@ -80,6 +91,10 @@ impl fmt::Display for KeyError {
             Self::NotAKey => {
                 "That isn't a QuotaDial licence key, which starts with QD1. Copy the whole key from \
                  the email it came in."
+            }
+            Self::OrderKey => {
+                "That is your order's key from the receipt. Its \"Get your QuotaDial key\" link \
+                 gives the QuotaDial licence key, which starts with QD1."
             }
             Self::DoesNotCheckOut => {
                 "That licence key doesn't check out, so part of it may be missing. Copy the whole \
@@ -125,6 +140,9 @@ impl Licence {
         let key = clean(key);
         let mut parts = key.split('.');
         let format = parts.next().unwrap_or_default();
+        if order_key(&key) {
+            return Err(KeyError::OrderKey);
+        }
         if !format.eq_ignore_ascii_case(PREFIX) {
             let bytes = format.as_bytes();
             let later = bytes.len() > 2
@@ -269,9 +287,10 @@ impl Standing {
                 Some(until) if !licence.holds_on(today) => Self {
                     tier: Tier::Free,
                     text: format!(
-                        "QuotaDial Free: licence {} ended on {until}. A new key brings QuotaDial \
-                         Pro back.",
-                        licence.id
+                        "QuotaDial Free: licence {} ended on {until}. Renewing it at {} gives a \
+                         new key.",
+                        licence.id,
+                        crate::PRO_URL
                     ),
                     licence: Some(licence),
                 },
@@ -290,7 +309,7 @@ impl Standing {
                 "QuotaDial Free: its licence key is for a newer QuotaDial. Update QuotaDial to use \
                  it.",
             ),
-            Err(KeyError::NotAKey | KeyError::DoesNotCheckOut) => free(
+            Err(KeyError::NotAKey | KeyError::OrderKey | KeyError::DoesNotCheckOut) => free(
                 "QuotaDial Free: its licence key doesn't check out. Copy the key again from the \
                  email it came in, all of it, and add it again.",
             ),
@@ -322,9 +341,20 @@ impl Standing {
     }
 }
 
-/// The keys a licence may be signed with: QuotaDial's, and in a debug build the test key.
+/// Whether `key` has the shape of a Lemon Squeezy licence key: a UUID, as 8, 4, 4, 4 and 12 hex
+/// digits joined by dashes.
+fn order_key(key: &str) -> bool {
+    let groups: Vec<&str> = key.split('-').collect();
+    groups.len() == 5
+        && groups.iter().zip([8, 4, 4, 4, 12]).all(|(group, length)| {
+            group.len() == length && group.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+}
+
+/// The keys a licence may be signed with: QuotaDial's root and issuing keys, and in a debug build
+/// the test key.
 fn trusted() -> Vec<[u8; 32]> {
-    let mut keys = vec![QUOTADIAL];
+    let mut keys = vec![QUOTADIAL, ISSUER];
     if cfg!(debug_assertions) {
         keys.push(public_key(&TEST_SEED));
     }
@@ -444,7 +474,7 @@ mod tests {
             "",
             "   ",
             "hello",
-            "80e15db5-c796-436b-850c-8f9c98a48abe",
+            "80e15db5-c796-436b-850c-8f9c98a48ab",
             "QD.abc.def",
             "QDX.abc.def",
             // Characters of more than one byte where the format's digits would be, which once
@@ -462,6 +492,25 @@ mod tests {
         assert_eq!(
             Licence::verify_with("QD2.abc.def", &[test_key()]),
             Err(KeyError::Newer)
+        );
+    }
+
+    #[test]
+    fn a_receipt_s_order_key_says_where_quotadial_s_key_is() {
+        for pasted in [
+            "38b1460a-5104-4067-a91d-77b872934d51",
+            " 38B1460A-5104-4067-A91D-77B872934D51\n",
+        ] {
+            assert_eq!(
+                Licence::verify_with(pasted, &[test_key()]),
+                Err(KeyError::OrderKey),
+                "{pasted:?}"
+            );
+        }
+        assert!(
+            KeyError::OrderKey
+                .to_string()
+                .contains("Get your QuotaDial key")
         );
     }
 
@@ -528,8 +577,8 @@ mod tests {
         assert_eq!(ended.licence, Some(licence(Some("2026-10-31"))));
         assert_eq!(
             ended.text,
-            "QuotaDial Free: licence ls-1234 ended on 2026-10-31. A new key brings QuotaDial Pro \
-             back."
+            "QuotaDial Free: licence ls-1234 ended on 2026-10-31. Renewing it at quotadial.com/pro \
+             gives a new key."
         );
 
         let damaged = standing(Some("QD1.abc.def"));
@@ -653,11 +702,16 @@ mod tests {
     }
 
     #[test]
-    fn quotadials_key_is_a_sound_public_key() {
-        let key = VerifyingKey::from_bytes(&QUOTADIAL).expect("a point on the curve");
-
-        assert!(!key.is_weak());
-        assert_ne!(QUOTADIAL, test_key());
+    fn quotadials_keys_are_sound_public_keys() {
+        for public in [QUOTADIAL, ISSUER] {
+            let key = VerifyingKey::from_bytes(&public).expect("a point on the curve");
+            assert!(!key.is_weak());
+            assert_ne!(public, test_key());
+        }
+        assert_ne!(
+            QUOTADIAL, ISSUER,
+            "the root and the issuing key are two keys"
+        );
     }
 
     /// CI runs this in a release build too (`cargo test --release`), where the test key must not
@@ -666,7 +720,7 @@ mod tests {
     fn only_a_debug_build_trusts_the_test_key() {
         let trusted = trusted();
 
-        assert_eq!(trusted[0], QUOTADIAL);
+        assert_eq!(trusted[..2], [QUOTADIAL, ISSUER]);
         assert_eq!(trusted.contains(&test_key()), cfg!(debug_assertions));
         let tested = licence(None).sign(&TEST_SEED);
         assert_eq!(Licence::verify(&tested).is_ok(), cfg!(debug_assertions));
