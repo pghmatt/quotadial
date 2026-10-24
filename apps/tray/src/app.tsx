@@ -98,6 +98,13 @@ function Contents({ meter }: { meter: Meter }) {
           </ul>
         </section>
       )}
+      {accounts && meter.left_out.length > 0 && (
+        <section class="left-out" aria-label="Part of QuotaDial Pro">
+          {meter.left_out.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </section>
+      )}
       {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
       <footer>
         <p class="origin">{meter.origin ?? ""}</p>

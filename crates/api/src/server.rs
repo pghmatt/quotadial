@@ -1,5 +1,7 @@
 //! The daemon's HTTP server, bound to `127.0.0.1` only: `GET /v1/status`, `GET /v1/headroom`,
-//! `GET /v1/history` (D-095), and the alert rules at `/v1/alerts` (D-093).
+//! `GET /v1/history` (D-095), and the alert rules at `/v1/alerts` (D-093). Status and history read
+//! the same on every copy; headroom and the alert rules are QuotaDial Pro's, and a Free copy
+//! answers them with 403 and one line naming the feature (D-100).
 //!
 //! Every request must carry the bearer token and be addressed to `127.0.0.1` or `localhost` at the
 //! API's own port. The token keeps other users and web pages from reading usage or changing rules;
@@ -19,8 +21,10 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, patch};
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::StatusReport;
-use quotadial_daemon::{AddError, Alerts, History, HistoryError, Latest, Series, SeriesQuery};
+use quotadial_core::{ProFeature, StatusReport};
+use quotadial_daemon::{
+    AddError, Alerts, History, HistoryError, Latest, Licensing, Series, SeriesQuery,
+};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::net::TcpListener;
@@ -36,6 +40,7 @@ struct AppState {
     history: Arc<History>,
     token: Token,
     port: u16,
+    licensing: Licensing,
 }
 
 /// Listens on `127.0.0.1:port`; port 0 lets the operating system choose.
@@ -47,7 +52,8 @@ pub async fn bind(port: u16) -> io::Result<TcpListener> {
     TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await
 }
 
-/// Serves the API on `listener` from `latest` and `history` until `shutdown` completes.
+/// Serves the API on `listener` from `latest` and `history`, doing what `licensing` allows, until
+/// `shutdown` completes.
 ///
 /// # Errors
 ///
@@ -57,6 +63,7 @@ pub async fn serve(
     latest: Latest,
     history: Arc<History>,
     token: Token,
+    licensing: Licensing,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
     let port = listener.local_addr()?.port();
@@ -65,6 +72,7 @@ pub async fn serve(
         history,
         token,
         port,
+        licensing,
     });
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
@@ -72,23 +80,50 @@ pub async fn serve(
 }
 
 fn router(state: AppState) -> Router {
+    let pro = |feature| middleware::from_fn_with_state((state.clone(), feature), pro_only);
     Router::new()
         .route("/v1/status", get(status).fallback(only_reads))
-        .route("/v1/headroom", get(headroom).fallback(only_reads))
+        .route(
+            "/v1/headroom",
+            get(headroom)
+                .fallback(only_reads)
+                .route_layer(pro(ProFeature::Headroom)),
+        )
         .route("/v1/history", get(history).fallback(only_reads))
         .route(
             "/v1/alerts",
-            get(alerts).post(add_alert).fallback(alerts_methods),
+            get(alerts)
+                .post(add_alert)
+                .fallback(alerts_methods)
+                .route_layer(pro(ProFeature::RulesApi)),
         )
         .route(
             "/v1/alerts/{id}",
             patch(set_alert)
                 .delete(remove_alert)
-                .fallback(alert_methods),
+                .fallback(alert_methods)
+                .route_layer(pro(ProFeature::RulesApi)),
         )
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(state.clone(), guard))
         .with_state(state)
+}
+
+/// Lets a request through to a QuotaDial Pro feature only on a copy that has it. A Free copy
+/// answers 403, naming the feature in `pro_feature`, with the line that says where Pro is.
+async fn pro_only(
+    State((state, feature)): State<(AppState, ProFeature)>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if state.licensing.allows(feature) {
+        return next.run(request).await;
+    }
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({ "error": feature.line(), "pro_feature": feature })),
+    )
+        .into_response()
 }
 
 /// Lets through only requests to this API's own address that carry its token.
@@ -215,10 +250,11 @@ async fn add_alert(
             "Send the rule in plain words as JSON, such as {\"rule\": \"warn me at 80%\"}.",
         );
     };
-    let history = Arc::clone(&state.history);
-    match tokio::task::spawn_blocking(move || history.add_rule(&rule, Utc::now())).await {
+    let (history, tier) = (Arc::clone(&state.history), state.licensing.tier());
+    match tokio::task::spawn_blocking(move || history.add_rule(&rule, Utc::now(), tier)).await {
         Ok(Ok(added)) => (StatusCode::CREATED, Json(added)).into_response(),
         Ok(Err(AddError::Unread(message))) => error(StatusCode::BAD_REQUEST, &message),
+        Ok(Err(AddError::Pro)) => error(StatusCode::FORBIDDEN, &ProFeature::AlertRules.line()),
         Ok(Err(AddError::History(error))) => unreadable(&error),
         Err(_) => stopped(),
     }

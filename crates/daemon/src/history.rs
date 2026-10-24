@@ -289,7 +289,18 @@ impl History {
     ///
     /// When the database cannot be written.
     pub fn prune(&self, now: DateTime<Utc>) -> Result<usize, HistoryError> {
-        let before = timestamp(now - chrono::TimeDelta::days(i64::from(self.keep_days)));
+        self.prune_to(now, self.keep_days)
+    }
+
+    /// Deletes what is older than `days` before `now`, as the daemon does on QuotaDial Free, which
+    /// keeps at most 30 days whatever the setting says. Returns how many snapshots went.
+    ///
+    /// # Errors
+    ///
+    /// When the database cannot be written.
+    pub fn prune_to(&self, now: DateTime<Utc>, days: u32) -> Result<usize, HistoryError> {
+        let before =
+            timestamp(now - chrono::TimeDelta::days(i64::from(days.clamp(1, MAX_KEEP_DAYS))));
         let connection = self.lock();
         connection.execute(
             "DELETE FROM readings WHERE fetched_at < ?1",

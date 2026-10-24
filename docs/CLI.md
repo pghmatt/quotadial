@@ -43,7 +43,9 @@ session logs stand in, marked as coming from them.
 ## Accounts
 
 QuotaDial shows every subscription whose sign-in is stored on the machine, not only the one the
-current shell would use. Each account has its own floor, cache and history.
+current shell would use. Each account has its own floor, cache and history. QuotaDial Free shows
+one account per provider, the one the current shell would use, and names how many more there are
+(see QuotaDial Free and Pro).
 
 - **Claude.** First the sign-in Claude Code would use here: `CLAUDE_CODE_OAUTH_TOKEN` when it is
   set, or else the one for `CLAUDE_CONFIG_DIR`, or for `~/.claude` when that is not set. Then every
@@ -99,10 +101,10 @@ apply. A change applies the next time a command, the daemon or the app starts.
 | Setting | Meaning |
 | --- | --- |
 | `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them: full paths, or paths starting with `~` for the home folder. A folder ending in `/*` adds every folder inside it. An entry that is not a full path is left out, with a warning in `errors`. None by default |
-| `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default |
-| `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts). Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
-| `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message. None by default |
-| `history_days` | How many days of history the daemon keeps, from 1 to 365. 30 by default |
+| `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default on QuotaDial Pro, and one on QuotaDial Free |
+| `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts), on QuotaDial Pro. Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
+| `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message, on QuotaDial Pro. None by default |
+| `history_days` | How many days of history the daemon keeps, from 1 to 365. 30 by default. QuotaDial Free keeps at most 30 |
 | `status_pages` | `false` stops the daemon reading the providers' status pages. On by default |
 | `cost_scan` | `false` stops the daemon reading Claude Code's and the Codex CLI's session logs for the week's cost. On by default |
 
@@ -158,6 +160,11 @@ Added alert rule 3. QuotaDial reads it as: when a Claude weekly window reaches 8
 | A sign-in | `tell me when an account needs to sign in again` | When an account's sign-in needs renewing, and again only after it has worked in between |
 | An incident | `tell me when claude has an incident`, `warn me about outages` | When a provider's status page reports an incident (not planned maintenance), once for each incident |
 
+A share used, a reset and a sign-in are QuotaDial Free's. Running out, a time before a reset and an
+incident are QuotaDial Pro's: on a Free copy `alerts add` refuses them with the line that says so,
+and one added on Pro waits, marked `(waits for Pro)` in `quotadial alerts` and Settings, until a
+licence is added again.
+
 A rule covers every window of every account unless it names:
 - a provider: `claude` or `codex` (`anthropic`, `chatgpt` and `openai` work too);
 - a window: `session`, `weekly` or `daily` for that kind of window, a model such as `opus` or
@@ -199,7 +206,9 @@ How rules are checked:
 - The rules live in the history in the data directory. `quotadial alerts` changes them there
   whether or not the daemon runs, and the daemon reads them again at its next check.
 
-The daemon also sends each alert to the webhooks in `config.json` (see Settings):
+On QuotaDial Pro, the daemon also sends each alert to the webhooks in `config.json` (see Settings).
+On QuotaDial Free alerts go only to the system's notifications, and `quotadial alerts`, Settings and
+the daemon say so where they would name the webhooks.
 - A webhook in `alert_webhooks` gets a JSON `POST` with only the alert: `provider`, `account` (the
   display name), `window`, `used_pct`, `resets_at`, `title`, `text` and `fired_at`. Never a token,
   an account id or where a sign-in is kept.
@@ -228,8 +237,8 @@ this off.
 
 ## The week's cost
 
-While the daemon runs, it works out what the last 7 days of local use would have cost at each
-provider's API prices: every model request in Claude Code's and the Codex CLI's session logs,
+On QuotaDial Pro, while the daemon runs, it works out what the last 7 days of local use would have
+cost at each provider's API prices: every model request in Claude Code's and the Codex CLI's session logs,
 priced from a table that comes with each release. It reads the logs of the providers it has
 accounts with, every 10 minutes, and makes no request to anyone. `"cost_scan": false` in
 `config.json` turns this off.
@@ -257,8 +266,9 @@ accounts with, every 10 minutes, and makes no request to anyone. `"cost_scan": f
 
 ## History
 
-The daemon keeps every reading of every window for 30 days, or as many as `history_days` says,
-up to a year. `quotadial history` reads it, whether or not the daemon is running:
+The daemon keeps every reading of every window for 30 days, or on QuotaDial Pro as many as
+`history_days` says, up to a year. On QuotaDial Free, `quotadial history` asked for more than 30 days
+says why it shows less. `quotadial history` reads it, whether or not the daemon is running:
 
 ```text
 $ quotadial history --since 24h
@@ -281,6 +291,35 @@ The app's **History** button shows each account's windows charted over the last 
 heatmap of when it was used by hour of the day, and an **Export CSV** button that saves the
 readings to the Downloads folder.
 
+## QuotaDial Free and Pro
+
+QuotaDial Free needs no key and has the core of QuotaDial: one account per provider, every window
+with its pace and reset, 30 days of history, alerts for a share used, a reset and a sign-in as the
+system's notifications, the providers' status pages, and read-only status through `quotadial
+status`, `GET /v1/status`, `GET /v1/history` and `get_usage`, so an agent can always read the
+budget. QuotaDial Pro adds:
+
+| Feature | On QuotaDial Free |
+| --- | --- |
+| Every account on the machine | One account per provider, the current shell's; a line says how many more there are |
+| A year of history | 30 days, whatever `history_days` says |
+| Alerts before a window runs out, before a reset, and for incidents | Refused when added; one added on Pro waits |
+| Alerts sent to webhooks and Slack | Alerts go to the system's notifications only |
+| The week's cost at API prices | The logs are not read |
+| Headroom through the local API and MCP | `GET /v1/headroom` answers 403, and `get_account_headroom` a tool error |
+| Alert rules through the local API and MCP | `/v1/alerts` answers 403, and `list_alerts` a tool error |
+
+A Free copy never hides a feature silently: where it would be, one line says what is left out, that
+it is part of QuotaDial Pro, and where Pro is, such as `The week's cost at API prices is part of
+QuotaDial Pro: quotadial.com/pro`. `status` and `watch` print those lines under the accounts and
+where the costs would be, the app shows them under its accounts, and the report carries them as
+`left_out` (see JSON output). Nothing else asks, nags or counts down.
+
+The licence key decides which a copy is, and every process reads it each time it asks, so a key
+added or removed counts without a restart: at once in the app, and within a minute in a daemon
+started with `quotadial daemon`. A licence that ends turns the copy back into QuotaDial Free by
+itself, and its key's Pro features come back when a new key is added.
+
 ## Licence
 
 QuotaDial Free needs no key. A licence key adds QuotaDial Pro: it starts with `QD1.` and comes by
@@ -288,19 +327,23 @@ email when Pro is bought. QuotaDial checks a key on this machine against the pub
 with no network call, each time it reads it (`docs/LICENSING.md`).
 
 ```
-$ quotadial licence add QD1.eyJpZCI6IjEyMzQiLCJpc3N1ZWQiOiIyMDI2LTEwLTI0IiwicGxhbiI6InBybyJ9.…
+$ quotadial licence add
+Paste your licence key, then press Return:
+QD1.eyJpZCI6IjEyMzQiLCJpc3N1ZWQiOiIyMDI2LTEwLTI0IiwicGxhbiI6InBybyJ9.…
 Added the licence key: QuotaDial Pro, licence 1234.
 ```
 
-- With no key given, `licence add` asks for it. A key pasted over several lines, as an email may
-  wrap it, is read until it is whole. A key can be piped in too, as in `pbpaste | quotadial
-  licence add`.
+- `licence add` asks for the key. A key pasted over several lines, as an email may wrap it, is read
+  until it is whole.
+- A key can also be piped in, as in `pbpaste | quotadial licence add`, or given as an argument for
+  a script, though an argument stays in the shell's history.
 - The key is kept in `licence` in the data directory, readable only by you, and replaces any key
   kept before.
 - A key that gives nothing is not kept: the command says why and what to do, and exits with 1.
 - `licence remove` removes the key. `license` works as well as `licence`.
 
-`quotadial licence` says what this copy is in one sentence:
+`quotadial licence` says what this copy is in one sentence and, on QuotaDial Free, lists what Pro
+adds:
 
 | Sentence | When |
 | --- | --- |
@@ -315,9 +358,6 @@ Added the licence key: QuotaDial Pro, licence 1234.
 a licence, even one that has ended, `licence`: its `id`, `plan`, `issued` day and, for a licence
 that ends, `until`.
 
-For now, a copy with no key still has every feature. Which features need Pro comes with the next
-update.
-
 ## The local API
 
 The daemon answers these requests, on `127.0.0.1` only:
@@ -325,9 +365,9 @@ The daemon answers these requests, on `127.0.0.1` only:
 | Request | Answer |
 | --- | --- |
 | `GET /v1/status` | The same report as `status --json` (see JSON output below) |
-| `GET /v1/headroom` | Every account ranked by the room left in its tightest window |
+| `GET /v1/headroom` | Every account ranked by the room left in its tightest window. QuotaDial Pro |
 | `GET /v1/history` | Each window's readings since a time, 7 days ago by default. Takes `since` (RFC 3339), `provider`, `account` and `window` |
-| `GET /v1/alerts` | The alert rules, and what they told in the last week |
+| `GET /v1/alerts` | The alert rules, and what they told in the last week. QuotaDial Pro, as are the three below |
 | `POST /v1/alerts` | Adds a rule sent as `{ "rule": "warn me at 80%" }`. 201 with the rule, or 400 with what the grammar could not read |
 | `PATCH /v1/alerts/<id>` | Turns a rule on or off, sent as `{ "enabled": false }`. 200 with the rule, or 404 |
 | `DELETE /v1/alerts/<id>` | Removes a rule. 204, or 404 |
@@ -337,7 +377,10 @@ Every request needs the token from the `token` file in the data directory, as
 only the user can read, and keeps it across restarts. A request without it, or with another, gets
 401. A request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` gets 403, so a web page
 cannot reach the API by pointing a name of its own at `127.0.0.1`. Errors are JSON, such as
-`{ "error": "..." }`, with 404 for any other path and 405 for any other method.
+`{ "error": "..." }`, with 404 for any other path and 405 for any other method. On QuotaDial Free,
+headroom and the alert rules answer 403 with the line that says so and the feature, as
+`{ "error": "Headroom through the local API and MCP is part of QuotaDial Pro: quotadial.com/pro",
+"pro_feature": "headroom" }`; status and history answer on every copy.
 
 On macOS, for example:
 
@@ -461,8 +504,11 @@ Its three tools only read:
 | Tool | Answer |
 | --- | --- |
 | `get_usage` | The same report as `status --json` |
-| `get_account_headroom` | The same ranking as `GET /v1/headroom` |
-| `list_alerts` | The same as `GET /v1/alerts`: the alert rules, and what they told in the last week |
+| `get_account_headroom` | The same ranking as `GET /v1/headroom`. QuotaDial Pro |
+| `list_alerts` | The same as `GET /v1/alerts`: the alert rules, and what they told in the last week. QuotaDial Pro |
+
+On QuotaDial Free the two Pro tools answer with a tool error that names the feature and says that
+`get_usage` gives every window, with its reset, on any copy.
 
 `get_usage` and `get_account_headroom` take an optional `provider`, `claude` or `codex`, that limits
 the answer to that provider's accounts. Each answer comes as JSON text and, for agents that speak
@@ -511,6 +557,9 @@ codex user@example.com (pro): stale
   "Run `claude` to sign in again."
 - A provider that produced nothing at all shows as `error: <provider>: <what happened>`, which also
   names the fix or when QuotaDial tries again.
+- On QuotaDial Free, a line under the accounts says how many more a provider has on the machine,
+  and one where the costs would be says the week's cost is part of QuotaDial Pro. With no daemon
+  running, the pace line then leaves out the costs.
 
 `watch` clears the terminal before each refresh and ends with when it was updated and how often
 each provider is asked. Piped into another program, and on Windows, it prints each refresh after
@@ -593,6 +642,7 @@ the last, without escape codes.
 | `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts, each with a message that names the fix |
 | `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
 | `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
+| `left_out[]` | What this copy leaves out because it is QuotaDial Free (see QuotaDial Free and Pro): each with `feature` (`accounts` or `cost_scan`), `provider` for the accounts a provider held back, and `text`, the line that says so, such as `8 more Claude accounts are on this machine. Showing every account is part of QuotaDial Pro: quotadial.com/pro`. Left out on QuotaDial Pro |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 

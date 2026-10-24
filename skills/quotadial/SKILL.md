@@ -27,6 +27,9 @@ Use the first of these that is available:
    - `get_usage` returns every limit.
    - `list_alerts` returns the user's alert rules and what they told in the last week.
    - The first two take an optional `provider`, `claude` or `codex`.
+   - On QuotaDial Free, `get_account_headroom` and `list_alerts` answer with an error saying they
+     are part of QuotaDial Pro. Then call `get_usage` and find the tightest window yourself, as
+     "Headroom" below describes; `get_usage` works on every copy.
 2. **The CLI**: `quotadial status --json`, the same report as `get_usage`. It works whether or not
    the QuotaDial daemon is running. It is the CLI's only command for this, so with the CLI, find
    the tightest window yourself, as "Headroom" below describes.
@@ -43,9 +46,13 @@ runs, `daemon.json` in QuotaDial's data folder holds the port it chose. Three re
 | Request | Answer |
 | --- | --- |
 | `GET /v1/status` | The usage report (see below) |
-| `GET /v1/headroom` | The accounts ranked by headroom (see below) |
-| `GET /v1/alerts` | The user's alert rules, and what they told in the last week |
+| `GET /v1/headroom` | The accounts ranked by headroom (see below). QuotaDial Pro |
+| `GET /v1/alerts` | The user's alert rules, and what they told in the last week. QuotaDial Pro |
 | `GET /v1/history` | Each window's readings since `since` (RFC 3339, 7 days by default), to see how fast use usually goes |
+
+On QuotaDial Free, the two Pro requests answer 403 with `{ "error": "...", "pro_feature":
+"headroom" }`; use `GET /v1/status` instead. A report from a Free copy may also carry `left_out`,
+lines naming what the copy leaves out, such as more accounts on the machine.
 
 The API can also add, change and remove alert rules (`POST /v1/alerts`, `PATCH` and `DELETE`
 `/v1/alerts/<id>`). They are the user's: change them only when the user asks you to.

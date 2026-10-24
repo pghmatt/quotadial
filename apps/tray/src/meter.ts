@@ -15,6 +15,8 @@ export interface Meter {
   origin: string | null;
   /** What each provider's week would have cost at API prices, while the daemon reads the logs. */
   costs: Cost[];
+  /** What this copy leaves out because it is QuotaDial Free, a line each. */
+  left_out: string[];
 }
 
 /** What a provider's week would have cost at API prices. */
@@ -97,6 +99,8 @@ export interface LicenceView {
   text: string;
   /** Whether a key is kept, which Settings then offers to remove. */
   kept: boolean;
+  /** On QuotaDial Free, what Pro adds, one feature each; empty on Pro. */
+  adds: string[];
 }
 
 export interface AlertChoice {
@@ -106,6 +110,8 @@ export interface AlertChoice {
   /** What QuotaDial read it as, such as "when any window reaches 80%". */
   read_as: string;
   enabled: boolean;
+  /** Whether it waits for QuotaDial Pro: a kind of rule only Pro checks, on QuotaDial Free. */
+  waits: boolean;
 }
 
 export interface AccountChoice {

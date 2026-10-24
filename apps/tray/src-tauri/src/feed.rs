@@ -9,7 +9,7 @@ use std::time::Duration;
 use quotadial_api::{DEFAULT_PORT, Host, HostError, client};
 use quotadial_core::{Provider, StatusReport};
 use quotadial_daemon::DataDir;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 
 /// What the app learns.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,13 +51,15 @@ impl Default for Timing {
     }
 }
 
-/// Runs until `quit` turns true, sending every [`Update`] to `send`. When it returns, the daemon it
-/// ran, if any, has stopped and released its lock.
+/// Runs until `quit` turns true, sending every [`Update`] to `send`. `licence_changed` is notified
+/// when Settings adds or removes a licence key, so a daemon the app runs acts on it at once (D-100).
+/// When it returns, the daemon it ran, if any, has stopped and released its lock.
 pub async fn run(
     dir: DataDir,
     providers: impl Fn() -> Vec<Arc<dyn Provider>>,
     send: impl Fn(Update),
     timing: Timing,
+    licence_changed: Arc<Notify>,
     mut quit: watch::Receiver<bool>,
 ) {
     let mut port = DEFAULT_PORT;
@@ -67,7 +69,7 @@ pub async fn run(
         }
         match Host::start(dir.clone(), providers(), port).await {
             Ok(host) => {
-                if host_until_quit(host, &send, &mut quit).await {
+                if host_until_quit(host, &send, &licence_changed, &mut quit).await {
                     return;
                 }
                 // The API stopped on its own. Start again.
@@ -97,6 +99,7 @@ pub async fn run(
 async fn host_until_quit(
     host: Host,
     send: &impl Fn(Update),
+    licence_changed: &Notify,
     quit: &mut watch::Receiver<bool>,
 ) -> bool {
     send(Update::Role(Role::Running { port: host.port() }));
@@ -119,6 +122,7 @@ async fn host_until_quit(
                     }
                     send(Update::Fired);
                 }
+                () = licence_changed.notified() => latest.nudge(),
             }
         }
     };
@@ -319,6 +323,7 @@ mod tests {
             fixed(40.0),
             received.sender(),
             quick(),
+            Arc::default(),
             quitting,
         ));
 
@@ -356,6 +361,7 @@ mod tests {
             fixed(75.0),
             received.sender(),
             quick(),
+            Arc::default(),
             quitting,
         ));
 
@@ -382,6 +388,7 @@ mod tests {
             fixed(95.0),
             received.sender(),
             quick(),
+            Arc::default(),
             quitting,
         ));
 
@@ -410,6 +417,7 @@ mod tests {
             fixed(40.0),
             received.sender(),
             quick(),
+            Arc::default(),
             quitting,
         ));
 

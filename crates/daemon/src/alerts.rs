@@ -13,7 +13,7 @@
 
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{
-    Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Window, text, tier,
+    Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Tier, Window, text,
 };
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
@@ -164,15 +164,24 @@ impl History {
             .collect())
     }
 
-    /// Reads `written` as a rule and keeps it, on. Its condition is told the next time it holds,
-    /// already holding or not.
+    /// Reads `written` as a rule and keeps it, on, on a copy with `tier`. Its condition is told
+    /// the next time it holds, already holding or not.
     ///
     /// # Errors
     ///
-    /// [`AddError::Unread`] when the grammar cannot read it, with the forms it reads, or
+    /// [`AddError::Unread`] when the grammar cannot read it, with the forms it reads,
+    /// [`AddError::Pro`] for a kind of rule QuotaDial Free does not check, or
     /// [`AddError::History`] when the database cannot be written.
-    pub fn add_rule(&self, written: &str, now: DateTime<Utc>) -> Result<StoredRule, AddError> {
+    pub fn add_rule(
+        &self,
+        written: &str,
+        now: DateTime<Utc>,
+        tier: Tier,
+    ) -> Result<StoredRule, AddError> {
         let rule = Rule::parse(written).map_err(|error| AddError::Unread(error.to_string()))?;
+        if needs_pro(&rule.condition) && !tier.allows(ProFeature::AlertRules) {
+            return Err(AddError::Pro);
+        }
         let written = written.trim();
         let id = insert_rule(&self.lock(), written, &rule, false, now)?;
         Ok(StoredRule {
@@ -249,9 +258,10 @@ impl History {
             })?)
     }
 
-    /// Checks every rule that is on against `report` at `now`, and records each occurrence not
-    /// recorded before. Returns the new firings to tell. A quiet rule's first check records what
-    /// already holds without telling it, and then the rule speaks like any other.
+    /// Checks every rule that is on against `report` at `now`, on a copy with `tier`, and records
+    /// each occurrence not recorded before. Returns the new firings to tell. A quiet rule's first
+    /// check records what already holds without telling it, and then the rule speaks like any
+    /// other. On QuotaDial Free a kind of rule only Pro checks waits, said where it is listed.
     ///
     /// # Errors
     ///
@@ -260,10 +270,12 @@ impl History {
         &self,
         report: &StatusReport,
         now: DateTime<Utc>,
+        tier: Tier,
     ) -> Result<Vec<Firing>, HistoryError> {
         let mut told = Vec::new();
         for (stored, quiet) in self.rules_with_quiet()? {
-            if !stored.enabled || !allowed(&stored.rule.condition) {
+            let waits = needs_pro(&stored.rule.condition) && !tier.allows(ProFeature::AlertRules);
+            if !stored.enabled || waits {
                 // The quiet start stands for what held at the upgrade. A rule that was off then
                 // records nothing, and speaks up about what holds when it is turned on, as M3's
                 // switch did.
@@ -469,6 +481,8 @@ impl History {
 pub enum AddError {
     /// The grammar could not read it; the message names the forms it reads.
     Unread(String),
+    /// It is a kind of rule only QuotaDial Pro checks, and this copy is QuotaDial Free.
+    Pro,
     /// The database could not be written.
     History(HistoryError),
 }
@@ -477,6 +491,7 @@ impl std::fmt::Display for AddError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unread(message) => formatter.write_str(message),
+            Self::Pro => formatter.write_str(&ProFeature::AlertRules.line()),
             Self::History(error) => write!(formatter, "the rule could not be saved: {error}"),
         }
     }
@@ -490,13 +505,13 @@ impl From<HistoryError> for AddError {
     }
 }
 
-/// Whether this copy may check rules with `condition` (D-090).
-fn allowed(condition: &Condition) -> bool {
+/// Whether only QuotaDial Pro checks rules with `condition` (D-090): running out before a reset,
+/// a time before a reset, and incidents. A threshold, a reset and a sign-in are QuotaDial Free's.
+#[must_use]
+pub fn needs_pro(condition: &Condition) -> bool {
     match condition {
-        Condition::Threshold { .. } | Condition::Reset | Condition::SignIn => true,
-        Condition::RunsOut | Condition::BeforeReset { .. } | Condition::Incident => {
-            tier().allows(ProFeature::AlertRules)
-        }
+        Condition::Threshold { .. } | Condition::Reset | Condition::SignIn => false,
+        Condition::RunsOut | Condition::BeforeReset { .. } | Condition::Incident => true,
     }
 }
 
@@ -595,6 +610,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         }
     }
 
@@ -610,13 +626,13 @@ mod tests {
         for rule in history.rules().expect("reads") {
             history.remove_rule(rule.id).expect("removes");
         }
-        history.add_rule(written, at(0)).expect("adds");
+        history.add_rule(written, at(0), Tier::Pro).expect("adds");
         (dir, history)
     }
 
     fn told(history: &History, report: &StatusReport, now: i64) -> Vec<String> {
         history
-            .check(report, at(now))
+            .check(report, at(now), Tier::Pro)
             .expect("checks")
             .into_iter()
             .map(|firing| firing.title)
@@ -696,8 +712,12 @@ mod tests {
         let path = dir.path().join("history.db");
         let history = History::open(&path).expect("opens");
         let seen = history.last_firing().expect("reads");
-        history.add_rule("warn me at 50%", at(0)).expect("adds");
-        let fired = history.check(&report(55.0, 0, 300), at(0)).expect("checks");
+        history
+            .add_rule("warn me at 50%", at(0), Tier::Pro)
+            .expect("adds");
+        let fired = history
+            .check(&report(55.0, 0, 300), at(0), Tier::Pro)
+            .expect("checks");
         assert_eq!(fired.len(), 1);
         drop(history);
 
@@ -707,11 +727,61 @@ mod tests {
         assert_eq!(untold, fired);
         assert!(
             reopened
-                .check(&report(56.0, 5, 300), at(5))
+                .check(&report(56.0, 5, 300), at(5), Tier::Pro)
                 .expect("checks")
                 .is_empty(),
             "not recorded twice"
         );
+    }
+
+    #[test]
+    fn free_refuses_a_kind_of_rule_only_pro_checks_and_keeps_its_own() {
+        let (_dir, history) = open();
+
+        for written in [
+            "warn me about outages",
+            "warn me when the weekly window will run out before it resets",
+            "tell me 30 minutes before the session resets",
+        ] {
+            let refused = history.add_rule(written, at(0), Tier::Free);
+            assert!(matches!(refused, Err(AddError::Pro)), "{written}");
+        }
+        assert_eq!(
+            AddError::Pro.to_string(),
+            "Alerts before a window runs out, before a reset, and for provider incidents are \
+             part of QuotaDial Pro: quotadial.com/pro"
+        );
+        for written in [
+            "warn me at 80%",
+            "tell me when codex resets",
+            "tell me when an account needs to sign in again",
+        ] {
+            assert!(
+                history.add_rule(written, at(0), Tier::Free).is_ok(),
+                "{written}"
+            );
+        }
+    }
+
+    #[test]
+    fn on_free_a_pro_rule_waits_and_speaks_when_pro_comes_back() {
+        let (_dir, history) = with_rule("warn me about outages");
+        let mut degraded = report(10.0, 0, 300);
+        degraded.status_pages = vec![quotadial_core::StatusPage {
+            provider: "codex".into(),
+            indicator: quotadial_core::Indicator::Minor,
+            description: "Partial System Degradation".into(),
+            url: "https://status.openai.com".into(),
+            since: Some(at(-5)),
+            checked_at: at(0),
+        }];
+
+        let free = history.check(&degraded, at(0), Tier::Free).expect("checks");
+        assert!(free.is_empty(), "a lapsed licence: the rule waits");
+        assert!(needs_pro(&Condition::Incident));
+        assert!(!needs_pro(&Condition::Reset));
+        let pro = history.check(&degraded, at(5), Tier::Pro).expect("checks");
+        assert_eq!(pro.len(), 1, "Pro again: the incident is told");
     }
 
     #[test]
@@ -882,7 +952,7 @@ mod tests {
         assert_eq!(rule.rule.condition, Condition::Threshold { pct: 50.0 });
 
         let unread = history
-            .add_rule("make it stop", at(0))
+            .add_rule("make it stop", at(0), Tier::Pro)
             .expect_err("not a rule");
         assert!(matches!(&unread, AddError::Unread(message) if message.contains("warn me at 80%")));
 
@@ -921,7 +991,9 @@ mod tests {
     #[test]
     fn firings_go_with_the_rest_of_history_after_thirty_days() {
         let (_dir, history) = with_rule("warn me at 50%");
-        history.check(&report(60.0, 0, 300), at(0)).expect("checks");
+        history
+            .check(&report(60.0, 0, 300), at(0), Tier::Pro)
+            .expect("checks");
 
         history.prune(at(31 * 24 * 60)).expect("prunes");
 

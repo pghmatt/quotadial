@@ -11,9 +11,10 @@ use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
-use quotadial_core::{Indicator, Provider, StatusReport, collect, text};
+use quotadial_core::{Indicator, ProFeature, Provider, StatusReport, Tier, collect, text};
 use quotadial_daemon::{
-    AddError, Alerts, Config, DataDir, History, HistoryError, Series, SeriesQuery, Webhook, licence,
+    AddError, Alerts, Config, DataDir, History, HistoryError, KEEP_DAYS, Licensing, Series,
+    SeriesQuery, Webhook, licence, needs_pro,
 };
 
 /// Track Claude and ChatGPT/Codex usage limits.
@@ -185,7 +186,16 @@ async fn report<P: AsRef<dyn Provider>>(
     {
         return Ok((report, Origin::Daemon));
     }
-    Ok((collect(providers).await, Origin::Direct))
+    // A direct fetch names what QuotaDial Free leaves out as the daemon does: the accounts held
+    // back, and the week's cost, which the daemon would read on QuotaDial Pro.
+    let mut report = collect(providers).await;
+    let cost_scan = dir.map(Config::load).unwrap_or_default().cost_scan;
+    report.left_out = licence::left_out(
+        Licensing::new(dir).tier(),
+        providers,
+        cost_scan && !report.snapshots.is_empty(),
+    );
+    Ok((report, Origin::Direct))
 }
 
 fn status(json: bool) -> ExitCode {
@@ -279,6 +289,7 @@ fn mcp() -> ExitCode {
                 })
                 .map_err(|error| format!("QuotaDial could not read its alert rules: {error}"))
         },
+        Licensing::new(dir.as_ref()),
     ));
     match served {
         Ok(()) => ExitCode::SUCCESS,
@@ -302,6 +313,7 @@ fn alerts(action: AlertsAction) -> ExitCode {
         }
     };
     let now = Utc::now();
+    let tier = Licensing::new(DataDir::from_env().as_ref()).tier();
     let mut stdout = io::stdout().lock();
     let no_rule = |id| {
         eprintln!("quotadial: there is no alert rule {id}; `quotadial alerts` lists them.");
@@ -310,17 +322,17 @@ fn alerts(action: AlertsAction) -> ExitCode {
     let written = match action {
         AlertsAction::List { json } => match history.alerts(now) {
             Ok(alerts) if json => write_json(&alerts, &mut stdout),
-            Ok(alerts) => write_alerts(&alerts, &config(), now, &mut stdout),
+            Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &mut stdout),
             Err(error) => return history_failed(&error),
         },
-        AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now) {
+        AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now, tier) {
             Ok(added) => writeln!(
                 stdout,
                 "Added alert rule {}. QuotaDial reads it as: {}.",
                 added.id, added.rule
             ),
-            Err(AddError::Unread(message)) => {
-                eprintln!("quotadial: {message}");
+            Err(error @ (AddError::Unread(_) | AddError::Pro)) => {
+                eprintln!("quotadial: {error}");
                 return ExitCode::FAILURE;
             }
             Err(AddError::History(error)) => return history_failed(&error),
@@ -365,6 +377,17 @@ fn licence(action: LicenceAction) -> ExitCode {
             let standing = licence::standing(&dir, today);
             if json {
                 write_json(&standing, &mut stdout)
+            } else if standing.tier == Tier::Free {
+                let adds: String = ProFeature::ALL
+                    .iter()
+                    .map(|feature| format!("  {}\n", feature.what()))
+                    .collect();
+                write!(
+                    stdout,
+                    "{}\nQuotaDial Pro, at {}, adds:\n{adds}",
+                    standing.text,
+                    quotadial_core::PRO_URL
+                )
             } else {
                 writeln!(stdout, "{}", standing.text)
             }
@@ -478,7 +501,16 @@ fn history(
     } else if csv {
         quotadial_daemon::write_csv(&series, &mut stdout)
     } else {
-        write_history(&series, since, now, &mut stdout)
+        write_history(&series, since, now, &mut stdout).and_then(|()| {
+            // QuotaDial Free keeps 30 days, so a longer period says why it is shorter.
+            let free =
+                !Licensing::new(DataDir::from_env().as_ref()).allows(ProFeature::LongHistory);
+            if free && now - since > TimeDelta::days(i64::from(KEEP_DAYS)) {
+                writeln!(stdout, "{}", ProFeature::LongHistory.line())
+            } else {
+                Ok(())
+            }
+        })
     };
     match written {
         Ok(()) => ExitCode::SUCCESS,
@@ -605,13 +637,18 @@ fn history_failed(error: &HistoryError) -> ExitCode {
 }
 
 /// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
-/// what they told lately, with where each went.
+/// what they told lately, with where each went. On QuotaDial Free a kind of rule only Pro checks is
+/// marked as waiting, and webhooks are named as Pro's.
 fn write_alerts(
     alerts: &Alerts,
     config: &Config,
+    tier: Tier,
     now: DateTime<Utc>,
     out: &mut impl Write,
 ) -> io::Result<()> {
+    let waits = |rule: &quotadial_daemon::StoredRule| {
+        needs_pro(&rule.rule.condition) && !tier.allows(ProFeature::AlertRules)
+    };
     if alerts.rules.is_empty() {
         writeln!(
             out,
@@ -621,13 +658,21 @@ fn write_alerts(
         writeln!(out, "Alert rules:")?;
         for rule in &alerts.rules {
             let state = if rule.enabled { "on " } else { "off" };
-            writeln!(out, "  {:>3}  {state}  {}", rule.id, rule.written)?;
+            let waiting = if waits(rule) { " (waits for Pro)" } else { "" };
+            writeln!(out, "  {:>3}  {state}  {}{waiting}", rule.id, rule.written)?;
             writeln!(out, "             read as: {}", rule.rule)?;
+        }
+        if alerts.rules.iter().any(waits) {
+            writeln!(out, "{}", ProFeature::AlertRules.line())?;
         }
     }
     if !config.webhooks.is_empty() {
-        let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
-        writeln!(out, "\nAlso sent to {}.", hosts.join(", "))?;
+        if tier.allows(ProFeature::AlertDelivery) {
+            let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
+            writeln!(out, "\nAlso sent to {}.", hosts.join(", "))?;
+        } else {
+            writeln!(out, "\n{}", ProFeature::AlertDelivery.line())?;
+        }
     }
     for warning in &config.warnings {
         writeln!(out, "\nwarning: {warning}")?;
@@ -700,16 +745,25 @@ fn daemon(port: u16) -> ExitCode {
             host.dir().token().display()
         ));
         let config = Config::load(host.dir());
+        let tier = host.licensing().tier();
         if !config.webhooks.is_empty() {
-            let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
-            say(format_args!("It sends alerts to {} too.", hosts.join(", ")));
+            if tier.allows(ProFeature::AlertDelivery) {
+                let hosts: Vec<&str> = config.webhooks.iter().map(Webhook::host).collect();
+                say(format_args!("It sends alerts to {} too.", hosts.join(", ")));
+            } else {
+                say(format_args!("{}", ProFeature::AlertDelivery.line()));
+            }
         }
         if host.scans_costs() {
-            say(format_args!(
-                "Every 10 minutes it reads the token counts in Claude Code's and the Codex CLI's \
-                 logs for the week's cost at API prices; \"cost_scan\": false in config.json \
-                 turns that off."
-            ));
+            if tier.allows(ProFeature::CostScan) {
+                say(format_args!(
+                    "Every 10 minutes it reads the token counts in Claude Code's and the Codex \
+                     CLI's logs for the week's cost at API prices; \"cost_scan\": false in \
+                     config.json turns that off."
+                ));
+            } else {
+                say(format_args!("{}", ProFeature::CostScan.line()));
+            }
         }
         for warning in &config.warnings {
             eprintln!("quotadial: warning: {warning}");
@@ -864,6 +918,13 @@ fn write_text(
             writeln!(out, "  {error}")?;
         }
     }
+    let (accounts, others): (Vec<_>, Vec<_>) = report
+        .left_out
+        .iter()
+        .partition(|left_out| left_out.feature == ProFeature::Accounts);
+    for left_out in accounts {
+        writeln!(out, "{}", left_out.text)?;
+    }
     for page in report
         .status_pages
         .iter()
@@ -896,6 +957,9 @@ fn write_text(
             writeln!(out, "  {note}")?;
         }
     }
+    for left_out in others {
+        writeln!(out, "{}", left_out.text)?;
+    }
     for error in &report.errors {
         writeln!(out, "error: {}", error.message)?;
     }
@@ -904,11 +968,19 @@ fn write_text(
         .iter()
         .any(|snapshot| !snapshot.windows.is_empty());
     if origin == Origin::Direct && windows {
+        let costs = if report
+            .left_out
+            .iter()
+            .any(|left_out| left_out.feature == ProFeature::CostScan)
+        {
+            ""
+        } else {
+            ", and each provider what the week would have cost at API prices"
+        };
         writeln!(
             out,
             "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
-             window also shows how fast it fills, and each provider what the week would have \
-             cost at API prices."
+             window also shows how fast it fills{costs}."
         )?;
     }
     Ok(())
@@ -1165,6 +1237,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(
@@ -1186,6 +1259,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(
@@ -1206,6 +1280,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1229,6 +1304,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1280,7 +1356,7 @@ mod tests {
         };
         let mut out = Vec::new();
 
-        write_alerts(&alerts, &config, now(), &mut out).expect("writes");
+        write_alerts(&alerts, &config, Tier::Pro, now(), &mut out).expect("writes");
 
         let shown = String::from_utf8(out).expect("UTF-8");
         let expected = [
@@ -1399,6 +1475,7 @@ mod tests {
                     vec!["1 request named no model, so it is left out.".into()],
                 ),
             ],
+            left_out: Vec::new(),
         };
 
         let shown = render(&report, false);
@@ -1432,6 +1509,7 @@ mod tests {
                 page("codex", Indicator::Minor, "Partial System Degradation"),
             ],
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let shown = render(&report, false);
@@ -1455,6 +1533,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(
@@ -1474,6 +1553,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(
@@ -1501,6 +1581,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(
@@ -1523,6 +1604,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1553,6 +1635,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");
@@ -1672,9 +1755,11 @@ mod tests {
         let token = Token::load_or_create(&dir).expect("makes a token");
         let history = Arc::new(History::open(&dir.history()).expect("opens history"));
         let polled_by_daemon = Arc::new(CountingProvider::default());
+        let licensing = Licensing::new(Some(&dir));
         let mut poller = Poller::new(
             vec![Arc::clone(&polled_by_daemon) as Arc<dyn Provider>],
             Arc::clone(&history),
+            licensing.clone(),
         );
         poller.poll_due().await;
         let latest = poller.latest();
@@ -1692,6 +1777,7 @@ mod tests {
             latest.clone(),
             history,
             token,
+            licensing,
             async {
                 let _ = stopped.await;
             },

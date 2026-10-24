@@ -153,6 +153,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -198,6 +199,7 @@ mod tests {
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -230,6 +232,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -253,6 +256,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         assert_eq!(rank(&report).accounts[0].headroom_pct, Some(0.0));
@@ -276,6 +280,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: vec![cost.clone()],
+            left_out: Vec::new(),
         };
 
         let ranked = rank(&report);

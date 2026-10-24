@@ -10,7 +10,7 @@ use std::path::Path;
 use std::collections::BTreeMap;
 
 use chrono::NaiveDate;
-use quotadial_core::{Account, Condition, Scope, Standing, StatusReport};
+use quotadial_core::{Account, Condition, ProFeature, Scope, Standing, StatusReport, Tier};
 use quotadial_daemon::{DataDir, History, licence, write_private};
 use serde::{Deserialize, Serialize};
 
@@ -25,27 +25,36 @@ pub struct Settings {
     pub aliases: BTreeMap<String, String>,
 }
 
-/// The licence, as Settings shows it (D-099).
+/// The licence, as Settings shows it (D-099, D-100).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LicenceView {
     /// One sentence saying whether the copy is QuotaDial Free or Pro, and why a key gives nothing.
     pub text: String,
     /// Whether a key is kept, which Settings then offers to remove.
     pub kept: bool,
+    /// On QuotaDial Free, what Pro adds, one feature each; empty on Pro.
+    pub adds: Vec<String>,
 }
 
 /// What the copy keeping its key in `dir` is on `today`. With no data folder there is no key.
 #[must_use]
 pub fn licence_view(dir: Option<&DataDir>, today: NaiveDate) -> LicenceView {
-    match dir {
-        Some(dir) => LicenceView {
-            text: licence::standing(dir, today).text,
-            kept: dir.licence().exists(),
-        },
-        None => LicenceView {
-            text: Standing::of(None, today).text,
-            kept: false,
-        },
+    let (standing, kept) = match dir {
+        Some(dir) => (licence::standing(dir, today), dir.licence().exists()),
+        None => (Standing::of(None, today), false),
+    };
+    let adds = if standing.tier == Tier::Free {
+        ProFeature::ALL
+            .iter()
+            .map(|feature| feature.what().to_owned())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    LicenceView {
+        text: standing.text,
+        kept,
+        adds,
     }
 }
 
@@ -127,8 +136,8 @@ impl Settings {
             .any(|hidden| hidden == provider)
     }
 
-    /// `report` without the providers that are hidden, their accounts, errors, status pages and
-    /// costs.
+    /// `report` without the providers that are hidden, their accounts, errors, status pages, costs
+    /// and what QuotaDial Free leaves out of them.
     #[must_use]
     pub fn shown(&self, report: &StatusReport) -> StatusReport {
         StatusReport {
@@ -156,6 +165,12 @@ impl Settings {
                 .filter(|cost| self.shows(&cost.provider))
                 .cloned()
                 .collect(),
+            left_out: report
+                .left_out
+                .iter()
+                .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| self.shows(of)))
+                .cloned()
+                .collect(),
         }
     }
 }
@@ -175,13 +190,15 @@ mod tests {
         let dir = DataDir::new(temp.path().join("quotadial"));
         let today: NaiveDate = "2026-11-01".parse().expect("a date");
 
+        let free = licence_view(Some(&dir), today);
+        assert_eq!(free.text, "QuotaDial Free, with no licence key.");
+        assert!(!free.kept);
         assert_eq!(
-            licence_view(Some(&dir), today),
-            LicenceView {
-                text: "QuotaDial Free, with no licence key.".into(),
-                kept: false,
-            }
+            free.adds.len(),
+            ProFeature::ALL.len(),
+            "what Pro adds, on Free"
         );
+        assert_eq!(free.adds[4], "the week's cost at API prices");
         let key = Licence {
             id: "app-1".into(),
             plan: Plan::Pro,
@@ -195,6 +212,7 @@ mod tests {
             LicenceView {
                 text: "QuotaDial Pro, licence app-1.".into(),
                 kept: true,
+                adds: Vec::new(),
             }
         );
         fs::write(dir.licence(), "QD1.damaged.key").expect("writes");
@@ -261,7 +279,11 @@ mod tests {
         let path = temp.path().join("settings.json");
         let history = History::open(&temp.path().join("history.db")).expect("opens");
         let custom = history
-            .add_rule("warn me when codex passes 90%", chrono::Utc::now())
+            .add_rule(
+                "warn me when codex passes 90%",
+                chrono::Utc::now(),
+                Tier::Pro,
+            )
             .expect("adds");
         fs::write(
             &path,
@@ -316,6 +338,7 @@ mod tests {
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -333,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn a_hidden_providers_status_page_and_cost_leave_the_report_too() {
+    fn a_hidden_providers_status_page_cost_and_held_back_accounts_leave_the_report_too() {
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
             indicator: quotadial_core::Indicator::Minor,
@@ -358,6 +381,11 @@ mod tests {
             errors: Vec::new(),
             status_pages: vec![page("claude"), page("codex")],
             costs: vec![cost("claude"), cost("codex")],
+            left_out: vec![
+                quotadial_core::LeftOut::accounts("claude", 2),
+                quotadial_core::LeftOut::accounts("codex", 1),
+                quotadial_core::LeftOut::feature(ProFeature::CostScan),
+            ],
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -367,5 +395,13 @@ mod tests {
         let shown = settings.shown(&report);
         assert_eq!(shown.status_pages, [page("claude")]);
         assert_eq!(shown.costs, [cost("claude")]);
+        assert_eq!(
+            shown.left_out,
+            [
+                quotadial_core::LeftOut::accounts("claude", 2),
+                quotadial_core::LeftOut::feature(ProFeature::CostScan),
+            ],
+            "a hidden provider's held-back accounts go too; what belongs to no provider stays"
+        );
     }
 }

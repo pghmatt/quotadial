@@ -19,6 +19,17 @@ itself; see [docs/INSTALL.md](docs/INSTALL.md) to install or build it.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the
 product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 
+## QuotaDial Free and Pro
+
+QuotaDial Free needs no key: one account per provider, every window with its pace and reset, 30
+days of history, alerts for a share used, a reset and a sign-in, the providers' status pages, and
+read-only status for agents through the CLI, the local API and MCP. QuotaDial Pro adds every
+account on the machine, a year of history, alerts before a window runs out, before a reset and for
+incidents, alerts to webhooks and Slack, the week's cost at API prices, and headroom and alert
+rules through the API and MCP. A licence key is checked on your machine, with no call home, and a
+Free copy says in one line where each Pro feature would be. See
+[docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
+
 ## Provider support
 
 | Provider | Reads the login from | Status |

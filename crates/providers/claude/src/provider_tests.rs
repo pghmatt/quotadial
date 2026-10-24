@@ -1609,11 +1609,42 @@ async fn every_stored_sign_in_is_an_account_named_by_where_it_is() {
 
     let capped = harness
         .provider()
-        .with_max_accounts(Some(1))
-        .discover_accounts()
-        .expect("discovers");
-    assert_eq!(capped.len(), 1, "max_accounts keeps this shell's own first");
-    assert_eq!(capped[0].account_id, "00000000-0000-0000-0000-000000000001");
+        .with_max_accounts(AccountLimit::fixed(Some(1)));
+    let kept = capped.discover_accounts().expect("discovers");
+    assert_eq!(kept.len(), 1, "max_accounts keeps this shell's own first");
+    assert_eq!(kept[0].account_id, "00000000-0000-0000-0000-000000000001");
+    assert_eq!(
+        capped.held_back(),
+        2,
+        "the work account and the item whose folder is gone; the copy of the first is not another"
+    );
+}
+
+#[tokio::test]
+async fn a_limit_is_read_at_each_discovery_and_says_what_it_held_back() {
+    let harness = Harness::new().await;
+    harness.sign_in(oauth());
+    sign_in_folder(
+        &harness,
+        ".claude-work",
+        "00000000-0000-0000-0000-00000000000a",
+        &oauth(),
+    );
+    let max = Arc::new(AtomicUsize::new(1));
+    let read = Arc::clone(&max);
+    let provider = harness
+        .provider()
+        .with_max_accounts(AccountLimit::new(move || {
+            Some(read.load(Ordering::Relaxed))
+        }));
+
+    assert_eq!(provider.discover_accounts().expect("discovers").len(), 1);
+    assert_eq!(provider.held_back(), 1);
+
+    // A licence added: the next discovery shows every account, with no new provider.
+    max.store(usize::MAX, Ordering::Relaxed);
+    assert_eq!(provider.discover_accounts().expect("discovers").len(), 2);
+    assert_eq!(provider.held_back(), 0);
 }
 
 #[tokio::test]
@@ -2142,7 +2173,7 @@ async fn max_accounts_counts_subscriptions_once_their_sign_ins_are_named() {
 
     let capped = harness
         .provider()
-        .with_max_accounts(Some(2))
+        .with_max_accounts(AccountLimit::fixed(Some(2)))
         .discover_accounts()
         .expect("discovers");
 

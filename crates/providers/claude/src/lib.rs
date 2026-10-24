@@ -25,12 +25,13 @@ mod provider_tests;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{Account, Error, Provider, Result, Secret, Snapshot, Status};
+use quotadial_core::{Account, AccountLimit, Error, Provider, Result, Secret, Snapshot, Status};
 use quotadial_poll::{AccountState, Clock, Decision, Policy, StateStore, SystemClock};
 use serde::{Deserialize, Serialize};
 
@@ -72,10 +73,12 @@ pub struct ClaudeProvider {
     api: OnceLock<std::result::Result<Api, String>>,
     /// More config folders to look in, from QuotaDial's settings.
     extra_dirs: Vec<PathBuf>,
-    /// At most this many accounts, this shell's own first; all when `None`.
-    max_accounts: Option<usize>,
+    /// At most this many accounts, this shell's own first, asked at each discovery.
+    max_accounts: AccountLimit,
     /// The sign-ins the last discovery found, so a fetch looks up only its own account's.
     logins: Mutex<Vec<Login>>,
+    /// How many more subscriptions the last discovery found than `max_accounts` let it show.
+    held_back: AtomicUsize,
     /// What the last discovery could not look at.
     warnings: Mutex<Vec<String>>,
 }
@@ -93,8 +96,9 @@ impl ClaudeProvider {
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
             extra_dirs: Vec::new(),
-            max_accounts: None,
+            max_accounts: AccountLimit::none(),
             logins: Mutex::default(),
+            held_back: AtomicUsize::new(0),
             warnings: Mutex::default(),
         }
     }
@@ -107,10 +111,11 @@ impl ClaudeProvider {
         self
     }
 
-    /// Shows at most `max` accounts, this shell's own first (the `max_accounts` setting).
+    /// Shows at most as many accounts as `limit` says at each discovery, this shell's own first:
+    /// the `max_accounts` setting, and one on QuotaDial Free.
     #[must_use]
-    pub fn with_max_accounts(mut self, max: Option<usize>) -> Self {
-        self.max_accounts = max;
+    pub fn with_max_accounts(mut self, limit: AccountLimit) -> Self {
+        self.max_accounts = limit;
         self
     }
 
@@ -123,9 +128,11 @@ impl ClaudeProvider {
         let found = login::locate_all(&self.env, self.keychain.as_ref(), &self.extra_dirs)?;
         let mut logins = found.logins;
         logins.retain(|login| !not_accounts.excludes(login));
-        if let Some(max) = self.max_accounts {
-            self.keep_subscriptions(&mut logins, max);
-        }
+        let held_back = match self.max_accounts.get() {
+            Some(max) => self.keep_subscriptions(&mut logins, max),
+            None => 0,
+        };
+        self.held_back.store(held_back, Ordering::Relaxed);
         self.logins
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -142,11 +149,13 @@ impl ClaudeProvider {
     /// Keeps the sign-ins of the first `max` subscriptions, this shell's own first (the
     /// `max_accounts` setting). A sign-in that does not say whose it is counts as the account an
     /// earlier answer named for its token, so two sign-ins of one subscription count once (#39).
-    /// One not named yet counts as its own until it is.
-    fn keep_subscriptions(&self, logins: &mut Vec<Login>, max: usize) {
+    /// One not named yet counts as its own until it is. Returns how many subscriptions were left
+    /// out.
+    fn keep_subscriptions(&self, logins: &mut Vec<Login>, max: usize) -> usize {
         let store = self.store().ok();
         let now = self.clock.now();
         let mut counted: Vec<Account> = Vec::new();
+        let mut left_out: Vec<Account> = Vec::new();
         logins.retain(|login| {
             let account = login.account();
             let subscription = login
@@ -164,9 +173,12 @@ impl ClaudeProvider {
             let kept = counted.len() < max;
             if kept {
                 counted.push(subscription);
+            } else if !left_out.iter().any(|known| known.same_as(&subscription)) {
+                left_out.push(subscription);
             }
             kept
         });
+        left_out.len()
     }
 
     /// Remembers that `login`, a Keychain item whose folder is unknown, holds no Claude account,
@@ -702,6 +714,10 @@ impl Provider for ClaudeProvider {
         Ok(self.locate_all()?.iter().map(Login::account).collect())
     }
 
+    fn held_back(&self) -> usize {
+        self.held_back.load(Ordering::Relaxed)
+    }
+
     fn discovery_warnings(&self) -> Vec<String> {
         self.warnings
             .lock()
@@ -952,8 +968,9 @@ impl ClaudeProvider {
             request_timeout: api::TIMEOUT,
             api: OnceLock::new(),
             extra_dirs: Vec::new(),
-            max_accounts: None,
+            max_accounts: AccountLimit::none(),
             logins: Mutex::default(),
+            held_back: AtomicUsize::new(0),
             warnings: Mutex::default(),
         }
     }

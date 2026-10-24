@@ -43,9 +43,9 @@ Nothing is named `usage`, the PRD's old working name.
 
 | Path | Contents |
 | --- | --- |
-| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, licence keys and the public key they are checked against (`docs/LICENSING.md`), and the one `tier()` check for Pro features |
+| `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, licence keys and the public key they are checked against (`docs/LICENSING.md`), the tiers and their Pro features, and what a Free copy leaves out of a report |
 | `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
-| `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock |
+| `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock, and `Licensing`, the one switch every Pro feature asks, read from the licence key in the data folder |
 | `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |

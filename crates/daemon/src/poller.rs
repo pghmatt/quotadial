@@ -13,6 +13,11 @@
 //! answer gets its pace from it (P-016). The alert rules are checked after every round of polls and
 //! every minute between, for a time before a reset (D-093). Every 10 minutes the CLIs' logs are
 //! read for the week's API-equivalent cost (D-097).
+//!
+//! What QuotaDial Pro adds is asked of the copy's licence at every round (D-100): the accounts each
+//! provider shows, the history kept, the kinds of rule checked, the webhooks sent to, and the cost
+//! scan. A licence added, removed or ended counts within a minute, or at once when a consumer in
+//! the same process nudges the poller, as the app's Settings does.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -21,12 +26,18 @@ use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Duration;
 
 use chrono::Utc;
-use quotadial_core::{Account, Cost, Provider, ProviderError, Snapshot, StatusPage, StatusReport};
+use quotadial_core::{
+    Account, Cost, LeftOut, ProFeature, Provider, ProviderError, Snapshot, StatusPage,
+    StatusReport, Tier,
+};
 use quotadial_cost::CostScan;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
-use crate::{Deliverer, History, STATUS_EVERY, StatusReader, Webhook, deliver_due};
+use crate::{
+    Deliverer, History, KEEP_DAYS, Licensing, STATUS_EVERY, StatusReader, Webhook, deliver_due,
+    licence,
+};
 
 /// Numbers that moved this recently keep an account at its provider's floor.
 pub const ACTIVE_FOR: Duration = Duration::from_secs(10 * 60);
@@ -53,6 +64,10 @@ struct Shared {
     status_pages: RwLock<Vec<StatusPage>>,
     /// The week's cost of each provider, from the last scan of the logs (D-097).
     costs: RwLock<Vec<Cost>>,
+    /// What the copy leaves out because it is QuotaDial Free (D-100).
+    left_out: RwLock<Vec<LeftOut>>,
+    /// Woken when the licence may have changed, so the poller asks again at once.
+    nudged: Notify,
     /// Told whenever the report changes, so a consumer such as the tray app need not ask.
     changed: watch::Sender<()>,
     /// The newest firing of an alert rule to tell, so the tray app can tell it.
@@ -98,7 +113,33 @@ impl Latest {
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
+        report.left_out = self
+            .0
+            .left_out
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         report.normalized()
+    }
+
+    /// Tells the poller the licence may have changed, as when the app's Settings adds or removes
+    /// a key, so it asks again now rather than within a minute.
+    pub fn nudge(&self) {
+        self.0.nudged.notify_one();
+    }
+
+    /// Keeps `left_out` as what the copy leaves out, and tells consumers when it changed.
+    fn set_left_out(&self, left_out: Vec<LeftOut>) {
+        let mut kept = self
+            .0
+            .left_out
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        if *kept != left_out {
+            *kept = left_out;
+            drop(kept);
+            self.0.changed.send_replace(());
+        }
     }
 
     /// Keeps `costs` as the week's, and tells consumers.
@@ -172,6 +213,10 @@ pub struct Poller {
     providers: Vec<Arc<dyn Provider>>,
     history: Arc<History>,
     latest: Latest,
+    /// What the copy may do, asked at every round (D-100).
+    licensing: Licensing,
+    /// The tier at the last round, so a change is acted on at once.
+    tier: Option<Tier>,
     tracked: HashMap<(usize, String, Option<String>), Tracked>,
     discover_at: Instant,
     prune_at: Instant,
@@ -205,10 +250,15 @@ impl std::fmt::Debug for Poller {
 }
 
 impl Poller {
-    /// A poller for `providers`, storing history in `history`. What history already holds is shown
-    /// at once, marked as coming from the cache, until the first poll replaces it.
+    /// A poller for `providers`, storing history in `history`, doing what `licensing` allows. What
+    /// history already holds is shown at once, marked as coming from the cache, until the first
+    /// poll replaces it.
     #[must_use]
-    pub fn new(providers: Vec<Arc<dyn Provider>>, history: Arc<History>) -> Self {
+    pub fn new(
+        providers: Vec<Arc<dyn Provider>>,
+        history: Arc<History>,
+        licensing: Licensing,
+    ) -> Self {
         let latest = Latest::default();
         *latest
             .0
@@ -239,6 +289,8 @@ impl Poller {
             providers,
             history,
             latest,
+            licensing,
+            tier: None,
             tracked: HashMap::new(),
             discover_at: now,
             prune_at: now,
@@ -300,6 +352,7 @@ impl Poller {
     /// floor before they send a request, so it holds for whoever asks next.
     pub async fn run(mut self, shutdown: impl Future<Output = ()>) {
         tokio::pin!(shutdown);
+        let latest = self.latest.clone();
         loop {
             let wake = tokio::select! {
                 wake = self.poll_due() => wake,
@@ -307,6 +360,7 @@ impl Poller {
             };
             tokio::select! {
                 () = tokio::time::sleep_until(wake) => {}
+                () = latest.0.nudged.notified() => {}
                 () = &mut shutdown => return,
             }
         }
@@ -316,15 +370,36 @@ impl Poller {
     /// old history. Returns when something is next due.
     pub async fn poll_due(&mut self) -> Instant {
         let now = Instant::now();
+        let tier = self.licensing.tier();
+        if self.tier != Some(tier) {
+            // A licence added, removed or ended: the accounts shown, the cost scan and what the
+            // copy leaves out change now.
+            self.tier = Some(tier);
+            self.discover_at = now;
+            self.costs_at = now;
+        }
         if now >= self.prune_at {
-            // A failed prune is retried next time; history is not worth stopping for.
+            // QuotaDial Free keeps 30 days whatever the setting says. A failed prune is retried
+            // next time; history is not worth stopping for.
             let history = Arc::clone(&self.history);
-            let _ = tokio::task::spawn_blocking(move || history.prune(Utc::now())).await;
+            let days = if tier.allows(ProFeature::LongHistory) {
+                history.keep_days()
+            } else {
+                history.keep_days().min(KEEP_DAYS)
+            };
+            let _ = tokio::task::spawn_blocking(move || history.prune_to(Utc::now(), days)).await;
             self.prune_at = now + PRUNE_EVERY;
         }
         if now >= self.discover_at {
             self.discover(now).await;
             self.discover_at = now + DISCOVER_EVERY;
+            // The logs are read only for providers with accounts, so with none there is no cost
+            // to leave out.
+            self.latest.set_left_out(licence::left_out(
+                tier,
+                &self.providers,
+                self.costs.is_some() && !self.tracked.is_empty(),
+            ));
         }
         let mut due: Vec<_> = self
             .tracked
@@ -338,15 +413,15 @@ impl Poller {
             self.poll(&key, now).await;
         }
         if polled || now >= self.alerts_at {
-            self.check_alerts().await;
+            self.check_alerts(tier).await;
             self.alerts_at = Instant::now() + ALERTS_EVERY;
         }
         if self.status.is_some() && now >= self.status_at {
-            self.read_status_pages();
+            self.read_status_pages(tier);
             self.status_at = now + STATUS_EVERY;
         }
         if self.costs.is_some() && now >= self.costs_at {
-            self.scan_costs();
+            self.scan_costs(tier);
             self.costs_at = now + COSTS_EVERY;
         }
         let status_at = self.status.as_ref().map(|_| self.status_at);
@@ -363,11 +438,18 @@ impl Poller {
 
     /// Reads what the logs of the providers the poller has accounts with gained, in its own task
     /// off the async runtime, unless a scan is still reading, and keeps the week's costs. A scan
-    /// that fails keeps the last costs, which carry their age.
-    fn scan_costs(&self) {
+    /// that fails keeps the last costs, which carry their age. On QuotaDial Free the logs are not
+    /// read, and no costs are shown.
+    fn scan_costs(&self, tier: Tier) {
         let Some(scan) = self.costs.clone() else {
             return;
         };
+        if !tier.allows(ProFeature::CostScan) {
+            if !self.latest.report().costs.is_empty() {
+                self.latest.set_costs(Vec::new());
+            }
+            return;
+        }
         let Ok(scanning) = Arc::clone(&self.scanning).try_lock_owned() else {
             return;
         };
@@ -402,7 +484,7 @@ impl Poller {
     /// Reads the status pages of the providers the poller has accounts with, in their own task,
     /// unless a round is still reading. Each page read is kept, in the history too, and the alert
     /// rules are checked against it.
-    fn read_status_pages(&self) {
+    fn read_status_pages(&self, tier: Tier) {
         let Some(StatusPages { reader, pages }) = self.status.clone() else {
             return;
         };
@@ -434,22 +516,26 @@ impl Poller {
                     latest.set_status_page(page);
                 }
             }
-            check_alerts(&history, &latest).await;
+            check_alerts(&history, &latest, tier).await;
             drop(reading);
         });
     }
 
     /// Checks the alert rules against what was last found, and tells consumers of any firing.
-    async fn check_alerts(&self) {
-        check_alerts(&self.history, &self.latest).await;
-        self.deliver();
+    async fn check_alerts(&self, tier: Tier) {
+        check_alerts(&self.history, &self.latest, tier).await;
+        self.deliver(tier);
     }
 
-    /// Sends what is due to the webhooks, in its own task, unless a round is still sending.
-    fn deliver(&self) {
+    /// Sends what is due to the webhooks, in its own task, unless a round is still sending. On
+    /// QuotaDial Free alerts go only to the system's notifications.
+    fn deliver(&self, tier: Tier) {
         let Some(deliverer) = self.deliverer.clone() else {
             return;
         };
+        if !tier.allows(ProFeature::AlertDelivery) {
+            return;
+        }
         let Ok(sending) = Arc::clone(&self.delivering).try_lock_owned() else {
             return;
         };
@@ -602,11 +688,12 @@ impl Poller {
     }
 }
 
-/// Checks the alert rules against what `latest` last found, and tells its consumers of any firing.
-/// A failed check is tried again within a minute; a firing is recorded once whenever it is.
-async fn check_alerts(history: &Arc<History>, latest: &Latest) {
+/// Checks the alert rules against what `latest` last found, on a copy with `tier`, and tells its
+/// consumers of any firing. A failed check is tried again within a minute; a firing is recorded
+/// once whenever it is.
+async fn check_alerts(history: &Arc<History>, latest: &Latest, tier: Tier) {
     let (history, report) = (Arc::clone(history), latest.report());
-    let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now()))
+    let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now(), tier))
         .await
         .ok()
         .and_then(Result::ok)
@@ -665,6 +752,8 @@ mod tests {
         delay: Duration,
         /// Where its CLI's logs are.
         logs: Mutex<Vec<PathBuf>>,
+        /// How many accounts its limit held back.
+        held: AtomicUsize,
     }
 
     impl Scripted {
@@ -680,6 +769,7 @@ mod tests {
                 warnings: Mutex::default(),
                 delay: Duration::ZERO,
                 logs: Mutex::default(),
+                held: AtomicUsize::new(0),
             }
         }
 
@@ -716,6 +806,10 @@ mod tests {
 
         fn discovery_warnings(&self) -> Vec<String> {
             self.warnings.lock().expect("lock").clone()
+        }
+
+        fn held_back(&self) -> usize {
+            self.held.load(Ordering::SeqCst)
         }
 
         async fn fetch(&self, account: &Account) -> Result<Snapshot> {
@@ -852,14 +946,52 @@ mod tests {
         (dir, Arc::new(history))
     }
 
+    /// A poller on QuotaDial Free, which polls exactly as Pro does.
     fn poller(providers: Vec<Arc<Scripted>>, history: Arc<History>) -> Poller {
+        poller_with(providers, history, Licensing::default())
+    }
+
+    fn poller_with(
+        providers: Vec<Arc<Scripted>>,
+        history: Arc<History>,
+        licensing: Licensing,
+    ) -> Poller {
         Poller::new(
             providers
                 .into_iter()
                 .map(|provider| provider as Arc<dyn Provider>)
                 .collect(),
             history,
+            licensing,
         )
+    }
+
+    /// Waits up to 10 seconds for the poller's costs to be other than empty.
+    async fn costs_of(poller: &Poller) -> Vec<Cost> {
+        for _ in 0..200 {
+            let costs = poller.latest().report().costs;
+            if !costs.is_empty() {
+                return costs;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        Vec::new()
+    }
+
+    /// A Codex session log written an hour ago in `dir`, with one request.
+    fn codex_log(dir: &std::path::Path) -> PathBuf {
+        let written = (Utc::now() - TimeDelta::hours(1)).to_rfc3339();
+        let rollout = dir.join("codex/sessions/2026/10/23/rollout-2026-10-23T09-00-00-a.jsonl");
+        std::fs::create_dir_all(rollout.parent().expect("a folder")).expect("makes it");
+        std::fs::write(
+            &rollout,
+            format!(
+                "{{\"timestamp\":\"{written}\",\"type\":\"turn_context\",\"payload\":{{\"model\":\"gpt-6-astra\"}}}}\n\
+                 {{\"timestamp\":\"{written}\",\"type\":\"token_usage_record\",\"payload\":{{\"response_id\":\"r1\",\"usage\":{{\"input_tokens\":100000,\"cached_input_tokens\":0,\"output_tokens\":1000}}}}}}\n"
+            ),
+        )
+        .expect("writes");
+        dir.join("codex/sessions")
     }
 
     /// Runs the poller for `minutes`, waking whenever it asks to, and returns the minute of every
@@ -911,7 +1043,11 @@ mod tests {
             lookups: [Duration::from_secs(2), Duration::from_secs(1)],
             state: Mutex::default(),
         });
-        let mut poller = Poller::new(vec![Arc::clone(&claude) as Arc<dyn Provider>], history);
+        let mut poller = Poller::new(
+            vec![Arc::clone(&claude) as Arc<dyn Provider>],
+            history,
+            Licensing::default(),
+        );
 
         let start = Instant::now();
         loop {
@@ -1109,43 +1245,63 @@ mod tests {
     #[tokio::test]
     async fn the_logs_of_providers_with_accounts_are_read_for_the_week_s_cost() {
         let (dir, history) = history();
-        let written = (Utc::now() - TimeDelta::hours(1)).to_rfc3339();
-        let rollout = dir
-            .path()
-            .join("codex/sessions/2026/10/23/rollout-2026-10-23T09-00-00-a.jsonl");
-        std::fs::create_dir_all(rollout.parent().expect("a folder")).expect("makes it");
-        std::fs::write(
-            &rollout,
-            format!(
-                "{{\"timestamp\":\"{written}\",\"type\":\"turn_context\",\"payload\":{{\"model\":\"gpt-6-astra\"}}}}\n\
-                 {{\"timestamp\":\"{written}\",\"type\":\"token_usage_record\",\"payload\":{{\"response_id\":\"r1\",\"usage\":{{\"input_tokens\":100000,\"cached_input_tokens\":0,\"output_tokens\":1000}}}}}}\n"
-            ),
-        )
-        .expect("writes");
+        let sessions = codex_log(dir.path());
         let codex = Arc::new(Scripted::new("codex", 2));
-        *codex.logs.lock().expect("lock") = vec![dir.path().join("codex/sessions")];
+        *codex.logs.lock().expect("lock") = vec![sessions.clone()];
         // Signed out: its logs are not read.
         let claude = Arc::new(Scripted::new("claude", 5));
         claude.set_accounts(Ok(Vec::new()));
-        *claude.logs.lock().expect("lock") = vec![dir.path().join("codex/sessions")];
+        *claude.logs.lock().expect("lock") = vec![sessions];
         let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
-        let mut poller = poller(vec![Arc::clone(&codex), claude], history).with_costs(scan);
+        let pro = crate::test_support::pro(dir.path());
+        let mut poller =
+            poller_with(vec![Arc::clone(&codex), claude], history, pro).with_costs(scan);
 
         poller.poll_due().await;
-        let mut costs = Vec::new();
-        for _ in 0..200 {
-            costs = poller.latest().report().costs;
-            if !costs.is_empty() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
+        let costs = costs_of(&poller).await;
 
         assert_eq!(costs.len(), 1, "{costs:?}");
         assert_eq!(costs[0].provider, "codex");
         assert_eq!(costs[0].requests, 1);
         assert_eq!(costs[0].models[0].model, "gpt-6-astra");
         assert!(costs[0].usd > 0.0);
+        assert!(poller.latest().report().left_out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn on_free_the_logs_wait_and_a_key_added_reads_them_at_once() {
+        let (dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        *codex.logs.lock().expect("lock") = vec![codex_log(dir.path())];
+        let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        let mut poller = poller_with(
+            vec![Arc::clone(&codex)],
+            history,
+            Licensing::new(Some(&data)),
+        )
+        .with_costs(scan);
+
+        poller.poll_due().await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let free = poller.latest().report();
+        assert!(free.costs.is_empty(), "QuotaDial Free reads no logs");
+        assert_eq!(
+            free.left_out,
+            [LeftOut::feature(ProFeature::CostScan)],
+            "and says so where the cost would be"
+        );
+
+        crate::test_support::pro(dir.path());
+        poller.latest().nudge();
+        poller.poll_due().await;
+
+        assert_eq!(
+            costs_of(&poller).await.len(),
+            1,
+            "read at once, with no restart"
+        );
+        assert!(poller.latest().report().left_out.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1182,7 +1338,9 @@ mod tests {
         let (address, bodies) = crate::test_support::receiver("200 OK").await;
         let webhook =
             Webhook::new(&address, crate::WebhookKind::Json).expect("a webhook on this machine");
-        let mut poller = poller(vec![Arc::clone(&codex)], history).with_webhooks(vec![webhook]);
+        let pro = crate::test_support::pro(_dir.path());
+        let mut poller =
+            poller_with(vec![Arc::clone(&codex)], history, pro).with_webhooks(vec![webhook]);
 
         poller.poll_due().await;
 
@@ -1195,6 +1353,66 @@ mod tests {
             .await
             .expect("the webhook got the new history's 90% alert");
         assert!(bodies.lock().expect("lock")[0].contains("Codex Session passed 90%"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn on_free_the_accounts_a_provider_held_back_are_named_and_pro_names_none() {
+        let (dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        claude.held.store(8, Ordering::SeqCst);
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        let mut poller = poller_with(
+            vec![Arc::clone(&claude), codex],
+            history,
+            Licensing::new(Some(&data)),
+        );
+
+        poller.poll_due().await;
+        assert_eq!(
+            poller.latest().report().left_out,
+            [LeftOut::accounts("claude", 8)]
+        );
+        assert_eq!(
+            LeftOut::accounts("claude", 8).text,
+            "8 more Claude accounts are on this machine. Showing every account is part of \
+             QuotaDial Pro: quotadial.com/pro"
+        );
+        assert_eq!(
+            LeftOut::accounts("claude", 1).text,
+            "1 more Claude account is on this machine. Showing every account is part of \
+             QuotaDial Pro: quotadial.com/pro"
+        );
+
+        crate::test_support::pro(dir.path());
+        claude.held.store(0, Ordering::SeqCst);
+        poller.poll_due().await;
+        assert!(poller.latest().report().left_out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn on_free_a_told_alert_goes_only_to_the_notifications() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.set_used(Ok(95.0));
+        let (address, bodies) = crate::test_support::receiver("200 OK").await;
+        let webhook =
+            Webhook::new(&address, crate::WebhookKind::Json).expect("a webhook on this machine");
+        let mut poller =
+            poller(vec![Arc::clone(&codex)], Arc::clone(&history)).with_webhooks(vec![webhook]);
+        let mut fired = poller.latest().subscribe_firings();
+
+        poller.poll_due().await;
+        tokio::time::timeout(Duration::from_secs(5), fired.changed())
+            .await
+            .expect("the 90% alert is told to the app")
+            .expect("told");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        assert!(
+            bodies.lock().expect("lock").is_empty(),
+            "QuotaDial Free sends nothing to webhooks"
+        );
     }
 
     // Real time, since the status page is read over a real socket.

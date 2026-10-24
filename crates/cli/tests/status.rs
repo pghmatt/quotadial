@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, Output, Stdio};
 use std::time::Duration;
 
+use quotadial_core::licence::TEST_SEED;
+use quotadial_core::{Licence, Plan};
 use serde_json::{Value, json};
 
 /// An empty directory used as the home directory, so no stored login on the machine is found.
@@ -56,6 +58,23 @@ fn first_refresh(args: &[&str], home: &Path, done: impl Fn(&str) -> bool) -> Str
     child.kill().expect("stops");
     child.wait().expect("exits");
     output
+}
+
+/// Adds a QuotaDial Pro key, signed with the test key a debug build trusts, with `licence add`.
+fn add_pro_key(home: &Path) {
+    let key = Licence {
+        id: "cli-test".into(),
+        plan: Plan::Pro,
+        issued: "2026-10-24".parse().expect("a date"),
+        until: None,
+    }
+    .sign(&TEST_SEED);
+    let added = run(
+        env!("CARGO_BIN_EXE_quotadial"),
+        &["licence", "add", &key],
+        home,
+    );
+    assert!(added.status.success(), "{:?}", added);
 }
 
 fn stdout(output: &Output) -> String {
@@ -215,11 +234,9 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
         ),
         "{line}"
     );
-    assert!(
-        costs.starts_with(
-            "Every 10 minutes it reads the token counts in Claude Code's and the Codex CLI's logs"
-        ),
-        "{costs}"
+    assert_eq!(
+        costs, "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n",
+        "QuotaDial Free says what it leaves out"
     );
     assert!(home.join("data").join("history.db").exists());
     assert!(home.join("data").join("costs.db").exists());
@@ -273,6 +290,15 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     assert_eq!(status, "HTTP/1.1 200 OK");
     let report: Value = serde_json::from_str(&body).expect("valid JSON");
     assert_eq!(report, json!({ "snapshots": [], "errors": [] }));
+    let (status, body) = get(port, "/v1/headroom", Some(&token));
+    assert_eq!(
+        status, "HTTP/1.1 403 Forbidden",
+        "headroom is QuotaDial Pro's"
+    );
+    let refused: Value = serde_json::from_str(&body).expect("valid JSON");
+    assert_eq!(refused["pro_feature"], "headroom");
+    // A key added while the daemon runs counts at the next request, with no restart.
+    add_pro_key(&home);
     let (status, body) = get(port, "/v1/headroom", Some(&token));
     assert_eq!(status, "HTTP/1.1 200 OK");
     let headroom: Value = serde_json::from_str(&body).expect("valid JSON");
@@ -360,8 +386,13 @@ fn mcp_answers_an_agent_on_standard_input_and_output() {
         json!({ "snapshots": [], "errors": [] })
     );
     assert_eq!(
-        replies[3]["result"]["structuredContent"],
-        json!({ "accounts": [], "errors": [] })
+        replies[3]["result"]["isError"], true,
+        "headroom is QuotaDial Pro's"
+    );
+    assert_eq!(
+        replies[3]["result"]["content"][0]["text"],
+        "Headroom through the local API and MCP is part of QuotaDial Pro: quotadial.com/pro \
+         get_usage gives every window, with its reset, on any copy."
     );
 }
 

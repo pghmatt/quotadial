@@ -102,6 +102,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
               Remove
             </button>
             <p class="read-as">Read as: {alert.read_as}</p>
+            {alert.waits && <p class="read-as">Waits for QuotaDial Pro.</p>}
           </div>
         ))}
         {settings.alert_targets.length > 0 && (
@@ -181,6 +182,16 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
       <fieldset>
         <legend>Licence</legend>
         <p class="licence-text">{settings.licence.text}</p>
+        {settings.licence.adds.length > 0 && (
+          <div class="licence-adds">
+            <p>QuotaDial Pro, at quotadial.com/pro, adds:</p>
+            <ul>
+              {settings.licence.adds.map((feature) => (
+                <li key={feature}>{feature}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <form
           class="add-licence"
           onSubmit={(event) => {

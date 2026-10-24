@@ -1,6 +1,27 @@
 //! What the daemon's tests share.
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
+
+use quotadial_core::licence::TEST_SEED;
+use quotadial_core::{Licence, Plan};
+
+use crate::{DataDir, Licensing, licence};
+
+/// The licensing of a data folder at `dir` that keeps a QuotaDial Pro key, signed with the test key
+/// a debug build trusts.
+pub fn pro(dir: &Path) -> Licensing {
+    let data = DataDir::new(dir.to_path_buf());
+    let key = Licence {
+        id: "test-pro".into(),
+        plan: Plan::Pro,
+        issued: "2026-10-24".parse().expect("a date"),
+        until: None,
+    }
+    .sign(&TEST_SEED);
+    licence::add(&data, &key, quotadial_core::licence::today()).expect("adds the key");
+    Licensing::new(Some(&data))
+}
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;

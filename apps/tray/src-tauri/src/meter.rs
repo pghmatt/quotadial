@@ -61,6 +61,9 @@ pub struct Meter {
     /// What each provider's week would have cost at API prices, while the daemon reads the logs
     /// (D-097).
     pub costs: Vec<CostView>,
+    /// What this copy leaves out because it is QuotaDial Free, a line each, shown under the
+    /// accounts where the feature would be (D-100).
+    pub left_out: Vec<String>,
 }
 
 /// What a provider's week would have cost at API prices.
@@ -143,6 +146,7 @@ impl Meter {
             problems: problem.map(str::to_owned).into_iter().collect(),
             incidents: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
             origin: role.map(|role| match role {
                 Role::Running { port } => format!("Running the daemon, port {port}"),
                 Role::Following => "Reading `quotadial daemon`".to_owned(),
@@ -196,6 +200,11 @@ impl Meter {
                     page.description
                 )
             })
+            .collect();
+        meter.left_out = report
+            .left_out
+            .iter()
+            .map(|left_out| left_out.text.clone())
             .collect();
         meter.costs = report
             .costs
@@ -453,6 +462,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         }
     }
 
@@ -570,6 +580,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -669,6 +680,7 @@ mod tests {
                 errors: Vec::new(),
                 status_pages: Vec::new(),
                 costs: Vec::new(),
+                left_out: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -695,6 +707,7 @@ mod tests {
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -736,6 +749,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -842,6 +856,28 @@ mod tests {
         assert_eq!(
             following.origin.as_deref(),
             Some("Reading `quotadial daemon`")
+        );
+    }
+
+    #[test]
+    fn what_free_leaves_out_is_a_line_each_under_the_accounts() {
+        let report = StatusReport {
+            left_out: vec![
+                quotadial_core::LeftOut::accounts("claude", 8),
+                quotadial_core::LeftOut::feature(quotadial_core::ProFeature::CostScan),
+            ],
+            ..StatusReport::default()
+        };
+
+        let meter = Meter::new(Some(&report), None, None, chrono::Utc::now());
+
+        assert_eq!(
+            meter.left_out,
+            [
+                "8 more Claude accounts are on this machine. Showing every account is part of \
+                 QuotaDial Pro: quotadial.com/pro",
+                "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro",
+            ]
         );
     }
 }

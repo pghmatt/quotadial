@@ -5,10 +5,12 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use quotadial_core::licence::TEST_SEED;
 use quotadial_core::{
     Account, Provider, Result, Snapshot, Source, Status, StatusReport, Window, WindowKind,
 };
-use quotadial_daemon::{DataDir, History, Instance, Latest, Poller};
+use quotadial_core::{Licence, Plan};
+use quotadial_daemon::{DataDir, History, Instance, Latest, Licensing, Poller, licence};
 use reqwest::header::{ALLOW, AUTHORIZATION, CONTENT_TYPE, HOST, WWW_AUTHENTICATE};
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
@@ -16,6 +18,20 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::{HeadroomReport, Host, HostError, Runtime, Token, bind, client, rank, serve};
+
+/// The licensing of `dir` with a QuotaDial Pro key kept in it, signed with the test key a debug
+/// build trusts.
+pub(crate) fn pro(dir: &DataDir) -> Licensing {
+    let key = Licence {
+        id: "api-test".into(),
+        plan: Plan::Pro,
+        issued: "2026-10-24".parse().expect("a date"),
+        until: None,
+    }
+    .sign(&TEST_SEED);
+    licence::add(dir, &key, quotadial_core::licence::today()).expect("adds the key");
+    Licensing::new(Some(dir))
+}
 
 /// A provider with one account at a fixed share used.
 struct Fixed(f64);
@@ -85,13 +101,28 @@ struct Daemon {
     server: JoinHandle<std::io::Result<()>>,
 }
 
+/// A daemon on QuotaDial Pro.
 async fn daemon() -> Daemon {
+    daemon_with(true).await
+}
+
+/// A daemon on QuotaDial Pro, or on QuotaDial Free with no key.
+async fn daemon_with(pro: bool) -> Daemon {
     let temp = tempfile::tempdir().expect("temp dir");
     let dir = DataDir::new(temp.path().join("quotadial"));
     let instance = Instance::acquire(&dir).expect("holds the daemon lock");
     let token = Token::load_or_create(&dir).expect("makes a token");
     let history = Arc::new(History::open(&dir.history()).expect("opens history"));
-    let mut poller = Poller::new(vec![Arc::new(Fixed(40.0))], Arc::clone(&history));
+    let licensing = if pro {
+        self::pro(&dir)
+    } else {
+        Licensing::new(Some(&dir))
+    };
+    let mut poller = Poller::new(
+        vec![Arc::new(Fixed(40.0))],
+        Arc::clone(&history),
+        licensing.clone(),
+    );
     poller.poll_due().await;
     let latest = poller.latest();
     let listener = bind(0).await.expect("binds");
@@ -114,6 +145,7 @@ async fn daemon() -> Daemon {
         latest.clone(),
         history,
         token.clone(),
+        licensing,
         async {
             let _ = stopped.await;
         },
@@ -724,4 +756,47 @@ async fn a_second_host_and_a_taken_port_are_refused_with_the_reason() {
     );
     assert!(!Instance::is_running(&dir), "a failed start keeps no lock");
     assert_eq!(Runtime::read(&dir), None);
+}
+
+#[tokio::test]
+async fn on_free_headroom_and_the_alert_rules_answer_403_and_status_still_reads() {
+    let daemon = daemon_with(false).await;
+
+    for (path, feature, line) in [
+        (
+            "/v1/headroom",
+            "headroom",
+            "Headroom through the local API and MCP is part of QuotaDial Pro: quotadial.com/pro",
+        ),
+        (
+            "/v1/alerts",
+            "rules_api",
+            "Alert rules through the local API and MCP are part of QuotaDial Pro: \
+             quotadial.com/pro",
+        ),
+    ] {
+        let (status, body) = daemon.get(path).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+        assert_eq!(body["pro_feature"], feature);
+        assert_eq!(body["error"], line);
+    }
+    let (status, body) = daemon
+        .change(
+            Method::POST,
+            "/v1/alerts",
+            Some(serde_json::json!({"rule": "warn me at 80%"})),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["pro_feature"], "rules_api");
+    let (status, _) = daemon.get("/v1/status").await;
+    assert_eq!(status, StatusCode::OK, "read-only status on any copy");
+    let (status, _) = daemon.get("/v1/history").await;
+    assert_eq!(status, StatusCode::OK, "and history");
+    assert_eq!(
+        daemon.get_with("/v1/headroom", "Bearer wrong").await,
+        StatusCode::UNAUTHORIZED,
+        "the token is asked for before anything is said about Pro"
+    );
+    daemon.stop().await;
 }

@@ -4,7 +4,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{Cost, Error, Provider, Snapshot, Status, redact_secrets};
+use crate::{Cost, Error, ProFeature, Provider, Snapshot, Status, redact_secrets};
 
 /// A snapshot per account, and every provider or account that produced none.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -21,6 +21,56 @@ pub struct StatusReport {
     /// reads the logs (D-097). Left out of a direct fetch.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
+    /// What this copy leaves out because it is QuotaDial Free, each in one line for where it would
+    /// be (D-100). Left out on QuotaDial Pro.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub left_out: Vec<LeftOut>,
+}
+
+/// Something a QuotaDial Free copy leaves out of a report, such as more accounts on the machine or
+/// the week's cost, named in one line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeftOut {
+    /// The Pro feature it would take.
+    pub feature: ProFeature,
+    /// The provider it is about, for its accounts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// What is left out, that it is part of QuotaDial Pro, and where Pro is.
+    pub text: String,
+}
+
+impl LeftOut {
+    /// `feature`, left out, with its line ([`ProFeature::line`]).
+    #[must_use]
+    pub fn feature(feature: ProFeature) -> Self {
+        Self {
+            feature,
+            provider: None,
+            text: feature.line(),
+        }
+    }
+
+    /// `more` accounts of `provider` held back by QuotaDial Free's one account per provider.
+    #[must_use]
+    pub fn accounts(provider: &str, more: usize) -> Self {
+        let name = crate::text::provider_name(provider);
+        let accounts = match more {
+            1 => format!("1 more {name} account is"),
+            more => format!(
+                "{} more {name} accounts are",
+                crate::text::thousands(u64::try_from(more).unwrap_or(u64::MAX))
+            ),
+        };
+        Self {
+            feature: ProFeature::Accounts,
+            provider: Some(provider.to_owned()),
+            text: format!(
+                "{accounts} on this machine. {}",
+                ProFeature::Accounts.line()
+            ),
+        }
+    }
 }
 
 /// What a provider's status page says: how bad things are, in the page's own words.
@@ -242,6 +292,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let merged = report.normalized();
@@ -281,6 +332,7 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
 
         let sorted = report.normalized();
