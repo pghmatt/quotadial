@@ -56,6 +56,10 @@ enum Command {
         #[command(subcommand)]
         action: Option<AlertsAction>,
     },
+    /// Print what support asks for, with nothing secret in it: the version, the system, the licence,
+    /// the daemon, every account and where its sign-in is, the problems and the settings. The app's
+    /// Send feedback attaches the same.
+    Doctor,
     /// Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key.
     /// A key is checked on this machine, with no network call.
     #[command(alias = "license")]
@@ -140,6 +144,7 @@ pub fn run() -> ExitCode {
         Command::Daemon { port } => daemon(port),
         Command::Mcp => mcp(),
         Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
+        Command::Doctor => doctor(),
         Command::Licence { action } => {
             licence(action.unwrap_or(LicenceAction::Show { json: false }))
         }
@@ -357,6 +362,28 @@ fn alerts(action: AlertsAction) -> ExitCode {
         }
     };
     match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => write_failed(&error),
+    }
+}
+
+/// Prints what support asks for, from the daemon's numbers when one runs and a direct fetch when
+/// not, as `status` does. A daemon that does not answer is said rather than polled around.
+fn doctor() -> ExitCode {
+    let Some(runtime) = runtime() else {
+        return ExitCode::FAILURE;
+    };
+    let providers = quotadial_providers::all();
+    let dir = DataDir::from_env();
+    let (report, numbers_from) = match runtime.block_on(report(&providers, dir.as_ref())) {
+        Ok((report, Origin::Daemon)) => (report, "the daemon".to_owned()),
+        Ok((report, Origin::Direct)) => (report, "a direct fetch".to_owned()),
+        Err(error) => (StatusReport::default(), format!("nowhere: {error}")),
+    };
+    let now = Utc::now();
+    let facts = quotadial_api::diagnostics::gather(dir.as_ref(), report, &numbers_from, now);
+    let text = facts.text(now, std::env::home_dir().as_deref());
+    match io::stdout().lock().write_all(text.as_bytes()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => write_failed(&error),
     }

@@ -98,6 +98,12 @@ Under the accounts, the popover shows what the last 7 days of Claude Code and Co
 cost at each provider's API prices, read from their session logs, with each model's part. How it is
 worked out, and the setting that turns it off, are in [`CLI.md`](CLI.md#the-weeks-cost).
 
+**Help**, beside Settings, shows what is new in this version, from the changelog built into the
+app, and About: the version, the licence and the credits. Send feedback opens a new GitHub issue in
+your browser with what support asks for filled in, the same as `quotadial doctor` prints, so you see
+all of it before you send it; it holds no token, no whole email address and no licence id. The
+tray's menu has Help too, with Send Feedback and Write to Support (support@quotadial.com).
+
 **History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
 each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
 

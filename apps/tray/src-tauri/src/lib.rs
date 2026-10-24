@@ -5,6 +5,7 @@
 
 mod alerts;
 mod feed;
+mod help;
 mod history;
 mod icon;
 mod meter;
@@ -19,11 +20,12 @@ use quotadial_core::{ProFeature, StatusReport, text};
 use quotadial_daemon::{AddError, Config, DataDir, History, Licensing, licence, needs_pro};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, RunEvent, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_notification::NotificationExt as _;
+use tauri_plugin_opener::OpenerExt as _;
 use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::sync::{Notify, watch};
 
@@ -394,6 +396,90 @@ fn remove_licence(
     Ok(self::settings(app.clone(), state))
 }
 
+/// What the app's Help shows: what is new in this version, what the copy is, the support address
+/// and the credits.
+#[tauri::command]
+fn help() -> help::HelpView {
+    let version = env!("CARGO_PKG_VERSION");
+    help::HelpView {
+        version: version.to_owned(),
+        whats_new: help::whats_new(help::CHANGELOG, version),
+        licence: licence_view(
+            DataDir::from_env().as_ref(),
+            quotadial_core::licence::today(),
+        )
+        .text,
+        support: quotadial_api::diagnostics::SUPPORT_EMAIL.to_owned(),
+        credits: help::CREDITS
+            .iter()
+            .map(|credit| (*credit).to_owned())
+            .collect(),
+    }
+}
+
+/// Opens a new GitHub issue in the person's browser with what `quotadial doctor` prints filled in,
+/// from the numbers the app has now, so they see all of it before anything is sent.
+///
+/// # Errors
+///
+/// When the browser cannot be opened, for the popover to show.
+#[tauri::command]
+fn send_feedback(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let (report, numbers_from) = {
+        let known = state.known.lock().unwrap_or_else(PoisonError::into_inner);
+        let numbers_from = match known.role {
+            Some(Role::Running { .. }) => "the daemon the app runs",
+            Some(Role::Following) => "the daemon `quotadial daemon` runs",
+            None => "nowhere yet: the app is starting",
+        };
+        (known.report.clone().unwrap_or_default(), numbers_from)
+    };
+    let now = Utc::now();
+    let text =
+        quotadial_api::diagnostics::gather(DataDir::from_env().as_ref(), report, numbers_from, now)
+            .text(now, std::env::home_dir().as_deref());
+    open(&app, &quotadial_api::diagnostics::feedback_url(&text))
+}
+
+/// Opens one of Help's links: `changelog`, `support` or `site`. The window names a link, never an
+/// address, so it cannot open anything else.
+///
+/// # Errors
+///
+/// For a link Help does not have, or when it cannot be opened.
+#[tauri::command]
+fn open_link(app: AppHandle, link: &str) -> Result<(), String> {
+    let address = match link {
+        "changelog" => quotadial_api::diagnostics::CHANGELOG_URL.to_owned(),
+        "support" => format!(
+            "mailto:{}?subject=QuotaDial%20{}",
+            quotadial_api::diagnostics::SUPPORT_EMAIL,
+            env!("CARGO_PKG_VERSION")
+        ),
+        "site" => "https://quotadial.com".to_owned(),
+        other => return Err(format!("Help has no link called {other}.")),
+    };
+    open(&app, &address)
+}
+
+/// Says, as a notification, why something chosen from the tray's menu could not be done, since
+/// the menu has nowhere of its own to say it.
+fn tell_problem(app: &AppHandle, problem: &str) {
+    // Best effort: with notifications refused too, there is nowhere left to say it.
+    let _ = app
+        .notification()
+        .builder()
+        .title("QuotaDial")
+        .body(problem)
+        .show();
+}
+
+fn open(app: &AppHandle, address: &str) -> Result<(), String> {
+    app.opener()
+        .open_url(address, None::<&str>)
+        .map_err(|error| format!("QuotaDial could not open {address}: {error}"))
+}
+
 /// The history view of the last `days`: 7 or 30.
 ///
 /// # Errors
@@ -500,6 +586,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -516,6 +603,9 @@ pub fn run() {
             remove_alert,
             add_licence,
             remove_licence,
+            help,
+            send_feedback,
+            open_link,
             history,
             export_history
         ])
@@ -766,6 +856,20 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_popover(app, Opened::ByClick),
+            "help" => {
+                show_popover(app, Opened::ByClick);
+                let _ = app.emit("panel", "help");
+            }
+            "feedback" => {
+                if let Err(problem) = send_feedback(app.clone(), app.state::<AppState>()) {
+                    tell_problem(app, &problem);
+                }
+            }
+            "support" => {
+                if let Err(problem) = open_link(app.clone(), "support") {
+                    tell_problem(app, &problem);
+                }
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -808,7 +912,7 @@ fn image(icon: icon::Icon) -> Image<'static> {
     Image::new_owned(icon.rgba, icon.size, icon.size)
 }
 
-/// Every account and problem, then Open and Quit.
+/// Every account and problem, then Open, Help and Quit.
 fn tray_menu(app: &AppHandle, meter: &Meter) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::new(app)?;
     let lines = meter.lines();
@@ -824,6 +928,16 @@ fn tray_menu(app: &AppHandle, meter: &Meter) -> tauri::Result<Menu<Wry>> {
         "Open QuotaDial",
         true,
         None::<&str>,
+    )?)?;
+    menu.append(&Submenu::with_items(
+        app,
+        "Help",
+        true,
+        &[
+            &MenuItem::with_id(app, "help", "What's New and About", true, None::<&str>)?,
+            &MenuItem::with_id(app, "feedback", "Send Feedback…", true, None::<&str>)?,
+            &MenuItem::with_id(app, "support", "Write to Support", true, None::<&str>)?,
+        ],
     )?)?;
     menu.append(&MenuItem::with_id(
         app,

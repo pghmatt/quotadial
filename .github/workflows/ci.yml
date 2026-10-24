@@ -106,6 +106,10 @@ jobs:
         run: shellcheck scripts/*.sh
       - name: The public PRD has no private content
         run: scripts/public-prd.sh --check
+      # A release's notes come from its section of CHANGELOG.md (D-101), so the version being built
+      # must have one.
+      - name: The changelog has notes for this version
+        run: scripts/release-notes.sh "$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)" > /dev/null
 
   # The single status check that branch protection on main requires, so the jobs above can change
   # without touching the protection rule.

@@ -13,7 +13,9 @@ plain words (`quotadial alerts add "warn me at 80%"`), keeps 30 days of history 
 history`), watches the providers' status pages for incidents, works out what the week's local use
 would have cost at API prices, and serves a local HTTP API, and
 `quotadial mcp` is an MCP server for agents, with [a skill](skills/quotadial/SKILL.md) that tells
-them how to use it. See [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes. The tray app
+them how to use it, and `quotadial doctor` prints what support asks for. See
+[docs/CLI.md](docs/CLI.md) for the commands, output and exit codes, and
+[CHANGELOG.md](CHANGELOG.md) for what changed in each version. The tray app
 ([apps/tray](apps/tray)) shows the tightest limit in the menu bar or tray and runs the daemon
 itself; see [docs/INSTALL.md](docs/INSTALL.md) to install or build it.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the

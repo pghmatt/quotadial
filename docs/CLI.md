@@ -24,6 +24,7 @@ CLI already store and never writes them.
 | `quotadial licence` | Says whether this copy is QuotaDial Free or QuotaDial Pro, and from which licence; `licence show --json` gives the same as JSON |
 | `quotadial licence add [<key>]` | Adds a licence key for QuotaDial Pro, or asks for one to be pasted |
 | `quotadial licence remove` | Removes the licence key |
+| `quotadial doctor` | Prints what support asks for, with nothing secret in it (see Doctor) |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -357,6 +358,38 @@ adds:
 `licence show --json` gives `tier` (`free` or `pro`), `text` (that sentence) and, when the key holds
 a licence, even one that has ended, `licence`: its `id`, `plan`, `issued` day and, for a licence
 that ends, `until`.
+
+## Doctor
+
+`quotadial doctor` prints what support asks for, the same text the app's Send feedback fills in to
+a new GitHub issue:
+
+```text
+QuotaDial 0.3.0 on macOS 26.1 (aarch64)
+Licence: QuotaDial Pro, with a licence that does not end
+Data folder: ~/Library/Application Support/quotadial
+Daemon: running, process 4242, API on 127.0.0.1:47115, started 2 h ago
+Numbers: from the daemon
+
+Accounts (2):
+  claude u***@e***.com (max): ok, fetched 3 min ago from the API
+    sign-in: the macOS Keychain item "Claude Code-credentials"
+  codex u***@e***.com (pro): ok, fetched 1 min ago from the API
+    sign-in: ~/.codex/auth.json
+Settings in effect:
+  extra_config_dirs: none
+  max_accounts: every account
+  history_days: 30
+  status_pages: on
+  cost_scan: on
+  alert webhooks: hooks.slack.com
+  warnings: none
+```
+
+It takes its numbers from the daemon when one runs and fetches for itself when not, as `status`
+does, and adds what QuotaDial Free leaves out, the status pages and every problem when there are
+any. It holds nothing secret: no token, email addresses cut to their first letters, the home folder
+written `~`, no licence id, and webhooks named by their host.
 
 ## The local API
 

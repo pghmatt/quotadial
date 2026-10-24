@@ -167,3 +167,29 @@ export interface Heatmap {
   /** The largest cell, which the others are shaded against. */
   most: number;
 }
+
+/** What the app's Help shows. */
+export interface HelpView {
+  /** The app's version, such as "0.3.0". */
+  version: string;
+  /** What changed in it, from the changelog built into the app. */
+  whats_new: WhatsNew;
+  /** What this copy is, such as "QuotaDial Pro, licence 1234." */
+  licence: string;
+  /** Where people write for help. */
+  support: string;
+  /** Whose work QuotaDial uses, and under which licence. */
+  credits: string[];
+}
+
+export interface WhatsNew {
+  /** Such as "0.3.0", or "Unreleased" for a build between releases. */
+  version: string;
+  sections: ChangeSection[];
+}
+
+export interface ChangeSection {
+  /** Such as "Added". */
+  heading: string;
+  items: string[];
+}

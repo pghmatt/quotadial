@@ -68,8 +68,8 @@ M5, licensing and release: the manager approved the plan in #49 on 2026-10-24, w
 #52 is the standing quality bar: every PR's description ends with what going down it found. The
 queue, by its numbers:
 - 1, licence keys (D-099), merged (PR #55);
-- 2, the Free and Pro gates (D-100), in review (PR #56);
-- 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md`;
+- 2, the Free and Pro gates (D-100), merged (PR #56);
+- 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md` (D-101), in review (PR #57);
 - 4, checkout in Lemon Squeezy's test mode, with the signing step decided on #54: a Pages Function
   signs with a second, online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on
   Matt's Mac), reached from the receipt's `#licence=` link, and the ended-licence sentence then
@@ -146,7 +146,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Step | Status | Notes |
 | --- | --- | --- |
 | 1: licence keys | Done (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
-| 2: Free and Pro | In review (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
+| 2: Free and Pro | Done (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
+| 3: help and feedback | In review (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
 
 ## Kickoff
 
@@ -332,6 +333,35 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 PR 3: help and feedback (D-101)
+
+- **The text** (`crates/core/src/diagnostics.rs`): `Diagnostics` holds the facts and `text(now,
+  home)` writes them: a header (version and system, licence, data folder, daemon, where the
+  numbers came from), each account (status, age and source of its newest number, sign-in, error),
+  then what Free leaves out, the status pages, the problems, and the settings in effect. The home
+  folder becomes `~`, tokens go through `redact_secrets`, and `mask_emails` cuts each address to
+  `m***@a***.com` (ASCII names with a dotted domain; a property test checks that no whole address
+  is left and that nothing panics). The account's name, the home folder's last part, becomes
+  `[user]` wherever it is a whole word, as in a data folder outside the home folder; the live check
+  found that case. `Standing::without_id` says what the copy is without the licence's id.
+- **Gathering** (`crates/api/src/diagnostics.rs`): `gather(dir, report, numbers_from, now)`, from
+  the licensing, `daemon.lock` and `daemon.json`, and `config.json`; `system()` from `sw_vers`,
+  `/etc/os-release` or `ver`; `feedback_url(text)`, a new GitHub issue with the text in the body,
+  cut at a line past 4,000 characters; and the links, `ISSUES_URL`, `CHANGELOG_URL` and
+  `SUPPORT_EMAIL`.
+- **The CLI:** `quotadial doctor`, from the daemon or a direct fetch as `status`, or "nowhere"
+  with the reason when a daemon does not answer.
+- **The app:** a Help panel (What's new from the built-in `CHANGELOG.md`, for this version or
+  Unreleased; Send feedback; Write to support; About with the version, the licence and NOTICE's
+  credits) beside Settings, and a Help submenu in the tray's menu that opens it, sends feedback or
+  writes to support. Links open through `tauri-plugin-opener` from Rust, and only the four Help
+  names; a link chosen from the tray's menu that cannot open is told as a notification. The footer's origin line now has a line of its own above the buttons. The window's
+  JavaScript is 26.4 KB.
+- **The changelog:** `CHANGELOG.md` with Unreleased, 0.2.0 and 0.1.0; `scripts/release-notes.sh
+  <version>`; the Release workflow drafts with the version's notes under the unsigned-builds line,
+  and fails a tag with none; CI checks that the workspace's version has notes. AGENTS.md asks each
+  PR for its changelog lines.
 
 ### M5 PR 2: Free and Pro (D-100)
 
