@@ -61,6 +61,10 @@ export interface Settings {
   /** The alert rules, oldest first; they change through `add_alert`, `set_alert` and
    * `remove_alert`. */
   alerts: AlertChoice[];
+  /** The hosts of the webhooks alerts are also sent to. */
+  alert_targets: string[];
+  /** What `config.json` could not be used for, each naming the fix. */
+  alert_problems: string[];
   providers: ProviderChoice[];
   /** Every account QuotaDial knows now, with the name the user gave it. */
   accounts: AccountChoice[];

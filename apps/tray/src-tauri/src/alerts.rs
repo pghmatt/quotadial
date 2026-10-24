@@ -102,6 +102,7 @@ mod tests {
             title: format!("{provider} Weekly passed 90%"),
             body: "user@example.com: 91% used, no reset time reported.".into(),
             fired_at: DateTime::<Utc>::MIN_UTC,
+            deliveries: Vec::new(),
         }
     }
 

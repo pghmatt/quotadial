@@ -23,7 +23,7 @@ use quotadial_core::{Account, Provider, ProviderError, Snapshot, StatusReport};
 use tokio::sync::watch;
 use tokio::time::Instant;
 
-use crate::History;
+use crate::{Deliverer, History, Webhook, deliver_due};
 
 /// Numbers that moved this recently keep an account at its provider's floor.
 pub const ACTIVE_FOR: Duration = Duration::from_secs(10 * 60);
@@ -125,6 +125,12 @@ pub struct Poller {
     discover_at: Instant,
     prune_at: Instant,
     alerts_at: Instant,
+    /// Where told alerts are also sent (D-094).
+    webhooks: Arc<[Webhook]>,
+    deliverer: Option<Deliverer>,
+    /// Held while alerts are being sent, so a slow webhook never holds up polling and two rounds
+    /// never send the same alert at once.
+    delivering: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl std::fmt::Debug for Poller {
@@ -171,7 +177,20 @@ impl Poller {
             discover_at: now,
             prune_at: now,
             alerts_at: now + ALERTS_EVERY,
+            webhooks: Arc::new([]),
+            deliverer: None,
+            delivering: Arc::default(),
         }
+    }
+
+    /// The poller, also sending told alerts to `webhooks`.
+    #[must_use]
+    pub fn with_webhooks(mut self, webhooks: Vec<Webhook>) -> Self {
+        self.deliverer = (!webhooks.is_empty())
+            .then(Deliverer::new)
+            .and_then(Result::ok);
+        self.webhooks = webhooks.into();
+        self
     }
 
     /// What the poller last found, to hand to consumers.
@@ -245,6 +264,22 @@ impl Poller {
         if let Some(newest) = fired {
             self.latest.0.fired.send_replace(newest);
         }
+        self.deliver();
+    }
+
+    /// Sends what is due to the webhooks, in its own task, unless a round is still sending.
+    fn deliver(&self) {
+        let Some(deliverer) = self.deliverer.clone() else {
+            return;
+        };
+        let Ok(sending) = Arc::clone(&self.delivering).try_lock_owned() else {
+            return;
+        };
+        let (history, webhooks) = (Arc::clone(&self.history), Arc::clone(&self.webhooks));
+        tokio::spawn(async move {
+            deliver_due(&history, &deliverer, &webhooks, Utc::now()).await;
+            drop(sending);
+        });
     }
 
     /// Finds every provider's accounts. A new account is due at once; one that has gone is
@@ -894,6 +929,30 @@ mod tests {
         tokio::time::advance(Duration::from_secs(2 * 60)).await;
         poller.poll_due().await;
         assert!(!fired.has_changed().expect("open"), "told once");
+    }
+
+    // Real time, since the webhook is reached over a real socket.
+    #[tokio::test]
+    async fn a_told_alert_goes_to_the_webhooks_too() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.set_used(Ok(95.0));
+        let (address, bodies) = crate::test_support::receiver("200 OK").await;
+        let webhook =
+            Webhook::new(&address, crate::WebhookKind::Json).expect("a webhook on this machine");
+        let mut poller = poller(vec![Arc::clone(&codex)], history).with_webhooks(vec![webhook]);
+
+        poller.poll_due().await;
+
+        let sent = async {
+            while bodies.lock().expect("lock").is_empty() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), sent)
+            .await
+            .expect("the webhook got the new history's 90% alert");
+        assert!(bodies.lock().expect("lock")[0].contains("Codex Session passed 90%"));
     }
 
     #[tokio::test(start_paused = true)]

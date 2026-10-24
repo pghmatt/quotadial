@@ -98,6 +98,14 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
             <p class="read-as">Read as: {alert.read_as}</p>
           </div>
         ))}
+        {settings.alert_targets.length > 0 && (
+          <p class="detail">Also sent to {settings.alert_targets.join(", ")}.</p>
+        )}
+        {settings.alert_problems.map((problem) => (
+          <p class="note" key={problem}>
+            {problem}
+          </p>
+        ))}
         <form
           class="add-alert"
           onSubmit={(event) => {
