@@ -3122,7 +3122,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "chrono",
@@ -3138,7 +3138,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3149,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-cost"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "memchr",
@@ -3162,7 +3162,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
@@ -3178,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-poll"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
@@ -3191,7 +3191,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-provider-claude"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3208,7 +3208,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-provider-codex"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3223,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-providers"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quotadial-core",
  "quotadial-daemon",
@@ -3233,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "quotadial-tray"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",

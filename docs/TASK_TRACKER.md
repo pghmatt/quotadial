@@ -31,7 +31,8 @@ M3 is done. Both parts of its test pass on Matt's Mac:
 
 The review's six smaller items (#39) are done in PR #42. With Matt's go-ahead, `v0.1.0` (M1 to M3)
 is tagged at 00291e5. The Release workflow built its draft pre-release with the dmg, the msi, the
-deb, the AppImage and the CLI for four platforms; publishing it is Matt's click.
+deb, the AppImage and the CLI for four platforms. With Matt's yes, relayed on #49, it was published
+as a pre-release on 2026-10-24 at 21:34 UTC.
 
 M4, alerts and history: the manager approved the plan in #40 on 2026-10-23, with six decisions and
 two additions (D-090, D-091). Its PRs, in order:
@@ -50,8 +51,16 @@ M4 is done. Its test passes:
 
 Since 2026-10-24 01:15 UTC, Matt's app runs `main` at fd3ee4d, built from the same tree and swapped in
 for the one built at d0e4bc6. It opened his history at schema 5, showed all nine accounts, and
-showed the week's cost 11 seconds after it started. `v0.2.0` (M4) waits for Matt's go-ahead, with
-the version raised from 0.1.0 first. The M5 plan is #49, for approval.
+showed the week's cost 11 seconds after it started.
+
+`v0.2.0` (M4), with the same yes: the version is raised from 0.1.0 to 0.2.0 in the workspace, the
+app's `Cargo.toml`, `package.json` and `tauri.conf.json`, and both lockfiles, and the price table
+was refreshed from models.dev as AGENTS.md asks before a tag (only its date changed). `main` is
+tagged once that merges, and the draft is published as a pre-release with the M4 notes. A first
+measure for #52's list, from Matt's Mac before the tag: the app's own process, which holds the tray
+and the daemon, had used 0.28% of one core on average over 20 hours 22 minutes (3 min 24 s of CPU)
+and was 91 MB resident; the webview's processes are not counted. The full set of #52's measurements
+comes with the docs PR on #49's queue. The M5 plan is #49.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
