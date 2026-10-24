@@ -209,7 +209,11 @@ mod tests {
             "a webhook is named by its host only"
         );
         assert!(!text.contains("api-test"), "no licence id");
-        assert!(text.contains("Data folder: ~/quotadial"), "{text}");
+        let data_folder = format!(
+            "Data folder: {}",
+            std::path::Path::new("~").join("quotadial").display()
+        );
+        assert!(text.contains(&data_folder), "{text}");
     }
 
     #[test]

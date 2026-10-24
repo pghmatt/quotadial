@@ -356,7 +356,7 @@ so they became #10.
   Unreleased; Send feedback; Write to support; About with the version, the licence and NOTICE's
   credits) beside Settings, and a Help submenu in the tray's menu that opens it, sends feedback or
   writes to support. Links open through `tauri-plugin-opener` from Rust, and only the four Help
-  names. The footer's origin line now has a line of its own above the buttons. The window's
+  names; a link chosen from the tray's menu that cannot open is told as a notification. The footer's origin line now has a line of its own above the buttons. The window's
   JavaScript is 26.4 KB.
 - **The changelog:** `CHANGELOG.md` with Unreleased, 0.2.0 and 0.1.0; `scripts/release-notes.sh
   <version>`; the Release workflow drafts with the version's notes under the unsigned-builds line,

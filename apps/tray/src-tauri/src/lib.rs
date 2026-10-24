@@ -462,6 +462,18 @@ fn open_link(app: AppHandle, link: &str) -> Result<(), String> {
     open(&app, &address)
 }
 
+/// Says, as a notification, why something chosen from the tray's menu could not be done, since
+/// the menu has nowhere of its own to say it.
+fn tell_problem(app: &AppHandle, problem: &str) {
+    // Best effort: with notifications refused too, there is nowhere left to say it.
+    let _ = app
+        .notification()
+        .builder()
+        .title("QuotaDial")
+        .body(problem)
+        .show();
+}
+
 fn open(app: &AppHandle, address: &str) -> Result<(), String> {
     app.opener()
         .open_url(address, None::<&str>)
@@ -849,10 +861,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let _ = app.emit("panel", "help");
             }
             "feedback" => {
-                let _ = send_feedback(app.clone(), app.state::<AppState>());
+                if let Err(problem) = send_feedback(app.clone(), app.state::<AppState>()) {
+                    tell_problem(app, &problem);
+                }
             }
             "support" => {
-                let _ = open_link(app.clone(), "support");
+                if let Err(problem) = open_link(app.clone(), "support") {
+                    tell_problem(app, &problem);
+                }
             }
             "quit" => app.exit(0),
             _ => {}

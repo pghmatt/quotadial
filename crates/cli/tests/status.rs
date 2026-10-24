@@ -493,5 +493,7 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
         !text.contains(&home_text),
         "the home folder is written ~:\n{text}"
     );
-    assert!(text.contains("Data folder: ~/data"), "{text}");
+    // The text keeps the system's own separator, as a Windows user's paste should.
+    let data_folder = format!("Data folder: {}", Path::new("~").join("data").display());
+    assert!(text.contains(&data_folder), "{text}");
 }
