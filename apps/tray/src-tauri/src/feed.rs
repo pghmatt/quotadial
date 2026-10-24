@@ -295,9 +295,13 @@ mod tests {
         }
     }
 
+    /// A data folder whose settings leave out the status pages, so no test reaches the internet.
     fn data_dir() -> (tempfile::TempDir, DataDir) {
         let temp = tempfile::tempdir().expect("temp dir");
         let dir = DataDir::new(temp.path().join("quotadial"));
+        dir.create().expect("creates");
+        std::fs::write(dir.path().join("config.json"), r#"{"status_pages": false}"#)
+            .expect("writes the settings");
         (temp, dir)
     }
 

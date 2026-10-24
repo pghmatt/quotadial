@@ -38,9 +38,9 @@ two additions (D-090, D-091). Its PRs, in order:
 - PR 1, the pace of every window (P-016, D-092), merged (PR #43);
 - PR 2, alert rules written in plain words, and the one `tier()` check (D-093), merged (PR #44);
 - PR 2b, alerts sent to a webhook and Slack (D-094), merged (PR #45);
-- PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view (D-095), in
-  review (PR #46);
-- PR 4, the providers' status pages and an incident badge;
+- PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view (D-095),
+  merged (PR #46);
+- PR 4, the providers' status pages and an incident badge (D-096), in review (PR #47);
 - PR 5, the week's API-equivalent cost, from a bundled price table.
 
 Proposals:
@@ -100,7 +100,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 1: pace | Done (PR #43) | `Window.pace`: the share used per hour and, when it comes before the reset, when the window runs out, fitted by the daemon to each window's readings since it reset; a `readings` table in the history (schema 2); a line under each window in the CLI and the popover; a direct fetch says pace needs the daemon (P-016, D-092) |
 | PR 2: alert rules | Done (PR #44) | Rules in plain words read by a local grammar; a threshold, a reset, running out, a time before a reset and a sign-in; checked by the daemon and told once per window across restarts, sleeps and clock changes; M3's two notifications as starting rules, quiet in an older history; `quotadial alerts`, `/v1/alerts`, `list_alerts`; the app's notifications and Settings; `tier()` (D-093) |
 | PR 2b: alerts to webhooks and Slack | Done (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
-| PR 3: history | In review (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
+| PR 3: history | Done (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
+| PR 4: provider status | In review (PR #47) | The daemon reads status.claude.com and status.openai.com every 5 minutes for providers with accounts; `status_pages` in the report; the incident rule, once per incident; a line in `status`, ⚠ beside the tray's number and the incident in the popover; `status_pages` setting (D-096) |
 
 ## Kickoff
 
@@ -286,6 +287,38 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M4 PR 4: provider status (D-096)
+
+- **Core:** `StatusPage` (provider, indicator, description, url, since, checked_at) and
+  `Indicator` (ordered `none` < `maintenance` < `minor` < `major` < `critical`, with
+  `is_incident()` for `minor` or worse). `StatusReport.status_pages` is left out of JSON when
+  empty. The field was added to the 33 report literals with the compiler's help; the two outside
+  tests (`Settings::shown`, the MCP's `only`) now filter the pages by provider rather than drop
+  them, each with a test.
+- **Reading** (`crates/daemon/src/status_pages.rs`): `parse` reads `api/v2/status.json` and
+  carries `since` from the reading before while the trouble lasts. `StatusReader` uses a
+  10-second timeout and no redirects. The last reading per provider is kept in `status_pages`
+  (schema 5) and loaded when the poller starts.
+- **Poller:** `with_status_pages(pages)` is opt-in, and `Host::start` turns it on unless
+  `"status_pages": false`. Every `STATUS_EVERY` it spawns one reading task (a `tokio::sync::Mutex`
+  guard) for the providers it has accounts with. The task keeps each page and then checks the
+  alert rules.
+- **The incident rule:** `Condition::Incident`, read from `incident`, `outage` or `down`, with a
+  provider or none. `Rule::incidents` gives one occurrence per page in trouble, keyed by `since`.
+  `History::check` records it under the provider's name. `tier()` gates it.
+- **Where it shows:** a line in `status` and `watch` for a page that is not all clear. ⚠ beside
+  the tray's number, and `Status: …` in its menu and tooltip. The incident under the popover's
+  headline.
+- **Tests:** both live fixtures, `since` across a trouble and after it, maintenance not an incident,
+  the last reading across a restart, the setting, the poller reading only providers with accounts
+  from a local page, the incident rule (grammar, scope, once per incident, again for the next), the
+  CLI line, the tray mark, and pages kept through both filters.
+- **Live check on Matt's Mac:** the app, built under another name, ran its own daemon on a copy
+  of the data folder. At 23:41 UTC it read both pages: Claude "major: Partial System Outage" and
+  Codex "minor: Partial System Degradation" (both pages had changed since the fixtures were
+  taken at 23:15). Both were kept with their `since`, and the popover named both under the
+  headline.
 
 ### M4 PR 3: history (D-095)
 

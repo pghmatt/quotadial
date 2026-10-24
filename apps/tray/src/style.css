@@ -451,3 +451,9 @@ footer button + button {
 .history-actions .done {
   margin-top: 0;
 }
+
+.incident {
+  margin: 4px 0 0;
+  color: var(--warning);
+  font-size: 12px;
+}

@@ -8,6 +8,9 @@ export interface Meter {
   accounts: Account[];
   /** What needs the user's attention and belongs to no account, each naming the fix. */
   problems: string[];
+  /** The providers whose status pages report an incident, such as "Codex: Partial System
+   * Degradation". */
+  incidents: string[];
   /** Where the numbers come from, such as "Running the daemon, port 47115". */
   origin: string | null;
 }

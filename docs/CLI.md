@@ -100,6 +100,7 @@ apply. A change applies the next time a command, the daemon or the app starts.
 | `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts). Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
 | `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message. None by default |
 | `history_days` | How many days of history the daemon keeps, from 1 to 365. 30 by default |
+| `status_pages` | `false` stops the daemon reading the providers' status pages. On by default |
 
 A webhook's address works like a password: a Slack address holds its channel's key. QuotaDial never
 prints one, and names a webhook only by its host. Keep `config.json` readable only by you
@@ -151,6 +152,7 @@ Added alert rule 3. QuotaDial reads it as: when a Claude weekly window reaches 8
 | Running out | `warn me when the weekly window will run out before it resets` | When, at its pace, a window runs out before it resets. Pace needs the daemon |
 | A time before a reset | `tell me 30 minutes before the session resets if it is above 50%` | That long before a window resets, if at least that share of it is used. The share is optional |
 | A sign-in | `tell me when an account needs to sign in again` | When an account's sign-in needs renewing, and again only after it has worked in between |
+| An incident | `tell me when claude has an incident`, `warn me about outages` | When a provider's status page reports an incident (not planned maintenance), once for each incident |
 
 A rule covers every window of every account unless it names:
 - a provider: `claude` or `codex` (`anthropic`, `chatgpt` and `openai` work too);
@@ -202,6 +204,23 @@ The daemon also sends each alert to the webhooks in `config.json` (see Settings)
   sent again after 1, 2, 4 and 8 minutes and then every 15, for an hour after it was told.
   Redirects are not followed.
 - `quotadial alerts` says where each alert went, or why it did not, naming a webhook by its host.
+
+## Status pages
+
+While the daemon runs, it reads each provider's status page every 5 minutes, for the providers it
+has accounts with: [status.claude.com](https://status.claude.com) for Claude and
+[status.openai.com](https://status.openai.com) for Codex. It asks only for the page's status
+(`api/v2/status.json`) and sends nothing about you. `"status_pages": false` in `config.json` turns
+this off.
+
+- The report (`status --json`, `GET /v1/status`, `get_usage`) carries `status_pages`, each with the
+  page's `indicator` (`none`, `maintenance`, `minor`, `major` or `critical`), its own words, its
+  address, when QuotaDial first saw the current trouble (`since`), and when it last read the page.
+- `status` and `watch` add a line for a page that is not all clear, such as `codex status page:
+  Partial System Degradation since 12 min ago (https://status.openai.com)`.
+- The app puts ⚠ beside the tray's number during an incident and names it under the headline.
+- A page that cannot be read keeps its last reading. When QuotaDial first saw a trouble is kept in
+  the history, so an incident rule tells each incident once, even across a restart.
 
 ## History
 
@@ -482,6 +501,7 @@ the last, without escape codes.
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
 | `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts, each with a message that names the fix |
+| `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 

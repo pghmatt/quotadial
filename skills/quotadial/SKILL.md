@@ -125,6 +125,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `status` | `ok`; `stale` or `rate_limited` (older numbers shown again); `auth_required` (the user must sign in again); `unsupported` |
 | `error` | Why the status is not `ok`, naming the fix, such as "Run `claude` to sign in again." |
 | `errors[]` | Providers or accounts that produced nothing, and places a provider could not look in for accounts, each with a message naming the fix |
+| `status_pages[]` | While the daemon runs, what each provider's status page says: `indicator` (`none`, `maintenance`, `minor`, `major`, `critical`) and `description`. A `minor` or worse incident can slow or fail requests, so mention it before a long job |
 
 ## Headroom
 
