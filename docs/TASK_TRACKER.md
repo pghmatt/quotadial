@@ -41,7 +41,17 @@ two additions (D-090, D-091). Its PRs, in order:
 - PR 3, history to 30 days (365 as a setting), `quotadial history` and a history view (D-095),
   merged (PR #46);
 - PR 4, the providers' status pages and an incident badge (D-096), merged (PR #47);
-- PR 5, the week's API-equivalent cost, from a bundled price table (D-097), in review (PR #48).
+- PR 5, the week's API-equivalent cost, from a bundled price table (D-097), merged (PR #48).
+
+M4 is done. Its test passes:
+- the rules engine's tests with a manual clock (jumps forward and back, a 12-hour sleep, a restart
+  before delivery) give one firing per window;
+- on Matt's Mac, a reset across a daemon stop and start was told once (PR #44).
+
+Since 2026-10-24 01:15 UTC, Matt's app runs `main` at fd3ee4d, built from the same tree and swapped in
+for the one built at d0e4bc6. It opened his history at schema 5, showed all nine accounts, and
+showed the week's cost 11 seconds after it started. `v0.2.0` (M4) waits for Matt's go-ahead, with
+the version raised from 0.1.0 first. The M5 plan is #49, for approval.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -102,7 +112,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 2b: alerts to webhooks and Slack | Done (PR #45) | `alert_webhooks` and `slack_webhook` in `config.json`, read by the daemon crate's `Config`; each told alert sent with only the firing, retried for an hour; addresses kept secret and named by host; a warning for a webhook that is not `https` or a file others can read; `tier()` gates it (D-094) |
 | PR 3: history | Done (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
 | PR 4: provider status | Done (PR #47) | The daemon reads status.claude.com and status.openai.com every 5 minutes for providers with accounts; `status_pages` in the report; the incident rule, once per incident; a line in `status`, ⚠ beside the tray's number and the incident in the popover; `status_pages` setting (D-096) |
-| PR 5: the week's cost | In review (PR #48) | `quotadial-cost` reads the usage fields of Claude Code's and the Codex CLI's logs into `costs.db`, once per line, and prices the last 7 days from `prices.json` (models.dev, refreshed by `scripts/update-prices.sh`); `costs` in the report and `/v1/headroom`; a line per provider in `status`, the MCP tools and the popover; `cost_scan` setting; `ProFeature::CostScan` (D-097) |
+| PR 5: the week's cost | Done (PR #48) | `quotadial-cost` reads the usage fields of Claude Code's and the Codex CLI's logs into `costs.db`, once per line, and prices the last 7 days from `prices.json` (models.dev, refreshed by `scripts/update-prices.sh`); `costs` in the report and `/v1/headroom`; a line per provider in `status`, the MCP tools and the popover; `cost_scan` setting; `ProFeature::CostScan` (D-097) |
 
 ## Kickoff
 
