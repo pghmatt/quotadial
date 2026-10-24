@@ -12,7 +12,9 @@ use clap::{Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{Provider, StatusReport, collect, text};
-use quotadial_daemon::{AddError, Alerts, Config, DataDir, History, HistoryError, Webhook};
+use quotadial_daemon::{
+    AddError, Alerts, Config, DataDir, History, HistoryError, Series, SeriesQuery, Webhook,
+};
 
 /// Track Claude and ChatGPT/Codex usage limits.
 #[derive(Debug, Parser)]
@@ -53,6 +55,27 @@ enum Command {
         #[command(subcommand)]
         action: Option<AlertsAction>,
     },
+    /// Show how each window was used over time, from the daemon's history.
+    History {
+        /// From how long ago: such as 24h, 7d or 30d, or a time such as 2099-01-01T00:00:00Z.
+        #[arg(long, default_value = "7d")]
+        since: String,
+        /// Only this provider: claude or codex.
+        #[arg(long)]
+        provider: Option<String>,
+        /// Only this account, by its email address or id.
+        #[arg(long)]
+        account: Option<String>,
+        /// Only windows with this label, such as Session or Weekly.
+        #[arg(long)]
+        window: Option<String>,
+        /// Print every reading as CSV, for a spreadsheet.
+        #[arg(long, conflicts_with = "json")]
+        csv: bool,
+        /// Print JSON, the same as `GET /v1/history`.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -92,6 +115,14 @@ pub fn run() -> ExitCode {
         Command::Daemon { port } => daemon(port),
         Command::Mcp => mcp(),
         Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
+        Command::History {
+            since,
+            provider,
+            account,
+            window,
+            csv,
+            json,
+        } => history(&since, provider, account, window, csv, json),
     }
 }
 
@@ -290,6 +321,145 @@ fn alerts(action: AlertsAction) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => write_failed(&error),
     }
+}
+
+/// How the windows were used since `since`, as text, CSV or JSON.
+fn history(
+    since: &str,
+    provider: Option<String>,
+    account: Option<String>,
+    window: Option<String>,
+    csv: bool,
+    json: bool,
+) -> ExitCode {
+    let now = Utc::now();
+    let Some(since) = since_time(since, now) else {
+        eprintln!(
+            "quotadial: --since takes a time ago, such as 24h, 7d or 30d, or a time such as \
+             2099-01-01T00:00:00Z."
+        );
+        return ExitCode::from(2);
+    };
+    let history = match open_history() {
+        Ok(history) => history,
+        Err(error) => {
+            eprintln!("quotadial: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let query = SeriesQuery {
+        since,
+        provider,
+        account,
+        window,
+    };
+    let series = match history.series(&query) {
+        Ok(series) => series,
+        Err(error) => return history_failed(&error),
+    };
+    let mut stdout = io::stdout().lock();
+    let written = if json {
+        write_json(&serde_json::json!({ "series": series }), &mut stdout)
+    } else if csv {
+        quotadial_daemon::write_csv(&series, &mut stdout)
+    } else {
+        write_history(&series, since, now, &mut stdout)
+    };
+    match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => write_failed(&error),
+    }
+}
+
+/// `since` as a time: so long before `now`, as `24h`, `7d` or `90m`, or a time in RFC 3339.
+fn since_time(since: &str, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    if let Ok(at) = DateTime::parse_from_rfc3339(since) {
+        return Some(at.with_timezone(&Utc));
+    }
+    let (count, unit) = since.split_at(since.find(|c: char| !c.is_ascii_digit())?);
+    let count: i64 = count.parse().ok()?;
+    let length = match unit {
+        "m" => TimeDelta::try_minutes(count),
+        "h" => TimeDelta::try_hours(count),
+        "d" => TimeDelta::try_days(count),
+        _ => None,
+    }?;
+    now.checked_sub_signed(length)
+}
+
+/// Each account's windows, a line each: a chart of the period, the latest share used and the
+/// highest.
+fn write_history(
+    series: &[Series],
+    since: DateTime<Utc>,
+    now: DateTime<Utc>,
+    out: &mut impl Write,
+) -> io::Result<()> {
+    if series.is_empty() {
+        return writeln!(out, "No readings since {}.", timestamp(since));
+    }
+    writeln!(
+        out,
+        "Since {} ({}), the highest share used in each {}:",
+        timestamp(since),
+        text::duration(now - since),
+        text::duration((now - since) / CHART_MARKS)
+    )?;
+    let width = series
+        .iter()
+        .map(|series| series.window.len())
+        .max()
+        .unwrap_or(0);
+    let mut account = None;
+    for series in series {
+        let this = (series.provider.as_str(), series.account.as_str());
+        if account != Some(this) {
+            writeln!(out, "{} {}", series.provider, series.account)?;
+            account = Some(this);
+        }
+        let highest = series
+            .readings
+            .iter()
+            .map(|point| point.used_pct)
+            .fold(0.0, f64::max);
+        let Some(latest) = series.readings.last() else {
+            continue;
+        };
+        writeln!(
+            out,
+            "  {:<width$}  {}  latest {:.0}% ({}), highest {:.0}%",
+            series.window,
+            chart(series, since, now),
+            latest.used_pct.floor(),
+            text::ago(latest.fetched_at, now),
+            highest.floor(),
+        )?;
+    }
+    Ok(())
+}
+
+/// How many marks a history chart has.
+const CHART_MARKS: i32 = 28;
+
+/// The period from `since` to `now` in [`CHART_MARKS`] parts, each marked by the highest share
+/// used read in it: `▁` for under an eighth up to `█`, and a space for no reading.
+fn chart(series: &Series, since: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    const MARKS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let part = (now - since) / CHART_MARKS;
+    (0..CHART_MARKS)
+        .map(|index| {
+            let (start, end) = (since + part * index, since + part * (index + 1));
+            series
+                .readings
+                .iter()
+                .filter(|point| point.fetched_at >= start && point.fetched_at < end)
+                .map(|point| point.used_pct)
+                .reduce(f64::max)
+                .map_or(' ', |highest| {
+                    MARKS[((highest.clamp(0.0, 100.0) / 100.0 * 7.0).round()) as usize]
+                })
+        })
+        .collect()
 }
 
 /// The settings in `config.json`, or the defaults.
@@ -964,6 +1134,65 @@ mod tests {
         ];
         assert_eq!(shown, expected.join("\n"));
         assert!(!shown.contains("XXXXXXXX"));
+    }
+
+    fn series(account: &str, window: &str, points: &[(i64, f64)]) -> Series {
+        Series {
+            provider: "claude".into(),
+            account_id: "user-1".into(),
+            org: None,
+            account: account.into(),
+            window: window.into(),
+            scope_model: None,
+            kind: WindowKind::Session,
+            readings: points
+                .iter()
+                .map(|(hours, used_pct)| quotadial_daemon::Point {
+                    fetched_at: ts("2099-01-01T00:00:00Z") + TimeDelta::hours(*hours),
+                    used_pct: *used_pct,
+                    resets_at: None,
+                    source: Source::Api,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn since_takes_a_time_ago_or_a_time() {
+        let now = ts("2099-01-08T00:00:00Z");
+
+        assert_eq!(since_time("7d", now), Some(ts("2099-01-01T00:00:00Z")));
+        assert_eq!(since_time("24h", now), Some(ts("2099-01-07T00:00:00Z")));
+        assert_eq!(since_time("90m", now), Some(ts("2099-01-07T22:30:00Z")));
+        assert_eq!(
+            since_time("2099-01-05T12:00:00Z", now),
+            Some(ts("2099-01-05T12:00:00Z"))
+        );
+        assert_eq!(since_time("a week", now), None);
+        assert_eq!(since_time("7w", now), None);
+    }
+
+    #[test]
+    fn history_shows_each_window_with_a_chart_of_the_period() {
+        let since = ts("2099-01-01T00:00:00Z");
+        let now = ts("2099-01-08T00:00:00Z");
+        // A reading every day at noon, then one more an hour before now.
+        let session = series(
+            "work@example.com",
+            "Session",
+            &[(12, 10.0), (36, 100.0), (60, 50.0), (167, 30.0)],
+        );
+        let mut out = Vec::new();
+
+        write_history(&[session], since, now, &mut out).expect("writes");
+
+        let expected = [
+            "Since 2099-01-01T00:00:00Z (7 d), the highest share used in each 6 h:",
+            "claude work@example.com",
+            "  Session    \u{2582}   \u{2588}   \u{2585}                \u{2583}  latest 30% (1 h ago), highest 100%",
+            "",
+        ];
+        assert_eq!(String::from_utf8(out).expect("UTF-8"), expected.join("\n"));
     }
 
     #[test]

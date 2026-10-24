@@ -114,10 +114,13 @@ impl Host {
         })?;
         // A daemon that crashed left its port behind, and another program may hold that port now.
         Runtime::remove(&dir);
-        let history = History::open(&dir.history()).map_err(|error| HostError::History {
-            path: dir.history(),
-            error,
-        })?;
+        let config = Config::load(&dir);
+        let history = History::open(&dir.history())
+            .map_err(|error| HostError::History {
+                path: dir.history(),
+                error,
+            })?
+            .keeping(config.history_days);
         let token = Token::load_or_create(&dir).map_err(|error| HostError::Token {
             path: dir.token(),
             error,
@@ -138,8 +141,7 @@ impl Host {
         .write(&dir)
         .map_err(announce)?;
         let history = Arc::new(history);
-        let poller =
-            Poller::new(providers, Arc::clone(&history)).with_webhooks(Config::load(&dir).webhooks);
+        let poller = Poller::new(providers, Arc::clone(&history)).with_webhooks(config.webhooks);
         Ok(Self {
             dir,
             instance,

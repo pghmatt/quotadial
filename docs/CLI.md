@@ -19,6 +19,8 @@ CLI already store and never writes them.
 | `quotadial alerts add <words>` | Adds an alert rule written in plain words, such as `quotadial alerts add "warn me at 80%"` |
 | `quotadial alerts remove <number>` | Removes the rule with that number |
 | `quotadial alerts on <number>`, `quotadial alerts off <number>` | Turns the rule with that number on or off |
+| `quotadial history` | Shows how each window was used over the last 7 days, a line each with a small chart |
+| `quotadial history --since 30d --csv` | Every reading since then as CSV; `--json` gives the same as `GET /v1/history`. `--provider`, `--account` and `--window` narrow it |
 | `quotadial --version` | Prints the version |
 
 ## How often providers are asked
@@ -86,7 +88,8 @@ apply. A change applies the next time a command, the daemon or the app starts.
   "extra_config_dirs": ["~/work/claude", "~/claude-accounts/*"],
   "max_accounts": 3,
   "alert_webhooks": ["https://example.com/hooks/quota"],
-  "slack_webhook": "https://hooks.slack.com/services/..."
+  "slack_webhook": "https://hooks.slack.com/services/...",
+  "history_days": 90
 }
 ```
 
@@ -96,6 +99,7 @@ apply. A change applies the next time a command, the daemon or the app starts.
 | `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default |
 | `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts). Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
 | `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message. None by default |
+| `history_days` | How many days of history the daemon keeps, from 1 to 365. 30 by default |
 
 A webhook's address works like a password: a Slack address holds its channel's key. QuotaDial never
 prints one, and names a webhook only by its host. Keep `config.json` readable only by you
@@ -199,6 +203,32 @@ The daemon also sends each alert to the webhooks in `config.json` (see Settings)
   Redirects are not followed.
 - `quotadial alerts` says where each alert went, or why it did not, naming a webhook by its host.
 
+## History
+
+The daemon keeps every reading of every window for 30 days, or as many as `history_days` says,
+up to a year. `quotadial history` reads it, whether or not the daemon is running:
+
+```text
+$ quotadial history --since 24h
+Since 2099-01-01T00:00:00Z (1 d), the highest share used in each 51 min:
+claude user@example.com
+  Session  ▁▂▄▆█▁▁▂▃▅▆▁▁▁▂▃▅▇▁▁▂▃▄▅▆▇▃▁  latest 62% (4 min ago), highest 100%
+  Weekly   ▃▃▃▃▃▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▆▆▆▆▆  latest 74% (4 min ago), highest 74%
+```
+
+- Each window gets a line: a chart of the period in 28 marks, each the highest share used read
+  then (`▁` low to `█` full, a space for no reading), then the latest reading and the highest.
+- `--since` takes a time ago (`90m`, `24h`, `7d`, `30d`) or a time in RFC 3339; 7 days by default.
+- `--provider`, `--account` (an email address or id) and `--window` (a label, such as `Session`)
+  narrow it.
+- `--csv` prints every reading with the columns `fetched_at`, `provider`, `account`, `window`,
+  `used_pct`, `resets_at` and `source`. `--json` prints the same as `GET /v1/history`.
+- An unconfirmed 0% is left out of history.
+
+The app's **History** button shows each account's windows charted over the last 7 or 30 days, a
+heatmap of when it was used by hour of the day, and an **Export CSV** button that saves the
+readings to the Downloads folder.
+
 ## The local API
 
 The daemon answers these requests, on `127.0.0.1` only:
@@ -207,6 +237,7 @@ The daemon answers these requests, on `127.0.0.1` only:
 | --- | --- |
 | `GET /v1/status` | The same report as `status --json` (see JSON output below) |
 | `GET /v1/headroom` | Every account ranked by the room left in its tightest window |
+| `GET /v1/history` | Each window's readings since a time, 7 days ago by default. Takes `since` (RFC 3339), `provider`, `account` and `window` |
 | `GET /v1/alerts` | The alert rules, and what they told in the last week |
 | `POST /v1/alerts` | Adds a rule sent as `{ "rule": "warn me at 80%" }`. 201 with the rule, or 400 with what the grammar could not read |
 | `PATCH /v1/alerts/<id>` | Turns a rule on or off, sent as `{ "enabled": false }`. 200 with the rule, or 404 |
@@ -261,6 +292,28 @@ processes can list.
 
 Headroom uses the numbers as last fetched. A `tightest.resets_at` in the past means the window has
 reset since, and the daemon fetches again within 10 minutes.
+
+`GET /v1/history?since=2099-01-01T00:00:00Z&window=Weekly`, the same as `quotadial history --json`:
+
+```json
+{
+  "series": [
+    {
+      "provider": "claude",
+      "account_id": "...",
+      "account": "user@example.com",
+      "window": "Weekly",
+      "kind": "weekly",
+      "readings": [
+        { "fetched_at": "2099-01-01T00:00:00Z", "used_pct": 40.0, "resets_at": "2099-01-07T00:00:00Z", "source": "api" }
+      ]
+    }
+  ]
+}
+```
+
+Each series is one account's window, each provider's in order of account name, with its readings
+oldest first. `org` and `scope_model` appear when the window has them.
 
 `GET /v1/alerts`, the same as `quotadial alerts list --json`:
 

@@ -1,5 +1,6 @@
 //! The daemon's history: every snapshot that brought new data, and every reading of every window,
-//! in SQLite under the data directory, kept for 30 days (the PRD's free-tier history).
+//! in SQLite under the data directory, kept for 30 days (the PRD's free-tier history) or as long
+//! as `history_days` in `config.json` says, up to a year.
 //!
 //! The database runs in WAL mode, so readers such as a later history view never block the
 //! poller's writes. A snapshot is stored only when it differs from the account's last stored one
@@ -16,8 +17,10 @@ use quotadial_core::{Account, Pace, Reading, Snapshot, Status, Window};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::Serialize;
 
-/// How long history is kept.
-pub const KEEP_DAYS: i64 = 30;
+/// How long history is kept unless `history_days` says otherwise.
+pub const KEEP_DAYS: u32 = 30;
+/// The longest history can be kept: a year (the PRD's Pro history).
+pub const MAX_KEEP_DAYS: u32 = 365;
 
 /// The schema version, kept in SQLite's `user_version`. Version 2 added `readings`, version 3 the
 /// alert rules and their firings, and version 4 where each firing was sent.
@@ -27,6 +30,8 @@ const SCHEMA_VERSION: i32 = 4;
 #[derive(Debug)]
 pub struct History {
     connection: Mutex<Connection>,
+    /// How many days of history are kept.
+    keep_days: u32,
 }
 
 /// Why history could not be read or written.
@@ -141,7 +146,21 @@ impl History {
         upgrade.commit()?;
         Ok(Self {
             connection: Mutex::new(connection),
+            keep_days: KEEP_DAYS,
         })
+    }
+
+    /// The history, keeping `days` of it, from 1 to [`MAX_KEEP_DAYS`].
+    #[must_use]
+    pub fn keeping(mut self, days: u32) -> Self {
+        self.keep_days = days.clamp(1, MAX_KEEP_DAYS);
+        self
+    }
+
+    /// How many days of history are kept.
+    #[must_use]
+    pub fn keep_days(&self) -> u32 {
+        self.keep_days
     }
 
     /// Stores `snapshot`, polled at `polled_at`, if it brings new data, and its window readings that
@@ -259,14 +278,13 @@ impl History {
         snapshot
     }
 
-    /// Deletes what was polled more than [`KEEP_DAYS`] before `now`. Returns how many snapshots
-    /// went.
+    /// Deletes what is older than the days kept, before `now`. Returns how many snapshots went.
     ///
     /// # Errors
     ///
     /// When the database cannot be written.
     pub fn prune(&self, now: DateTime<Utc>) -> Result<usize, HistoryError> {
-        let before = timestamp(now - chrono::TimeDelta::days(KEEP_DAYS));
+        let before = timestamp(now - chrono::TimeDelta::days(i64::from(self.keep_days)));
         let connection = self.lock();
         connection.execute(
             "DELETE FROM readings WHERE fetched_at < ?1",

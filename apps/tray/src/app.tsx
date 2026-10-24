@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { HistoryPanel } from "./history";
 import type { Account, Meter, Window } from "./meter";
 import { SettingsPanel } from "./settings";
 
@@ -59,8 +60,12 @@ export function App() {
   );
 }
 
+/** What the popover shows below its number: the accounts, the settings, or the history. */
+type Panel = "accounts" | "settings" | "history";
+
 function Contents({ meter }: { meter: Meter }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel>("accounts");
+  const accounts = panel === "accounts";
   return (
     <>
       <header class="summary">
@@ -69,8 +74,9 @@ function Contents({ meter }: { meter: Meter }) {
         </p>
         <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
       </header>
-      {settingsOpen && <SettingsPanel onDone={() => setSettingsOpen(false)} />}
-      {!settingsOpen &&
+      {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
+      {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}
+      {accounts &&
         meter.accounts.map((account, index) => (
           <AccountSection
             key={account.key}
@@ -78,7 +84,7 @@ function Contents({ meter }: { meter: Meter }) {
             index={index}
           />
         ))}
-      {!settingsOpen && meter.problems.length > 0 && (
+      {accounts && meter.problems.length > 0 && (
         <section class="problems" aria-label="Problems">
           <ul>
             {meter.problems.map((problem) => (
@@ -89,8 +95,13 @@ function Contents({ meter }: { meter: Meter }) {
       )}
       <footer>
         <p class="origin">{meter.origin ?? ""}</p>
-        {!settingsOpen && (
-          <button type="button" onClick={() => setSettingsOpen(true)}>
+        {accounts && (
+          <button type="button" onClick={() => setPanel("history")}>
+            History
+          </button>
+        )}
+        {accounts && (
+          <button type="button" onClick={() => setPanel("settings")}>
             Settings
           </button>
         )}

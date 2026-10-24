@@ -327,6 +327,37 @@ async fn unknown_paths_and_writes_get_json_errors() {
 }
 
 #[tokio::test]
+async fn history_gives_each_windows_readings_since_a_time() {
+    let daemon = daemon().await;
+
+    let (status, body) = daemon.get("/v1/history?since=2098-12-31T00:00:00Z").await;
+    assert_eq!(status, StatusCode::OK);
+    let series = body["series"].as_array().expect("series");
+    assert_eq!(series.len(), 1, "the one window Fixed reports");
+    assert_eq!(series[0]["window"], "Session");
+    assert_eq!(series[0]["account"], "user@example.com");
+    assert_eq!(series[0]["readings"][0]["used_pct"], 40.0);
+
+    let (status, body) = daemon
+        .get("/v1/history?since=2098-12-31T00:00:00Z&window=Weekly")
+        .await;
+    assert_eq!(
+        (status, body["series"].clone()),
+        (StatusCode::OK, Value::Array(Vec::new()))
+    );
+    let (status, body) = daemon.get("/v1/history?since=yesterday").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        body["error"]
+            .as_str()
+            .expect("an error")
+            .contains("RFC 3339")
+    );
+
+    daemon.stop().await;
+}
+
+#[tokio::test]
 async fn alert_rules_are_listed_added_turned_off_and_removed() {
     let daemon = daemon().await;
 

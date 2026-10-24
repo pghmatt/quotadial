@@ -82,6 +82,9 @@ that; Ubuntu has it on already.
   the tray's menu in place of it. Accounts are listed by the name shown. Clear the name to go back
   to the email address.
 
+**History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
+each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
+
 The popover lists every Claude subscription stored on the machine, not only the one Claude Code is
 signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
 folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts).

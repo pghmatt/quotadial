@@ -18,6 +18,8 @@ pub enum ProFeature {
     AlertRules,
     /// Alerts sent to webhooks and Slack as well as the system's notifications.
     AlertDelivery,
+    /// History kept up to a year, rather than 30 days.
+    LongHistory,
 }
 
 /// This copy's tier: Pro for every copy until M5's licensing.
@@ -32,7 +34,10 @@ impl Tier {
     pub fn allows(self, feature: ProFeature) -> bool {
         match (self, feature) {
             (Self::Pro, _) => true,
-            (Self::Free, ProFeature::AlertRules | ProFeature::AlertDelivery) => false,
+            (
+                Self::Free,
+                ProFeature::AlertRules | ProFeature::AlertDelivery | ProFeature::LongHistory,
+            ) => false,
         }
     }
 }
@@ -44,7 +49,11 @@ mod tests {
     #[test]
     fn every_copy_is_pro_until_licensing_arrives() {
         assert_eq!(tier(), Tier::Pro);
-        for feature in [ProFeature::AlertRules, ProFeature::AlertDelivery] {
+        for feature in [
+            ProFeature::AlertRules,
+            ProFeature::AlertDelivery,
+            ProFeature::LongHistory,
+        ] {
             assert!(tier().allows(feature));
             assert!(!Tier::Free.allows(feature));
         }

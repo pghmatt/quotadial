@@ -5,6 +5,7 @@
 
 mod alerts;
 mod feed;
+mod history;
 mod icon;
 mod meter;
 mod settings;
@@ -334,6 +335,56 @@ fn remove_alert(
     Ok(self::settings(app.clone(), state))
 }
 
+/// The history view of the last `days`: 7 or 30.
+///
+/// # Errors
+///
+/// When the history cannot be read, for the popover to show.
+#[tauri::command]
+fn history(state: tauri::State<'_, AppState>, days: u32) -> Result<history::HistoryView, String> {
+    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    history::view(
+        history,
+        &settings,
+        days.clamp(1, 365),
+        Utc::now(),
+        &chrono::Local,
+    )
+}
+
+/// Saves every reading of the last `days` as CSV in the Downloads folder, and says where.
+///
+/// # Errors
+///
+/// When there is no Downloads folder, or the file cannot be written, for the popover to show.
+#[tauri::command]
+fn export_history(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    days: u32,
+) -> Result<String, String> {
+    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let folder = app
+        .path()
+        .download_dir()
+        .map_err(|_| "The system names no Downloads folder to save the file in.".to_owned())?;
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let path = history::export(history, &settings, days.clamp(1, 365), Utc::now(), &folder)?;
+    Ok(format!(
+        "Saved to {}.",
+        text::tilde(&path, app.path().home_dir().ok().as_deref())
+    ))
+}
+
 fn no_history() -> String {
     "QuotaDial could not open its history, where the alert rules are kept.".to_owned()
 }
@@ -397,7 +448,9 @@ pub fn run() {
             set_settings,
             add_alert,
             set_alert,
-            remove_alert
+            remove_alert,
+            history,
+            export_history
         ])
         .on_window_event(|window, event| match event {
             // Closing the popover hides it; the app lives in the tray until it is quit.
