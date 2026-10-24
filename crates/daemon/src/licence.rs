@@ -1,6 +1,7 @@
-//! The licence key this copy keeps (D-099): `licence` in the data folder, readable only by the
-//! user, added and removed by `quotadial licence` and the app's Settings. The key is checked each
-//! time it is read, so a licence that ends turns the copy back into QuotaDial Free by itself.
+//! The licence key this copy keeps (D-099), and the one switch every Pro feature asks (D-100):
+//! `licence` in the data folder, readable only by the user, added and removed by `quotadial
+//! licence` and the app's Settings. The key is checked each time it is read, so a licence added,
+//! removed or ended counts at the next ask, without a restart.
 
 use std::fmt;
 use std::fs;
@@ -8,9 +9,83 @@ use std::io;
 
 use chrono::NaiveDate;
 use quotadial_core::licence::canonical;
-use quotadial_core::{KeyError, Licence, Standing, Tier};
+use quotadial_core::{
+    AccountLimit, KeyError, LeftOut, Licence, ProFeature, Provider, Standing, Tier,
+};
 
 use crate::{DataDir, write_private};
+
+/// What the copy keeping its data in a data folder may do: the tier of the licence key kept
+/// there, read afresh at each ask. With no data folder there is no key, so QuotaDial Free.
+#[derive(Debug, Clone, Default)]
+pub struct Licensing {
+    dir: Option<DataDir>,
+}
+
+impl Licensing {
+    /// The licensing of the copy keeping its data in `dir`.
+    #[must_use]
+    pub fn new(dir: Option<&DataDir>) -> Self {
+        Self { dir: dir.cloned() }
+    }
+
+    /// What the copy is now. Reading the key and checking its signature takes well under a
+    /// millisecond, so nothing is cached and a change counts at once.
+    #[must_use]
+    pub fn standing(&self) -> Standing {
+        let today = quotadial_core::licence::today();
+        match &self.dir {
+            Some(dir) => standing(dir, today),
+            None => Standing::of(None, today),
+        }
+    }
+
+    /// The copy's tier now: the one switch.
+    #[must_use]
+    pub fn tier(&self) -> Tier {
+        self.standing().tier
+    }
+
+    /// Whether the copy has `feature` now.
+    #[must_use]
+    pub fn allows(&self, feature: ProFeature) -> bool {
+        self.tier().allows(feature)
+    }
+
+    /// The most accounts each provider shows, asked at each discovery: every account on QuotaDial
+    /// Pro, up to the `max_accounts` setting, and one, this shell's own, on QuotaDial Free.
+    #[must_use]
+    pub fn account_limit(&self, setting: Option<usize>) -> AccountLimit {
+        let licensing = self.clone();
+        AccountLimit::new(move || {
+            if licensing.allows(ProFeature::Accounts) {
+                setting
+            } else {
+                Some(1)
+            }
+        })
+    }
+}
+
+/// What a copy with `tier` leaves out of its report: the accounts each provider held back at its
+/// last discovery, and, when `costs` says the daemon would read logs for an account, the week's
+/// cost. Nothing on QuotaDial Pro.
+#[must_use]
+pub fn left_out<P: AsRef<dyn Provider>>(tier: Tier, providers: &[P], costs: bool) -> Vec<LeftOut> {
+    if tier == Tier::Pro {
+        return Vec::new();
+    }
+    let mut left_out: Vec<LeftOut> = providers
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|provider| provider.held_back() > 0)
+        .map(|provider| LeftOut::accounts(provider.id(), provider.held_back()))
+        .collect();
+    if costs {
+        left_out.push(LeftOut::feature(ProFeature::CostScan));
+    }
+    left_out
+}
 
 /// Why a key was not added.
 #[derive(Debug)]
@@ -185,6 +260,43 @@ mod tests {
         let after = standing(&dir, day("2026-12-01"));
         assert_eq!(after.tier, Tier::Free);
         assert!(after.text.contains("ended on 2026-11-30"), "{}", after.text);
+    }
+
+    #[test]
+    fn licensing_reads_the_key_at_each_ask() {
+        let (_temp, dir) = dir();
+        let licensing = Licensing::new(Some(&dir));
+
+        assert_eq!(licensing.tier(), Tier::Free);
+        assert!(!licensing.allows(ProFeature::CostScan));
+        add(
+            &dir,
+            &key("order-1", None),
+            quotadial_core::licence::today(),
+        )
+        .expect("adds");
+        assert_eq!(licensing.tier(), Tier::Pro);
+        assert!(licensing.clone().allows(ProFeature::CostScan));
+        remove(&dir).expect("removes");
+        assert_eq!(licensing.tier(), Tier::Free);
+        assert_eq!(Licensing::new(None).tier(), Tier::Free);
+    }
+
+    #[test]
+    fn free_shows_one_account_per_provider_and_pro_the_setting() {
+        let (_temp, dir) = dir();
+        let licensing = Licensing::new(Some(&dir));
+
+        assert_eq!(licensing.account_limit(None).get(), Some(1));
+        assert_eq!(licensing.account_limit(Some(3)).get(), Some(1));
+        add(
+            &dir,
+            &key("order-1", None),
+            quotadial_core::licence::today(),
+        )
+        .expect("adds");
+        assert_eq!(licensing.account_limit(None).get(), None);
+        assert_eq!(licensing.account_limit(Some(3)).get(), Some(3));
     }
 
     #[test]

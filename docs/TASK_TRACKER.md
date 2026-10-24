@@ -67,8 +67,8 @@ M5, licensing and release: the manager approved the plan in #49 on 2026-10-24, w
 (e) (D-098), and set the queue on its 17:50 UTC comment. #51 lists what only Matt can provide, and
 #52 is the standing quality bar: every PR's description ends with what going down it found. The
 queue, by its numbers:
-- 1, licence keys (D-099), in review (PR #55);
-- 2, the Free and Pro gates;
+- 1, licence keys (D-099), merged (PR #55);
+- 2, the Free and Pro gates (D-100), in review (PR #56);
 - 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md`;
 - 4, checkout in Lemon Squeezy's test mode, with the signing step proposed on #54;
 - 5, the website in `site/`, built but not deployed, and the shareable image;
@@ -142,7 +142,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 
 | Step | Status | Notes |
 | --- | --- | --- |
-| 1: licence keys | In review (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
+| 1: licence keys | Done (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
+| 2: Free and Pro | In review (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
 
 ## Kickoff
 
@@ -328,6 +329,44 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 PR 2: Free and Pro (D-100)
+
+- **The switch** (`crates/daemon/src/licence.rs`): `Licensing::new(Option<&DataDir>)` with
+  `standing()`, `tier()` and `allows(feature)`, reading the key each time, and
+  `account_limit(setting)`, an `AccountLimit` that is the setting on Pro and 1 on Free.
+  `left_out(tier, providers, costs)` gives what a Free copy leaves out. Core's process-wide `tier()`
+  is gone; `ProFeature` gains `Accounts`, `Headroom` and `RulesApi`, with `what()` for lists and
+  `line()` for the one line, and `PRO_URL` is `quotadial.com/pro`.
+- **Accounts** (core `AccountLimit`, `Provider::held_back`): the Claude provider asks its limit at
+  each discovery and counts the subscriptions it left out, so a key added shows every account at
+  the next discovery with no new provider. `quotadial_providers::with_config` takes the licensing.
+- **The poller:** `Poller::new` takes a `Licensing`. Every round it asks the tier; a change sends it
+  to rediscover and to scan or clear the costs at once. On Free it prunes history to at most 30
+  days (`History::prune_to`), checks only Free's rule kinds (`History::check` and `add_rule` take
+  the tier; `needs_pro`), sends nothing to webhooks (`deliver_due` no longer asks), leaves the logs
+  unread and clears costs, and keeps `left_out` after each discovery: held-back accounts, and the
+  cost when the scan is on and there are accounts. `Latest::nudge` wakes it at once.
+- **The API and MCP:** a `pro_only` route layer answers 403 `{error, pro_feature}` for
+  `/v1/headroom` and `/v1/alerts*` on Free; status and history answer on every copy. `mcp::serve`
+  takes the licensing, and its two Pro tools answer a tool error that points to `get_usage`.
+  `Host` keeps the licensing, builds the cost scan whenever the setting is on, and passes the
+  licensing to the poller and the API.
+- **The CLI:** a direct fetch adds `left_out` as the daemon does; `status` and `watch` print
+  held-back accounts under the accounts and the cost line where costs go, and the no-daemon pace
+  line leaves out costs on Free. `alerts` marks waiting rules and names webhooks as Pro's; `alerts
+  add` refuses Pro kinds; `history` past 30 days says why; `licence` on Free lists what Pro adds;
+  the daemon's first lines say what Free leaves out.
+- **The app:** `Meter.left_out` under the accounts; Settings marks a waiting rule, names webhooks
+  as Pro's, and lists what Pro adds in the Licence section; `add_licence` and `remove_licence`
+  nudge the daemon the app runs (`feed::run` takes a `Notify`); a hidden provider's held-back
+  accounts are hidden too. The window's JavaScript is 24.4 KB.
+- **Docs:** `docs/CLI.md` (QuotaDial Free and Pro, and the Pro features in Accounts, Settings,
+  Alerts, the week's cost, History, the API, MCP, text and JSON output), `docs/INSTALL.md`, the
+  README, SKILL.md and AGENTS.md.
+- **Tests:** 482 in the workspace (13 new) and 35 in the app (1 new). Tests that use Pro features
+  keep a test-key licence in their own data folder; Free tests sit beside them, including a key
+  added while the CLI's daemon runs, which turns `/v1/headroom` from 403 to 200 with no restart.
 
 ### M5 PR 1: licence keys (D-099)
 

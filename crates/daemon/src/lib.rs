@@ -20,14 +20,14 @@ mod status_pages;
 #[cfg(test)]
 mod test_support;
 
-pub use alerts::{AddError, Alerts, Firing, RECENT_FIRINGS, StoredRule};
+pub use alerts::{AddError, Alerts, Firing, RECENT_FIRINGS, StoredRule, needs_pro};
 pub use config::{Config, Webhook, WebhookKind};
 pub use data_dir::{DataDir, write_private};
 pub use deliver::{Deliverer, payload};
 pub use deliveries::{DELIVER_WITHIN, Delivery, deliver_due};
 pub use history::{History, HistoryError, KEEP_DAYS, MAX_KEEP_DAYS};
 pub use instance::{Instance, InstanceError};
-pub use licence::LicenceError;
+pub use licence::{LicenceError, Licensing};
 pub use poller::{
     ACTIVE_FOR, ALERTS_EVERY, COSTS_EVERY, DISCOVER_EVERY, IDLE_EVERY, Latest, Poller,
 };

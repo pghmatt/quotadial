@@ -1,9 +1,12 @@
 //! `quotadial mcp`: an MCP server named `quotadial` on standard input and output, for agents such as
 //! Claude Code and Codex. Its three tools only read:
 //!
-//! - `get_usage`: the report `quotadial status --json` prints.
-//! - `get_account_headroom`: the ranking `GET /v1/headroom` serves.
-//! - `list_alerts`: the alert rules, and what they told in the last week (D-093).
+//! - `get_usage`: the report `quotadial status --json` prints, on every copy.
+//! - `get_account_headroom`: the ranking `GET /v1/headroom` serves, on QuotaDial Pro.
+//! - `list_alerts`: the alert rules, and what they told in the last week (D-093), on QuotaDial Pro.
+//!
+//! On QuotaDial Free the two Pro tools answer with a tool error naming the feature and pointing to
+//! `get_usage`, so an agent can always read the budget (D-098, D-100).
 //!
 //! The numbers come from the running daemon, or from a direct fetch when none runs, exactly as for
 //! `quotadial status`. The alert rules come from the daemon's history, as for `quotadial alerts`. Messages are JSON-RPC 2.0, one per line, as MCP's stdio transport defines.
@@ -12,12 +15,12 @@
 
 use std::io;
 
-use quotadial_core::StatusReport;
+use quotadial_core::{ProFeature, StatusReport};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
-use quotadial_daemon::Alerts;
+use quotadial_daemon::{Alerts, Licensing};
 
 use crate::client::Unanswered;
 use crate::rank;
@@ -37,14 +40,16 @@ const INVALID_PARAMS: i64 = -32_602;
 const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGPT/Codex plan limit \
     the accounts on this machine have used, when each limit resets, and how old every number is. \
     Before starting a long job, call get_account_headroom (or get_usage for every window) to check \
-    that the account has room left and when its tightest limit resets. While the QuotaDial daemon \
+    that the account has room left and when its tightest limit resets. On QuotaDial Free, \
+    get_account_headroom and list_alerts answer that they are part of QuotaDial Pro, and get_usage \
+    gives every window on any copy. While the QuotaDial daemon \
     runs, a window also has a pace: pct_per_hour, how fast it is filling, and runs_out_at, when it \
     reaches 100% if that comes before it resets. Providers are never asked more often than their \
     limits allow, so a number can be a few minutes old; its fetched_at says when it was fetched.";
 
 /// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the provider
 /// ids an agent may narrow an answer to; `report` gets the numbers, and `alerts` the alert rules
-/// and what they told, or why it could not.
+/// and what they told, or why it could not; `licensing` says whether the Pro tools answer.
 ///
 /// # Errors
 ///
@@ -55,6 +60,7 @@ pub async fn serve<R, W, F, A>(
     providers: &[&str],
     report: F,
     alerts: A,
+    licensing: Licensing,
 ) -> io::Result<()>
 where
     R: AsyncBufRead + Unpin,
@@ -66,6 +72,7 @@ where
     let mut server = Server {
         providers,
         version: None,
+        licensing,
     };
     // Lines are read as bytes, so one that is not UTF-8 gets a parse error rather than ending the
     // server.
@@ -95,6 +102,8 @@ struct Server<'a> {
     providers: &'a [&'a str],
     /// The revision agreed at `initialize`.
     version: Option<&'static str>,
+    /// Whether the copy has the Pro tools.
+    licensing: Licensing,
 }
 
 /// A JSON-RPC error: its code and message.
@@ -211,9 +220,10 @@ impl Server<'_> {
                 ));
             }
         };
-        let narrows = match name {
-            "get_usage" | "get_account_headroom" => true,
-            "list_alerts" => false,
+        let (narrows, pro) = match name {
+            "get_usage" => (true, None),
+            "get_account_headroom" => (true, Some(ProFeature::Headroom)),
+            "list_alerts" => (false, Some(ProFeature::RulesApi)),
             _ => {
                 return Err((
                     INVALID_PARAMS,
@@ -224,6 +234,12 @@ impl Server<'_> {
                 ));
             }
         };
+        if let Some(feature) = pro.filter(|feature| !self.licensing.allows(*feature)) {
+            return Ok(tool_error(&format!(
+                "{} get_usage gives every window, with its reset, on any copy.",
+                feature.line()
+            )));
+        }
         // A wrong argument is the tool's error, not the protocol's, so the agent sees it and can
         // correct the call.
         let provider = match self.provider(arguments, narrows) {
@@ -300,7 +316,8 @@ impl Server<'_> {
     }
 }
 
-/// `report` with only `provider`'s accounts, errors, status page and cost, or all of them.
+/// `report` with only `provider`'s accounts, errors, status page, cost and what QuotaDial Free
+/// leaves out of it, or all of them.
 fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
     let Some(provider) = provider else {
         return report;
@@ -325,6 +342,11 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .costs
             .into_iter()
             .filter(|cost| cost.provider == provider)
+            .collect(),
+        left_out: report
+            .left_out
+            .into_iter()
+            .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| of == provider))
             .collect(),
     }
 }
@@ -354,8 +376,9 @@ fn tools(providers: &[&str]) -> Value {
                             daemon runs, its pace (pace.pct_per_hour, and pace.runs_out_at when it \
                             runs out before it resets). While the daemon runs, costs gives what \
                             the week's local use of each provider would have cost at API prices \
-                            (usd, requests, tokens and models). The same JSON as `quotadial \
-                            status --json`.",
+                            (usd, requests, tokens and models), on QuotaDial Pro; on QuotaDial \
+                            Free, left_out names what the copy leaves out. The same JSON as \
+                            `quotadial status --json`.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -366,7 +389,8 @@ fn tools(providers: &[&str]) -> Value {
                             and tightest is the window, with when it resets and its pace. The most \
                             headroom comes first, and costs is the week's cost of each provider at \
                             API prices, while the daemon runs. Use it before a long job to check \
-                            that an account has room left.",
+                            that an account has room left. Part of QuotaDial Pro; on QuotaDial \
+                            Free use get_usage.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -375,7 +399,8 @@ fn tools(providers: &[&str]) -> Value {
             "description": "The alert rules the user set, each with the words it was written \
                             in, what QuotaDial read it as (kind, pct, minutes, provider, window) \
                             and whether it is on, and what the rules told in the last week: each \
-                            firing's title, text, account, window and time.",
+                            firing's title, text, account, window and time. Part of QuotaDial \
+                            Pro.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
             "annotations": read_only,
         },
@@ -446,12 +471,29 @@ mod tests {
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         }
     }
 
-    /// Sends `input` to a server answering from `answer` and returns its replies, checking that
-    /// each is one line of JSON.
+    /// Sends `input` to a server on QuotaDial Pro answering from `answer` and returns its replies,
+    /// checking that each is one line of JSON.
     async fn exchange_raw(input: &str, answer: Result<StatusReport, Unanswered>) -> Vec<Value> {
+        exchange_on(true, input, answer).await
+    }
+
+    /// [`exchange_raw`] on QuotaDial Pro, or on QuotaDial Free with no key.
+    async fn exchange_on(
+        pro: bool,
+        input: &str,
+        answer: Result<StatusReport, Unanswered>,
+    ) -> Vec<Value> {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let dir = quotadial_daemon::DataDir::new(temp.path().join("quotadial"));
+        let licensing = if pro {
+            crate::tests::pro(&dir)
+        } else {
+            Licensing::new(Some(&dir))
+        };
         let mut output = Vec::new();
         serve(
             input.as_bytes(),
@@ -459,6 +501,7 @@ mod tests {
             &["claude", "codex"],
             async || answer.clone(),
             async || Ok(alerts()),
+            licensing,
         )
         .await
         .expect("serves");
@@ -587,6 +630,35 @@ mod tests {
         );
         assert_eq!(answer["accounts"][0]["account"]["provider"], "codex");
         assert_eq!(answer["accounts"][0]["headroom_pct"], 80.0);
+    }
+
+    #[tokio::test]
+    async fn on_free_the_pro_tools_say_so_and_get_usage_still_answers() {
+        let input: String = [
+            call(1, "get_account_headroom", json!({})),
+            call(2, "list_alerts", json!({})),
+            call(3, "get_usage", json!({})),
+        ]
+        .iter()
+        .map(|message| format!("{message}\n"))
+        .collect();
+        let replies = exchange_on(false, &input, Ok(report())).await;
+
+        for (reply, line) in replies[..2].iter().zip([
+            "Headroom through the local API and MCP is part of QuotaDial Pro: quotadial.com/pro",
+            "Alert rules through the local API and MCP are part of QuotaDial Pro: \
+             quotadial.com/pro",
+        ]) {
+            assert_eq!(reply["result"]["isError"], true, "{reply}");
+            assert_eq!(
+                reply["result"]["content"][0]["text"],
+                format!("{line} get_usage gives every window, with its reset, on any copy.")
+            );
+        }
+        assert_eq!(
+            replies[2]["result"]["isError"], false,
+            "status reads on any copy"
+        );
     }
 
     #[tokio::test]
@@ -787,6 +859,7 @@ mod tests {
             &["claude"],
             async || Ok(report()),
             async || Ok(alerts()),
+            Licensing::default(),
         )
         .await
         .expect("serves");

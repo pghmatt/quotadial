@@ -1,9 +1,57 @@
+use std::fmt;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 
 use crate::{Account, Result, Snapshot};
+
+/// The most accounts a provider shows, asked afresh at each discovery, so a change, such as a
+/// licence key added, applies without a restart (D-100). `None` is every account.
+#[derive(Clone)]
+pub struct AccountLimit(Arc<dyn Fn() -> Option<usize> + Send + Sync>);
+
+impl AccountLimit {
+    /// No limit: every account.
+    #[must_use]
+    pub fn none() -> Self {
+        Self::fixed(None)
+    }
+
+    /// Always `max`.
+    #[must_use]
+    pub fn fixed(max: Option<usize>) -> Self {
+        Self(Arc::new(move || max))
+    }
+
+    /// Whatever `limit` says at each discovery.
+    #[must_use]
+    pub fn new(limit: impl Fn() -> Option<usize> + Send + Sync + 'static) -> Self {
+        Self(Arc::new(limit))
+    }
+
+    /// The limit now, at least 1 when there is one.
+    #[must_use]
+    pub fn get(&self) -> Option<usize> {
+        (self.0)().map(|max| max.max(1))
+    }
+}
+
+impl Default for AccountLimit {
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
+impl fmt::Debug for AccountLimit {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("AccountLimit")
+            .field(&self.get())
+            .finish()
+    }
+}
 
 /// The contract every provider plugin meets. From the PRD:
 ///
@@ -33,6 +81,12 @@ pub trait Provider: Send + Sync {
     /// cannot be read. Finding no credentials is not an error: it returns an empty list.
     fn discover_accounts(&self) -> Result<Vec<Account>>;
 
+    /// How many more accounts the last [`Provider::discover_accounts`] found than it gave, held back
+    /// by the provider's [`AccountLimit`]. None by default.
+    fn held_back(&self) -> usize {
+        0
+    }
+
     /// What the last [`Provider::discover_accounts`] could not look at, each a sentence naming what
     /// may be missing and why, such as a keychain that could not be listed. They are shown beside
     /// the accounts it did find. None by default.
@@ -58,5 +112,25 @@ pub trait Provider: Send + Sync {
     /// token counts (D-097). None by default.
     fn log_folders(&self) -> Vec<PathBuf> {
         Vec::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    #[test]
+    fn a_limit_is_asked_afresh_and_is_never_below_one() {
+        let max = Arc::new(AtomicUsize::new(3));
+        let read = Arc::clone(&max);
+        let limit = AccountLimit::new(move || Some(read.load(Ordering::Relaxed)));
+
+        assert_eq!(limit.get(), Some(3));
+        max.store(0, Ordering::Relaxed);
+        assert_eq!(limit.get(), Some(1));
+        assert_eq!(AccountLimit::default().get(), None);
+        assert_eq!(AccountLimit::fixed(Some(2)).get(), Some(2));
     }
 }

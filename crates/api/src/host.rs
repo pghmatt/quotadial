@@ -14,10 +14,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::Utc;
-use quotadial_core::{ProFeature, Provider, tier};
+use quotadial_core::Provider;
 use quotadial_cost::CostScan;
 use quotadial_daemon::{
-    Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Poller, STATUS_PAGES,
+    Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Licensing, Poller,
+    STATUS_PAGES,
 };
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -34,6 +35,8 @@ pub struct Host {
     poller: Poller,
     history: Arc<History>,
     token: Token,
+    /// What the copy may do, from the licence key in `dir` (D-100).
+    licensing: Licensing,
 }
 
 /// Why the daemon could not start.
@@ -142,8 +145,9 @@ impl Host {
         .write(&dir)
         .map_err(announce)?;
         let history = Arc::new(history);
-        let mut poller =
-            Poller::new(providers, Arc::clone(&history)).with_webhooks(config.webhooks);
+        let licensing = Licensing::new(Some(&dir));
+        let mut poller = Poller::new(providers, Arc::clone(&history), licensing.clone())
+            .with_webhooks(config.webhooks);
         if config.status_pages {
             poller = poller.with_status_pages(
                 STATUS_PAGES
@@ -153,9 +157,8 @@ impl Host {
             );
         }
         // The cost scan's database is a cache: one that cannot be opened means no costs, not no
-        // daemon.
+        // daemon. On QuotaDial Free the poller leaves the logs unread until a licence is added.
         if config.cost_scan
-            && tier().allows(ProFeature::CostScan)
             && let Ok(scan) = CostScan::open(&dir.costs())
         {
             poller = poller.with_costs(scan);
@@ -168,6 +171,7 @@ impl Host {
             poller,
             history,
             token,
+            licensing,
         })
     }
 
@@ -183,10 +187,17 @@ impl Host {
         &self.dir
     }
 
-    /// Whether the daemon reads the CLIs' logs for the week's cost (D-097).
+    /// Whether the daemon reads the CLIs' logs for the week's cost (D-097): the setting is on and
+    /// `costs.db` opened. On QuotaDial Free the logs wait for a licence.
     #[must_use]
     pub fn scans_costs(&self) -> bool {
         self.poller.scans_costs()
+    }
+
+    /// What the copy may do, from the licence key in its data folder.
+    #[must_use]
+    pub fn licensing(&self) -> &Licensing {
+        &self.licensing
     }
 
     /// What the poller last found, for consumers in the same process, such as the tray app.
@@ -209,6 +220,7 @@ impl Host {
             poller,
             history,
             token,
+            licensing,
             ..
         } = self;
         let latest = poller.latest();
@@ -223,6 +235,7 @@ impl Host {
                 latest,
                 history,
                 token,
+                licensing,
                 until_stopped(stopped.clone()),
             )
             .await;

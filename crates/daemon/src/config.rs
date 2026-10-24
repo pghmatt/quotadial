@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use quotadial_core::{ProFeature, Secret, tier};
+use quotadial_core::Secret;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -22,13 +22,13 @@ pub struct Config {
     /// (#34). `~` is the home folder, and a folder ending in `/*` adds every folder inside it.
     pub extra_config_dirs: Vec<String>,
     /// At most this many accounts per provider, the shell's own first, and at least 1. All when
-    /// unset; M5 ties it to the free and Pro tiers.
+    /// unset. QuotaDial Free shows one, whatever this says (D-100).
     pub max_accounts: Option<usize>,
     /// Where each alert is sent besides the app's notifications: `alert_webhooks` as JSON, and
     /// `slack_webhook` as a Slack message.
     pub webhooks: Vec<Webhook>,
     /// How many days of history to keep: 30 unless `history_days` says otherwise, up to 365.
-    /// Keeping more than 30 is a Pro feature (D-090).
+    /// QuotaDial Free keeps at most 30, whatever this says (D-090, D-100).
     pub history_days: u32,
     /// Whether the daemon reads the providers' status pages (D-096): on unless `status_pages` is
     /// `false`.
@@ -147,11 +147,6 @@ impl Config {
                     "history_days in {} must be from 1 to {MAX_KEEP_DAYS}, so QuotaDial keeps \
                      {KEEP_DAYS} days.",
                     path.display()
-                ));
-            } else if days > KEEP_DAYS && !tier().allows(ProFeature::LongHistory) {
-                config.warnings.push(format!(
-                    "Keeping more than {KEEP_DAYS} days of history needs QuotaDial Pro, so it \
-                     keeps {KEEP_DAYS}."
                 ));
             } else {
                 config.history_days = days;

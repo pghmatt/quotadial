@@ -8,7 +8,6 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{ProFeature, tier};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
@@ -123,14 +122,14 @@ impl History {
 }
 
 /// Sends what is due to `webhooks` at `now` and records how each went (D-094). Sending alerts
-/// beyond the app's notifications is a Pro feature (D-090).
+/// beyond the app's notifications is a Pro feature (D-090), which the poller asks before it sends.
 pub async fn deliver_due(
     history: &Arc<History>,
     deliverer: &Deliverer,
     webhooks: &[Webhook],
     now: DateTime<Utc>,
 ) {
-    if webhooks.is_empty() || !tier().allows(ProFeature::AlertDelivery) {
+    if webhooks.is_empty() {
         return;
     }
     let (found, wanted) = (Arc::clone(history), webhooks.to_vec());
@@ -204,8 +203,15 @@ mod tests {
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: Vec::new(),
+            left_out: Vec::new(),
         };
-        assert_eq!(history.check(&report, Utc::now()).expect("checks").len(), 1);
+        assert_eq!(
+            history
+                .check(&report, Utc::now(), quotadial_core::Tier::Pro)
+                .expect("checks")
+                .len(),
+            1
+        );
         (dir, history)
     }
 

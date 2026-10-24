@@ -364,6 +364,32 @@ footer button + button {
   overflow-wrap: anywhere;
 }
 
+.licence-adds {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.licence-adds p,
+.licence-adds ul {
+  margin: 0;
+}
+
+.licence-adds ul {
+  padding-left: 18px;
+}
+
+.left-out {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.left-out p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .remove-licence {
   margin-top: 6px;
 }

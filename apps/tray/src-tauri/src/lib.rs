@@ -15,8 +15,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use quotadial_core::{StatusReport, text};
-use quotadial_daemon::{AddError, Config, DataDir, History, licence};
+use quotadial_core::{ProFeature, StatusReport, text};
+use quotadial_daemon::{AddError, Config, DataDir, History, Licensing, licence, needs_pro};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -25,7 +25,7 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, RunEvent, WebviewWindow, W
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_notification::NotificationExt as _;
 use tauri_plugin_positioner::{Position, WindowExt};
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 
 use crate::alerts::{TELL_WITHIN, Told};
 use crate::feed::{Role, Timing, Update};
@@ -67,6 +67,9 @@ struct AppState {
     /// Where the settings and the record of what was told are kept, if the system names a folder
     /// for them.
     files: Option<Files>,
+    /// Notified when Settings adds or removes a licence key, so the daemon the app runs acts on
+    /// it at once.
+    licence_changed: Arc<Notify>,
 }
 
 /// How the popover was opened, which decides whether losing focus closes it.
@@ -142,6 +145,8 @@ struct AlertChoice {
     /// What QuotaDial read it as, such as "when any window reaches 80%".
     read_as: String,
     enabled: bool,
+    /// Whether it waits for QuotaDial Pro: a kind of rule only Pro checks, on QuotaDial Free.
+    waits: bool,
 }
 
 /// An account the user can name.
@@ -171,21 +176,26 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    let config = DataDir::from_env()
-        .map(|dir| Config::load(&dir))
-        .unwrap_or_default();
+    let dir = DataDir::from_env();
+    let config = dir.as_ref().map(Config::load).unwrap_or_default();
+    let tier = Licensing::new(dir.as_ref()).tier();
+    // On QuotaDial Free alerts go only to the system's notifications, which Settings says where
+    // it would name the webhooks.
+    let sends = tier.allows(ProFeature::AlertDelivery);
+    let mut alert_problems = config.warnings;
+    if !sends && !config.webhooks.is_empty() {
+        alert_problems.push(ProFeature::AlertDelivery.line());
+    }
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
-        licence: licence_view(
-            DataDir::from_env().as_ref(),
-            quotadial_core::licence::today(),
-        ),
+        licence: licence_view(dir.as_ref(), quotadial_core::licence::today()),
         alert_targets: config
             .webhooks
             .iter()
+            .filter(|_| sends)
             .map(|webhook| webhook.host().to_owned())
             .collect(),
-        alert_problems: config.warnings,
+        alert_problems,
         alerts: state
             .history
             .iter()
@@ -193,6 +203,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .map(|rule| AlertChoice {
                 id: rule.id,
                 read_as: rule.rule.to_string(),
+                waits: needs_pro(&rule.rule.condition) && !tier.allows(ProFeature::AlertRules),
                 written: rule.written,
                 enabled: rule.enabled,
             })
@@ -296,10 +307,12 @@ fn add_alert(
     rule: String,
 ) -> Result<SettingsView, String> {
     let history = state.history.as_ref().ok_or_else(no_history)?;
+    let tier = Licensing::new(DataDir::from_env().as_ref()).tier();
     history
-        .add_rule(&rule, Utc::now())
+        .add_rule(&rule, Utc::now(), tier)
         .map_err(|error| match error {
             AddError::Unread(message) => message,
+            AddError::Pro => ProFeature::AlertRules.line(),
             AddError::History(error) => format!("QuotaDial could not keep the rule: {error}."),
         })?;
     Ok(self::settings(app.clone(), state))
@@ -356,6 +369,7 @@ fn add_licence(
     let dir = DataDir::from_env().ok_or_else(no_data_folder)?;
     licence::add(&dir, &key, quotadial_core::licence::today())
         .map_err(|error| error.to_string())?;
+    state.licence_changed.notify_one();
     Ok(self::settings(app.clone(), state))
 }
 
@@ -376,6 +390,7 @@ fn remove_licence(
              be written, then try again."
         )
     })?;
+    state.licence_changed.notify_one();
     Ok(self::settings(app.clone(), state))
 }
 
@@ -559,6 +574,7 @@ pub fn run() {
                     last: history.last_firing().unwrap_or_default(),
                 });
             }
+            let licence_changed = Arc::new(Notify::new());
             app.manage(AppState {
                 known: Mutex::default(),
                 quit,
@@ -569,11 +585,12 @@ pub fn run() {
                 history,
                 told: Mutex::new(told),
                 files,
+                licence_changed: Arc::clone(&licence_changed),
             });
             // What a rule told just before the app last stopped, and the app had not yet shown.
             tell(app.handle());
             build_tray(app.handle())?;
-            start_feed(app.handle().clone(), quitting, stopped_tx);
+            start_feed(app.handle().clone(), licence_changed, quitting, stopped_tx);
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
@@ -628,7 +645,12 @@ fn open_history() -> Option<Arc<History>> {
 }
 
 /// Starts the feed, which runs or follows the daemon until the app quits, then exits the app.
-fn start_feed(app: AppHandle, quitting: watch::Receiver<bool>, stopped: watch::Sender<bool>) {
+fn start_feed(
+    app: AppHandle,
+    licence_changed: Arc<Notify>,
+    quitting: watch::Receiver<bool>,
+    stopped: watch::Sender<bool>,
+) {
     let Some(dir) = DataDir::from_env() else {
         receive(
             &app,
@@ -648,6 +670,7 @@ fn start_feed(app: AppHandle, quitting: watch::Receiver<bool>, stopped: watch::S
             quotadial_providers::all,
             move |update| receive(&sender, update),
             Timing::default(),
+            licence_changed,
             quitting,
         )
         .await;

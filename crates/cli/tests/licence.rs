@@ -53,7 +53,18 @@ fn a_key_is_added_shown_and_removed() {
 
     let free = quotadial(&["licence"], &data, None);
     assert!(free.status.success());
-    assert_eq!(text(&free.stdout), "QuotaDial Free, with no licence key.\n");
+    assert_eq!(
+        text(&free.stdout),
+        "QuotaDial Free, with no licence key.\n\
+         QuotaDial Pro, at quotadial.com/pro, adds:\n  \
+         every account on this machine, not one per provider\n  \
+         a year of history, not 30 days\n  \
+         alerts before a window runs out, before a reset, and for provider incidents\n  \
+         alerts sent to webhooks and Slack\n  \
+         the week's cost at API prices\n  \
+         headroom through the local API and MCP\n  \
+         alert rules through the local API and MCP\n"
+    );
 
     let added = quotadial(&["licence", "add", &key("cli-1")], &data, None);
     assert!(added.status.success(), "{}", text(&added.stderr));
