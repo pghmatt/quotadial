@@ -3,8 +3,8 @@
 //! `%APPDATA%` on Windows). Unlike the providers' cache, this is QuotaDial's own data: history
 //! that should survive a cache clean-up. `QUOTADIAL_DATA_DIR` puts it elsewhere.
 
-use std::fs;
-use std::io;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// The daemon's folder.
@@ -71,11 +71,43 @@ impl DataDir {
         self.0.join("token")
     }
 
+    /// The licence key this copy keeps (D-099).
+    #[must_use]
+    pub fn licence(&self) -> PathBuf {
+        self.0.join("licence")
+    }
+
     /// Where the running daemon says which port its API listens on.
     #[must_use]
     pub fn runtime(&self) -> PathBuf {
         self.0.join("daemon.json")
     }
+}
+
+/// Writes `bytes` to `path`, readable only by the user, through a temporary file and a rename, so no
+/// reader ever sees half of it. Its folder is made, readable only by the user, when it is missing.
+///
+/// # Errors
+///
+/// When the folder or the file cannot be written.
+pub fn write_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(folder) = path.parent() {
+        let mut builder = fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        builder.create(folder)?;
+    }
+    let temporary = path.with_extension("tmp");
+    let mut options = OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    fs::rename(temporary, path)
 }
 
 #[cfg(test)]
@@ -93,6 +125,7 @@ mod tests {
         assert_eq!(dir.costs(), temp.path().join("quotadial/costs.db"));
         assert_eq!(dir.lock(), temp.path().join("quotadial/daemon.lock"));
         assert_eq!(dir.token(), temp.path().join("quotadial/token"));
+        assert_eq!(dir.licence(), temp.path().join("quotadial/licence"));
         assert_eq!(dir.runtime(), temp.path().join("quotadial/daemon.json"));
         #[cfg(unix)]
         {
@@ -102,6 +135,26 @@ mod tests {
                 .permissions()
                 .mode();
             assert_eq!(mode & 0o777, 0o700);
+        }
+    }
+
+    #[test]
+    fn a_private_file_is_whole_and_readable_only_by_the_user() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let path = temp.path().join("made/settings.json");
+
+        write_private(&path, b"first").expect("writes");
+        write_private(&path, b"second").expect("replaces");
+
+        assert_eq!(fs::read(&path).expect("reads"), b"second");
+        assert!(!path.with_extension("tmp").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode =
+                |path: &Path| fs::metadata(path).expect("metadata").permissions().mode() & 0o777;
+            assert_eq!(mode(&path), 0o600);
+            assert_eq!(mode(path.parent().expect("a folder")), 0o700);
         }
     }
 }

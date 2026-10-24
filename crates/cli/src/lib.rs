@@ -3,7 +3,7 @@
 // Printing results is this crate's job.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{Indicator, Provider, StatusReport, collect, text};
 use quotadial_daemon::{
-    AddError, Alerts, Config, DataDir, History, HistoryError, Series, SeriesQuery, Webhook,
+    AddError, Alerts, Config, DataDir, History, HistoryError, Series, SeriesQuery, Webhook, licence,
 };
 
 /// Track Claude and ChatGPT/Codex usage limits.
@@ -54,6 +54,13 @@ enum Command {
     Alerts {
         #[command(subcommand)]
         action: Option<AlertsAction>,
+    },
+    /// Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key.
+    /// A key is checked on this machine, with no network call.
+    #[command(alias = "license")]
+    Licence {
+        #[command(subcommand)]
+        action: Option<LicenceAction>,
     },
     /// Show how each window was used over time, from the daemon's history.
     History {
@@ -102,6 +109,23 @@ enum AlertsAction {
     Off { id: i64 },
 }
 
+#[derive(Debug, Subcommand)]
+enum LicenceAction {
+    /// Say which QuotaDial this copy is, and from which licence. The default.
+    Show {
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a licence key for QuotaDial Pro, which replaces any kept before.
+    Add {
+        /// The key, which starts with QD1. Leave it out to paste it when asked, or to pipe it in.
+        key: Vec<String>,
+    },
+    /// Remove the licence key, which makes this copy QuotaDial Free.
+    Remove,
+}
+
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
 /// is asked more often than its own limit (5 minutes for Anthropic).
 const WATCH_EVERY: Duration = Duration::from_secs(60);
@@ -115,6 +139,9 @@ pub fn run() -> ExitCode {
         Command::Daemon { port } => daemon(port),
         Command::Mcp => mcp(),
         Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
+        Command::Licence { action } => {
+            licence(action.unwrap_or(LicenceAction::Show { json: false }))
+        }
         Command::History {
             since,
             provider,
@@ -321,6 +348,94 @@ fn alerts(action: AlertsAction) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => write_failed(&error),
     }
+}
+
+/// Says which QuotaDial this copy is, or adds or removes the licence key kept in the data folder.
+fn licence(action: LicenceAction) -> ExitCode {
+    let Some(dir) = DataDir::from_env() else {
+        eprintln!(
+            "quotadial: the operating system names no data directory; set QUOTADIAL_DATA_DIR."
+        );
+        return ExitCode::FAILURE;
+    };
+    let today = quotadial_core::licence::today();
+    let mut stdout = io::stdout().lock();
+    let written = match action {
+        LicenceAction::Show { json } => {
+            let standing = licence::standing(&dir, today);
+            if json {
+                write_json(&standing, &mut stdout)
+            } else {
+                writeln!(stdout, "{}", standing.text)
+            }
+        }
+        LicenceAction::Add { key } => {
+            let key = if key.is_empty() {
+                match read_key() {
+                    Ok(key) => key,
+                    Err(error) => {
+                        eprintln!("quotadial: could not read the licence key: {error}");
+                        return ExitCode::FAILURE;
+                    }
+                }
+            } else {
+                key.concat()
+            };
+            match licence::add(&dir, &key, today) {
+                Ok(standing) => writeln!(stdout, "Added the licence key: {}", standing.text),
+                Err(error) => {
+                    eprintln!("quotadial: {error}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        LicenceAction::Remove => match licence::remove(&dir) {
+            Ok(true) => writeln!(
+                stdout,
+                "Removed the licence key: {}",
+                licence::standing(&dir, today).text
+            ),
+            Ok(false) => writeln!(stdout, "There was no licence key to remove."),
+            Err(error) => {
+                eprintln!(
+                    "quotadial: the licence key could not be removed ({error}). Check that the \
+                     data folder can be written, then try again."
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+    };
+    match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => write_failed(&error),
+    }
+}
+
+/// A key pasted on standard input: all of it when it is piped in, or the lines pasted at the
+/// prompt until the key is whole, since an email may have wrapped it. A blank line, or text that
+/// cannot be a key, ends it early.
+fn read_key() -> io::Result<String> {
+    let stdin = io::stdin();
+    if !stdin.is_terminal() {
+        return io::read_to_string(stdin);
+    }
+    eprintln!("Paste your licence key, then press Return:");
+    let mut key = String::new();
+    for line in stdin.lock().lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            break;
+        }
+        key.push_str(&line);
+        let started = quotadial_core::licence::canonical(&key);
+        let prefix = quotadial_core::licence::PREFIX;
+        if quotadial_core::licence::whole(&key)
+            || (started.len() >= prefix.len() && !started.starts_with(prefix))
+        {
+            break;
+        }
+    }
+    Ok(key)
 }
 
 /// How the windows were used since `since`, as text, CSV or JSON.

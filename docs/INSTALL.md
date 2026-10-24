@@ -81,6 +81,9 @@ that; Ubuntu has it on already.
 - Give each account a name, such as "Work", shown in the popover beside its email address and in
   the tray's menu in place of it. Accounts are listed by the name shown. Clear the name to go back
   to the email address.
+- Licence: whether this copy is QuotaDial Free or QuotaDial Pro, a field to paste a licence key
+  into, and a button to remove the key. A key is checked on this machine, with no network call
+  ([`CLI.md`](CLI.md#licence)).
 
 While a provider's status page reports an incident, ⚠ appears beside the tray's number and the
 popover names the incident under it.

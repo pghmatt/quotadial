@@ -37,6 +37,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --workspace --locked
+      # Only a debug build trusts the licence test key, whose private half is public (D-099).
+      - name: A release build trusts only QuotaDial's licence key
+        if: runner.os == 'Linux'
+        run: cargo test --release --locked -p quotadial-core only_a_debug_build_trusts_the_test_key
 
   # The tray app is its own Cargo workspace (apps/tray/src-tauri), built after its window and the
   # CLI it bundles, which Tauri needs before it compiles.

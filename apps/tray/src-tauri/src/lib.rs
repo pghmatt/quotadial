@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use quotadial_core::{StatusReport, text};
-use quotadial_daemon::{AddError, Config, DataDir, History};
+use quotadial_daemon::{AddError, Config, DataDir, History, licence};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -30,7 +30,7 @@ use tokio::sync::watch;
 use crate::alerts::{TELL_WITHIN, Told};
 use crate::feed::{Role, Timing, Update};
 use crate::meter::Meter;
-use crate::settings::{Settings, account_key, carry_over};
+use crate::settings::{LicenceView, Settings, account_key, carry_over, licence_view};
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -128,6 +128,9 @@ struct SettingsView {
     providers: Vec<ProviderChoice>,
     /// Every account QuotaDial knows now, with the name the user gave it.
     accounts: Vec<AccountChoice>,
+    /// Whether the copy is QuotaDial Free or Pro, from its licence key. It changes through its own
+    /// commands, not `set_settings`.
+    licence: LicenceView,
 }
 
 /// An alert rule the user can turn on or off, or remove.
@@ -173,6 +176,10 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
         .unwrap_or_default();
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+        licence: licence_view(
+            DataDir::from_env().as_ref(),
+            quotadial_core::licence::today(),
+        ),
         alert_targets: config
             .webhooks
             .iter()
@@ -335,6 +342,43 @@ fn remove_alert(
     Ok(self::settings(app.clone(), state))
 }
 
+/// Adds a licence key for QuotaDial Pro, and shows the settings with what the copy is now.
+///
+/// # Errors
+///
+/// Why the key was not added, such as part of it missing, for the popover to show.
+#[tauri::command]
+fn add_licence(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    key: String,
+) -> Result<SettingsView, String> {
+    let dir = DataDir::from_env().ok_or_else(no_data_folder)?;
+    licence::add(&dir, &key, quotadial_core::licence::today())
+        .map_err(|error| error.to_string())?;
+    Ok(self::settings(app.clone(), state))
+}
+
+/// Removes the licence key, and shows the settings with the copy as QuotaDial Free.
+///
+/// # Errors
+///
+/// When the key cannot be removed, for the popover to show.
+#[tauri::command]
+fn remove_licence(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<SettingsView, String> {
+    let dir = DataDir::from_env().ok_or_else(no_data_folder)?;
+    licence::remove(&dir).map_err(|error| {
+        format!(
+            "QuotaDial could not remove the licence key ({error}). Check that its data folder can \
+             be written, then try again."
+        )
+    })?;
+    Ok(self::settings(app.clone(), state))
+}
+
 /// The history view of the last `days`: 7 or 30.
 ///
 /// # Errors
@@ -387,6 +431,12 @@ fn export_history(
 
 fn no_history() -> String {
     "QuotaDial could not open its history, where the alert rules are kept.".to_owned()
+}
+
+fn no_data_folder() -> String {
+    "This system names no folder for QuotaDial's data, so the licence key has nowhere to be kept; \
+     set QUOTADIAL_DATA_DIR to one."
+        .to_owned()
 }
 
 /// The popover asks for the meter when it opens; after that it hears the `meter` event.
@@ -449,6 +499,8 @@ pub fn run() {
             add_alert,
             set_alert,
             remove_alert,
+            add_licence,
+            remove_licence,
             history,
             export_history
         ])

@@ -2,11 +2,11 @@
 //! starts and kept in the data directory, readable only by the user. Every request must present it,
 //! so another user on the machine, or a web page that reaches `127.0.0.1`, reads nothing.
 
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::fs;
+use std::io;
 
 use quotadial_core::Secret;
-use quotadial_daemon::DataDir;
+use quotadial_daemon::{DataDir, write_private};
 
 /// Hex characters in a token.
 const LENGTH: usize = 64;
@@ -25,21 +25,11 @@ impl Token {
         if let Some(token) = Self::load(dir) {
             return Ok(token);
         }
-        dir.create()?;
         let mut bytes = [0_u8; LENGTH / 2];
         getrandom::fill(&mut bytes).map_err(io::Error::other)?;
         let token: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
-        // Written to a private temporary file and renamed, so no reader sees half a token.
-        let temporary = dir.path().join("token.tmp");
-        let mut options = OpenOptions::new();
-        options.create(true).truncate(true).write(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut file = options.open(&temporary)?;
-        file.write_all(token.as_bytes())?;
-        file.sync_all()?;
-        drop(file);
-        fs::rename(&temporary, dir.token())?;
+        // Written privately through a temporary file, so no reader sees half a token.
+        write_private(&dir.token(), token.as_bytes())?;
         Ok(Self(Secret::new(token)))
     }
 

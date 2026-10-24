@@ -4,13 +4,14 @@ import { useEffect, useState } from "preact/hooks";
 import type { Settings } from "./meter";
 
 /**
- * The settings panel: opening at login, the alert rules, which providers to show, and the names
- * given to accounts.
+ * The settings panel: opening at login, the alert rules, which providers to show, the names given
+ * to accounts, and the licence key.
  */
 export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [key, setKey] = useState("");
 
   useEffect(() => {
     void invoke<Settings>("settings").then(setSettings);
@@ -52,6 +53,11 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const addAlert = () => {
     if (draft.trim()) {
       apply(invoke<Settings>("add_alert", { rule: draft }), () => setDraft(""));
+    }
+  };
+  const addLicence = () => {
+    if (key.trim()) {
+      apply(invoke<Settings>("add_licence", { key }), () => setKey(""));
     }
   };
 
@@ -172,6 +178,39 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
           ))}
         </fieldset>
       )}
+      <fieldset>
+        <legend>Licence</legend>
+        <p class="licence-text">{settings.licence.text}</p>
+        <form
+          class="add-licence"
+          onSubmit={(event) => {
+            event.preventDefault();
+            addLicence();
+          }}
+        >
+          <input
+            type="text"
+            value={key}
+            placeholder="Paste a licence key"
+            aria-label="A licence key for QuotaDial Pro"
+            autocomplete="off"
+            spellcheck={false}
+            onInput={(event) => setKey(event.currentTarget.value)}
+          />
+          <button type="submit" disabled={!key.trim()}>
+            Add
+          </button>
+        </form>
+        {settings.licence.kept && (
+          <button
+            type="button"
+            class="remove-licence"
+            onClick={() => apply(invoke<Settings>("remove_licence"))}
+          >
+            Remove the licence key
+          </button>
+        )}
+      </fieldset>
       {problem && (
         <p class="note" role="alert">
           {problem}

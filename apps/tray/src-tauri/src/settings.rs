@@ -3,14 +3,15 @@
 //! login is the operating system's to keep, and which alerts are on is the daemon's history's
 //! (D-093), so neither is stored here.
 
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::fs;
+use std::io;
 use std::path::Path;
 
 use std::collections::BTreeMap;
 
-use quotadial_core::{Account, Condition, Scope, StatusReport};
-use quotadial_daemon::History;
+use chrono::NaiveDate;
+use quotadial_core::{Account, Condition, Scope, Standing, StatusReport};
+use quotadial_daemon::{DataDir, History, licence, write_private};
 use serde::{Deserialize, Serialize};
 
 /// The settings, with every provider shown until changed.
@@ -22,6 +23,30 @@ pub struct Settings {
     /// A name the user gave an account, by [`account_key`], shown in place of its email address
     /// (#34).
     pub aliases: BTreeMap<String, String>,
+}
+
+/// The licence, as Settings shows it (D-099).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LicenceView {
+    /// One sentence saying whether the copy is QuotaDial Free or Pro, and why a key gives nothing.
+    pub text: String,
+    /// Whether a key is kept, which Settings then offers to remove.
+    pub kept: bool,
+}
+
+/// What the copy keeping its key in `dir` is on `today`. With no data folder there is no key.
+#[must_use]
+pub fn licence_view(dir: Option<&DataDir>, today: NaiveDate) -> LicenceView {
+    match dir {
+        Some(dir) => LicenceView {
+            text: licence::standing(dir, today).text,
+            kept: dir.licence().exists(),
+        },
+        None => LicenceView {
+            text: Standing::of(None, today).text,
+            kept: false,
+        },
+    }
 }
 
 /// An account, as the settings name it: its provider, its id and its organization, the three that
@@ -135,32 +160,56 @@ impl Settings {
     }
 }
 
-/// Writes `bytes` to `path`, readable only by the user, through a temporary file and a rename.
-pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    if let Some(folder) = path.parent() {
-        let mut builder = fs::DirBuilder::new();
-        builder.recursive(true);
-        #[cfg(unix)]
-        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
-        builder.create(folder)?;
-    }
-    let temporary = path.with_extension("tmp");
-    let mut options = OpenOptions::new();
-    options.create(true).truncate(true).write(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    let mut file = options.open(&temporary)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    drop(file);
-    fs::rename(temporary, path)
-}
-
 #[cfg(test)]
 mod tests {
     use quotadial_core::{Account, ProviderError, Snapshot, Status};
 
     use super::*;
+
+    #[test]
+    fn the_licence_view_says_what_the_copy_is_and_whether_a_key_is_kept() {
+        use quotadial_core::licence::TEST_SEED;
+        use quotadial_core::{Licence, Plan};
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let dir = DataDir::new(temp.path().join("quotadial"));
+        let today: NaiveDate = "2026-11-01".parse().expect("a date");
+
+        assert_eq!(
+            licence_view(Some(&dir), today),
+            LicenceView {
+                text: "QuotaDial Free, with no licence key.".into(),
+                kept: false,
+            }
+        );
+        let key = Licence {
+            id: "app-1".into(),
+            plan: Plan::Pro,
+            issued: "2026-10-24".parse().expect("a date"),
+            until: None,
+        }
+        .sign(&TEST_SEED);
+        licence::add(&dir, &key, today).expect("adds");
+        assert_eq!(
+            licence_view(Some(&dir), today),
+            LicenceView {
+                text: "QuotaDial Pro, licence app-1.".into(),
+                kept: true,
+            }
+        );
+        fs::write(dir.licence(), "QD1.damaged.key").expect("writes");
+        let damaged = licence_view(Some(&dir), today);
+        assert!(damaged.kept);
+        assert!(
+            damaged.text.contains("doesn't check out"),
+            "{}",
+            damaged.text
+        );
+        assert_eq!(
+            licence_view(None, today).text,
+            "QuotaDial Free, with no licence key."
+        );
+    }
 
     #[test]
     fn settings_start_with_everything_shown_and_survive_a_restart() {

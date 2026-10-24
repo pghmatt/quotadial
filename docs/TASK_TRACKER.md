@@ -53,14 +53,29 @@ Since 2026-10-24 01:15 UTC, Matt's app runs `main` at fd3ee4d, built from the sa
 for the one built at d0e4bc6. It opened his history at schema 5, showed all nine accounts, and
 showed the week's cost 11 seconds after it started.
 
-`v0.2.0` (M4), with the same yes: the version is raised from 0.1.0 to 0.2.0 in the workspace, the
+`v0.2.0` (M4), with the same yes: the version was raised from 0.1.0 to 0.2.0 in the workspace, the
 app's `Cargo.toml`, `package.json` and `tauri.conf.json`, and both lockfiles, and the price table
-was refreshed from models.dev as AGENTS.md asks before a tag (only its date changed). `main` is
-tagged once that merges, and the draft is published as a pre-release with the M4 notes. A first
+was refreshed from models.dev as AGENTS.md asks before a tag (only its date changed), in PR #53.
+`main` is tagged at db7c9d3, and the Release workflow's draft, with all 8 files, was published as a
+pre-release with the M4 notes on 2026-10-24 at 21:58 UTC. A first
 measure for #52's list, from Matt's Mac before the tag: the app's own process, which holds the tray
 and the daemon, had used 0.28% of one core on average over 20 hours 22 minutes (3 min 24 s of CPU)
 and was 91 MB resident; the webview's processes are not counted. The full set of #52's measurements
-comes with the docs PR on #49's queue. The M5 plan is #49.
+comes with the docs PR on #49's queue.
+
+M5, licensing and release: the manager approved the plan in #49 on 2026-10-24, with decisions (a) to
+(e) (D-098), and set the queue on its 17:50 UTC comment. #51 lists what only Matt can provide, and
+#52 is the standing quality bar: every PR's description ends with what going down it found. The
+queue, by its numbers:
+- 1, licence keys (D-099), in review (PR #55);
+- 2, the Free and Pro gates;
+- 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md`;
+- 4, checkout in Lemon Squeezy's test mode, with the signing step proposed on #54;
+- 5, the website in `site/`, built but not deployed, and the shareable image;
+- 6, signing and updates, each turning on when its secrets exist;
+- 7 to 12, hardening: resilience, security, accessibility, the OpenAPI spec, package managers, and
+  docs;
+- then the M6 plan, starting with a fake provider while it waits.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -122,6 +137,12 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | PR 3: history | Done (PR #46) | `history_days` up to 365 (Pro past 30); `History::series`; `GET /v1/history`; `quotadial history` with a chart per window, `--csv` and `--json`; the app's History panel with charts, an hour-by-day heatmap and Export CSV (D-095) |
 | PR 4: provider status | Done (PR #47) | The daemon reads status.claude.com and status.openai.com every 5 minutes for providers with accounts; `status_pages` in the report; the incident rule, once per incident; a line in `status`, ⚠ beside the tray's number and the incident in the popover; `status_pages` setting (D-096) |
 | PR 5: the week's cost | Done (PR #48) | `quotadial-cost` reads the usage fields of Claude Code's and the Codex CLI's logs into `costs.db`, once per line, and prices the last 7 days from `prices.json` (models.dev, refreshed by `scripts/update-prices.sh`); `costs` in the report and `/v1/headroom`; a line per provider in `status`, the MCP tools and the popover; `cost_scan` setting; `ProFeature::CostScan` (D-097) |
+
+## M5
+
+| Step | Status | Notes |
+| --- | --- | --- |
+| 1: licence keys | In review (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
 
 ## Kickoff
 
@@ -307,6 +328,43 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 PR 1: licence keys (D-099)
+
+- **The key** (`crates/core/src/licence.rs`): `QD1.<licence>.<signature>`, the licence as base64url
+  JSON and the Ed25519 signature of `QD1.<licence>`, both without padding. `Licence::verify` leaves
+  out what copying adds (spaces, line breaks, zero-width characters, soft hyphens), checks the
+  prefix in any case, decodes a 64-byte signature, verifies it strictly against each trusted key,
+  then reads the licence. `KeyError` is `NotAKey`, `DoesNotCheckOut` or `Newer` (a later `QDn`
+  format, or a plan this version does not know), each a sentence naming the fix. `Licence::sign`
+  writes the JSON with sorted keys and no spaces, and signing is deterministic.
+  `holds_on(today)` is true through `until`; `today()` is the earlier of the local and the UTC
+  date. `Standing::of(key, today)` gives the tier, the licence and one sentence.
+- **Trust:** `QUOTADIAL`, the public half of the key made by `quotadial-issue keygen` on Matt's Mac
+  on 2026-10-24. A debug build also trusts `TEST_SEED`'s key, so tests sign real keys; CI's Linux
+  check job runs `only_a_debug_build_trusts_the_test_key` in a release build too.
+- **Keeping it** (`crates/daemon/src/licence.rs`): `licence` in the data folder, on one line, written
+  through `write_private`, which moved from the tray into the daemon crate and now writes the API's
+  token too. `add` refuses a key that gives nothing or whose licence has ended, keeping the one
+  before; `standing` reads the file each time, so an ended licence turns the copy back to Free by
+  itself; an empty file is no key; `remove` says whether there was one.
+- **The CLI:** `quotadial licence` (alias `license`) with `show [--json]`, `add [<key>...]` and
+  `remove`. With no key, `add` reads a pipe whole, or lines at the prompt until `licence::whole`
+  says the signature is complete, a blank line, or text that cannot be a key.
+- **The app:** `SettingsView.licence` (`text`, `kept`), the `add_licence` and `remove_licence`
+  commands, and a Licence fieldset in Settings: the sentence, a field and Add, and Remove when a key
+  is kept. The window's JavaScript is 24.0 KB.
+- **`quotadial-issue`** (`crates/issue`): `keygen` (a PKCS #8 PEM file, 0600 in a 0700 folder,
+  never replaced, never printed), `public`, `sign --id [--issued] [--until] [--test]` (refusing a
+  signing key core does not carry, an id that is not 1 to 64 printable characters, or an `until`
+  before `issued`), and `check`.
+- **Docs:** `docs/LICENSING.md` (the format, trust, the two test-key keys core checks it signs byte
+  for byte, the tool, changing the key), `docs/CLI.md` (Licence), `docs/INSTALL.md` (Settings),
+  AGENTS.md. #51 gained a checkbox for Matt to back up the signing key, and #54 proposes how a buyer
+  gets a key: a function on the website that turns a paid Lemon Squeezy key into a signed one.
+- **Tests:** 469 in the workspace (33 new), with property tests that no text makes the reader
+  panic and that every signed licence reads back. Their first run found a panic, slicing a format
+  inside a multi-byte character, now fixed. 34 in the app (1 new).
 
 ### M4 PR 5: the week's cost (D-097)
 

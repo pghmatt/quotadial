@@ -87,6 +87,16 @@ export interface Settings {
   providers: ProviderChoice[];
   /** Every account QuotaDial knows now, with the name the user gave it. */
   accounts: AccountChoice[];
+  /** Whether this copy is QuotaDial Free or Pro; it changes through `add_licence` and
+   * `remove_licence`. */
+  licence: LicenceView;
+}
+
+export interface LicenceView {
+  /** One sentence, such as "QuotaDial Pro, licence 1234." */
+  text: string;
+  /** Whether a key is kept, which Settings then offers to remove. */
+  kept: boolean;
 }
 
 export interface AlertChoice {
