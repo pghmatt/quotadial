@@ -81,9 +81,9 @@ queue, by its numbers:
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
   (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs, in
   three PRs: the fake provider and the example build (D-117), merged (PR #71); the release copies,
-  the site's downloads and guides and the README's pictures (D-116), merged (PR #72); and the
-  first-run recording with #52's figures, made with the example build, being built (PR C), its
-  timings and recording waiting on Matt's go-ahead for the example in his menu bar;
+  the site's downloads and guides and the README's pictures (D-116), merged (PR #72); the install
+  check and #52's figures from Matt's copy, merged (PR #74); and the first-run recording with the
+  example build's figures (PR D), waiting on Matt's go-ahead for the example in his menu bar (#51);
 - then M6. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
   to build it with item 12 (D-117). The M6 plan is #73, approved by the manager at 20:29 UTC with
   its decisions (Gemini CLI detected and explained, then Antigravity through its status line, then
@@ -91,7 +91,8 @@ queue, by its numbers:
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (#71 and #72 merged; PR C, the recording), then M6 (#73).
+#64's fix (PR #69); from here: 12 (#71, #72 and #74 merged; PR D, the recording, waits on Matt),
+then M6 (#73).
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
 an undici override (notes below).
@@ -178,7 +179,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
 | 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
-| 12, PR C: the first-run recording and #52's figures | In progress | `docs/INSTALL.md`'s command alone now fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it (#72's review), making `/usr/local/bin` first, which a new Apple silicon Mac does not have; Matt's copy's idle figures read from its processes over two hours, resident size and footprint (the tray process 0.295% of one core, 88.2 MiB resident, 37.8 MiB of footprint); QuotaDial Example built for the recording; the timings, the example's idle hour, the daemon alone and the recording wait on Matt's go-ahead; no changelog line, as the manager said |
+| 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
+| 12, PR D: the first-run recording and the example's figures | Waiting on Matt (#51) | The README's recording, first run to the number, the popover's open time, the example's idle hour with the popover closed and the daemon alone, all from QuotaDial Example, which needs a few minutes in Matt's menu bar; the scripts are written and dry-run |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -366,20 +368,74 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
-### M5 queue item 12, PR C: the first-run recording and #52's figures
+### M5 queue item 12, PR D: the first-run recording and the example's figures
+
+- **Waits on** Matt's go-ahead for a few minutes with a second QuotaDial icon in his menu bar, for
+  the README's recording and #52's timings (#51). The manager's review of #74 moved this here so the
+  install check did not wait on it; the 0.3.0 bump does not wait on it either.
+- **To measure, with Matt's go-ahead:**
+  - First run to the number, with the example build.
+  - The popover's open time: the median of five presses from a warm daemon.
+  - The example's idle hour: the app's share of one core, and its footprint and resident size with
+    the popover closed, with its helpers.
+  - The daemon alone, as the command-line install runs it: the example build's `quotadial daemon`
+    for an hour, with its own data folder and port; #52's 40 MB is judged on its footprint (D-123).
+  - The README's first-run recording.
+  - Readings of Matt's copy's footprint as they come, and one line on whether it grows.
+- **How they will be measured:** four scripts and a small Swift helper, kept outside the repository
+  with the builder's notes. Each finds QuotaDial Example by its bundle identifier, checked against
+  the app's signature too, and refuses every other app.
+  - First run: launches the app through Launch Services with `QUOTADIAL_FAKE_DATA_DIR` set to a new,
+    empty folder, after moving the example's own earlier folders aside (its cache, settings and
+    WebKit folders; never Matt's), and reads its menu bar item through accessibility every 10 ms
+    until the item shows a share. It then checks that the app has files open in the new folder and
+    none in the default `quotadial-fake`.
+  - Popover: presses the item through accessibility, as VoiceOver does, five times, and times from
+    the press to the popover's window listed on screen, its first pixels, and the popover drawn as
+    it settles (the first picture that matches it 1.5 s later), from ScreenCaptureKit watching the
+    example's windows alone; the medians.
+  - Idle: as Matt's second hour, footprint included, with the helpers found by responsibility and
+    whether the popover was open at each sample.
+  - Recording: ScreenCaptureKit with a filter that includes the example's windows and nothing else,
+    so the menu bar, other apps' items (Matt's QuotaDial among them), their windows and the desktop
+    are never captured, not even in the raw file; then a check that every frame is the plain
+    background outside the icon and the popover, a crop to the two, an MP4, a GIF and a poster. The
+    account is labelled in the picture itself: the example's accounts are called Example (D-117).
+  - Checked without the app: the helper's self-test (the share read from the title, the median,
+    lightness, and when the popover first showed and was drawn, on made-up pictures); bad arguments
+    refused; every command that needs the example refuses while it is not running; the build passes
+    the app check, and four wrong bundles are refused (the real identifier, unsigned, an edited
+    Info.plist, a signature naming the real identifier); in a made-up home only the example's
+    folders are moved; the crop and the plain check on two made-up recordings, the check catching a
+    stray window in one; and ScreenCaptureKit recording two seconds of a 16-point square with no app
+    in the filter, every pixel of it the background.
+  - Not checked until the app runs: the launch through Launch Services with the variable; the item's
+    title as accessibility gives it; the press; the popover's window and its pixels; the example's
+    helpers; the recording of the example's windows; the click; HEVC for a screen over 4096 pixels
+    wide.
+  - Matt's menu bar hides itself, so its icons sit above the screen until the pointer reaches the
+    top: the recording needs "Automatically hide and show the menu bar" set to Never while it runs,
+    or holds the pointer at the top of the screen (`--reveal`).
+
+### M5 queue item 12, PR C (#74): the install check, and #52's figures from Matt's copy
 
 - **The rule:** the manager's rule 4 on #49 (14:25 UTC): "The recording and the timings come from
   that build: first run to the number, popover open time, the two idle figures. Crop to QuotaDial's
   icon and popover and label the account as an example in the picture itself, not only in the
   caption. The idle figures of Matt's own copy may be read from its process figures as you said,
-  nothing more." No changelog line: the recording is a README change, not a note for users (the
-  manager). Running QuotaDial Example puts a second icon in Matt's menu bar, so its timings and the
-  recording wait on his go-ahead; everything else is here.
+  nothing more." Running QuotaDial Example puts a second icon in Matt's menu bar, so its timings and
+  the recording wait on his go-ahead. The manager's review of #74 (21:26 UTC) split the work: this
+  PR carries the install check and the figures read from Matt's copy and merges now, since the
+  guide is safer with the check than without; the recording and the example build's figures are
+  PR D. One changelog line, for the install guide's lines: whether a person notices is the test,
+  not whether it is docs (the review; D-101).
 - **#52's targets ("Fast and light"):** the daemon idle under 0.5% of one core averaged over an
   hour and under 40 MB resident; the tray app idle under 80 MB resident with the popover closed; the
   popover open and drawn in under 100 ms from a warm daemon, and the tray's number changed within
   1 s of a poll; first run, a number in the tray within 60 s with no typing (the PRD), today 1 s,
-  kept under 5 s; the window bundle within the 150 KB budget `npm run build` enforces.
+  kept under 5 s; the window bundle within the 150 KB budget `npm run build` enforces. The memory
+  targets are judged on the physical footprint, in MiB, with the resident size beside it, and the
+  daemon's on the daemon alone (the manager on #74 and #52, 21:26 UTC; D-123).
 - **The install line (#72's review, note 1):** `docs/INSTALL.md`'s "The command alone" piped `curl`
   into `tar` and `sudo install` with no checksum step. Its lines now go into a new folder
   (`cd "$(mktemp -d)"`), fetch the archive and `SHA256SUMS.txt` from the version-less addresses
@@ -456,61 +512,21 @@ so they became #10.
 - **Against #52:** the daemon runs inside the tray's process, so the daemon's figure and the tray
   app's are one process.
   - CPU: 0.295% of one core over the second hour and 0.288% over the first, under #52's 0.5%.
-  - Memory: 88.2 MiB (92.5 MB) resident, over both of #52's sizes (40 MB for the daemon, 80 MB for
-    the tray app); 37.8 MiB (39.7 MB) of footprint, under both. #52 says "resident": whether it
-    means the resident size or the footprint, and MiB or a million bytes, is asked on the PR.
-  - Only process figures were read, so the popover's state in either hour is not known, and
-    neither is yet the popover-closed figure #52 names. The example's hour answers that.
+  - Memory, judged on the footprint (D-123): the tray process's 37.8 MiB passes the tray app's
+    80 MB, though only process figures were read, so the popover's state in either hour is not
+    known; 88.2 MiB (92.5 MB) resident, beside it. The daemon's 40 MB is measured on the daemon
+    alone, in PR D, not on the tray process that carries both. The example's hour, also PR D, gives
+    the popover-closed figure.
   - The tray's resident size was 78.5 MiB on average in the first hour and 88.2 in the second; the
     footprint was read only in the second. Whether that is growth over its 44 hours of running or
     the popover having been opened is not known: the example's hour starts fresh, and readings of
-    Matt's copy's footprint over the next days show whether it grows.
-- **Measured with Matt's go-ahead (to fill):**
-  - First run to the number, the example build: measured with the owner's go-ahead.
-  - Popover open time, the median of five presses from a warm daemon: measured with the owner's
-    go-ahead.
-  - The example's idle hour: the daemon's share of one core, and the tray app's resident size and
-    footprint with the popover closed, with its helpers: measured with the owner's go-ahead.
-  - The daemon alone, as the command-line install runs it: the example build's `quotadial daemon`
-    for an hour, its own data folder and port: measured with the owner's go-ahead.
-  - The README's first-run recording: measured with the owner's go-ahead.
-- **How they will be measured:** four scripts and a small Swift helper, kept outside the repository
-  with the builder's notes. Each finds QuotaDial Example by its bundle identifier, checked against
-  the app's signature too, and refuses every other app.
-  - First run: launches the app through Launch Services with `QUOTADIAL_FAKE_DATA_DIR` set to a new,
-    empty folder, after moving the example's own earlier folders aside (its cache, settings and
-    WebKit folders; never Matt's), and reads its menu bar item through accessibility every 10 ms
-    until the item shows a share. It then checks that the app has files open in the new folder and
-    none in the default `quotadial-fake`.
-  - Popover: presses the item through accessibility, as VoiceOver does, five times, and times from
-    the press to the popover's window listed on screen, its first pixels, and the popover drawn as
-    it settles (the first picture that matches it 1.5 s later), from ScreenCaptureKit watching the
-    example's windows alone; the medians.
-  - Idle: as Matt's second hour, footprint included, with the helpers found by responsibility and
-    whether the popover was open at each sample.
-  - Recording: ScreenCaptureKit with a filter that includes the example's windows and nothing else,
-    so the menu bar, other apps' items (Matt's QuotaDial among them), their windows and the desktop
-    are never captured, not even in the raw file; then a check that every frame is the plain
-    background outside the icon and the popover, a crop to the two, an MP4, a GIF and a poster. The
-    account is labelled in the picture itself: the example's accounts are called Example (D-117).
-  - Checked without the app: the helper's self-test (the share read from the title, the median,
-    lightness, and when the popover first showed and was drawn, on made-up pictures); bad arguments
-    refused; every command that needs the example refuses while it is not running; the build passes
-    the app check, and four wrong bundles are refused (the real identifier, unsigned, an edited
-    Info.plist, a signature naming the real identifier); in a made-up home only the example's
-    folders are moved; the crop and the plain check on two made-up recordings, the check catching a
-    stray window in one; and ScreenCaptureKit recording two seconds of a 16-point square with no app
-    in the filter, every pixel of it the background.
-  - Not checked until the app runs: the launch through Launch Services with the variable; the item's
-    title as accessibility gives it; the press; the popover's window and its pixels; the example's
-    helpers; the recording of the example's windows; the click; HEVC for a screen over 4096 pixels
-    wide.
-  - Matt's menu bar hides itself, so its icons sit above the screen until the pointer reaches the
-    top: the recording needs "Automatically hide and show the menu bar" set to Never while it runs,
-    or holds the pointer at the top of the screen (`--reveal`).
+    Matt's copy's footprint over the next days, noted on PR D, show whether it grows. A footprint
+    that grows across days would be a bug for M6's queue, not a figure for the tracker (the
+    review).
 - **Tests:** the release scripts 40 (36 before: 4 new, one changed); the site 90 (one rewritten,
   two built-page tests changed); `npm ci`, `npm run check`, `npm run build` and `npm test` in
-  `site/` pass. The Rust workspaces are unchanged.
+  `site/` pass, and CI passed at 165f915, its Linux job running all 40 of the release scripts'
+  tests, the GNU `sha256sum` one included. The Rust workspaces are unchanged.
 
 ### M5: the manager's review of #68, the website
 
