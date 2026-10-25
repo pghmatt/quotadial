@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { GUIDES, guide, guideAnchors, guideLink, readGuide, slug, type Guide } from "../components/reference/guide.ts";
+import { GUIDES, finish, guide, guideAnchors, guideLink, readGuide, slug, type Guide } from "../components/reference/guide.ts";
 import {
   countUnder,
   doctorSample,
@@ -14,6 +14,7 @@ import {
   wordsOf,
 } from "../components/reference/text.ts";
 import { changelog, html, repositoryFile, withoutTitle } from "../lib/markdown.ts";
+import { NOT_BUILT, built, builtFiles } from "./built.ts";
 import { changelogCases, type ChangelogCase } from "./changelogs.ts";
 
 const privacy = () => html(withoutTitle(repositoryFile("docs/PRIVACY.md")).body);
@@ -328,4 +329,70 @@ test("the sitemap lists both guide pages and the footer leads to them rather tha
     assert.ok(footer.includes(`href: "${path}"`), `the footer links to ${path}`);
   }
   assert.ok(!footer.includes("SITE.installGuide") && !footer.includes("SITE.cliGuide"));
+});
+
+const DOWNLOAD = /<a href="([^"]*\/releases\/latest\/download\/([^"]+))"([^>]*)>/g;
+
+test("each of the install guide's eight direct file links reports a download with its file, its system and where it was", () => {
+  const cells = guide("install")
+    .sections.flatMap((section) => section.blocks)
+    .flatMap((block) => (block.kind === "table" ? block.rows.flat() : []))
+    .join("\n");
+  const links = [...cells.matchAll(DOWNLOAD)];
+  assert.equal(links.length, 8, "four app files and four archives");
+  const systems: Record<string, string> = { dmg: "macos", msi: "windows", deb: "linux", AppImage: "linux" };
+  for (const [, , name, attributes] of links) {
+    const system = systems[name.slice(name.lastIndexOf(".") + 1)] ?? (name.includes("darwin") ? "macos" : name.includes("windows") ? "windows" : "linux");
+    assert.match(attributes, /data-event="download_click"/, `${name} reports a download`);
+    assert.match(attributes, new RegExp(`data-event-file="${name.replace(/\./g, "\\.")}"`), `${name} names its file`);
+    assert.match(attributes, new RegExp(`data-event-system="${system}"`), `${name} names its system`);
+    assert.match(attributes, /data-event-from="install-guide"/, `${name} says it came from the install guide`);
+  }
+  assert.equal(finish('<a href="https://example.com/x.dmg">x</a>', "guide"), '<a href="https://example.com/x.dmg">x</a>', "a link elsewhere is left alone");
+});
+
+test("the built /install page carries those events on its links, and a click on one reports the file", { skip: built ? false : NOT_BUILT }, () => {
+  const page = builtFiles("install.html")[0].text;
+  const links = [...page.matchAll(/<a [^>]*data-event="download_click"[^>]*data-event-from="install-guide"[^>]*>/g)];
+  assert.equal(links.length, 8);
+  for (const [link] of links) {
+    const name = link.match(/data-event-file="([^"]+)"/)?.[1] ?? "none";
+    assert.ok(link.includes(`/releases/latest/download/${name}"`), `${name}: the link fetches the file it reports`);
+  }
+});
+
+test("a guide's code and links break only at the marks, and its stylesheet never lets a word break anywhere", () => {
+  assert.equal(finish("<code>releases/latest/download/quotadial-aarch64.tar.gz</code>", "g"), "<code>releases/<wbr>latest/<wbr>download/<wbr>quotadial-<wbr>aarch64.tar.gz</code>");
+  assert.equal(finish("<code>shasum -c --ignore-missing</code>", "g"), "<code>shasum -c --ignore-missing</code>", "a flag stays whole");
+  assert.equal(finish("<p>built-in and/or plain</p>", "g"), "<p>built-in and/or plain</p>", "words outside code and links are not marked");
+  assert.equal(finish('<a href="/x">QuotaDial_universal.dmg</a>', "g"), '<a href="/x">QuotaDial_<wbr>universal.dmg</a>');
+  for (const file of ["Guide.tsx", "GuidePage.tsx"]) {
+    const source = readFileSync(new URL(`../components/reference/${file}`, import.meta.url), "utf8");
+    assert.ok(!source.includes("anywhere]") && !source.includes("overflow-wrap:anywhere"), `${file} never breaks a word anywhere`);
+  }
+  const archive = guide("install")
+    .sections.flatMap((section) => section.blocks)
+    .find((block) => block.kind === "table" && block.caption.startsWith("The command alone"));
+  assert.ok(archive?.kind === "table" && archive.rows[2][1].includes("quotadial-<wbr>v&lt;version&gt;-x86_<wbr>64-<wbr>unknown-<wbr>linux-<wbr>gnu.tar.gz"));
+});
+
+test("example output that scrolls shows the side that has more text, and is still a labelled region the keyboard reaches", { skip: built ? false : NOT_BUILT }, () => {
+  const source = readFileSync(new URL("../components/CodeBlock.tsx", import.meta.url), "utf8");
+  assert.match(source, /backgroundAttachment: "local, local, scroll, scroll"/, "covers travel with the text, shades stay at the edges");
+  assert.match(source, /style=\{wrap \? undefined : SCROLL_SIGN\}/, "only a block that scrolls has the sign");
+  for (const route of ["cli.html", "install.html"]) {
+    const page = builtFiles(route)[0].text;
+    const regions = [...page.matchAll(/<pre [^>]*role="region"[^>]*>/g)].map((found) => found[0]);
+    for (const region of regions) {
+      assert.match(region, /background-attachment:local,\s*local,\s*scroll,\s*scroll/);
+      assert.match(region, /tabindex="0"/);
+      assert.match(region, /aria-label="[^"]+"/);
+      assert.ok(!/aria-hidden/.test(region));
+    }
+    const wrapped = [...page.matchAll(/<pre (?![^>]*role="region")[^>]*>/g)].map((found) => found[0]);
+    assert.ok(wrapped.every((pre) => !pre.includes("background-attachment")), `${route}: a command that wraps has no sign`);
+    if (route === "cli.html") {
+      assert.ok(regions.length > 0, "the command guide has output that scrolls");
+    }
+  }
 });

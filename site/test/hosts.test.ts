@@ -57,10 +57,12 @@ const ENTITIES: Record<string, string> = { "&quot;": '"', "&#x27;": "'", "&#39;"
  * Every address in `text` with its host: written with http or https anywhere, in the page or in
  * the data its scripts carry, or without a scheme ("//host/...") at the start of a value. HTML's
  * entities and the scripts' escapes (`&`, `\/`) are read first, so an address reads whole, as
- * it would on the page.
+ * it would on the page, with no break marks (`<wbr>`) in it.
  */
 function addresses(text: string): Address[] {
   const plain = text
+    // A place a command or address may break (components/Breakable.tsx) is not part of it.
+    .replace(/<wbr\s*\/?>/g, "")
     .replace(/&(?:quot|#x27|#39|lt|gt|amp);/g, (entity) => ENTITIES[entity])
     .replace(/\\u([0-9a-f]{4})/gi, (_, code: string) => String.fromCharCode(Number.parseInt(code, 16)))
     .replaceAll("\\/", "/");
