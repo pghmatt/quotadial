@@ -351,6 +351,7 @@ budget. QuotaDial Pro adds:
 | --- | --- |
 | Every account on the machine | One account per provider, the current shell's; a line says how many more there are |
 | A year of history | 30 days, whatever `history_days` says |
+| A picture of an account's history to share | The app's History shows a line where the Share image buttons would be |
 | Alerts before a window runs out, before a reset, and for incidents | Refused when added; one added on Pro waits |
 | Alerts sent to webhooks and Slack | Alerts go to the system's notifications only |
 | The week's cost at API prices | The logs are not read |

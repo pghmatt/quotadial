@@ -593,6 +593,11 @@
             "type": "string"
           },
           {
+            "const": "share_image",
+            "description": "A picture of one account's history, made by the app to post or send.",
+            "type": "string"
+          },
+          {
             "const": "alert_rules",
             "description": "Alert rules beyond a threshold and a reset: a window running out before it resets, a time before a reset, and provider incidents.",
             "type": "string"

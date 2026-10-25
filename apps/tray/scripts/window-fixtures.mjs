@@ -329,6 +329,7 @@ export const free = {
       adds: [
         "every account on this machine, not one per provider",
         "a year of history, not 30 days",
+        "a picture of an account's history to share",
         "alerts before a window runs out, before a reset, and for provider incidents",
         "alerts sent to webhooks and Slack",
         "the week's cost at API prices",
