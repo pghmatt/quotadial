@@ -326,6 +326,8 @@ const skip = built ? false : NOT_BUILT;
 function words(text: string): string {
   return text
     .replace(/<wbr\/?>/g, "")
+    // Breakable's unbreakable pieces sit side by side in one word, so their tags add no space.
+    .replace(/<span class="whitespace-nowrap">([^<]*)<\/span>/g, "$1")
     .replace(/<[^>]+>/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")

@@ -30,3 +30,19 @@ export function breakPieces(text: string): string[] {
   if (piece !== "") pieces.push(piece);
   return pieces;
 }
+
+/** A run of spaces, where a line may always break, or a word, as the pieces between its marks. */
+export type BreakToken = { space: string } | { pieces: string[] };
+
+/**
+ * `text` as spaces and words, each word in the pieces between the places it may break
+ * (`breakPieces`). Set each piece unbreakable (`white-space: nowrap`) and join a word's pieces with
+ * `<wbr>`: the browser then breaks only at a space or a mark, never after a hyphen of its own
+ * choosing, so `--ignore-missing` and `status --json` keep their flags whole.
+ */
+export function breakTokens(text: string): BreakToken[] {
+  return text
+    .split(/(\s+)/)
+    .filter((part) => part !== "")
+    .map((part) => (/^\s+$/.test(part) ? { space: part } : { pieces: breakPieces(part) }));
+}
