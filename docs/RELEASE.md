@@ -24,6 +24,11 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
      (`QuotaDial_<version>_universal.app.tar.gz`) and a `.sig` beside each file the updater
      installs;
    - notes from the version's section of `CHANGELOG.md`, under a line saying what is signed.
+
+   Each CLI it ships, the archives' and the one inside the app, is first run where no sign-in can
+   be found (`scripts/no-example-provider.sh`), and the workflow fails if its `doctor` or
+   `status --json` names a provider `fake`: the example build's, whose made-up accounts are only
+   for pictures of the app (D-117).
 4. **Publishing** is Matt's. Published as a pre-release, it can be downloaded. Published as a full
    release, which GitHub then marks Latest, it is also what every copy's updater offers, within a
    day.

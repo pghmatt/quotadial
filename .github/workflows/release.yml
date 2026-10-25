@@ -44,6 +44,21 @@ jobs:
           key: ${{ matrix.target }}
       - name: Build
         run: cargo build --release --locked -p quotadial --target ${{ matrix.target }}
+      # The Intel build is checked on an Apple silicon runner, through Rosetta.
+      - name: Rosetta, to run the Intel build
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: /usr/bin/arch -x86_64 /usr/bin/true 2> /dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+      # The example build's fake provider (D-117) never ships: the built CLI's `doctor` and
+      # `status --json`, run with no sign-in to find, must not name a provider `fake`.
+      - name: No example provider
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          ext=""
+          if [[ "$TARGET" == *windows* ]]; then ext=".exe"; fi
+          scripts/no-example-provider.sh "target/${TARGET}/release/quotadial${ext}"
       - name: Package
         shell: bash
         env:
@@ -85,6 +100,7 @@ jobs:
             os: macos-latest
             targets: aarch64-apple-darwin,x86_64-apple-darwin
             args: --target universal-apple-darwin
+            cli: quotadial-universal-apple-darwin
             bundles: |
               apps/tray/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
               apps/tray/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
@@ -92,12 +108,14 @@ jobs:
             os: windows-latest
             targets: x86_64-pc-windows-msvc
             args: ""
+            cli: quotadial-x86_64-pc-windows-msvc.exe
             bundles: apps/tray/src-tauri/target/release/bundle/msi/*.msi*
           # The oldest supported Ubuntu, so the deb and the AppImage run on as many systems as can be.
           - name: linux-x64
             os: ubuntu-22.04
             targets: x86_64-unknown-linux-gnu
             args: ""
+            cli: quotadial-x86_64-unknown-linux-gnu
             bundles: |
               apps/tray/src-tauri/target/release/bundle/deb/*.deb*
               apps/tray/src-tauri/target/release/bundle/appimage/*.AppImage*
@@ -154,6 +172,10 @@ jobs:
           npm ci
           source ../../scripts/release-signing.sh
           npx tauri build ${{ matrix.args }} --config "$SIGNING_CONFIG"
+      # The CLI the app carries, checked as it ships, as the cli job checks its own (D-117).
+      - name: No example provider in the app's CLI
+        shell: bash
+        run: ../../scripts/no-example-provider.sh "src-tauri/binaries/${{ matrix.cli }}"
       - uses: actions/upload-artifact@v7
         with:
           name: quotadial-app-${{ matrix.name }}
