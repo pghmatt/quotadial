@@ -26,7 +26,7 @@ fn command(binary: &str, args: &[&str], home: &Path) -> Command {
         .env("USERPROFILE", home)
         .env("CLAUDE_CONFIG_DIR", home.join(".claude"))
         .env("CODEX_HOME", home.join(".codex"))
-        .env("QUOTADIAL_DATA_DIR", home.join("data"))
+        .env(quotadial_core::copy::DATA_DIR_VARIABLE, home.join("data"))
         .env_remove("CLAUDE_CODE_OAUTH_TOKEN")
         .env_remove("ANTHROPIC_API_KEY")
         .env_remove("OPENAI_API_KEY");

@@ -414,9 +414,7 @@ fn doctor() -> ExitCode {
 /// Says which QuotaDial this copy is, or adds or removes the licence key kept in the data folder.
 fn licence(action: LicenceAction) -> ExitCode {
     let Some(dir) = DataDir::from_env() else {
-        eprintln!(
-            "quotadial: the operating system names no data directory; set QUOTADIAL_DATA_DIR."
-        );
+        eprintln!("quotadial: {}", no_data_directory());
         return ExitCode::FAILURE;
     };
     let today = quotadial_core::licence::today();
@@ -665,11 +663,18 @@ fn config() -> Config {
         .unwrap_or_default()
 }
 
+/// What to do when the operating system names no data directory, naming the variable this copy
+/// reads: `QUOTADIAL_DATA_DIR`, or the example build's own (D-117).
+fn no_data_directory() -> String {
+    format!(
+        "the operating system names no data directory; set {}.",
+        quotadial_core::copy::DATA_DIR_VARIABLE
+    )
+}
+
 /// The daemon's history, where the alert rules live, created if no daemon has run yet.
 fn open_history() -> Result<History, String> {
-    let dir = DataDir::from_env().ok_or_else(|| {
-        "the operating system names no data directory; set QUOTADIAL_DATA_DIR.".to_owned()
-    })?;
+    let dir = DataDir::from_env().ok_or_else(no_data_directory)?;
     dir.create()
         .map_err(|error| format!("could not use {}: {error}", dir.path().display()))?;
     History::open(&dir.history()).map_err(|error| {
@@ -774,9 +779,7 @@ fn capitalized(text: &str) -> String {
 /// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
 fn daemon(port: u16) -> ExitCode {
     let Some(dir) = DataDir::from_env() else {
-        eprintln!(
-            "quotadial: the operating system names no data directory; set QUOTADIAL_DATA_DIR."
-        );
+        eprintln!("quotadial: {}", no_data_directory());
         return ExitCode::FAILURE;
     };
     let Some(runtime) = runtime() else {

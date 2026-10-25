@@ -643,9 +643,11 @@ fn no_history() -> String {
 }
 
 fn no_data_folder() -> String {
-    "This system names no folder for QuotaDial's data, so the licence key has nowhere to be kept; \
-     set QUOTADIAL_DATA_DIR to one."
-        .to_owned()
+    format!(
+        "This system names no folder for QuotaDial's data, so the licence key has nowhere to be \
+         kept; set {} to one.",
+        quotadial_core::copy::DATA_DIR_VARIABLE
+    )
 }
 
 /// The popover asks for the meter when it opens; after that it hears the `meter` event.
@@ -909,11 +911,10 @@ fn start_feed(
     let Some(dir) = DataDir::from_env() else {
         receive(
             &app,
-            Update::Problem(
-                "The operating system names no data folder for QuotaDial; set \
-                 QUOTADIAL_DATA_DIR."
-                    .to_owned(),
-            ),
+            Update::Problem(format!(
+                "The operating system names no data folder for QuotaDial; set {}.",
+                quotadial_core::copy::DATA_DIR_VARIABLE
+            )),
         );
         let _ = stopped.send(true);
         return;
