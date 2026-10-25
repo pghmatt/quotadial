@@ -103,8 +103,11 @@ export default function Download() {
               with shell completions and manual pages.
             </p>
             <p className="mt-4 mb-0 max-w-measure">
-              On macOS or Linux, these lines fetch the newest full release's command and put it on your PATH. The first
-              names Apple silicon, so use your system's name from the table for any other.
+              On macOS or Linux, these lines fetch the newest full release's command and{" "}
+              <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> into a new folder, and check the archive against
+              that list. Only an archive that passes is unpacked and put on your PATH. They name Apple silicon: for any
+              other system, use its name from the table, and on Linux, <InlineCode on="shallow">sha256sum</InlineCode>{" "}
+              in place of <InlineCode on="shallow">shasum -a 256</InlineCode>.
             </p>
             <div className="mt-6">
               <CodeBlock code={GUIDE.install} label="Copy the commands" />

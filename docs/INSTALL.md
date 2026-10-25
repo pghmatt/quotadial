@@ -46,11 +46,17 @@ pages in `man/` ([CLI.md](CLI.md) says how to turn them on).
 | Linux | `quotadial-v<version>-x86_64-unknown-linux-gnu.tar.gz` | [quotadial-x86_64-unknown-linux-gnu.tar.gz](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-x86_64-unknown-linux-gnu.tar.gz) |
 | Windows | `quotadial-v<version>-x86_64-pc-windows-msvc.zip` | [quotadial-x86_64-pc-windows-msvc.zip](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-x86_64-pc-windows-msvc.zip) |
 
-On macOS or Linux, this fetches the newest full release's command and puts it on your `PATH`
-(Apple silicon shown; use your system's name from the table):
+On macOS or Linux, these lines fetch the newest full release's command and `SHA256SUMS.txt` into a
+new folder, and check the archive against that list as above. Only an archive that passes is
+unpacked and put on your `PATH`. They name Apple silicon: for another system, use its archive's name
+from the table, and on Linux, `sha256sum` in place of `shasum -a 256`.
 
 ```sh
-curl -fsSL https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-aarch64-apple-darwin.tar.gz | tar -xz
+cd "$(mktemp -d)" &&
+curl -fsSLO https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-aarch64-apple-darwin.tar.gz &&
+curl -fsSLO https://github.com/pghmatt/quotadial/releases/latest/download/SHA256SUMS.txt &&
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing &&
+tar -xzf quotadial-*.tar.gz &&
 sudo install quotadial-v*/quotadial quotadial-v*/qd /usr/local/bin/
 ```
 
