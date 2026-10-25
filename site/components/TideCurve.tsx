@@ -23,7 +23,7 @@ interface Geometry {
 }
 
 const WIDE: Geometry = { width: 640, height: 314, left: 44, right: 612, top: 44, bottom: 252, note: 15, axis: 13 };
-const NARROW: Geometry = { width: 360, height: 266, left: 34, right: 344, top: 42, bottom: 210, note: 14, axis: 12.5 };
+const NARROW: Geometry = { width: 360, height: 266, left: 44, right: 344, top: 42, bottom: 210, note: 14, axis: 12.5 };
 
 export interface CurvePoint {
   /** Hours since the window began. */
