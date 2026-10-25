@@ -1,10 +1,12 @@
 // node --test scripts/packages.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { NAMES, latestNames } from "./latest-names.mjs";
 import { cask, files, formula, readSums, scoop, winget, write } from "./packages.mjs";
@@ -119,5 +121,26 @@ test("writes the tap's layout and winget's", () => {
     assert.equal(readdirSync(join(out, "winget/0.3.0")).length, 3);
   } finally {
     rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("run through a link, it still writes every package rather than doing nothing and succeeding", () => {
+  const linked = mkdtempSync(join(tmpdir(), "quotadial-packages-"));
+  try {
+    symlinkSync(fileURLToPath(new URL("./packages.mjs", import.meta.url)), join(linked, "packages.mjs"));
+    writeFileSync(join(linked, "SHA256SUMS.txt"), sumsFor("0.3.0"));
+    const out = join(linked, "out");
+    const run = spawnSync(
+      process.execPath,
+      [join(linked, "packages.mjs"), "0.3.0", join(linked, "SHA256SUMS.txt"), out],
+      { encoding: "utf8" },
+    );
+    assert.equal(
+      run.stdout,
+      `Wrote the Homebrew formula and cask, the Scoop manifest and the winget manifests for 0.3.0 to ${out}.\n`,
+    );
+    assert.deepEqual(readdirSync(out).sort(), ["Casks", "Formula", "bucket", "winget"]);
+  } finally {
+    rmSync(linked, { recursive: true, force: true });
   }
 });
