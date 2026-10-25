@@ -298,3 +298,36 @@ test("the site waits for CLOUDFLARE_API_TOKEN, without asking GitHub", () => {
   assert.equal(ran.asked, "");
   assert.match(ran.summary, /^CLOUDFLARE_API_TOKEN is not set/);
 });
+
+/** The lines of `job` in `workflow`, from its name to the next job's. */
+function jobLines(workflow, job) {
+  const lines = readFileSync(join(ROOT, ".github/workflows", workflow), "utf8").split("\n");
+  const start = lines.indexOf(`  ${job}:`);
+  assert.notEqual(start, -1, `${workflow} has no job ${job}`);
+  const end = lines.findIndex((line, index) => index > start && /^ {2}[\w-]+:/.test(line));
+  return lines.slice(start, end === -1 ? lines.length : end);
+}
+
+test("the site is built before its tests run, in CI and in the deploy, so the tests of the built pages run on what is published", () => {
+  for (const [workflow, job] of [
+    ["ci.yml", "site"],
+    ["site-deploy.yml", "deploy"],
+  ]) {
+    const lines = jobLines(workflow, job);
+    const at = (pattern) => lines.findIndex((line) => pattern.test(line));
+    const [install, build, tests] = [at(/run: npm ci$/), at(/run: npm run build$/), at(/run: npm test$/)];
+    assert.ok(install !== -1 && build !== -1 && tests !== -1, `${workflow}'s ${job} job installs, builds and tests the site`);
+    assert.ok(install < build && build < tests, `${workflow}'s ${job} job builds after npm ci and before npm test`);
+  }
+  const deploy = jobLines("site-deploy.yml", "deploy");
+  assert.ok(
+    deploy.findIndex((line) => /run: npm test$/.test(line)) < deploy.findIndex((line) => /- name: Publish to Cloudflare Pages$/.test(line)),
+    "the deploy publishes only after its tests pass",
+  );
+  // The tests allow the Buy button's link only when they see the one the build was given, so it is
+  // set once, for the whole job.
+  const link = deploy.findIndex((line) => line.includes("QUOTADIAL_CHECKOUT_URL:"));
+  assert.equal(deploy.filter((line) => line.includes("QUOTADIAL_CHECKOUT_URL:")).length, 1, "set in one place");
+  assert.equal(deploy[link].trim(), "QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}");
+  assert.equal(deploy[link - 1], "    env:", "in the job's env, which the build and the tests share");
+});

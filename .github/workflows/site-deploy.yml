@@ -97,6 +97,10 @@ jobs:
     defaults:
       run:
         working-directory: site
+    # The Buy button's link, for the build and for the tests that read it, which allow it only as
+    # this one link (site/test/hosts.test.ts).
+    env:
+      QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}
     steps:
       # main's site, whatever started the run: a release's tag can be older than main.
       - uses: actions/checkout@v7
@@ -109,11 +113,10 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm run check
-      - run: npm test
+      # Built before the tests, because some read the built pages (out/) and skip without them.
       - name: Build
-        env:
-          QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}
         run: npm run build
+      - run: npm test
       - name: Publish to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
