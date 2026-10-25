@@ -415,10 +415,13 @@ tables, already on `feat/docs`, and the site's buttons are the item's other part
   so the gate reads the answer only after gh succeeds.
 - **Found on the way:** Node gives `import.meta.url` as a module's real path and `process.argv[1]`
   as typed, so a script that compares the two as given does nothing, and exits 0, when it is
-  started through a link, as macOS's `/var` is. `latest-names.mjs` compares real paths, and a test
-  runs it through a link. Without the gate's empty-list check, a list of names that came back empty
-  would have let the site out having checked no copy (its control showed it).
-- **Tests** (CI's `node --test scripts/*.test.mjs`, now 32): `latest-names.test.mjs` (8) holds the
+  started through a link, as macOS's `/var` is, even on input that should fail. `latest-names.mjs`
+  compared real paths from the start; `updater-manifest.mjs` and `packages.mjs` compared them as
+  given, which was safe on the runners' plain paths, and now compare real paths too, each change
+  kept to that check. A test starts each of the three through a link. Without the gate's
+  empty-list check, a list of names that came back empty would have let the site out having
+  checked no copy (its control showed it).
+- **Tests** (CI's `node --test scripts/*.test.mjs`, now 34): `latest-names.test.mjs` (8) holds the
   eight to v0.2.0's real file names, copies each byte for byte into a file of its own beside it,
   copies nothing else, names every missing file and copies nothing, refuses a name found twice,
   prints `--names`, runs through a link, and holds `docs/INSTALL.md`'s `releases/latest/download/`
@@ -428,17 +431,21 @@ tables, already on `feat/docs`, and the site's buttons are the item's other part
   `--ignore-missing`; and runs the gate's own shell against GitHub's answers from a fake `gh`:
   ready with all eight, GitHub's real 404 for this repository, one copy missing, no checksums and
   v0.2.0's files as a full release, gh unable to connect, no list of names or an empty one, and no
-  token. `updater-manifest.test.mjs` and `packages.test.mjs` gain one each: the copies leave
-  `latest.json` naming the versioned files, and no package names a copy or `releases/latest`.
+  token. `updater-manifest.test.mjs` and `packages.test.mjs` gain two each: the copies leave
+  `latest.json` naming the versioned files, and no package names a copy or `releases/latest`; and
+  each script, started through a symlink in a temporary folder, writes what it writes when started
+  directly.
 - **Controls, each seen failing, then restored:** the version left in the command's names; a hard
   link, and a rename, in place of the copy; the copy taking its `.sig` too (which also makes the
   manifest refuse the release); no missing-file check, only the first missing file named, and the
   copies made before the check; no twice check; `--names` on one line; the as-given main-module
-  check; an INSTALL.md link changed, and one removed; the publish step without the copy, and with
-  it after the checksums; packages pointing at `releases/latest`, or at the msi's copy; and in the
-  gate: no `ready`, another endpoint, no 404 branch, the old condition (checksums only, which let
-  a release missing a copy through), no checksums in the list, a gh error that exits 0, no
-  empty-list check (which let the site out), and no token check.
+  check, in all three scripts (in `updater-manifest.mjs` and `packages.mjs` it was the code before
+  the fix, which printed nothing through a link); an INSTALL.md link changed, and one removed; the
+  publish step without the copy, and with it after the checksums; packages pointing at
+  `releases/latest`, or at the msi's copy; and in the gate: no `ready`, another endpoint, no 404
+  branch, the old condition (checksums only, which let a release missing a copy through), no
+  checksums in the list, a gh error that exits 0, no empty-list check (which let the site out),
+  and no token check.
 - **How it was checked:** the publish step's shell from `release.yml`, run on a scratch release of
   v0.2.0's names, wrote `latest.json` for 9 targets, all versioned, made the 8 copies, and
   `sha256sum -c` and `shasum -a 256 -c` printed OK for all 24 files, both names of each download
@@ -450,12 +457,9 @@ tables, already on `feat/docs`, and the site's buttons are the item's other part
   44 tests and its build, which read the changelog's new line.
 - **Docs:** `docs/RELEASE.md` (step 3's list, step 4, a step 6 for the website, "Names without the
   version", and the checksums under both names); the supply chain in `docs/SECURITY.md`; a line in
-  `CHANGELOG.md`; D-116.
+  `CHANGELOG.md`; the scripts row in `AGENTS.md`; D-116.
 - **Not done here:** no release has the copies until the next tag, so `releases/latest/download/`
   answers 404 until the first full release after it; the Release workflow was not run here.
-  `updater-manifest.mjs` and `packages.mjs` keep the as-given main-module check, which is safe on
-  the runners' plain paths but does nothing through a link; and the scripts row in `AGENTS.md` does
-  not name `latest-names.mjs` yet.
 
 ### M5 queue item 5: the website (D-113)
 
