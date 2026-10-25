@@ -171,6 +171,17 @@ jobs:
       - name: cargo audit, the tray app
         working-directory: apps/tray/src-tauri
         run: cargo audit
+      # The JavaScript the website and the app's window are built from, by the same rule (#49):
+      # any known advisory in a locked dependency fails, here and in the weekly run.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: npm audit, the website
+        working-directory: site
+        run: npm audit --audit-level=low
+      - name: npm audit, the tray app's window
+        working-directory: apps/tray
+        run: npm audit --audit-level=low
 
   # The single status check that branch protection on main requires, so the jobs above can change
   # without touching the protection rule.
