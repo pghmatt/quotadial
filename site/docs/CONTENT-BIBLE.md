@@ -48,10 +48,11 @@ runs out", "tell me when an account needs to sign in again", sent to hooks.slack
 
 ## What may not appear
 
-A price or any dollar amount; "Pro price", "lifetime", "per month"; ratings, reviews, testimonials,
-user or download counts; a claim that builds are signed; providers beyond Claude and ChatGPT/Codex as
-if shipped (Gemini CLI is planned for M6 and may be named only as planned); a promise of a reply time
-beyond `SECURITY.md`'s.
+QuotaDial's price, or any dollar amount that could be read as one (a person's own spend in an
+example, such as the week's cost /cli renders from `docs/CLI.md`, is not one); "Pro price",
+"lifetime", "per month"; ratings, reviews, testimonials, user or download counts; a claim that
+builds are signed; providers beyond Claude and ChatGPT/Codex as if shipped (Gemini CLI is planned
+for M6 and may be named only as planned); a promise of a reply time beyond `SECURITY.md`'s.
 
 ## Words
 

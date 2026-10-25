@@ -56,8 +56,9 @@ sudo install quotadial-v*/quotadial quotadial-v*/qd /usr/local/bin/
 
 ## Package managers
 
-From the first full release after QuotaDial's Homebrew tap is set up (#51), the package managers
-install it too. Pre-releases never reach them, as they never reach the app's updater.
+The package managers install QuotaDial from its first full release after its Homebrew tap, Scoop
+bucket and winget listing are published; a pre-release never reaches them, as it never reaches the
+app's updater. If a command below finds nothing yet, take the file from Download above.
 
 | System | The app, with the command | The command alone |
 | --- | --- | --- |
@@ -67,7 +68,8 @@ install it too. Pre-releases never reach them, as they never reach the app's upd
 
 Homebrew also installs the manual pages and the completions for bash, zsh and fish. The cask
 links the command the app carries, so install the cask or the formula, not both. Until the builds
-are signed, macOS asks once before opening the app, as the next section describes.
+are signed, macOS will not open the app until you choose Open Anyway in System Settings, as the next
+section describes.
 
 ## Open a build that is not signed yet
 
