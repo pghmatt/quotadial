@@ -50,7 +50,7 @@ export default function Privacy() {
           </div>
           <Prose
             html={text.html}
-            className="max-w-[54ch]! lg:col-span-7 lg:mt-6 [&>p:first-child]:mt-0 [&>p:first-child]:text-[1.25rem] [&_code.address]:font-[600]"
+            className="lg:col-span-7 lg:mt-6 [&>p:first-child]:mt-0 [&>p:first-child]:text-[1.25rem] [&_code.address]:font-[600]"
           />
           {/* After the policy in the page's order, so the policy sits under its own heading; beside it from 1024 px, and still in view as it is read. */}
           <div className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1">
