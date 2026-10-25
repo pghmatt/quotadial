@@ -404,12 +404,15 @@ and comes in its own PR.
   download buttons landed below the download, /key's "works offline for ever" stated a plan term,
   and home promised every Claude account on Free. Each finding went to the lane that owned it, or
   to the foundation. After the second pass, every running paragraph takes one reading measure,
-  52ch, measured on the built pages at 66 to 72 characters a line; the reviewers' last verdicts are
-  in PR #68's description.
+  52ch; on the built pages at 1440 px the longest full line of every paragraph is 72 characters or
+  fewer, but for one on /download at 75 (narrow letters in `docs/INSTALL.md`'s Windows text). The
+  reviewers' last verdicts are in PR #68's description.
 - **The design system as built:** `site/DESIGN.md`, written from the merged code (with
   `.impeccable/design.json` for design tools). Writing it found the Semi Condensed captions set in a
   slope the browser invents, since only that width's upright face was loaded; its italic is now
-  loaded, and `test/fonts.test.ts` fails when a width the site sets lacks its italic file.
+  loaded, and `test/fonts.test.ts` fails when a width the site sets lacks its italic file. The
+  Brain's browser check then found a command in an italic caption slanted in the code face, which
+  has no italic; code is now always upright.
 
 ### M5 queue item 11: package managers, completions and manual pages (D-112)
 
