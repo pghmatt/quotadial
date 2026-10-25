@@ -19,15 +19,15 @@
 //! scan. A licence added, removed or ended counts within a minute, or at once when a consumer in
 //! the same process nudges the poller, as the app's Settings does.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use quotadial_core::{
-    Account, Cost, LeftOut, ProFeature, Provider, ProviderError, Snapshot, StatusPage,
+    Account, Cost, LeftOut, ProFeature, Provider, ProviderError, Snapshot, Status, StatusPage,
     StatusReport, Tier,
 };
 use quotadial_cost::CostScan;
@@ -35,8 +35,8 @@ use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use crate::{
-    Deliverer, History, KEEP_DAYS, Licensing, STATUS_EVERY, StatusReader, Webhook, deliver_due,
-    licence,
+    Deliverer, History, HistoryError, KEEP_DAYS, Licensing, STATUS_EVERY, StatusReader, Webhook,
+    deliver_due, licence,
 };
 
 /// Numbers that moved this recently keep an account at its provider's floor.
@@ -47,6 +47,18 @@ pub const IDLE_EVERY: Duration = Duration::from_secs(10 * 60);
 pub const DISCOVER_EVERY: Duration = Duration::from_secs(60);
 /// How often history older than its keeping time is deleted.
 const PRUNE_EVERY: Duration = Duration::from_secs(60 * 60);
+/// How soon an account is asked again when its numbers could not be refreshed, as while the
+/// network is down, so they are current soon after it is back. The provider's floor still decides
+/// whether a request goes out; until it allows one, a provider replays its last answer.
+pub const RETRY_UNREACHED: Duration = Duration::from_secs(60);
+/// How much further the wall clock moves than the poller's own between two rounds before the
+/// poller takes it that the machine slept, or the clock jumped ahead, and asks everything again
+/// at once. On macOS and Linux the poller's clock stops while the machine sleeps.
+pub const WOKE_AFTER: Duration = Duration::from_secs(2 * 60);
+
+/// Where the poller reads the wall clock, which a test moves on alone to stand for a machine that
+/// slept.
+type WallClock = Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>;
 /// How often the alert rules are checked between polls, for a time before a reset.
 pub const ALERTS_EVERY: Duration = Duration::from_secs(60);
 /// How often the CLIs' logs are read for the week's cost. Each reading reads only what the logs
@@ -66,12 +78,24 @@ struct Shared {
     costs: RwLock<Costs>,
     /// What the copy leaves out because it is QuotaDial Free (D-100).
     left_out: RwLock<Vec<LeftOut>>,
+    /// What is wrong with QuotaDial itself, each in one line (D-107).
+    problems: RwLock<BTreeMap<Problem, String>>,
     /// Woken when the licence may have changed, so the poller asks again at once.
     nudged: Notify,
     /// Told whenever the report changes, so a consumer such as the tray app need not ask.
     changed: watch::Sender<()>,
     /// The newest firing of an alert rule to tell, so the tray app can tell it.
     fired: watch::Sender<i64>,
+}
+
+/// Something wrong with QuotaDial itself, which the report says in one line while it lasts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Problem {
+    /// The history could not be read, so a new one was started (#52). Said until the daemon stops.
+    Recovered,
+    /// The history could not be saved, as on a full disk, or SQLite found it damaged while the
+    /// daemon ran. Said until a save works again.
+    Saving,
 }
 
 /// The week's costs, and the generation of scans that may still keep what they find. Clearing the
@@ -130,6 +154,14 @@ impl Latest {
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
+        report.problems = self
+            .0
+            .problems
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect();
         report.normalized()
     }
 
@@ -137,6 +169,24 @@ impl Latest {
     /// a key, so it asks again now rather than within a minute.
     pub fn nudge(&self) {
         self.0.nudged.notify_one();
+    }
+
+    /// Says `line` in the report's problems for `problem`, or nothing more of it with `None`, and
+    /// tells consumers when that changed.
+    pub fn set_problem(&self, problem: Problem, line: Option<String>) {
+        let mut problems = self
+            .0
+            .problems
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        let changed = match line {
+            Some(line) => problems.insert(problem, line.clone()).as_ref() != Some(&line),
+            None => problems.remove(&problem).is_some(),
+        };
+        drop(problems);
+        if changed {
+            self.0.changed.send_replace(());
+        }
     }
 
     /// Keeps `left_out` as what the copy leaves out, and tells consumers when it changed.
@@ -278,6 +328,9 @@ pub struct Poller {
     /// Held while alerts are being sent, so a slow webhook never holds up polling and two rounds
     /// never send the same alert at once.
     delivering: Arc<tokio::sync::Mutex<()>>,
+    wall: WallClock,
+    /// When the last round began, by the poller's clock and by the wall clock.
+    last_round: Option<(Instant, DateTime<Utc>)>,
 }
 
 impl std::fmt::Debug for Poller {
@@ -345,7 +398,16 @@ impl Poller {
             costs: None,
             costs_at: now,
             scanning: Arc::default(),
+            wall: Arc::new(Utc::now),
+            last_round: None,
         }
+    }
+
+    /// The poller, reading the wall clock from `wall`, which tests move on alone.
+    #[cfg(test)]
+    fn with_wall(mut self, wall: WallClock) -> Self {
+        self.wall = wall;
+        self
     }
 
     /// The poller, also reading the logs of the providers it has accounts with into `scan` every
@@ -411,6 +473,26 @@ impl Poller {
     /// old history. Returns when something is next due.
     pub async fn poll_due(&mut self) -> Instant {
         let now = Instant::now();
+        let wall = (self.wall)();
+        if let Some((then, then_wall)) = self.last_round {
+            let unseen = (wall - then_wall)
+                .to_std()
+                .unwrap_or_default()
+                .saturating_sub(now.duration_since(then));
+            if unseen >= WOKE_AFTER {
+                // The machine slept, or the clock jumped ahead: what is on show is old. Everything
+                // is asked again now; each provider's floor still holds, since it counts in wall
+                // time.
+                for tracked in self.tracked.values_mut() {
+                    tracked.due = now;
+                }
+                self.discover_at = now;
+                self.alerts_at = now;
+                self.status_at = now;
+                self.costs_at = now;
+            }
+        }
+        self.last_round = Some((now, wall));
         let tier = self.licensing.tier();
         if self.tier != Some(tier) {
             // A licence added, removed or ended: the accounts shown, the cost scan, the history
@@ -429,7 +511,13 @@ impl Poller {
             } else {
                 history.keep_days().min(KEEP_DAYS)
             };
-            let _ = tokio::task::spawn_blocking(move || history.prune_to(Utc::now(), days)).await;
+            let latest = self.latest.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                if let Err(error) = history.prune_to(Utc::now(), days) {
+                    not_saved(&latest, &history, &error);
+                }
+            })
+            .await;
             self.prune_at = now + PRUNE_EVERY;
         }
         if now >= self.discover_at {
@@ -550,10 +638,13 @@ impl Poller {
                     .into_iter()
                     .find(|page| page.provider == provider);
                 if let Some(page) = reader.read(&provider, &url, before.as_ref()).await {
-                    let stored = (Arc::clone(&history), page.clone());
-                    let _ =
-                        tokio::task::spawn_blocking(move || stored.0.record_status_page(&stored.1))
-                            .await;
+                    let stored = (Arc::clone(&history), page.clone(), latest.clone());
+                    let _ = tokio::task::spawn_blocking(move || {
+                        if let Err(error) = stored.0.record_status_page(&stored.1) {
+                            not_saved(&stored.2, &stored.0, &error);
+                        }
+                    })
+                    .await;
                     latest.set_status_page(page);
                 }
             }
@@ -673,12 +764,16 @@ impl Poller {
         };
         let provider = Arc::clone(&self.providers[tracked.provider]);
         let floor = provider.min_poll_interval();
+        let mut unreached = false;
         let result = match provider.fetch(&tracked.account).await {
             Ok(snapshot) => Ok(snapshot.without_secrets()),
-            Err(error) => provider
-                .fallback(&tracked.account)
-                .map(Snapshot::without_secrets)
-                .ok_or_else(|| ProviderError::new(provider.id(), &error)),
+            Err(error) => {
+                unreached = matches!(error, quotadial_core::Error::Request { .. });
+                provider
+                    .fallback(&tracked.account)
+                    .map(Snapshot::without_secrets)
+                    .ok_or_else(|| ProviderError::new(provider.id(), &error))
+            }
         };
         // The gate counts the floor from when the request went out: after the accounts asked
         // before this one in the round, and after finding this one's sign-in. Counting from `now`,
@@ -696,21 +791,32 @@ impl Poller {
                 }
                 tracked.last = Some(snapshot.clone());
                 let active = now.duration_since(tracked.moved_at) < ACTIVE_FOR;
-                tracked.due = answered + if active { floor } else { IDLE_EVERY.max(floor) };
+                tracked.due = answered
+                    + if unreached || snapshot.status == Status::Stale {
+                        RETRY_UNREACHED
+                    } else if active {
+                        floor
+                    } else {
+                        IDLE_EVERY.max(floor)
+                    };
                 // Written off the async runtime, so a slow disk never holds up the API. A failed
-                // write loses one history point; the numbers are still served. Each window's pace
-                // is then fitted to what history holds, this reading included.
-                let history = Arc::clone(&self.history);
+                // write loses one history point and says why in the report; the numbers are still
+                // served. Each window's pace is then fitted to what history holds, this reading
+                // included.
+                let (history, latest) = (Arc::clone(&self.history), self.latest.clone());
                 let unpaced = snapshot.clone();
                 Ok(tokio::task::spawn_blocking(move || {
-                    let _ = history.record(&snapshot, Utc::now());
+                    match history.record(&snapshot, Utc::now()) {
+                        Ok(_) => latest.set_problem(Problem::Saving, None),
+                        Err(error) => not_saved(&latest, &history, &error),
+                    }
                     history.with_pace(snapshot)
                 })
                 .await
                 .unwrap_or(unpaced))
             }
             Err(error) => {
-                tracked.due = answered + floor;
+                tracked.due = answered + if unreached { RETRY_UNREACHED } else { floor };
                 Err(error)
             }
         };
@@ -733,15 +839,38 @@ impl Poller {
 /// consumers of any firing. A failed check is tried again within a minute; a firing is recorded
 /// once whenever it is.
 async fn check_alerts(history: &Arc<History>, latest: &Latest, tier: Tier) {
-    let (history, report) = (Arc::clone(history), latest.report());
-    let fired = tokio::task::spawn_blocking(move || history.check(&report, Utc::now(), tier))
-        .await
-        .ok()
-        .and_then(Result::ok)
-        .and_then(|fired| fired.iter().map(|firing| firing.id).max());
+    let (history, report, told) = (Arc::clone(history), latest.report(), latest.clone());
+    let fired = tokio::task::spawn_blocking(move || {
+        history
+            .check(&report, Utc::now(), tier)
+            .inspect_err(|error| not_saved(&told, &history, error))
+    })
+    .await
+    .ok()
+    .and_then(Result::ok)
+    .and_then(|fired| fired.iter().map(|firing| firing.id).max());
     if let Some(newest) = fired {
         latest.0.fired.send_replace(newest);
     }
+}
+
+/// Says in the report why `history` could not be saved, until a save works again. A history SQLite
+/// finds damaged is noted beside it, so the next daemon to start moves it aside and starts a new
+/// one (#52).
+fn not_saved(latest: &Latest, history: &History, error: &HistoryError) {
+    let line = if error.is_damaged() {
+        history.note_damage();
+        "QuotaDial's history is damaged. Quit QuotaDial and open it again, or restart \
+         `quotadial daemon`, to start a new one with your alert rules; the numbers still update \
+         meanwhile."
+            .to_owned()
+    } else {
+        format!(
+            "QuotaDial could not save its history ({error}). The numbers still update, and it \
+             saves again once it can, as when the disk has room."
+        )
+    };
+    latest.set_problem(Problem::Saving, Some(line));
 }
 
 /// Whether any window's share used differs between two snapshots of one account, or a window came
@@ -795,6 +924,9 @@ mod tests {
         logs: Mutex<Vec<PathBuf>>,
         /// How many accounts its limit held back.
         held: AtomicUsize,
+        /// Whether its answers are its last numbers again, as a provider gives while it cannot
+        /// reach its usage endpoint.
+        stale: std::sync::atomic::AtomicBool,
     }
 
     impl Scripted {
@@ -811,6 +943,7 @@ mod tests {
                 delay: Duration::ZERO,
                 logs: Mutex::default(),
                 held: AtomicUsize::new(0),
+                stale: std::sync::atomic::AtomicBool::new(false),
             }
         }
 
@@ -866,7 +999,11 @@ mod tests {
                     provider: self.id,
                     reason,
                 })?;
-            Ok(snapshot(account, used_pct, count, Source::Api))
+            let mut answer = snapshot(account, used_pct, count, Source::Api);
+            if self.stale.load(Ordering::SeqCst) {
+                answer.status = Status::Stale;
+            }
+            Ok(answer)
         }
 
         fn fallback(&self, account: &Account) -> Option<Snapshot> {
@@ -1462,6 +1599,159 @@ mod tests {
         within(5, || !latest.report().costs.is_empty()).await;
         let _ = stop.send(());
         running.await.expect("stops");
+    }
+
+    /// A wall clock the test moves on alone, and the poller reading it.
+    fn wall_clock() -> (Arc<Mutex<DateTime<Utc>>>, WallClock) {
+        let wall = Arc::new(Mutex::new(base()));
+        let read = Arc::clone(&wall);
+        (wall, Arc::new(move || *read.lock().expect("lock")))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn after_the_machine_sleeps_everything_is_asked_again_at_once() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let (wall, clock) = wall_clock();
+        let mut poller = poller(vec![Arc::clone(&codex)], history).with_wall(clock);
+
+        poller.poll_due().await;
+        assert_eq!(codex.fetches(), 1);
+        // A minute by the poller's clock, which stood still while the machine slept for hours.
+        tokio::time::advance(Duration::from_secs(60)).await;
+        *wall.lock().expect("lock") += TimeDelta::hours(8) + TimeDelta::minutes(1);
+        poller.poll_due().await;
+
+        assert_eq!(
+            codex.fetches(),
+            2,
+            "asked again on waking, not at its next turn"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_clock_that_goes_back_is_not_taken_for_a_wake() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let (wall, clock) = wall_clock();
+        let mut poller = poller(vec![Arc::clone(&codex)], history).with_wall(clock);
+
+        poller.poll_due().await;
+        tokio::time::advance(Duration::from_secs(60)).await;
+        *wall.lock().expect("lock") -= TimeDelta::hours(3);
+        poller.poll_due().await;
+
+        assert_eq!(codex.fetches(), 1, "not due for another minute");
+        tokio::time::advance(Duration::from_secs(61)).await;
+        poller.poll_due().await;
+        assert_eq!(codex.fetches(), 2, "and asked then, as usual");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_account_that_could_not_be_reached_is_asked_again_within_a_minute() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.set_used(Err("network is unreachable".into()));
+        let mut poller = poller(vec![Arc::clone(&codex)], history);
+
+        poller.poll_due().await;
+        tokio::time::advance(RETRY_UNREACHED + Duration::from_secs(1)).await;
+        poller.poll_due().await;
+        assert_eq!(
+            codex.fetches(),
+            2,
+            "within a minute, not at the 2-minute floor"
+        );
+
+        // The network is back.
+        codex.set_used(Ok(20.0));
+        tokio::time::advance(RETRY_UNREACHED + Duration::from_secs(1)).await;
+        poller.poll_due().await;
+        assert_eq!(codex.fetches(), 3);
+        let report = poller.latest().report();
+        assert_eq!(report.snapshots[0].windows[0].used_pct, 20.0);
+        assert!(report.errors.is_empty());
+
+        tokio::time::advance(RETRY_UNREACHED + Duration::from_secs(1)).await;
+        poller.poll_due().await;
+        assert_eq!(codex.fetches(), 3, "answered: back to its floor");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stale_numbers_are_asked_for_again_within_a_minute() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.stale.store(true, Ordering::SeqCst);
+        let mut poller = poller(vec![Arc::clone(&codex)], history);
+
+        poller.poll_due().await;
+        tokio::time::advance(RETRY_UNREACHED + Duration::from_secs(1)).await;
+        poller.poll_due().await;
+
+        assert_eq!(codex.fetches(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_history_that_cannot_be_saved_says_so_until_it_saves_again() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let mut poller = poller(vec![Arc::clone(&codex)], Arc::clone(&history));
+        // The first round also prunes; the next saves only its reading.
+        poller.poll_due().await;
+        assert!(poller.latest().report().problems.is_empty());
+        // Reads work and writes fail, as on a full disk.
+        history
+            .lock()
+            .pragma_update(None, "query_only", true)
+            .expect("read-only");
+        tokio::time::advance(Duration::from_secs(2 * 60 + 1)).await;
+
+        poller.poll_due().await;
+
+        let report = poller.latest().report();
+        assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
+        assert!(
+            report.problems[0].starts_with("QuotaDial could not save its history ("),
+            "{}",
+            report.problems[0]
+        );
+        assert!(report.problems[0].ends_with(
+            "The numbers still update, and it saves again once it can, as when the disk has room."
+        ));
+        assert_eq!(report.snapshots.len(), 1, "the numbers are still served");
+
+        history
+            .lock()
+            .pragma_update(None, "query_only", false)
+            .expect("writable");
+        tokio::time::advance(Duration::from_secs(2 * 60 + 1)).await;
+        poller.poll_due().await;
+        assert!(
+            poller.latest().report().problems.is_empty(),
+            "said no more once a save works"
+        );
+    }
+
+    #[test]
+    fn damage_seen_while_the_daemon_runs_is_noted_for_the_next_start() {
+        let (dir, history) = history();
+        let latest = Latest::default();
+        let damaged = HistoryError::from(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            None,
+        ));
+
+        not_saved(&latest, &history, &damaged);
+
+        assert!(History::damage_noted(&dir.path().join("history.db")));
+        assert_eq!(
+            latest.report().problems,
+            [
+                "QuotaDial's history is damaged. Quit QuotaDial and open it again, or restart \
+              `quotadial daemon`, to start a new one with your alert rules; the numbers still \
+              update meanwhile."
+            ]
+        );
     }
 
     #[tokio::test(start_paused = true)]

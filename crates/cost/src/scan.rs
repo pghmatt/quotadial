@@ -76,14 +76,32 @@ impl CostScan {
         Self::with_prices(path, Prices::bundled())
     }
 
-    /// A scan keeping what it reads in `path`, pricing with `prices`.
+    /// A scan keeping what it reads in `path`, pricing with `prices`. The database is a cache of
+    /// what the logs hold, so one SQLite finds damaged, or that is not a database, is deleted with
+    /// its WAL and shared-memory files and made again; the next scan reads the logs afresh.
     ///
     /// # Errors
     ///
     /// When the database cannot be opened or made.
     pub fn with_prices(path: &Path, prices: Prices) -> Result<Self, CostError> {
+        let store = match Store::open(path) {
+            Err(error) if error.is_damaged() => {
+                for suffix in ["-wal", "-shm", ""] {
+                    let mut file = path.as_os_str().to_owned();
+                    file.push(suffix);
+                    match std::fs::remove_file(std::path::PathBuf::from(file)) {
+                        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                            return Err(error.into());
+                        }
+                        _ => {}
+                    }
+                }
+                Store::open(path)?
+            }
+            opened => opened?,
+        };
         Ok(Self {
-            store: Store::open(path)?,
+            store,
             prices,
             claude: claude::Reader::new(),
             codex: codex::Reader::new(),
@@ -406,6 +424,30 @@ mod tests {
                             "above": {"tokens": 272000, "input": 20, "output": 75, "cache_read": 2}}
         }
     }"#;
+
+    #[test]
+    fn a_damaged_database_is_made_again_since_it_only_caches_the_logs() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("costs.db");
+        std::fs::write(&path, b"not a database: a sync tool's conflict copy").expect("writes");
+        std::fs::write(dir.path().join("costs.db-wal"), b"an old WAL").expect("writes");
+
+        let scan = CostScan::open(&path).expect("made again");
+
+        assert!(
+            scan.scan(&[], at("2099-01-01T00:00:00Z"))
+                .expect("scans")
+                .is_empty()
+        );
+        assert_ne!(
+            std::fs::read(&path).expect("reads"),
+            b"not a database: a sync tool's conflict copy"
+        );
+        assert_ne!(
+            std::fs::read(dir.path().join("costs.db-wal")).unwrap_or_default(),
+            b"an old WAL"
+        );
+    }
 
     fn at(text: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(text)

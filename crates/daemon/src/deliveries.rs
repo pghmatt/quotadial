@@ -70,11 +70,16 @@ impl History {
                         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                     )
                     .optional()?;
+                // A last try that seems to be in the future means the clock went back since:
+                // waiting for it to come round again could take hours, so the try is due now.
                 let ready = match tried {
                     None => true,
                     Some((true, _, _)) => false,
-                    Some((false, attempts, last_at)) => parse_time(&last_at)
-                        .is_none_or(|last_at| now - last_at >= retry_after(attempts)),
+                    Some((false, attempts, last_at)) => {
+                        parse_time(&last_at).is_none_or(|last_at| {
+                            last_at > now || now - last_at >= retry_after(attempts)
+                        })
+                    }
                 };
                 if ready {
                     due.push((firing.clone(), key));
@@ -146,10 +151,13 @@ pub async fn deliver_due(
         let Some(webhook) = webhooks.iter().find(|webhook| webhook.key() == key) else {
             continue;
         };
+        if deliverer.sent_unrecorded(firing.id, &key) {
+            continue;
+        }
         let sent = deliverer.send(webhook, &firing).await;
-        let (record, host) = (Arc::clone(history), webhook.host().to_owned());
-        // A result that cannot be recorded is sent again later; a webhook may get it twice.
-        let _ = tokio::task::spawn_blocking(move || {
+        let delivered = sent.is_ok();
+        let (record, host, id) = (Arc::clone(history), webhook.host().to_owned(), firing.id);
+        let recorded = tokio::task::spawn_blocking(move || {
             record.record_delivery(
                 firing.id,
                 &key,
@@ -158,7 +166,13 @@ pub async fn deliver_due(
                 now,
             )
         })
-        .await;
+        .await
+        .is_ok_and(|recorded| recorded.is_ok());
+        // A send the history cannot record, as on a full disk, is remembered instead, so it is not
+        // sent again at every pass; one that failed is tried again as usual.
+        if delivered && !recorded {
+            deliverer.remember_unrecorded(id, &webhook.key());
+        }
     }
 }
 
@@ -209,6 +223,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         assert_eq!(
             history
@@ -311,6 +326,59 @@ mod tests {
             bodies.lock().expect("lock").len(),
             2,
             "and not after an hour"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_send_the_history_cannot_record_is_not_sent_again_at_every_pass() {
+        let (_dir, history) = told();
+        let (address, bodies) = receiver("200 OK").await;
+        let webhook = Webhook::new(&address, WebhookKind::Json).expect("a webhook");
+        let deliverer = Deliverer::new().expect("sets up");
+        // Reads work and writes fail, as on a full disk.
+        history
+            .lock()
+            .pragma_update(None, "query_only", true)
+            .expect("read-only");
+
+        for minute in 0..3 {
+            deliver_due(
+                &history,
+                &deliverer,
+                std::slice::from_ref(&webhook),
+                Utc::now() + TimeDelta::minutes(minute),
+            )
+            .await;
+        }
+
+        assert_eq!(
+            bodies.lock().expect("lock").len(),
+            1,
+            "sent once, though it could not be recorded"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_clock_that_went_back_does_not_hold_up_a_retry() {
+        let (_dir, history) = told();
+        let (address, bodies) = receiver("503 Service Unavailable").await;
+        let webhook = Webhook::new(&address, WebhookKind::Json).expect("a webhook");
+        let deliverer = Deliverer::new().expect("sets up");
+        let now = Utc::now();
+
+        deliver_due(&history, &deliverer, std::slice::from_ref(&webhook), now).await;
+        deliver_due(
+            &history,
+            &deliverer,
+            std::slice::from_ref(&webhook),
+            now - TimeDelta::hours(3),
+        )
+        .await;
+
+        assert_eq!(
+            bodies.lock().expect("lock").len(),
+            2,
+            "tried again, not three hours later"
         );
     }
 

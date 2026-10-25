@@ -8,8 +8,19 @@ use std::time::Duration;
 
 use quotadial_api::{DEFAULT_PORT, Host, HostError, client};
 use quotadial_core::{Provider, StatusReport};
-use quotadial_daemon::DataDir;
+use quotadial_daemon::{DataDir, History};
 use tokio::sync::{Notify, watch};
+
+/// The history the daemon the app runs keeps, which the app then reads too, so the alert rules it
+/// shows are in the file the daemon checks, even after a damaged one was moved aside (#52).
+#[derive(Debug, Clone)]
+pub struct Kept(pub Arc<History>);
+
+impl PartialEq for Kept {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 /// What the app learns.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +33,8 @@ pub enum Update {
     Role(Role),
     /// An alert rule may have fired; the firings are in the daemon's history (D-093).
     Fired,
+    /// The daemon the app now runs keeps this history.
+    History(Kept),
 }
 
 /// Whether the app runs the daemon or follows one already running.
@@ -103,6 +116,7 @@ async fn host_until_quit(
     quit: &mut watch::Receiver<bool>,
 ) -> bool {
     send(Update::Role(Role::Running { port: host.port() }));
+    send(Update::History(Kept(host.history())));
     let latest = host.latest();
     let mut changes = latest.subscribe();
     let mut fired = latest.subscribe_firings();
@@ -272,7 +286,9 @@ mod tests {
                         .first()
                         .and_then(|snapshot| snapshot.windows.first())
                         .map(|window| window.used_pct),
-                    Update::Problem(_) | Update::Role(_) | Update::Fired => None,
+                    Update::Problem(_) | Update::Role(_) | Update::Fired | Update::History(_) => {
+                        None
+                    }
                 })
         }
 

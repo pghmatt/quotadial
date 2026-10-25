@@ -184,6 +184,8 @@ impl Settings {
                 .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| self.shows(of)))
                 .cloned()
                 .collect(),
+            // QuotaDial's own problems belong to no provider.
+            problems: report.problems.clone(),
         }
     }
 }
@@ -361,6 +363,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -408,6 +411,7 @@ mod tests {
                 quotadial_core::LeftOut::accounts("codex", 1),
                 quotadial_core::LeftOut::feature(ProFeature::CostScan),
             ],
+            problems: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],

@@ -20,6 +20,15 @@ app's Help shows the version it is, and a release's notes come from its section 
 - The website's key page: the "Get your QuotaDial key" link in a Lemon Squeezy receipt gives the QuotaDial licence key, the same each time it is opened.
 - Pasting the key from a Lemon Squeezy receipt into QuotaDial says where QuotaDial's own key is, and a licence that has ended says where to renew it.
 - `quotadial alerts list --json` marks a rule that waits for QuotaDial Pro with `"waits": true`, as the text says "(waits for Pro)".
+- When something is wrong with QuotaDial itself, such as a history it cannot save, `quotadial status`, the app, `doctor` and the API say so in one line.
+- A damaged history is moved aside under a dated name and a new one started, keeping your alert rules.
+- After the machine wakes from sleep, every account is asked again at once rather than at its next turn.
+- When a provider cannot be reached, QuotaDial asks again within a minute, so the numbers are current soon after the network is back.
+
+### Fixed
+
+- On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.
+- A clock set back no longer holds up a webhook's next try.
 
 ## [0.2.0] - 2026-10-24
 

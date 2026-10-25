@@ -34,11 +34,30 @@ pub(crate) struct Request {
 
 /// Why a scan could not be done: `costs.db` could not be opened, read or written.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CostError(String);
+pub struct CostError {
+    message: String,
+    /// Whether SQLite found the file damaged, or not a database at all.
+    damaged: bool,
+}
+
+impl CostError {
+    fn new(message: String) -> Self {
+        Self {
+            message,
+            damaged: false,
+        }
+    }
+
+    /// Whether SQLite found `costs.db` damaged, or not a database at all.
+    #[must_use]
+    pub fn is_damaged(&self) -> bool {
+        self.damaged
+    }
+}
 
 impl std::fmt::Display for CostError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
+        formatter.write_str(&self.message)
     }
 }
 
@@ -46,18 +65,24 @@ impl std::error::Error for CostError {}
 
 impl From<rusqlite::Error> for CostError {
     fn from(error: rusqlite::Error) -> Self {
-        Self(format!("the cost scan's database: {error}"))
+        Self {
+            damaged: matches!(
+                error.sqlite_error_code(),
+                Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase)
+            ),
+            message: format!("the cost scan's database: {error}"),
+        }
     }
 }
 
 impl From<rusqlite::types::FromSqlError> for CostError {
     fn from(error: rusqlite::types::FromSqlError) -> Self {
-        Self(format!("the cost scan's database: {error}"))
+        Self::new(format!("the cost scan's database: {error}"))
     }
 }
 
 impl From<std::io::Error> for CostError {
     fn from(error: std::io::Error) -> Self {
-        Self(format!("the cost scan's database: {error}"))
+        Self::new(format!("the cost scan's database: {error}"))
     }
 }

@@ -18,7 +18,7 @@ use quotadial_core::Provider;
 use quotadial_cost::CostScan;
 use quotadial_daemon::{
     Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Licensing, Poller,
-    STATUS_PAGES,
+    Problem, Recovered, STATUS_PAGES,
 };
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -37,6 +37,8 @@ pub struct Host {
     token: Token,
     /// What the copy may do, from the licence key in `dir` (D-100).
     licensing: Licensing,
+    /// A damaged history moved aside as the daemon started, and a new one begun (#52).
+    recovered: Option<Recovered>,
 }
 
 /// Why the daemon could not start.
@@ -116,15 +118,20 @@ impl Host {
                 error,
             },
         })?;
+        // A daemon that did not stop cleanly left its `daemon.json`, and one that saw its history
+        // damaged noted it: only then is every page of the history read first, which takes a
+        // moment on a year of it. A damaged history is moved aside and a new one started (#52).
+        let unclean = Runtime::read(&dir).is_some();
         // A daemon that crashed left its port behind, and another program may hold that port now.
         Runtime::remove(&dir);
         let config = Config::load(&dir);
-        let history = History::open(&dir.history())
+        let check = unclean || History::damage_noted(&dir.history());
+        let (history, recovered) = History::open_or_recover(&dir.history(), check, Utc::now())
             .map_err(|error| HostError::History {
                 path: dir.history(),
                 error,
-            })?
-            .keeping(config.history_days);
+            })?;
+        let history = history.keeping(config.history_days);
         let token = Token::load_or_create(&dir).map_err(|error| HostError::Token {
             path: dir.token(),
             error,
@@ -148,6 +155,12 @@ impl Host {
         let licensing = Licensing::new(Some(&dir));
         let mut poller = Poller::new(providers, Arc::clone(&history), licensing.clone())
             .with_webhooks(config.webhooks);
+        if let Some(recovered) = &recovered {
+            poller.latest().set_problem(
+                Problem::Recovered,
+                Some(recovered.line(std::env::home_dir().as_deref())),
+            );
+        }
         if config.status_pages {
             poller = poller.with_status_pages(
                 STATUS_PAGES
@@ -172,7 +185,21 @@ impl Host {
             history,
             token,
             licensing,
+            recovered,
         })
+    }
+
+    /// The history the daemon keeps, for a consumer in the same process, such as the tray app, to
+    /// read the alert rules and their firings from the same file.
+    #[must_use]
+    pub fn history(&self) -> Arc<History> {
+        Arc::clone(&self.history)
+    }
+
+    /// The damaged history moved aside as the daemon started, if one was, and where.
+    #[must_use]
+    pub fn recovered(&self) -> Option<&Recovered> {
+        self.recovered.as_ref()
     }
 
     /// The port the API listens on, at `127.0.0.1`.

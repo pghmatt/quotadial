@@ -5,6 +5,8 @@
 //! sign-in is kept. A failed send is never described with the webhook's address, which works like a
 //! password; only its host is named.
 
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use reqwest::StatusCode;
@@ -21,6 +23,9 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Debug, Clone)]
 pub struct Deliverer {
     client: reqwest::Client,
+    /// The firings sent to a webhook, by firing and webhook key, that the history could not record,
+    /// as on a full disk, so they are not sent again while this daemon runs.
+    unrecorded: Arc<Mutex<HashSet<(i64, String)>>>,
 }
 
 impl Deliverer {
@@ -36,8 +41,28 @@ impl Deliverer {
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(concat!("quotadial/", env!("CARGO_PKG_VERSION")))
             .build()
-            .map(|client| Self { client })
+            .map(|client| Self {
+                client,
+                unrecorded: Arc::default(),
+            })
             .map_err(|_| "QuotaDial could not set up sending alerts".to_owned())
+    }
+
+    /// Whether `firing` went to the webhook `key` already in this run, though it could not be
+    /// recorded.
+    pub(crate) fn sent_unrecorded(&self, firing: i64, key: &str) -> bool {
+        self.unrecorded
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&(firing, key.to_owned()))
+    }
+
+    /// Remembers that `firing` went to the webhook `key` though the history could not record it.
+    pub(crate) fn remember_unrecorded(&self, firing: i64, key: &str) {
+        self.unrecorded
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert((firing, key.to_owned()));
     }
 
     /// Sends `firing` to `webhook`.

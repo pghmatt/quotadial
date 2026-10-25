@@ -11,6 +11,8 @@
 //! 90% and an account needing to sign in again. In a database from an older QuotaDial they begin
 //! quiet: their first check records what already holds without telling, since M3 told it already.
 
+use std::path::Path;
+
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{
     Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Tier, Window, text,
@@ -524,6 +526,45 @@ pub fn needs_pro(condition: &Condition) -> bool {
     }
 }
 
+/// Copies the alert rules the damaged history at `damaged` still gives into the new `history`, in
+/// place of its starting rules, each on or off as it was. Each is quiet at first, so its first check
+/// records what already holds rather than telling it again. Returns how many; when none can be
+/// read, the new history keeps its starting rules.
+pub(crate) fn carry_rules(history: &History, damaged: &Path) -> usize {
+    let read = || -> rusqlite::Result<Vec<(String, String, bool, String)>> {
+        let old = Connection::open(damaged)?;
+        let mut statement =
+            old.prepare("SELECT written, rule, enabled, created_at FROM rules ORDER BY id")?;
+        let rows = statement.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?;
+        Ok(rows.filter_map(Result::ok).collect())
+    };
+    // A rule this version cannot read, from a newer one, is left behind.
+    let rules: Vec<_> = read()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, rule, _, _)| serde_json::from_str::<Rule>(rule).is_ok())
+        .collect();
+    if rules.is_empty() {
+        return 0;
+    }
+    let connection = history.lock();
+    let carried = || -> rusqlite::Result<()> {
+        let transaction = connection.unchecked_transaction()?;
+        transaction.execute("DELETE FROM rules", [])?;
+        for (written, rule, enabled, created_at) in &rules {
+            transaction.execute(
+                "INSERT INTO rules (written, rule, enabled, quiet, created_at)
+                 VALUES (?1, ?2, ?3, 1, ?4)",
+                params![written, rule, enabled, created_at],
+            )?;
+        }
+        transaction.commit()
+    };
+    if carried().is_ok() { rules.len() } else { 0 }
+}
+
 fn insert_rule(
     connection: &Connection,
     written: &str,
@@ -620,6 +661,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         }
     }
 
@@ -630,6 +672,44 @@ mod tests {
     }
 
     /// A history with only `written` as a rule.
+    #[test]
+    fn rules_kept_from_a_damaged_history_do_not_tell_again_what_already_holds() {
+        let (old_dir, old) = with_rule("warn me at 50%");
+        let told = old
+            .check(&report(60.0, 0, 300), at(0), Tier::Pro)
+            .expect("checks");
+        assert_eq!(told.len(), 1, "told before the damage");
+        let damaged = old_dir.path().join("history.db");
+        let (_dir, new) = open();
+
+        assert_eq!(carry_rules(&new, &damaged), 1);
+
+        let rules = new.rules().expect("reads");
+        assert_eq!(rules.len(), 1, "in place of the starting rules");
+        assert_eq!(rules[0].written, "warn me at 50%");
+        let first = new
+            .check(&report(60.0, 5, 300), at(5), Tier::Pro)
+            .expect("checks");
+        assert!(
+            first.is_empty(),
+            "60% held already, and was told: {first:?}"
+        );
+        let next = new
+            .check(&report(55.0, 310, 600), at(310), Tier::Pro)
+            .expect("checks");
+        assert_eq!(next.len(), 1, "the next window's crossing is told");
+    }
+
+    #[test]
+    fn nothing_readable_leaves_the_starting_rules() {
+        let (dir, new) = open();
+        let damaged = dir.path().join("garbage.db");
+        std::fs::write(&damaged, b"not a database").expect("writes");
+
+        assert_eq!(carry_rules(&new, &damaged), 0);
+        assert_eq!(new.rules().expect("reads").len(), 2);
+    }
+
     fn with_rule(written: &str) -> (tempfile::TempDir, History) {
         let (dir, history) = open();
         for rule in history.rules().expect("reads") {
