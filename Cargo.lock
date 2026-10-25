@@ -1571,6 +1571,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "quotadial-provider-fake"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "proptest",
+ "quotadial-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "quotadial-providers"
 version = "0.2.0"
 dependencies = [
@@ -1578,6 +1592,7 @@ dependencies = [
  "quotadial-daemon",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
+ "quotadial-provider-fake",
 ]
 
 [[package]]

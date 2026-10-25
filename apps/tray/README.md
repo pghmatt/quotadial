@@ -37,3 +37,20 @@ npx tauri build     # the app and its installer, in src-tauri/target/release/bun
 `src-tauri` is its own Cargo workspace, so run its checks from there after `npm run build` and
 `npm run cli`: `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test`.
+
+## The example build
+
+QuotaDial Example shows the fake provider's made-up accounts in place of real ones, for pictures
+and recordings of the app (D-117). It is never released. It has its own name and bundle identifier
+(`com.quotadial.example`), data folder (`quotadial-fake`), cache folder and port (47116), so it can
+run beside QuotaDial without sharing its settings, login item, lock, token or history, and it never
+checks for updates. From `apps/tray`:
+
+```sh
+npx tauri build --config src-tauri/tauri.example.conf.json   # the app, with the example's CLI in it
+npx tauri dev --config src-tauri/tauri.example.conf.json     # or run it from source
+```
+
+The config turns on the `fake` feature and bundles the CLI built with it (`npm run cli -- --fake`).
+Its checks are the same with `--features fake`. `QUOTADIAL_FAKE_ACCOUNTS` names a JSON file of
+accounts to show in place of the built-in ones, in the form of `fixtures/fake/example.json`.

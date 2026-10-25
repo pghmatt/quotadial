@@ -1,11 +1,16 @@
 //! Where the daemon keeps its files: `quotadial/` in the OS data directory
 //! (`~/Library/Application Support` on macOS, `$XDG_DATA_HOME` or `~/.local/share` on Linux,
 //! `%APPDATA%` on Windows). Unlike the providers' cache, this is QuotaDial's own data: history
-//! that should survive a cache clean-up. `QUOTADIAL_DATA_DIR` puts it elsewhere.
+//! that should survive a cache clean-up. `QUOTADIAL_DATA_DIR` puts it elsewhere. The example build
+//! keeps its own, `quotadial-fake/`, which `QUOTADIAL_FAKE_DATA_DIR` puts elsewhere
+//! ([`quotadial_core::copy`], D-117), so it never shares a real copy's lock, token or history.
 
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+use quotadial_core::copy;
 
 /// The daemon's folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,13 +18,20 @@ pub struct DataDir(PathBuf);
 
 impl DataDir {
     /// `QUOTADIAL_DATA_DIR` when it is set, else `quotadial/` in the OS data directory, if the
-    /// operating system names one.
+    /// operating system names one: in the example build, `QUOTADIAL_FAKE_DATA_DIR` and
+    /// `quotadial-fake/` instead.
     #[must_use]
     pub fn from_env() -> Option<Self> {
-        std::env::var_os("QUOTADIAL_DATA_DIR")
+        Self::chosen(std::env::var_os(copy::DATA_DIR_VARIABLE), dirs::data_dir())
+    }
+
+    /// The folder `variable` names when it is set, else this copy's own folder in `system`, the OS
+    /// data directory.
+    fn chosen(variable: Option<OsString>, system: Option<PathBuf>) -> Option<Self> {
+        variable
             .filter(|dir| !dir.is_empty())
             .map(|dir| Self(PathBuf::from(dir)))
-            .or_else(|| dirs::data_dir().map(|dir| Self(dir.join("quotadial"))))
+            .or_else(|| system.map(|dir| Self(dir.join(copy::FOLDER))))
     }
 
     /// The folder at `path`, as in tests.
@@ -136,6 +148,28 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o700);
         }
+    }
+
+    #[test]
+    fn the_folder_is_the_variable_s_or_this_copy_s_own_in_the_system_s_data_directory() {
+        let system = PathBuf::from("/data");
+        let own = |variable: Option<&str>| {
+            DataDir::chosen(variable.map(OsString::from), Some(system.clone()))
+                .map(|dir| dir.path().to_owned())
+        };
+
+        assert_eq!(own(Some("/elsewhere")), Some(PathBuf::from("/elsewhere")));
+        if copy::EXAMPLE {
+            assert_eq!(
+                own(None),
+                Some(system.join("quotadial-fake")),
+                "the example build never defaults to a real copy's folder"
+            );
+        } else {
+            assert_eq!(own(None), Some(system.join("quotadial")));
+        }
+        assert_eq!(own(Some("")), own(None), "an empty variable is not set");
+        assert_eq!(DataDir::chosen(None, None), None);
     }
 
     #[test]

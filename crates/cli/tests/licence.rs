@@ -19,7 +19,7 @@ fn data_dir(test: &str) -> PathBuf {
 fn quotadial(args: &[&str], data: &Path, stdin: Option<&str>) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_quotadial"))
         .args(args)
-        .env("QUOTADIAL_DATA_DIR", data)
+        .env(quotadial_core::copy::DATA_DIR_VARIABLE, data)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

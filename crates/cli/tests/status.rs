@@ -1,4 +1,6 @@
-//! Runs the real `quotadial` and `qd` binaries in an empty home directory.
+//! Runs the real `quotadial` and `qd` binaries in an empty home directory, as a release builds them
+//! or as the example build does (`cargo test --workspace --features fake`, D-117), whose fake
+//! provider shows its made-up accounts in any home.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -9,6 +11,16 @@ use std::time::Duration;
 use quotadial_core::licence::TEST_SEED;
 use quotadial_core::{Licence, Plan};
 use serde_json::{Value, json};
+
+/// Whether these tests run the example build.
+const EXAMPLE: bool = cfg!(feature = "fake");
+
+/// How the daemon and `watch` say how often each provider is asked.
+const ASKS: &str = if EXAMPLE {
+    "asks fake at most every 1 min"
+} else {
+    "asks claude at most every 5 min and codex at most every 2 min"
+};
 
 /// An empty directory used as the home directory, so no stored login on the machine is found.
 fn empty_home(test: &str) -> PathBuf {
@@ -26,10 +38,11 @@ fn command(binary: &str, args: &[&str], home: &Path) -> Command {
         .env("USERPROFILE", home)
         .env("CLAUDE_CONFIG_DIR", home.join(".claude"))
         .env("CODEX_HOME", home.join(".codex"))
-        .env("QUOTADIAL_DATA_DIR", home.join("data"))
+        .env(quotadial_core::copy::DATA_DIR_VARIABLE, home.join("data"))
         .env_remove("CLAUDE_CODE_OAUTH_TOKEN")
         .env_remove("ANTHROPIC_API_KEY")
-        .env_remove("OPENAI_API_KEY");
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("QUOTADIAL_FAKE_ACCOUNTS");
     command
 }
 
@@ -81,6 +94,49 @@ fn stdout(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).expect("UTF-8")
 }
 
+/// Holds `report`, as `status --json` prints it, to what an empty home shows: nothing, or in the
+/// example build its two made-up accounts, each called Example with a plan and no address, every
+/// window an example with its age and its reset.
+fn assert_empty_home_report(report: &Value) {
+    if !EXAMPLE {
+        assert_eq!(report, &json!({ "snapshots": [], "errors": [] }));
+        return;
+    }
+    assert_eq!(report["errors"], json!([]), "{report}");
+    let snapshots = report["snapshots"].as_array().expect("snapshots");
+    let plans: Vec<&str> = snapshots
+        .iter()
+        .map(|snapshot| snapshot["account"]["plan"].as_str().expect("a plan"))
+        .collect();
+    assert_eq!(plans, ["Claude Max 5x", "ChatGPT Pro"], "{report}");
+    for snapshot in snapshots {
+        let account = &snapshot["account"];
+        assert_eq!(account["provider"], "fake");
+        assert_eq!(account["display_name"], "Example");
+        assert!(account.get("sign_in").is_none(), "{account}");
+        assert_eq!(snapshot["status"], "ok");
+        let windows = snapshot["windows"].as_array().expect("windows");
+        assert!(!windows.is_empty(), "{snapshot}");
+        for window in windows {
+            assert_eq!(window["source"], "example", "{window}");
+            assert!(window["fetched_at"].is_string(), "{window}");
+            assert!(window["resets_at"].is_string(), "{window}");
+        }
+    }
+    assert!(!report.to_string().contains('@'), "no address: {report}");
+}
+
+#[test]
+fn the_binary_is_the_build_these_tests_expect() {
+    assert_eq!(
+        EXAMPLE,
+        quotadial_core::copy::EXAMPLE,
+        "test the example build with `--features fake`, which turns it on in the CLI, the provider \
+         list and core together"
+    );
+}
+
+#[cfg(not(feature = "fake"))]
 #[test]
 fn status_says_no_accounts_found() {
     let home = empty_home("status");
@@ -90,8 +146,43 @@ fn status_says_no_accounts_found() {
     assert_eq!(stdout(&output), "no accounts found\n");
 }
 
+/// The example build's accounts, by `status`: each called Example with its plan, every window
+/// saying it is an example, and nothing that reads as an address.
+#[cfg(feature = "fake")]
 #[test]
-fn status_json_reports_no_snapshots() {
+fn example_status_names_each_example_and_where_its_numbers_came_from() {
+    let home = empty_home("example-status");
+    let output = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
+
+    assert!(output.status.success(), "exit status {:?}", output.status);
+    let text = stdout(&output);
+    let accounts: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.starts_with(' '))
+        .take(2)
+        .collect();
+    assert_eq!(
+        accounts,
+        [
+            "fake Example (Claude Max 5x): ok",
+            "fake Example (ChatGPT Pro): ok"
+        ],
+        "{text}"
+    );
+    let windows: Vec<&str> = text.lines().filter(|line| line.starts_with("  ")).collect();
+    assert_eq!(windows.len(), 5, "{text}");
+    for window in windows {
+        assert!(
+            window.ends_with(", from the example build just now"),
+            "{window}"
+        );
+    }
+    assert!(text.starts_with("fake Example (Claude Max 5x): ok\n  Weekly: 91% used"));
+    assert!(!text.contains('@'), "{text}");
+}
+
+#[test]
+fn status_json_reports_what_an_empty_home_holds() {
     let home = empty_home("status-json");
     let output = run(
         env!("CARGO_BIN_EXE_quotadial"),
@@ -101,16 +192,20 @@ fn status_json_reports_no_snapshots() {
 
     assert!(output.status.success(), "exit status {:?}", output.status);
     let value: Value = serde_json::from_str(&stdout(&output)).expect("valid JSON");
-    assert_eq!(value, json!({ "snapshots": [], "errors": [] }));
+    assert_empty_home_report(&value);
 }
 
 #[test]
 fn qd_is_an_alias_for_quotadial() {
     let home = empty_home("qd");
     let output = run(env!("CARGO_BIN_EXE_qd"), &["status"], &home);
+    let full = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
 
     assert!(output.status.success(), "exit status {:?}", output.status);
-    assert_eq!(stdout(&output), "no accounts found\n");
+    assert_eq!(stdout(&output), stdout(&full));
+    if !EXAMPLE {
+        assert_eq!(stdout(&output), "no accounts found\n");
+    }
 }
 
 #[test]
@@ -131,7 +226,7 @@ fn watch_json_prints_one_report_per_refresh() {
     let output = first_refresh(&["watch", "--json"], &home, |_| true);
 
     let value: Value = serde_json::from_str(&output).expect("valid JSON");
-    assert_eq!(value, json!({ "snapshots": [], "errors": [] }));
+    assert_empty_home_report(&value);
 }
 
 #[test]
@@ -139,22 +234,23 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     let home = empty_home("watch");
     let output = first_refresh(&["watch"], &home, |line| line.contains("Ctrl-C"));
 
+    let first = if EXAMPLE {
+        "fake Example (Claude Max 5x): ok\n"
+    } else {
+        "no accounts found\n\nUpdated "
+    };
+    assert!(output.starts_with(first), "{output}");
     assert!(
-        output.starts_with("no accounts found\n\nUpdated "),
-        "{output}"
-    );
-    assert!(
-        output.ends_with(
-            "Refreshes every minute and asks claude at most every 5 min and codex at most every \
-             2 min. Press Ctrl-C to stop.\n"
-        ),
+        output.ends_with(&format!(
+            "Refreshes every minute and {ASKS}. Press Ctrl-C to stop.\n"
+        )),
         "{output}"
     );
     assert!(!output.contains('\x1b'), "no escape codes when piped");
 }
 
 /// Starts `daemon --port 0` and returns it with its output after the two lines it starts with.
-fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 3]) {
+fn start_daemon(home: &Path) -> (Daemon, BufReader<ChildStdout>, [String; 3]) {
     let mut daemon = command(
         env!("CARGO_BIN_EXE_quotadial"),
         &["daemon", "--port", "0"],
@@ -164,6 +260,7 @@ fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 3]) {
     .spawn()
     .expect("the daemon starts");
     let mut reader = BufReader::new(daemon.stdout.take().expect("stdout"));
+    let daemon = Daemon(Some(daemon));
     let mut lines = [String::new(), String::new(), String::new()];
     for line in &mut lines {
         reader.read_line(line).expect("reads");
@@ -171,13 +268,27 @@ fn start_daemon(home: &Path) -> (Child, BufReader<ChildStdout>, [String; 3]) {
     (daemon, reader, lines)
 }
 
+/// A daemon a test started, stopped if the test fails before it stops it itself, so a failed
+/// test leaves no daemon running and holding the test run's output open.
+struct Daemon(Option<Child>);
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        if let Some(mut daemon) = self.0.take() {
+            let _ = daemon.kill();
+            let _ = daemon.wait();
+        }
+    }
+}
+
 /// Stops the daemon as Ctrl-C or a service manager would, where the platform allows, and returns
 /// whether it exited cleanly and what it printed last.
 fn stop_daemon(
-    mut daemon: Child,
+    mut daemon: Daemon,
     mut reader: BufReader<ChildStdout>,
     signal: &str,
 ) -> (bool, String) {
+    let mut daemon = daemon.0.take().expect("a running daemon");
     if cfg!(unix) {
         let sent = Command::new("kill")
             .args([signal, &daemon.id().to_string()])
@@ -190,6 +301,22 @@ fn stop_daemon(
     let mut rest = String::new();
     reader.read_to_string(&mut rest).expect("reads");
     (daemon.wait().expect("exits").success(), rest)
+}
+
+/// `GET /v1/status` once the daemon has read what an empty home holds: at once, or in the example
+/// build once its first round has both examples, which takes well under 10 seconds.
+fn polled_status(port: u16, token: &str) -> Value {
+    let expected = if EXAMPLE { 2 } else { 0 };
+    for _ in 0..100 {
+        let (status, body) = get(port, "/v1/status", Some(token));
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        let report: Value = serde_json::from_str(&body).expect("valid JSON");
+        if report["snapshots"].as_array().map(Vec::len) == Some(expected) {
+            return report;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    panic!("the daemon did not show {expected} accounts within 10 seconds");
 }
 
 /// A plain HTTP/1.1 GET, returning the status line and the body.
@@ -228,10 +355,9 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
     let (clean, rest) = stop_daemon(first, reader, "-INT");
 
     assert!(
-        line.starts_with(
-            "QuotaDial daemon running. It asks claude at most every 5 min and codex at most every 2 \
-             min, keeps history in "
-        ),
+        line.starts_with(&format!(
+            "QuotaDial daemon running. It {ASKS}, keeps history in "
+        )),
         "{line}"
     );
     assert_eq!(
@@ -286,10 +412,10 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let (status, body) = get(port, "/v1/status", None);
     assert_eq!(status, "HTTP/1.1 401 Unauthorized");
     assert!(!body.contains("snapshots"));
-    let (status, body) = get(port, "/v1/status", Some(&token));
-    assert_eq!(status, "HTTP/1.1 200 OK");
-    let report: Value = serde_json::from_str(&body).expect("valid JSON");
-    assert_eq!(report, json!({ "snapshots": [], "errors": [] }));
+    let report = polled_status(port, &token);
+    // QuotaDial Free says what it leaves out; the accounts are what an empty home holds.
+    let accounts = json!({ "snapshots": report["snapshots"], "errors": report["errors"] });
+    assert_empty_home_report(&accounts);
     let (status, body) = get(port, "/v1/headroom", Some(&token));
     assert_eq!(
         status, "HTTP/1.1 403 Forbidden",
@@ -302,7 +428,18 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let (status, body) = get(port, "/v1/headroom", Some(&token));
     assert_eq!(status, "HTTP/1.1 200 OK");
     let headroom: Value = serde_json::from_str(&body).expect("valid JSON");
-    assert_eq!(headroom, json!({ "accounts": [], "errors": [] }));
+    if EXAMPLE {
+        assert_eq!(headroom["errors"], json!([]));
+        let ranked = headroom["accounts"].as_array().expect("accounts");
+        assert_eq!(ranked.len(), 2, "both examples are ranked: {headroom}");
+        assert!(
+            ranked
+                .iter()
+                .all(|ranked| ranked["account"]["provider"] == "fake")
+        );
+    } else {
+        assert_eq!(headroom, json!({ "accounts": [], "errors": [] }));
+    }
 
     // `status` asks the daemon: given a token the daemon does not know, it says so rather than
     // fetching for itself, which in this empty home would have printed `no accounts found`.
@@ -324,7 +461,7 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
         answered.status
     );
     let value: Value = serde_json::from_str(&stdout(&answered)).expect("valid JSON");
-    assert_eq!(value, json!({ "snapshots": [], "errors": [] }));
+    assert_empty_home_report(&value);
 
     let (clean, rest) = stop_daemon(daemon, reader, "-TERM");
     if cfg!(unix) {
@@ -381,9 +518,9 @@ fn mcp_answers_an_agent_on_standard_input_and_output() {
         .map(|tool| tool["name"].as_str().expect("a name"))
         .collect();
     assert_eq!(tools, ["get_usage", "get_account_headroom", "list_alerts"]);
-    assert_eq!(
-        replies[2]["result"]["structuredContent"],
-        json!({ "snapshots": [], "errors": [] })
+    let usage = &replies[2]["result"]["structuredContent"];
+    assert_empty_home_report(
+        &json!({ "snapshots": usage["snapshots"], "errors": usage["errors"] }),
     );
     assert_eq!(
         replies[3]["result"]["isError"], true,
@@ -515,18 +652,28 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
         first.starts_with(&format!("QuotaDial {} on ", env!("CARGO_PKG_VERSION"))),
         "{first}"
     );
+    let accounts: &[&str] = if EXAMPLE {
+        &[
+            "Accounts (2):",
+            "  fake Example (Claude Max 5x): ok, fetched just now from the example build",
+            "  fake Example (ChatGPT Pro): ok, fetched just now from the example build",
+        ]
+    } else {
+        &["Accounts (0):", "  none found"]
+    };
     for line in [
         "Licence: QuotaDial Free, with no licence key.",
         "Daemon: not running",
         "Numbers: from a direct fetch",
-        "Accounts (0):",
-        "  none found",
         "Settings in effect:",
         "  history_days: 30",
         "  cost_scan: on",
-    ] {
+    ]
+    .iter()
+    .chain(accounts)
+    {
         assert!(
-            text.lines().any(|shown| shown == line),
+            text.lines().any(|shown| shown == *line),
             "{line:?} in\n{text}"
         );
     }
@@ -538,4 +685,42 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
     // The text keeps the system's own separator, as a Windows user's paste should.
     let data_folder = format!("Data folder: {}", Path::new("~").join("data").display());
     assert!(text.contains(&data_folder), "{text}");
+}
+
+/// Rule 3 of D-117: with no variable naming a data folder, the example build still keeps its own,
+/// `quotadial-fake`, so it can never take a real copy's lock, read its token or write its history.
+/// On Windows the data directory comes from the system rather than the home folder, so this runs on
+/// macOS and Linux.
+#[cfg(all(feature = "fake", not(windows)))]
+#[test]
+fn the_example_build_keeps_its_own_data_folder_when_no_variable_names_one() {
+    let home = empty_home("example-folder");
+    let own = if cfg!(target_os = "macos") {
+        "Library/Application Support/quotadial-fake"
+    } else {
+        ".local/share/quotadial-fake"
+    };
+    let quotadial = |args: &[&str]| {
+        command(env!("CARGO_BIN_EXE_quotadial"), args, &home)
+            .env_remove(quotadial_core::copy::DATA_DIR_VARIABLE)
+            .env_remove("QUOTADIAL_DATA_DIR")
+            .env_remove("XDG_DATA_HOME")
+            .output()
+            .expect("binary runs")
+    };
+
+    let doctor = stdout(&quotadial(&["doctor"]));
+    let added = quotadial(&["alerts", "add", "warn me at 80%"]);
+
+    assert!(
+        doctor
+            .lines()
+            .any(|line| line == format!("Data folder: ~/{own}")),
+        "{doctor}"
+    );
+    assert!(added.status.success(), "{added:?}");
+    assert!(home.join(own).join("history.db").exists());
+    let real = own.trim_end_matches("-fake");
+    assert!(!home.join(real).exists(), "nothing in a real copy's folder");
+    std::fs::remove_dir_all(&home).expect("cleans up");
 }

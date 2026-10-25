@@ -765,6 +765,11 @@
             "const": "cache",
             "description": "QuotaDial's own store, from an earlier fetch.",
             "type": "string"
+          },
+          {
+            "const": "example",
+            "description": "Made up by QuotaDial's example build, for pictures of the app; a release never sends it.",
+            "type": "string"
           }
         ]
       },

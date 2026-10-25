@@ -35,7 +35,7 @@ Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScri
 | CLI binary | `quotadial`, with `qd` as an alias (a second binary in the same package) |
 | Agent skill | `skills/quotadial/SKILL.md` |
 | MCP server | `quotadial` |
-| Provider ids | `claude`, `codex` |
+| Provider ids | `claude`, `codex`; `fake` in the example build only (D-117) |
 
 Nothing is named `usage`, the PRD's old working name.
 
@@ -49,14 +49,15 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
-| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app |
+| `crates/providers/fake` (`quotadial-provider-fake`) | The example provider: made-up accounts for pictures of the app, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, in the example build only (D-117) |
+| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app; with its `fake` feature, the example build's list, the fake provider alone, with folders and a port of its own (`quotadial_core::copy`, D-117) |
 | `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `crates/issue` (`quotadial-issue`) | The tool that makes QuotaDial's licence signing key and signs licence keys with it (`docs/LICENSING.md`). No release carries it |
 | `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon, draws the meter and updates itself from QuotaDial's GitHub releases (`docs/RELEASE.md`) |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
-| `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, `release-notes.sh`, which takes a release's notes from `CHANGELOG.md`, `privacy.sh`, which copies `docs/PRIVACY.md` into the README, and the Release workflow's `release-signing.sh`, `updater-manifest.mjs` and `latest-names.mjs`, which copies each download to its name without the version, whose link always fetches the newest full release (`docs/RELEASE.md`) |
+| `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, `release-notes.sh`, which takes a release's notes from `CHANGELOG.md`, `privacy.sh`, which copies `docs/PRIVACY.md` into the README, and the Release workflow's `release-signing.sh`, `updater-manifest.mjs`, `no-example-provider.sh` and `latest-names.mjs`, which copies each download to its name without the version, whose link always fetches the newest full release (`docs/RELEASE.md`) |
 | `CHANGELOG.md` | Every change people will notice, newest first, in Keep a Changelog form |
 | `site/` | The website's Cloudflare Pages project. For now its function, `POST /api/key`, which turns a paid Lemon Squeezy receipt's key into a QuotaDial licence key (`docs/LICENSING.md`), in TypeScript run by Node 22 |
 | `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, the licence key format, how releases are signed and found by the updater (`RELEASE.md`), and what QuotaDial reads and sends (`PRIVACY.md`) |
@@ -127,6 +128,7 @@ node --test scripts/*.test.mjs                          # the release scripts' t
 node scripts/packages.mjs 0.3.0 SHA256SUMS.txt out      # the Homebrew formula and cask, Scoop and winget manifests for a release (the Packages workflow runs it)
 cargo deny check && cargo audit                         # the supply chain, as CI runs it (also in apps/tray/src-tauri)
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
+cargo test --workspace --features fake                  # the example build (D-117), as CI's fake job runs it with clippy too
 (cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)
 ```
@@ -141,4 +143,5 @@ npm run cli                              # build the CLI the app bundles (Tauri 
 (cd src-tauri && cargo test)             # the app's tests; also cargo fmt and clippy, as CI runs them
 npx tauri dev                            # run the app from source
 npx tauri build                          # the app and its installer, in src-tauri/target/release/bundle
+npx tauri build --config src-tauri/tauri.example.conf.json   # QuotaDial Example, for pictures (D-117); never released
 ```

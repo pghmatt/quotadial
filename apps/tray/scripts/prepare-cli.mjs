@@ -8,6 +8,8 @@
 //
 //   node scripts/prepare-cli.mjs            a debug build, for `tauri dev` and the checks
 //   node scripts/prepare-cli.mjs --release  a release build, for `tauri build`
+//   node scripts/prepare-cli.mjs --fake     the example build's CLI (D-117), with the fake provider,
+//                                           which only tauri.example.conf.json asks for
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -15,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const UNIVERSAL = "universal-apple-darwin";
 const release = process.argv.includes("--release");
+const fake = process.argv.includes("--fake");
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const binaries = fileURLToPath(new URL("../src-tauri/binaries", import.meta.url));
 
@@ -35,6 +38,7 @@ function build(target) {
   const crossing = target !== host;
   const cargo = ["build", "--locked", "--package", "quotadial", "--bin", "quotadial"];
   if (release) cargo.push("--release");
+  if (fake) cargo.push("--features", "fake");
   if (crossing) cargo.push("--target", target);
   execFileSync("cargo", cargo, { cwd: root, stdio: "inherit" });
   const extension = target.includes("windows") ? ".exe" : "";
@@ -47,7 +51,7 @@ function build(target) {
   );
   const bundled = join(binaries, `quotadial-${target}${extension}`);
   copyFileSync(built, bundled);
-  console.log(`Bundled the CLI as binaries/quotadial-${target}${extension}.`);
+  console.log(`Bundled the ${fake ? "example build's " : ""}CLI as binaries/quotadial-${target}${extension}.`);
   return bundled;
 }
 

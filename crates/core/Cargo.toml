@@ -14,6 +14,9 @@ publish.workspace = true
 testing = ["dep:proptest"]
 # JSON Schema for the types the local API sends, from which a test writes docs/openapi.json.
 schema = ["dep:schemars"]
+# The example build (D-117): this copy keeps its own data folder, cache folder and API port
+# (`copy`). quotadial-providers' `fake` feature turns it on with the fake provider; no release does.
+fake = []
 
 [dependencies]
 async-trait.workspace = true

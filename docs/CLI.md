@@ -719,7 +719,7 @@ the last, without escape codes.
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
 | `windows[].window_seconds` | The window's length, such as 18000 for five hours or 604800 for a week |
 | `windows[].scope_model` | For a per-model limit, the model it covers. Left out otherwise |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the CLI's own logs) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the CLI's own logs), or `example` (made up for pictures of the app by QuotaDial's example build, which is never released) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
 | `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
 | `windows[].pace` | How fast the window is filling, from the daemon's history: `pct_per_hour`, the share used per hour, from a straight line fitted through the window's readings since it last reset; and `runs_out_at`, when it reaches 100% at that pace, given only when that comes before it resets. Left out with no daemon running, for a window with fewer than 3 readings over 30 minutes since it reset, for a full window or an unconfirmed 0%, and for a snapshot whose status is not `ok`. A window that is not filling has a `pct_per_hour` of 0 |

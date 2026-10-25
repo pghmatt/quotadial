@@ -3,8 +3,8 @@
 //! ```text
 //! Account { provider, account_id, display_name, plan, org }
 //! Window  { kind: session | weekly | model_weekly | daily | credits | other, label, used_pct,
-//!           resets_at, window_seconds, scope_model?, source: api | local_log | cache, fetched_at,
-//!           unconfirmed, pace? }
+//!           resets_at, window_seconds, scope_model?, source: api | local_log | cache | example,
+//!           fetched_at, unconfirmed, pace? }
 //! Pace    { pct_per_hour, runs_out_at? }
 //! Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required |
 //!            rate_limited | unsupported, error? }
@@ -14,6 +14,7 @@
 //! and are left out of JSON when absent. `Account.plan`, `Account.org` and `Window.resets_at` are
 //! optional too: providers do not always report them (proposals P-001 and P-002 in
 //! `docs/DECISIONS.md`, approved by Matt). `Window.pace` comes from the daemon's history (P-016).
+//! The `example` source is the example build's alone (P-017, D-117): a release never sends it.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -135,6 +136,9 @@ pub enum Source {
     LocalLog,
     /// QuotaDial's own store, from an earlier fetch.
     Cache,
+    /// Made up by QuotaDial's example build, for pictures of the app; a release never sends it.
+    // The fake provider's (D-117), so no picture of an example is taken for a real account.
+    Example,
 }
 
 /// Everything QuotaDial knows about one account's usage at one moment.
@@ -402,6 +406,7 @@ mod tests {
             (Source::Api, "api"),
             (Source::LocalLog, "local_log"),
             (Source::Cache, "cache"),
+            (Source::Example, "example"),
         ];
         for (source, expected) in sources {
             assert_eq!(
@@ -621,5 +626,21 @@ mod tests {
         assert_eq!(cached.windows[0].fetched_at, snapshot.windows[0].fetched_at);
         assert_eq!(cached.windows[1].source, Source::LocalLog);
         assert_eq!(cached.status, Status::Ok);
+    }
+
+    #[test]
+    fn an_example_served_again_still_says_it_is_an_example() {
+        let snapshot = Snapshot {
+            account: account(),
+            windows: vec![window(WindowKind::Session, None, Source::Example)],
+            extra_usage: None,
+            status: Status::Ok,
+            error: None,
+        };
+
+        let cached = snapshot.clone().served_from_cache();
+
+        assert_eq!(cached.windows[0].source, Source::Example);
+        assert_eq!(cached.windows[0].fetched_at, snapshot.windows[0].fetched_at);
     }
 }

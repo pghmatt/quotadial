@@ -1,0 +1,55 @@
+{
+  "accounts": [
+    {
+      "plan": "Claude Max 5x",
+      "windows": [
+        {
+          "kind": "weekly",
+          "label": "Weekly",
+          "window_seconds": 604800,
+          "used_pct": 91,
+          "resets_in_seconds": 140400,
+          "pct_per_hour": 2.0
+        },
+        {
+          "kind": "model_weekly",
+          "label": "Weekly (Opus)",
+          "scope_model": "opus",
+          "window_seconds": 604800,
+          "used_pct": 74,
+          "resets_in_seconds": 140400,
+          "pct_per_hour": 1.2
+        },
+        {
+          "kind": "session",
+          "label": "Session",
+          "window_seconds": 18000,
+          "used_pct": 38,
+          "resets_in_seconds": 7800,
+          "pct_per_hour": 8.5
+        }
+      ]
+    },
+    {
+      "plan": "ChatGPT Pro",
+      "windows": [
+        {
+          "kind": "weekly",
+          "label": "Weekly",
+          "window_seconds": 604800,
+          "used_pct": 46,
+          "resets_in_seconds": 442800,
+          "pct_per_hour": 0.4
+        },
+        {
+          "kind": "session",
+          "label": "Session",
+          "window_seconds": 18000,
+          "used_pct": 12,
+          "resets_in_seconds": 13260,
+          "pct_per_hour": 3.0
+        }
+      ]
+    }
+  ]
+}

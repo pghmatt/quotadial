@@ -9,11 +9,18 @@ repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 
+[features]
+# The example build (D-117): the fake provider alone, in place of Claude and Codex, and this copy's
+# own data folder, cache folder and port (quotadial-core's `fake`). Off by default and in no binary's
+# defaults; the Release workflow checks that no CLI it ships ever names a provider `fake`.
+fake = ["dep:quotadial-provider-fake", "quotadial-core/fake"]
+
 [dependencies]
 quotadial-core.workspace = true
 quotadial-daemon.workspace = true
 quotadial-provider-claude.workspace = true
 quotadial-provider-codex.workspace = true
+quotadial-provider-fake = { workspace = true, optional = true }
 
 [lints]
 workspace = true
