@@ -33,6 +33,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - Tab completion for bash, zsh, fish and PowerShell, and a manual page for every command (`man quotadial`), in each release's archives and in the app; the deb installs both.
 - `quotadial --help` describes QuotaDial with examples, and every command's `--help` says what each of its arguments is for.
 - On macOS, VoiceOver and Full Keyboard Access open QuotaDial from its menu bar icon, as a click does.
+- Each release's files also come under a name without the version, such as `QuotaDial_universal.dmg`, so one link always fetches the newest full release.
 
 ### Fixed
 

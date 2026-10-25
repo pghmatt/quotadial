@@ -388,6 +388,75 @@ so they became #10.
   covers the module on a real status item, and #64's probe covered a real press on a test copy.
   (b), the upstream PR to tray-icon, waits on Matt's go-ahead on #51.
 
+### M5 queue item 12: docs (D-116)
+
+Item 12 is the docs. This part is the release side of the manager's decision on #49 (05:30 UTC):
+from the release after 0.2.0, each download is on the release a second time, under a name without
+the version, which the install guide and the site's buttons link to (D-116). `docs/INSTALL.md`'s
+tables, already on `feat/docs`, and the site's buttons are the item's other parts.
+
+- **The copies:** `scripts/latest-names.mjs <folder> <version>` copies each of the eight downloads
+  (`QuotaDial_universal.dmg`, `QuotaDial_x64_en-US.msi`, `QuotaDial_amd64.deb`,
+  `QuotaDial_amd64.AppImage`, and `quotadial-<target>.tar.gz` or `.zip` for the command's four
+  builds) beside its versioned file, in whichever folder the download step left it (`dmg/`, `deb/`,
+  `appimage/` or the top). It finds the eight by exact name, so a `.sig`, the macOS update,
+  `latest.json` or a bill of materials is never copied; it names every missing file before copying
+  anything, and refuses a name found twice. `--names` prints the eight for the deploy gate.
+- **The publish job** runs it after `latest.json` and before `SHA256SUMS.txt`, in the step now
+  called "The updater's latest.json, the copies without the version and every file's checksum".
+  `latest.json` cannot name a copy: it is written from the `.sig` files, and a copy has none.
+- **The site deploy gate** used to ask for the newest published release, pre-releases included,
+  and look only for `SHA256SUMS.txt`. It now checks out main and asks
+  `gh api repos/<repo>/releases/latest`, the release `releases/latest/download/` resolves to, and
+  sets `ready` only when that release has `SHA256SUMS.txt` and the eight names
+  `node scripts/latest-names.mjs --names` prints. GitHub's 404 (every release a pre-release, as
+  today) skips with a line in the summary; any other gh error, or a list of names that is missing
+  or empty, fails the gate. On an error `gh api --jq` prints GitHub's answer unfiltered and exits 1,
+  so the gate reads the answer only after gh succeeds.
+- **Found on the way:** Node gives `import.meta.url` as a module's real path and `process.argv[1]`
+  as typed, so a script that compares the two as given does nothing, and exits 0, when it is
+  started through a link, as macOS's `/var` is. `latest-names.mjs` compares real paths, and a test
+  runs it through a link. Without the gate's empty-list check, a list of names that came back empty
+  would have let the site out having checked no copy (its control showed it).
+- **Tests** (CI's `node --test scripts/*.test.mjs`, now 32): `latest-names.test.mjs` (8) holds the
+  eight to v0.2.0's real file names, copies each byte for byte into a file of its own beside it,
+  copies nothing else, names every missing file and copies nothing, refuses a name found twice,
+  prints `--names`, runs through a link, and holds `docs/INSTALL.md`'s `releases/latest/download/`
+  links to exactly the eight. `workflows.test.mjs` (8) runs the publish step's own shell, read from
+  `release.yml`, on a release laid out as the download step leaves it and signed for v0.2.0, then
+  checks every file with `sha256sum -c` (`shasum -a 256 -c` on macOS) and the copies alone with
+  `--ignore-missing`; and runs the gate's own shell against GitHub's answers from a fake `gh`:
+  ready with all eight, GitHub's real 404 for this repository, one copy missing, no checksums and
+  v0.2.0's files as a full release, gh unable to connect, no list of names or an empty one, and no
+  token. `updater-manifest.test.mjs` and `packages.test.mjs` gain one each: the copies leave
+  `latest.json` naming the versioned files, and no package names a copy or `releases/latest`.
+- **Controls, each seen failing, then restored:** the version left in the command's names; a hard
+  link, and a rename, in place of the copy; the copy taking its `.sig` too (which also makes the
+  manifest refuse the release); no missing-file check, only the first missing file named, and the
+  copies made before the check; no twice check; `--names` on one line; the as-given main-module
+  check; an INSTALL.md link changed, and one removed; the publish step without the copy, and with
+  it after the checksums; packages pointing at `releases/latest`, or at the msi's copy; and in the
+  gate: no `ready`, another endpoint, no 404 branch, the old condition (checksums only, which let
+  a release missing a copy through), no checksums in the list, a gh error that exits 0, no
+  empty-list check (which let the site out), and no token check.
+- **How it was checked:** the publish step's shell from `release.yml`, run on a scratch release of
+  v0.2.0's names, wrote `latest.json` for 9 targets, all versioned, made the 8 copies, and
+  `sha256sum -c` and `shasum -a 256 -c` printed OK for all 24 files, both names of each download
+  among them; with only two copies downloaded, `--ignore-missing` passed for both. actionlint
+  1.7.12 with shellcheck 0.11.0 passes on all four workflows, and reports an unquoted variable put
+  into the gate on purpose. `gh api repos/pghmatt/quotadial/releases/latest` answers 404 today, as
+  the gate expects. shellcheck on `scripts/*.sh`, `scripts/public-prd.sh --check`,
+  `scripts/privacy.sh --check` and the changelog check pass, and so do the site's type check, its
+  44 tests and its build, which read the changelog's new line.
+- **Docs:** `docs/RELEASE.md` (step 3's list, step 4, a step 6 for the website, "Names without the
+  version", and the checksums under both names); the supply chain in `docs/SECURITY.md`; a line in
+  `CHANGELOG.md`; D-116.
+- **Not done here:** no release has the copies until the next tag, so `releases/latest/download/`
+  answers 404 until the first full release after it; the Release workflow was not run here.
+  `updater-manifest.mjs` and `packages.mjs` keep the as-given main-module check, which is safe on
+  the runners' plain paths but does nothing through a link; and the scripts row in `AGENTS.md` does
+  not name `latest-names.mjs` yet.
+
 ### M5 queue item 5: the website (D-113)
 
 Item 5 is the website and the shareable image (decision f on #40). This PR is the website; the
