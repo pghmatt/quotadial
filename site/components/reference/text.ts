@@ -86,6 +86,17 @@ export function countUnder(version: ChangelogVersion, heading: string): number {
   return section ? (section.html.match(/<li[\s>]/g) ?? []).length : 0;
 }
 
+/**
+ * The versions the changelog page shows: every release, and Unreleased only while it lists a
+ * change. The version bump renames Unreleased, so there may be none; an Unreleased heading with
+ * nothing under it yet would be a plate and a table row with no change in them, so it is left out.
+ */
+export function versionsShown(versions: ChangelogVersion[]): ChangelogVersion[] {
+  return versions.filter(
+    (version) => version.date !== null || version.sections.some((section) => countUnder(version, section.heading) > 0),
+  );
+}
+
 /** The headings the changelog uses, in the order they first appear. */
 export function headingsUsed(versions: ChangelogVersion[]): string[] {
   const seen: string[] = [];
