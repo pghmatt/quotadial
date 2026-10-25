@@ -18,6 +18,8 @@ export function ReleaseTable({ versions }: { versions: ChangelogVersion[] }) {
         columns={["Version", "Released", ...headings]}
         align={["words", "figures", ...headings.map(() => "figures" as const)]}
         whole={[true, true]}
+        /* The times never break, so on a phone the cells give up 6 px of their side padding each (text keeps its size) and the plate fits the column down to 360 px. */
+        className="max-sm:[&_td]:px-1.5 max-sm:[&_th]:px-1.5"
         rows={versions.map((version) => ({
           key: version.version,
           cells: [
