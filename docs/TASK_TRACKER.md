@@ -73,7 +73,7 @@ queue, by its numbers:
 - 4, the key page's function, decided on #54 (D-102), merged (PR #58): it signs with a second,
   online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
-- 5, the website in `site/`, built but not deployed (D-113), in review (PR #68); the shareable
+- 5, the website in `site/`, built but not deployed (D-113), merged (PR #68); the shareable
   image, the item's other half (decision f on #40), is a feature of the app's History and comes in
   its own PR after #64's fix;
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
@@ -83,7 +83,8 @@ queue, by its numbers:
 - then the M6 plan, starting with a fake provider while it waits.
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
-the builder last read #49; said so on #49 at 04:45 UTC). From here: 5, #64's fix, 12, M6.
+the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68); from
+here: #64's fix (PR #69), the shareable image, 12, M6.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -158,9 +159,10 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
 | 9: accessibility | Done (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
+| #64: the menu bar icon by keyboard and VoiceOver | In review (PR #69) | On macOS a press of the menu bar icon, as VoiceOver and Full Keyboard Access make it, opens the popover as a click does: the icon's button gets a target and action in `icon_press.rs`, the tray app's one `unsafe` exception; `tests/icon_press.rs` proves it on a real status item in CI (D-114) |
 | 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
-| 5: the website | In review (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
+| 5: the website | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -347,6 +349,44 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5: the menu bar icon by keyboard and VoiceOver (#64, D-114)
+
+- **The fault:** on macOS, VoiceOver (VO-Space) and Full Keyboard Access (Control-F8, then Space)
+  press a menu bar icon's button through the accessibility interface. tray-icon 0.25 answers only
+  mouse events, on a view it lays over the button, and leaves the button with no action, so a press
+  opened nothing.
+- **The fix:** `apps/tray/src-tauri/src/icon_press.rs` defines a small Objective-C class with
+  objc2's `define_class!`, whose `press:` runs a closure, and makes it the button's target with
+  `press:` as its action; `build_tray` calls `answer_presses` on the status item tray-icon made,
+  with `toggle_popover`. The target is kept in a thread-local for as long as the icon, since AppKit
+  does not keep a control's target alive. A click still goes to tray-icon's view, and tray-icon's
+  menu press (it sets the menu, presses the button, clears the menu) goes to the menu. Before
+  QuotaDial has been clicked once, the positioner does not know where the icon is, so a press opens
+  the popover in the middle of the screen, as Spotlight does.
+- **The exception:** `unsafe_code = "deny"` in the tray app's `Cargo.toml` (the core workspace keeps
+  `forbid`) and `#[expect(unsafe_code, reason = "...")]` on `pub mod icon_press;` in `lib.rs`. Its
+  blocks: `init` on the new target, setting target and action, and `performClick` in
+  `press_as_the_tray_library_does`, which only the test uses (objc2 marks `performClick` `unsafe`,
+  and keeping it here keeps the exception to one line). `objc2` 0.6.5 and `objc2-app-kit` 0.3.2,
+  already in the tree through tray-icon, are now direct dependencies on macOS; `dispatch2` 0.3.1,
+  also in the tree, is a dev-dependency.
+- **The test:** `tests/icon_press.rs` runs with `harness = false`, since AppKit needs the main
+  thread and a test harness never gives one. It starts the app's event loop, then from the main
+  queue: VoiceOver's press (`accessibilityPerformPress`) runs the action once; tray-icon's press with
+  no menu runs it again; the same press with a menu set leaves it at two. A watchdog ends the test
+  after 30 s, and a session that gives no status item says so and passes. Controls: without
+  `setAction` the first assertion fails (0 presses), and `unsafe` added anywhere else in the app
+  fails to build ("usage of an `unsafe` block"). The first version of the test used an empty
+  `NSMenu` while asserting that the menu tracked; it never did (an empty menu does not open, and a
+  menu that opens is not closed by the main queue while it tracks), so the test now compares the
+  same press with and without a menu, as #64's probe did with a menu that opened.
+- **Docs:** `docs/ACCESSIBILITY.md` gives the VoiceOver and Full Keyboard Access steps and drops the
+  entry from Not there yet; `docs/SECURITY.md` names the exception; a line in `CHANGELOG.md`.
+- **Not done here:** the app's wiring was not pressed live on this Mac, because a second copy of
+  the app would poll the providers beside Matt's running copy, against the polling floor; the test
+  covers the module on a real status item, and #64's probe covered a real press on a test copy.
+  (b), the upstream PR to tray-icon, waits on Matt's go-ahead on #51.
 
 ### M5 queue item 5: the website (D-113)
 

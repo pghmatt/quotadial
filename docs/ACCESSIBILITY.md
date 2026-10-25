@@ -7,10 +7,12 @@ support@quotadial.com.
 
 ## Opening QuotaDial
 
-- **macOS:** click the number in the menu bar. With the keyboard, open QuotaDial again while it
-  runs, from Spotlight (Command-Space, then type QuotaDial) or Launchpad, and the popover opens.
-  Pressing the menu bar icon with VoiceOver or Full Keyboard Access does not open it yet; see
-  [Not there yet](#not-there-yet).
+- **macOS:** click the number in the menu bar. With VoiceOver, move to the menu bar
+  (VO-M, then VO-M again for the menu extras), find QuotaDial and press it (VO-Space). With Full
+  Keyboard Access on, Control-F8 moves to the menu extras: move to QuotaDial and press Space. Either
+  way the popover opens, as a click opens it; until QuotaDial has been clicked once it opens in the
+  middle of the screen rather than under the icon. Opening QuotaDial again while it runs, from
+  Spotlight (Command-Space, then type QuotaDial) or Launchpad, opens the popover too.
 - **Windows:** click the icon in the notification area. With the keyboard, Windows-B moves to the
   notification area; QuotaDial's menu there has Open QuotaDial.
 - **Linux:** QuotaDial's menu in the panel has Open QuotaDial.
@@ -68,9 +70,6 @@ support@quotadial.com.
 
 ## Not there yet
 
-- On macOS, VoiceOver and Full Keyboard Access cannot press the menu bar icon: the library
-  QuotaDial uses for it answers only a click. Open QuotaDial from Spotlight instead
-  ([#64](https://github.com/pghmatt/quotadial/issues/64)).
 - There is no keyboard shortcut that opens QuotaDial from anywhere.
 - The checks above are automatic; nobody has yet gone through QuotaDial end to end with VoiceOver,
   Narrator, NVDA or Orca. Reports from people who use them are very welcome.

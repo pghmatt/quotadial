@@ -35,6 +35,13 @@ tauri-plugin-single-instance = "2.5.4"
 tauri-plugin-updater = "2.14.0"
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 
+# VoiceOver and Full Keyboard Access press the menu bar icon, which the tray library answers only
+# when it is clicked; `icon_press.rs` gives the icon's button an action (#64). The versions the tray
+# library already uses, so nothing new enters the build.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSButton", "NSControl", "NSMenu", "NSResponder", "NSStatusBarButton", "NSStatusItem", "NSView"] }
+
 [dev-dependencies]
 async-trait = "0.1.92"
 proptest = "1.12.0"
@@ -42,8 +49,21 @@ quotadial-core = { path = "../../../crates/core", features = ["testing"] }
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 
+# The press test drives a real status item, on the main thread and with a menu to cancel.
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+dispatch2 = "0.3.1"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSAccessibilityProtocols", "NSApplication", "NSMenu", "NSStatusBar"] }
+
+# AppKit runs only on the main thread, which a test harness never gives a test.
+[[test]]
+name = "icon_press"
+harness = false
+
+# `deny` rather than the core workspace's `forbid`, for one exception: `icon_press`, whose module
+# line in `lib.rs` carries the `#[expect]` and its reason (#64, D-114). Anything else that adds
+# `unsafe` still fails to build.
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 
 # As in the core workspace.
 [lints.clippy]

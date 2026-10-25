@@ -107,6 +107,18 @@ Each advisory either fails the build or is excepted in `deny.toml` with why it c
 Releases are built only by the Release workflow, and each carries `SHA256SUMS.txt` and a software
 bill of materials for the command and the app ([`RELEASE.md`](RELEASE.md)).
 
+## The one `unsafe` exception
+
+QuotaDial's code is free of `unsafe`: the core workspace forbids it, and the tray app denies it
+with one exception, the module `apps/tray/src-tauri/src/icon_press.rs` (#64, D-114). On macOS,
+VoiceOver and Full Keyboard Access press the menu bar icon rather than click it, and the tray
+library answers only clicks, so the module gives the icon's button an action of its own through
+AppKit's target and action, which objc2 marks `unsafe`. Its `unsafe` blocks make the target
+object, set it as the button's target and action, and, for the press test alone, press the button
+as the tray library does. A press can only run the same toggle a click runs, opening or closing the
+popover; it carries no data. The exception is one `#[expect(unsafe_code, ...)]` on the module's
+line in `lib.rs`, so any other `unsafe` in the app still fails to build.
+
 ## Known limits
 
 - A program running as the same user can read what the user can, as above.
