@@ -9,6 +9,11 @@ import type { Guide, GuideBlock, GuideSection } from "./guide.ts";
 const CELL =
   "[&_a]:underline [&_a]:underline-offset-[0.2em] [&_code]:rounded-chart [&_code]:bg-shallow [&_code]:px-1 [&_code]:font-code [&_code]:text-[0.875em] [&_code]:[overflow-wrap:anywhere]";
 
+/** The words of a table cell's HTML, to judge whether a first column is short enough to keep on one line. */
+const cellWords = (cell: string) => cell.replace(/<[^>]+>/g, "").replace(/&[a-z#0-9]+;/g, "x");
+/** A first column of names (a command, a request, a setting) stays on one line; one of sentences wraps. */
+const SHORT = 36;
+
 /** One block of a guide's section, in the site's own components. */
 function Block({ block, id }: { block: GuideBlock; id: string }) {
   if (block.kind === "html") {
@@ -19,6 +24,7 @@ function Block({ block, id }: { block: GuideBlock; id: string }) {
       <BandedTable
         caption={block.caption}
         columns={block.columns}
+        wholeFirst={block.rows.every((cells) => cellWords(cells[0]).length <= SHORT)}
         rows={block.rows.map((cells, row) => ({
           key: `${id}-${row}`,
           cells: cells.map((cell) => (cell ? <span className={CELL} dangerouslySetInnerHTML={{ __html: cell }} /> : "")),
