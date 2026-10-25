@@ -54,7 +54,7 @@ export default function Privacy() {
         </div>
         <Prose
           html={text.html}
-          className="mt-16 max-w-none! md:mt-20 lg:columns-2 lg:gap-x-12 [&>p:first-child]:mt-0 [&>p:first-child]:max-w-[62ch] [&>p:first-child]:text-[1.25rem] [&>p:first-child]:[column-span:all] [&_code.address]:font-[600] [&_li]:break-inside-avoid [&_p]:break-inside-avoid [&_ul]:break-inside-avoid [&_p:has(+ul)]:break-after-avoid"
+          className="mt-16 md:mt-20 [&>p:first-child]:mt-0 [&>p:first-child]:text-[1.25rem] [&_code.address]:font-[600]"
         />
       </Section>
       <Section tone="shallow" labelledBy="privacy-next">

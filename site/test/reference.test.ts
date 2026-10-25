@@ -45,6 +45,7 @@ test("the changelog page's counts, dates and anchors come from CHANGELOG.md", ()
   assert.deepEqual(headingsUsed(versions).slice(0, 2), ["Added", "Fixed"]);
   assert.equal(sayDate("2026-10-24"), "24 October 2026");
   assert.equal(sayDate("2026-01-05"), "5 January 2026");
+  assert.equal(sayDate("2026-10-24", true), "24 Oct 2026");
   assert.throws(() => sayDate("24/10/2026"));
   assert.throws(() => sayDate("2026-13-01"));
   assert.equal(versionId("Unreleased"), "v-unreleased");
