@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CodeBlock } from "../../components/CodeBlock.tsx";
 import { InlineCode } from "../../components/conversion/InlineCode.tsx";
 import { FilesTable } from "../../components/conversion/FilesTable.tsx";
+import { SystemAction } from "../../components/conversion/SystemAction.tsx";
 import { SystemDownload } from "../../components/conversion/SystemDownload.tsx";
 import { Notice } from "../../components/Notice.tsx";
 import { Prose } from "../../components/Prose.tsx";
@@ -38,7 +39,10 @@ export default function Download() {
             <SystemDownload />
           </div>
           <div className="md:col-span-6 lg:col-span-7">
-            <Plate caption="The files a release holds. Replace <version> with the number in the release's name.">
+            <Plate
+              title="Files in each release"
+              caption="The files a release holds. Replace <version> with the number in the release's name."
+            >
               <FilesTable />
             </Plate>
           </div>
@@ -50,13 +54,14 @@ export default function Download() {
           <div id="macos" className="md:col-span-4">
             <SectionHeading id="macos-heading">macOS</SectionHeading>
             <p className="mt-4 mb-0 max-w-[38ch]">
-              One disk image covers Apple silicon and Intel. Drag QuotaDial to Applications, then open it. The first
-              time, macOS asks you to confirm it.{" "}
+              One disk image covers Apple silicon and Intel. Drag QuotaDial to Applications, then open it. macOS will
+              not open it until you choose Open Anyway in System Settings.{" "}
               <a href="#unsigned" className={LINK}>
                 The steps are below
               </a>
               .
             </p>
+            <SystemAction system="macos" />
           </div>
 
           <div id="windows" className="md:col-span-3">
@@ -68,6 +73,7 @@ export default function Download() {
               </a>
               .
             </p>
+            <SystemAction system="windows" />
           </div>
 
           <div id="linux" className="md:col-span-5">
@@ -81,6 +87,7 @@ export default function Download() {
               </a>
               .
             </p>
+            <SystemAction system="linux" />
           </div>
         </div>
 

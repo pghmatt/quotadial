@@ -232,8 +232,7 @@ function Ready({ keyText, licence }: { keyText: string; licence: Licence }) {
           <CodeBlock code="quotadial licence add" label="Copy the command" />
         </div>
         <p className="m-0 max-w-[56ch]">
-          Then forget about it. QuotaDial checks the key on your machine with no network call
-          {licence.until ? "." : ", and a licence with no last day works offline for ever."}
+          Then forget about it. QuotaDial checks the key on your machine with no network call.
         </p>
       </div>
       <p className="m-0 mt-6 max-w-[52ch] text-ink-2">

@@ -53,9 +53,15 @@ export function SystemDownload() {
           Read the install guide
         </ButtonLink>
       </div>
-      <p className="m-0 mt-5 max-w-[44ch] text-ink-2">
-        Each release lists every file's SHA-256, so you can check what you downloaded. QuotaDial Free needs no key and comes with no
-        strings attached.{" "}
+      <p className="m-0 mt-5 max-w-[44ch]">
+        Builds are not signed yet, so your system warns you the first time.{" "}
+        <a href="#unsigned" className="underline underline-offset-[0.2em]">
+          The steps are below
+        </a>
+        .
+      </p>
+      <p className="m-0 mt-3 max-w-[44ch] text-ink-2">
+        Each release lists every file's SHA-256, so you can check what you downloaded. QuotaDial Free needs no key.{" "}
         <a href="/pro" className="text-ink underline underline-offset-[0.2em]">
           See what Pro adds
         </a>
