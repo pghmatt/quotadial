@@ -67,21 +67,22 @@ impl Licensing {
     }
 }
 
-/// What a copy with `tier` leaves out of its report: the accounts each provider held back at its
-/// last discovery, and, when `costs` says the daemon would read logs for an account, the week's
-/// cost. Nothing on QuotaDial Pro.
+/// What a copy with `tier` leaves out of its report, each part asked of [`Tier::allows`] for its
+/// own feature: the accounts each provider held back at its last discovery, and, when `costs` says
+/// the daemon would read logs for an account, the week's cost. Nothing on QuotaDial Pro.
 #[must_use]
 pub fn left_out<P: AsRef<dyn Provider>>(tier: Tier, providers: &[P], costs: bool) -> Vec<LeftOut> {
-    if tier == Tier::Pro {
-        return Vec::new();
+    let mut left_out = Vec::new();
+    if !tier.allows(ProFeature::Accounts) {
+        left_out.extend(
+            providers
+                .iter()
+                .map(AsRef::as_ref)
+                .filter(|provider| provider.held_back() > 0)
+                .map(|provider| LeftOut::accounts(provider.id(), provider.held_back())),
+        );
     }
-    let mut left_out: Vec<LeftOut> = providers
-        .iter()
-        .map(AsRef::as_ref)
-        .filter(|provider| provider.held_back() > 0)
-        .map(|provider| LeftOut::accounts(provider.id(), provider.held_back()))
-        .collect();
-    if costs {
+    if costs && !tier.allows(ProFeature::CostScan) {
         left_out.push(LeftOut::feature(ProFeature::CostScan));
     }
     left_out

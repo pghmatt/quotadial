@@ -519,6 +519,7 @@ oldest first. `org` and `scope_model` appear when the window has them.
 | `rules[].kind` | What it watches for: `threshold` (with `pct`), `reset`, `runs_out`, `before_reset` (with `minutes`, and `above_pct` when given) or `sign_in` |
 | `rules[].provider`, `rules[].window` | What it covers, when it names a provider or a window. Left out otherwise |
 | `rules[].enabled` | Whether it is on |
+| `rules[].waits` | `true` on QuotaDial Free for a kind of rule only Pro checks, which is kept but not checked until a key is added; the text says "(waits for Pro)". Left out otherwise |
 | `firings[]` | What the rules told in the last week, oldest first, at most the newest 100. Each names its rule, the account's provider, id and display name, the window (left out for a sign-in), its share used and reset then, and the title and text the notification showed |
 | `firings[].deliveries` | Where it was sent besides the notification: each webhook's host (`to`), whether it took it (`sent`), and if not, why (`error`). Left out when there are no webhooks |
 

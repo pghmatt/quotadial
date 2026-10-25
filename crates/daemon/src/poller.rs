@@ -63,7 +63,7 @@ struct Shared {
     /// What the providers' status pages last said (D-096).
     status_pages: RwLock<Vec<StatusPage>>,
     /// The week's cost of each provider, from the last scan of the logs (D-097).
-    costs: RwLock<Vec<Cost>>,
+    costs: RwLock<Costs>,
     /// What the copy leaves out because it is QuotaDial Free (D-100).
     left_out: RwLock<Vec<LeftOut>>,
     /// Woken when the licence may have changed, so the poller asks again at once.
@@ -72,6 +72,16 @@ struct Shared {
     changed: watch::Sender<()>,
     /// The newest firing of an alert rule to tell, so the tray app can tell it.
     fired: watch::Sender<i64>,
+}
+
+/// The week's costs, and the generation of scans that may still keep what they find. Clearing the
+/// costs, as when the copy becomes QuotaDial Free, starts a new generation, so a scan that was
+/// already reading keeps nothing (#56). Both happen under the one lock, so neither can slip between
+/// the other's check and change.
+#[derive(Debug, Default)]
+struct Costs {
+    generation: u64,
+    kept: Vec<Cost>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +122,7 @@ impl Latest {
             .costs
             .read()
             .unwrap_or_else(PoisonError::into_inner)
+            .kept
             .clone();
         report.left_out = self
             .0
@@ -143,9 +154,39 @@ impl Latest {
     }
 
     /// Keeps `costs` as the week's, and tells consumers.
-    fn set_costs(&self, costs: Vec<Cost>) {
-        *self.0.costs.write().unwrap_or_else(PoisonError::into_inner) = costs;
+    /// The generation a scan beginning now belongs to.
+    fn costs_generation(&self) -> u64 {
+        self.0
+            .costs
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .generation
+    }
+
+    /// Keeps `costs`, found by a scan that began in `generation`, and tells consumers, unless the
+    /// costs were cleared since the scan began. Returns whether they were kept.
+    fn set_costs(&self, generation: u64, costs: Vec<Cost>) -> bool {
+        let mut kept = self.0.costs.write().unwrap_or_else(PoisonError::into_inner);
+        if kept.generation != generation {
+            return false;
+        }
+        kept.kept = costs;
+        drop(kept);
         self.0.changed.send_replace(());
+        true
+    }
+
+    /// Clears the costs and starts a new generation, so a scan already reading keeps nothing, and
+    /// tells consumers when there were costs to clear.
+    fn clear_costs(&self) {
+        let mut kept = self.0.costs.write().unwrap_or_else(PoisonError::into_inner);
+        kept.generation += 1;
+        let had = !kept.kept.is_empty();
+        kept.kept.clear();
+        drop(kept);
+        if had {
+            self.0.changed.send_replace(());
+        }
     }
 
     /// Keeps `page` as its provider's status, and tells consumers.
@@ -372,11 +413,12 @@ impl Poller {
         let now = Instant::now();
         let tier = self.licensing.tier();
         if self.tier != Some(tier) {
-            // A licence added, removed or ended: the accounts shown, the cost scan and what the
-            // copy leaves out change now.
+            // A licence added, removed or ended: the accounts shown, the cost scan, the history
+            // kept and what the copy leaves out change now, not at their next round (#56).
             self.tier = Some(tier);
             self.discover_at = now;
             self.costs_at = now;
+            self.prune_at = now;
         }
         if now >= self.prune_at {
             // QuotaDial Free keeps 30 days whatever the setting says. A failed prune is retried
@@ -439,15 +481,13 @@ impl Poller {
     /// Reads what the logs of the providers the poller has accounts with gained, in its own task
     /// off the async runtime, unless a scan is still reading, and keeps the week's costs. A scan
     /// that fails keeps the last costs, which carry their age. On QuotaDial Free the logs are not
-    /// read, and no costs are shown.
+    /// read, no costs are shown, and a scan that began on Pro keeps nothing of what it finds.
     fn scan_costs(&self, tier: Tier) {
         let Some(scan) = self.costs.clone() else {
             return;
         };
         if !tier.allows(ProFeature::CostScan) {
-            if !self.latest.report().costs.is_empty() {
-                self.latest.set_costs(Vec::new());
-            }
+            self.latest.clear_costs();
             return;
         }
         let Ok(scanning) = Arc::clone(&self.scanning).try_lock_owned() else {
@@ -465,6 +505,7 @@ impl Poller {
             .map(|(_, provider)| Arc::clone(provider))
             .collect();
         let latest = self.latest.clone();
+        let generation = latest.costs_generation();
         tokio::spawn(async move {
             let found = tokio::task::spawn_blocking(move || {
                 let folders: Vec<(String, Vec<PathBuf>)> = providers
@@ -475,7 +516,7 @@ impl Poller {
             })
             .await;
             if let Ok(Ok(costs)) = found {
-                latest.set_costs(costs);
+                latest.set_costs(generation, costs);
             }
             drop(scanning);
         });
@@ -966,6 +1007,18 @@ mod tests {
         )
     }
 
+    /// Waits, in real time, until `done`, failing after `seconds`.
+    async fn within(seconds: u64, done: impl Fn() -> bool) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(seconds);
+        while !done() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "not within {seconds} s"
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
     /// Waits up to 10 seconds for the poller's costs to be other than empty.
     async fn costs_of(poller: &Poller) -> Vec<Cost> {
         for _ in 0..200 {
@@ -1292,8 +1345,9 @@ mod tests {
             "and says so where the cost would be"
         );
 
+        // The next round reads them; how soon a running poller has that round is
+        // `a_nudge_wakes_a_running_poller_at_once`.
         crate::test_support::pro(dir.path());
-        poller.latest().nudge();
         poller.poll_due().await;
 
         assert_eq!(
@@ -1302,6 +1356,112 @@ mod tests {
             "read at once, with no restart"
         );
         assert!(poller.latest().report().left_out.is_empty());
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the lock is held on purpose, to keep the scan reading on its blocking thread"
+    )]
+    async fn a_scan_that_began_on_pro_keeps_nothing_once_the_key_lapses() {
+        let (dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        *codex.logs.lock().expect("lock") = vec![codex_log(dir.path())];
+        let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        crate::test_support::pro(dir.path());
+        let mut poller = poller_with(
+            vec![Arc::clone(&codex)],
+            history,
+            Licensing::new(Some(&data)),
+        )
+        .with_costs(scan);
+
+        // A scan first asks the provider where its logs are, so holding them keeps it reading.
+        let held = codex.logs.lock().expect("lock");
+        poller.poll_due().await;
+        crate::licence::remove(&data).expect("removes the key");
+        poller.poll_due().await;
+        drop(held);
+        // The scan has finished once it lets go of the lock it holds while reading.
+        drop(Arc::clone(&poller.scanning).lock_owned().await);
+
+        let report = poller.latest().report();
+        assert!(
+            report.costs.is_empty(),
+            "a scan that began on Pro keeps nothing on Free: {:?}",
+            report.costs
+        );
+        assert_eq!(report.left_out, [LeftOut::feature(ProFeature::CostScan)]);
+    }
+
+    #[tokio::test]
+    async fn a_lapsed_key_keeps_free_s_30_days_at_once() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = Arc::new(
+            History::open(&dir.path().join("history.db"))
+                .expect("opens")
+                .keeping(90),
+        );
+        let codex = Arc::new(Scripted::new("codex", 2));
+        // An account the provider no longer has, so only this old reading is its.
+        let account = account("codex", "gone");
+        let mut old = snapshot(&account, 40.0, 0, Source::Api);
+        old.windows[0].fetched_at = Utc::now() - TimeDelta::days(60);
+        history
+            .record(&old, old.windows[0].fetched_at)
+            .expect("records");
+        let window = old.windows[0].clone();
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        crate::test_support::pro(dir.path());
+        let mut poller = poller_with(
+            vec![Arc::clone(&codex)],
+            Arc::clone(&history),
+            Licensing::new(Some(&data)),
+        );
+
+        poller.poll_due().await;
+        let kept = history.readings(&account, &window, None).expect("reads");
+        assert_eq!(kept.len(), 1, "Pro keeps 90 days");
+
+        crate::licence::remove(&data).expect("removes the key");
+        poller.poll_due().await;
+
+        let kept = history.readings(&account, &window, None).expect("reads");
+        assert!(
+            kept.is_empty(),
+            "Free keeps 30 days from the moment the key goes, not from the next hourly prune"
+        );
+    }
+
+    // Real time: within the seconds this waits, nothing but the nudge can wake the poller, whose
+    // next round is a minute away.
+    #[tokio::test]
+    async fn a_nudge_wakes_a_running_poller_at_once() {
+        let (dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        *codex.logs.lock().expect("lock") = vec![codex_log(dir.path())];
+        let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        let poller = poller_with(
+            vec![Arc::clone(&codex)],
+            history,
+            Licensing::new(Some(&data)),
+        )
+        .with_costs(scan);
+        let latest = poller.latest();
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        let running = tokio::spawn(poller.run(async {
+            let _ = stopped.await;
+        }));
+        within(5, || !latest.report().left_out.is_empty()).await;
+
+        crate::test_support::pro(dir.path());
+        latest.nudge();
+
+        within(5, || !latest.report().costs.is_empty()).await;
+        let _ = stop.send(());
+        running.await.expect("stops");
     }
 
     #[tokio::test(start_paused = true)]

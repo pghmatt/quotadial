@@ -687,6 +687,7 @@ mod tests {
                 enabled: true,
                 rule: quotadial_core::Rule::parse("warn me at 80%").expect("reads"),
                 created_at: at("2099-01-01T00:00:00Z"),
+                waits: false,
             }],
             firings: Vec::new(),
         }
