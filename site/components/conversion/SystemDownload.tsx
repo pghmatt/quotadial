@@ -1,27 +1,12 @@
 "use client";
 
-import { DownloadSimple } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { DOWNLOAD_PAGE, DOWNLOADS, type System } from "../../lib/data/release.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { ButtonLink } from "../Button.tsx";
+import { DownloadButton, detectSystem } from "../DownloadButton.tsx";
 import { InlineCode } from "./InlineCode.tsx";
-
-/** The visitor's system, as well as the browser says it (a phone is no system QuotaDial runs on). */
-function detect(): System | null {
-  const agent = navigator.userAgent;
-  if (/Mac OS X|Macintosh/.test(agent) && !/iPhone|iPad/.test(agent)) {
-    return "macos";
-  }
-  if (/Windows/.test(agent)) {
-    return "windows";
-  }
-  if (/Linux|X11/.test(agent) && !/Android/.test(agent)) {
-    return "linux";
-  }
-  return null;
-}
 
 function fileFor(system: System, index = 0): string {
   return DOWNLOADS.find((download) => download.system === system)?.files[index]?.name ?? "";
@@ -52,8 +37,7 @@ function Need({ system }: { system: System }) {
  */
 export function SystemDownload() {
   const [system, setSystem] = useState<System | null>(null);
-  useEffect(() => setSystem(detect()), []);
-  const label = system ? DOWNLOADS.find((download) => download.system === system)?.label : null;
+  useEffect(() => setSystem(detectSystem()), []);
   return (
     <>
       <p className="m-0 mt-5 max-w-[36ch] text-[1.25rem] leading-[1.4] text-ink-2">
@@ -64,15 +48,7 @@ export function SystemDownload() {
         )}
       </p>
       <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
-        <ButtonLink
-          href={DOWNLOAD_PAGE}
-          data-primary-action=""
-          data-event="download_click"
-          data-event-system={system ?? "unknown"}
-        >
-          <DownloadSimple size={20} aria-hidden />
-          {label ? `Download for ${label}` : "Download QuotaDial"}
-        </ButtonLink>
+        <DownloadButton href={DOWNLOAD_PAGE} />
         <ButtonLink variant="text" href={SITE.installGuide}>
           Read the install guide
         </ButtonLink>

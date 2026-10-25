@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { longDay, receiptKey, requestKey, UNREACHED, UNREADABLE } from "./key-state.ts";
+import { longDay, receiptKey, requestKey, UNREACHED, UNREADABLE } from "../components/conversion/key-state.ts";
+import { PRO_ROWS } from "../components/conversion/pro-rows.ts";
+import { PRO_ADDS } from "../lib/data/pro.ts";
 
 const RECEIPT = "11111111-1111-4111-8111-111111111111";
 const LICENCE = { id: "ls-1", issued: "2026-10-25" };
@@ -77,4 +81,70 @@ test("a licence's day is written as people write it", () => {
   assert.equal(longDay("2026-10-25"), "25 October 2026");
   assert.equal(longDay("2027-01-01"), "1 January 2027");
   assert.equal(longDay("soon"), "soon");
+});
+
+/** The words the app lists, down to where its own "not" clause begins. */
+const lead = (what: string) => what.split(", not ")[0].toLowerCase();
+
+test("the Pro table has the app's seven features, in its order, in its words", () => {
+  assert.equal(PRO_ROWS.length, PRO_ADDS.length);
+  PRO_ROWS.forEach((row, index) => {
+    assert.equal(row.feature.toLowerCase(), lead(PRO_ADDS[index]));
+  });
+});
+
+test("no row is empty, and none carries a price or a dash", () => {
+  for (const row of PRO_ROWS) {
+    for (const text of [row.feature, row.free, row.changes]) {
+      assert.ok(text.trim().length > 0);
+      assert.doesNotMatch(text, /[$£€]|per month|lifetime/i);
+      assert.doesNotMatch(text, /[–—]/);
+    }
+  }
+});
+
+/** The conversion lane's own files: three pages and their components. */
+function conversionFiles(): { name: string; text: string }[] {
+  const root = new URL("../", import.meta.url).pathname;
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+      } else if (/\.(tsx?|css)$/.test(entry.name)) {
+        files.push(path);
+      }
+    }
+  };
+  for (const dir of ["app/download", "app/pro", "app/key", "components/conversion"]) {
+    walk(join(root, dir));
+  }
+  return files.map((path) => ({ name: path.slice(root.length), text: readFileSync(path, "utf8") }));
+}
+
+test("the three pages carry no price, no dash and no empty call to action", () => {
+  const files = conversionFiles().filter((file) => !file.name.endsWith(".test.ts"));
+  assert.ok(files.length >= 8, "the lane's files were found");
+  for (const { name, text } of files) {
+    assert.doesNotMatch(text, /[\u2013\u2014]/, `${name} has a dash`);
+    assert.doesNotMatch(text, /[$£€]\s?\d|\d\s?(?:dollars|pounds|euros)|per month|lifetime|Pro price/i, `${name} has a price`);
+    assert.doesNotMatch(text, /get started|learn more/i, `${name} has a call to action that names nothing`);
+    assert.doesNotMatch(text, /\b(?:quota|auth|credentials?|endpoints?|polls?)\b(?!dial)/i, `${name} uses a word the product avoids`);
+  }
+});
+
+test("the key page keeps the receipt's key out of the address and the log", () => {
+  const flow = readFileSync(new URL("../components/conversion/KeyFlow.tsx", import.meta.url), "utf8");
+  assert.match(flow, /history\.replaceState\(null, "", window\.location\.pathname \+ window\.location\.search\)/);
+  assert.doesNotMatch(flow, /console\./);
+  assert.doesNotMatch(flow, /localStorage|sessionStorage|document\.cookie/);
+});
+
+test("the key page is not indexed and /pro offers a checkout only through the checked link", () => {
+  const key = readFileSync(new URL("../app/key/page.tsx", import.meta.url), "utf8");
+  assert.match(key, /noindex: true/);
+  const pro = readFileSync(new URL("../app/pro/page.tsx", import.meta.url), "utf8");
+  assert.match(pro, /SITE\.checkout/);
+  assert.doesNotMatch(pro, /process\.env/);
 });

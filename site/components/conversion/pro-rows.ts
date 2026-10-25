@@ -2,7 +2,7 @@
  * What QuotaDial Pro adds, one row per feature, in the order the app lists them. `feature` is the
  * app's own phrase (crates/core/src/tier.rs, `ProFeature::what`) up to its "not" half, which `free`
  * says as what a Free copy has (docs/CLI.md, QuotaDial Free and Pro). `changes` is what the feature
- * does for the reader. pro-rows.test.ts holds the seven to lib/data/pro.ts.
+ * does for the reader. test/conversion.test.ts holds the seven to lib/data/pro.ts.
  */
 
 export interface ProRow {
