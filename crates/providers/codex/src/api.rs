@@ -209,6 +209,11 @@ mod tests {
 
     const SENT: &str = "opaque-token-0123456789";
 
+    #[test]
+    fn the_usage_endpoint_is_named_in_what_quotadial_sends() {
+        assert!(quotadial_core::privacy::named(DEFAULT_BASE_URL));
+    }
+
     fn body(value: &Value) -> Result<Vec<u8>, String> {
         Ok(value.to_string().into_bytes())
     }

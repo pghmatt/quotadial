@@ -92,6 +92,8 @@ export interface Settings {
   /** Whether this copy is QuotaDial Free or Pro; it changes through `add_licence` and
    * `remove_licence`. */
   licence: LicenceView;
+  /** Whether the app asks GitHub once a day for a newer version. */
+  check_updates: boolean;
 }
 
 export interface LicenceView {
@@ -180,6 +182,25 @@ export interface HelpView {
   support: string;
   /** Whose work QuotaDial uses, and under which licence. */
   credits: string[];
+  /** What QuotaDial reads and sends, the same text as the README's and the website's. */
+  privacy: Block[];
+}
+
+/** A paragraph or a list of a text Help shows, in plain words. */
+export type Block = { kind: "paragraph"; text: string } | { kind: "list"; items: string[] };
+
+/** Where updates stand, as `updates` returns them and the `update` event sends them. */
+export interface UpdateView {
+  /** One sentence, such as "QuotaDial 0.2.0 is the newest version. Checked 3 min ago." */
+  text: string;
+  /** The newer version on offer, which `install_update` installs. */
+  available: string | null;
+  /** What changed in it, a line each. */
+  notes: string[];
+  /** Whether a check, a download or an install is under way. */
+  busy: boolean;
+  /** How far a download has got, from 0 to 100, once its size is known. */
+  progress: number | null;
 }
 
 export interface WhatsNew {

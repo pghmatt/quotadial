@@ -2,6 +2,8 @@
 //! runs one itself ([`feed`]), so the CLI and the MCP server read its numbers and nothing polls
 //! twice. The tray shows the tightest window's share used, its menu and tooltip every account, and
 //! clicking it opens a popover beside it with every window, each number with its reset and age.
+//! It keeps itself up to date from QuotaDial's GitHub releases when the person chooses
+//! ([`updates`]).
 
 mod alerts;
 mod feed;
@@ -10,6 +12,7 @@ mod history;
 mod icon;
 mod meter;
 mod settings;
+mod updates;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -33,6 +36,7 @@ use crate::alerts::{TELL_WITHIN, Told};
 use crate::feed::{Role, Timing, Update};
 use crate::meter::Meter;
 use crate::settings::{LicenceView, Settings, account_key, carry_over, licence_view};
+use crate::updates::{Record, Trigger, UpdateView, Updates};
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -72,6 +76,22 @@ struct AppState {
     /// Notified when Settings adds or removes a licence key, so the daemon the app runs acts on
     /// it at once.
     licence_changed: Arc<Notify>,
+    /// Whether there is a newer version, and the one on offer.
+    updates: Mutex<Updates>,
+    /// What the app does once its daemon has stopped.
+    after_stop: Mutex<AfterStop>,
+}
+
+/// What the app does once its daemon has stopped.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum AfterStop {
+    /// Exits, as when the person quits.
+    #[default]
+    Exit,
+    /// Starts again, as the new version an update installed.
+    Restart,
+    /// Stays without it, while Windows' installer takes over and closes the app.
+    Stay,
 }
 
 /// How the popover was opened, which decides whether losing focus closes it.
@@ -89,6 +109,8 @@ enum Opened {
 struct Files {
     settings: PathBuf,
     told: PathBuf,
+    /// When updates were last checked for, and what was offered and told (D-103).
+    updates: PathBuf,
     /// Where M3 kept the notifications it sent, which the alert rules' firings replace (D-093).
     sent_before: PathBuf,
 }
@@ -136,6 +158,8 @@ struct SettingsView {
     /// Whether the copy is QuotaDial Free or Pro, from its licence key. It changes through its own
     /// commands, not `set_settings`.
     licence: LicenceView,
+    /// Whether the app asks GitHub once a day for a newer version (D-103).
+    check_updates: bool,
 }
 
 /// An alert rule the user can turn on or off, or remove.
@@ -190,6 +214,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
     }
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+        check_updates: settings.check_updates,
         licence: licence_view(dir.as_ref(), quotadial_core::licence::today()),
         alert_targets: config
             .webhooks
@@ -283,6 +308,7 @@ fn set_settings(
             .map(|provider| provider.id.clone())
             .collect(),
         aliases,
+        check_updates: view.check_updates,
     };
     if let Some(files) = &state.files {
         settings
@@ -294,6 +320,8 @@ fn set_settings(
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = settings;
     refresh(&app);
+    // Help says whether the daily check is on.
+    updates::emit(&app);
     Ok(self::settings(app.clone(), state))
 }
 
@@ -414,7 +442,28 @@ fn help() -> help::HelpView {
             .iter()
             .map(|credit| (*credit).to_owned())
             .collect(),
+        privacy: help::blocks(quotadial_core::privacy::PRIVACY),
     }
+}
+
+/// Where updates stand: the popover asks when it opens; after that it hears the `update` event.
+#[tauri::command]
+fn updates(app: AppHandle) -> UpdateView {
+    updates::view(&app)
+}
+
+/// Asks GitHub now whether there is a newer version, whether or not the daily check is on.
+#[tauri::command]
+async fn check_for_updates(app: AppHandle) -> UpdateView {
+    updates::check(&app, Trigger::ByHand).await;
+    updates::view(&app)
+}
+
+/// Downloads and installs the version on offer, then starts the app again as it. How it goes is
+/// told through the `update` event.
+#[tauri::command]
+async fn install_update(app: AppHandle) {
+    updates::install(&app).await;
 }
 
 /// Opens a new GitHub issue in the person's browser with what `quotadial doctor` prints filled in,
@@ -587,6 +636,7 @@ pub fn run() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -607,7 +657,10 @@ pub fn run() {
             send_feedback,
             open_link,
             history,
-            export_history
+            export_history,
+            updates,
+            check_for_updates,
+            install_update
         ])
         .on_window_event(|window, event| match event {
             // Closing the popover hides it; the app lives in the tray until it is quit.
@@ -643,6 +696,7 @@ pub fn run() {
             let files = app.path().app_config_dir().ok().map(|folder| Files {
                 settings: folder.join("settings.json"),
                 told: folder.join("alerts.json"),
+                updates: folder.join("updates.json"),
                 sent_before: folder.join("notified.json"),
             });
             let settings = files
@@ -665,6 +719,10 @@ pub fn run() {
                 });
             }
             let licence_changed = Arc::new(Notify::new());
+            let record = files
+                .as_ref()
+                .map(|files| Record::load(&files.updates))
+                .unwrap_or_default();
             app.manage(AppState {
                 known: Mutex::default(),
                 quit,
@@ -676,6 +734,8 @@ pub fn run() {
                 told: Mutex::new(told),
                 files,
                 licence_changed: Arc::clone(&licence_changed),
+                updates: Mutex::new(Updates::new(record)),
+                after_stop: Mutex::default(),
             });
             // What a rule told just before the app last stopped, and the app had not yet shown.
             tell(app.handle());
@@ -688,6 +748,7 @@ pub fn run() {
                     refresh(&handle);
                 }
             });
+            tauri::async_runtime::spawn(updates::schedule(app.handle().clone()));
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -724,6 +785,33 @@ fn stop_before_exit(app: &AppHandle) {
     tauri::async_runtime::block_on(async {
         let _ = tokio::time::timeout(EXIT_WAIT, stopped.wait_for(|stopped| *stopped)).await;
     });
+}
+
+/// Stops the daemon the app runs or follows, then does `after` (D-103): an update restarts the app
+/// as its new version, and on Windows hands over to the installer. If the daemon takes longer than
+/// [`EXIT_WAIT`] to stop, a restart goes ahead and the operating system releases the lock.
+async fn stop_daemon(app: &AppHandle, after: AfterStop) {
+    let state = app.state::<AppState>();
+    *state
+        .after_stop
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = after;
+    let mut stopped = state.stopped.clone();
+    if *stopped.borrow() {
+        // No daemon was running, so nothing will act on `after` but this.
+        if after == AfterStop::Restart {
+            app.request_restart();
+        }
+        return;
+    }
+    let _ = state.quit.send(true);
+    let in_time = tokio::time::timeout(EXIT_WAIT, stopped.wait_for(|stopped| *stopped))
+        .await
+        .is_ok();
+    // In time, the feed acted on `after` itself.
+    if !in_time && after == AfterStop::Restart {
+        app.request_restart();
+    }
 }
 
 /// The daemon's history, opened alongside the daemon the app runs or follows, for the alert rules
@@ -765,7 +853,16 @@ fn start_feed(
         )
         .await;
         let _ = stopped.send(true);
-        app.exit(0);
+        let after = *app
+            .state::<AppState>()
+            .after_stop
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        match after {
+            AfterStop::Exit => app.exit(0),
+            AfterStop::Restart => app.request_restart(),
+            AfterStop::Stay => {}
+        }
     });
 }
 
@@ -870,6 +967,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     tell_problem(app, &problem);
                 }
             }
+            "updates" => {
+                show_popover(app, Opened::ByClick);
+                let _ = app.emit("panel", "help");
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    updates::check(&app, Trigger::ByHand).await;
+                });
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -937,6 +1042,7 @@ fn tray_menu(app: &AppHandle, meter: &Meter) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(app, "help", "What's New and About", true, None::<&str>)?,
             &MenuItem::with_id(app, "feedback", "Send Feedback…", true, None::<&str>)?,
             &MenuItem::with_id(app, "support", "Write to Support", true, None::<&str>)?,
+            &MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?,
         ],
     )?)?;
     menu.append(&MenuItem::with_id(

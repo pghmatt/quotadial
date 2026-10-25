@@ -125,8 +125,16 @@ jobs:
           fi
       - name: Lint scripts
         run: shellcheck scripts/*.sh
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Test scripts
+        run: node --test scripts/*.test.mjs
       - name: The public PRD has no private content
         run: scripts/public-prd.sh --check
+      # What QuotaDial reads and sends is one text (D-106): the README carries docs/PRIVACY.md.
+      - name: The README's privacy section is docs/PRIVACY.md
+        run: scripts/privacy.sh --check
       # A release's notes come from its section of CHANGELOG.md (D-101), so the version being built
       # must have one.
       - name: The changelog has notes for this version

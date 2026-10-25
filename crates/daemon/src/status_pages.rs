@@ -155,6 +155,13 @@ impl History {
 mod tests {
     use super::*;
 
+    #[test]
+    fn every_status_page_is_named_in_what_quotadial_sends() {
+        for (_, url) in STATUS_PAGES {
+            assert!(quotadial_core::privacy::named(url), "{url}");
+        }
+    }
+
     fn at(text: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(text)
             .expect("valid timestamp")

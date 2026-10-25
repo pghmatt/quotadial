@@ -4,8 +4,8 @@ import { useEffect, useState } from "preact/hooks";
 import type { Settings } from "./meter";
 
 /**
- * The settings panel: opening at login, the alert rules, which providers to show, the names given
- * to accounts, and the licence key.
+ * The settings panel: opening at login, the daily check for updates, the alert rules, which
+ * providers to show, the names given to accounts, and the licence key.
  */
 export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -74,6 +74,21 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
         />
         Open QuotaDial when I log in
       </label>
+      <label class="choice">
+        <input
+          type="checkbox"
+          checked={settings.check_updates}
+          aria-describedby="check-updates-detail"
+          onChange={(event) =>
+            change({ ...settings, check_updates: event.currentTarget.checked })
+          }
+        />
+        Check for updates once a day
+      </label>
+      <p class="detail choice-detail" id="check-updates-detail">
+        Asks GitHub whether there is a newer QuotaDial, sending nothing about you or your usage. An
+        update installs only when you choose it, from Help or the popover.
+      </p>
       <fieldset>
         <legend>Alerts</legend>
         {settings.alerts.map((alert) => (

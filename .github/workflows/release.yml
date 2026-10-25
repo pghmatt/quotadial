@@ -1,8 +1,10 @@
 # Builds QuotaDial for every system: the CLI on its own, and the tray app with the CLI inside it
 # (a universal dmg, an msi, a deb and an AppImage). A tag such as v0.1.0 drafts a GitHub release
-# with every file attached; running the workflow by hand builds the same files as workflow
-# artifacts, without a release. The builds are not signed until M5 (D-065); docs/INSTALL.md says
-# how to open them.
+# with every file attached, their SHA-256 checksums and, when the updater key is set, the
+# latest.json the app's updater reads (D-103); running the workflow by hand builds the same files as
+# workflow artifacts, without a release. Each kind of signing runs only when its secrets are set,
+# and a build without them is unsigned as before (scripts/release-signing.sh): docs/RELEASE.md names
+# every secret, and docs/INSTALL.md says how to open an unsigned build.
 name: Release
 
 on:
@@ -44,15 +46,17 @@ jobs:
         run: cargo build --release --locked -p quotadial --target ${{ matrix.target }}
       - name: Package
         shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then version="$GITHUB_REF_NAME"; else version="dev-${GITHUB_SHA::7}"; fi
-          name="quotadial-${version}-${{ matrix.target }}"
+          name="quotadial-${version}-${TARGET}"
           ext=""
-          if [[ "${{ matrix.target }}" == *windows* ]]; then ext=".exe"; fi
+          if [[ "$TARGET" == *windows* ]]; then ext=".exe"; fi
           mkdir -p "package/${name}" dist
-          cp "target/${{ matrix.target }}/release/quotadial${ext}" "package/${name}/"
-          cp "target/${{ matrix.target }}/release/qd${ext}" "package/${name}/"
+          cp "target/${TARGET}/release/quotadial${ext}" "package/${name}/"
+          cp "target/${TARGET}/release/qd${ext}" "package/${name}/"
           cp README.md LICENSE NOTICE "package/${name}/"
           if [[ -n "$ext" ]]; then
             (cd package && 7z a "../dist/${name}.zip" "${name}" > /dev/null)
@@ -73,27 +77,34 @@ jobs:
       matrix:
         include:
           # One dmg for Apple silicon and Intel Macs, with the CLI inside built for both.
+          # The updater's files come too when the updater key is set: the app as a .tar.gz on macOS,
+          # and each file's .sig.
           - name: macos-universal
             os: macos-latest
             targets: aarch64-apple-darwin,x86_64-apple-darwin
             args: --target universal-apple-darwin
-            bundles: apps/tray/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            bundles: |
+              apps/tray/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+              apps/tray/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
           - name: windows-x64
             os: windows-latest
             targets: x86_64-pc-windows-msvc
             args: ""
-            bundles: apps/tray/src-tauri/target/release/bundle/msi/*.msi
+            bundles: apps/tray/src-tauri/target/release/bundle/msi/*.msi*
           # The oldest supported Ubuntu, so the deb and the AppImage run on as many systems as can be.
           - name: linux-x64
             os: ubuntu-22.04
             targets: x86_64-unknown-linux-gnu
             args: ""
             bundles: |
-              apps/tray/src-tauri/target/release/bundle/deb/*.deb
-              apps/tray/src-tauri/target/release/bundle/appimage/*.AppImage
+              apps/tray/src-tauri/target/release/bundle/deb/*.deb*
+              apps/tray/src-tauri/target/release/bundle/appimage/*.AppImage*
     defaults:
       run:
         working-directory: apps/tray
+    env:
+      # Whether Windows is signed: a flag made from the secrets, never their values.
+      WINDOWS_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' && vars.AZURE_SIGNING_ENDPOINT != '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -115,10 +126,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+      - name: The signing tool for Azure Artifact Signing
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING == 'true'
+        run: cargo install artifact-signing-cli --version 0.12.0 --locked
       - name: Build the app and its installer
+        shell: bash
+        env:
+          # Each reaches Tauri only when it is set (scripts/release-signing.sh, docs/RELEASE.md).
+          QD_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          QD_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          QD_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          QD_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          QD_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          QD_APPLE_ID: ${{ secrets.APPLE_ID }}
+          QD_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          QD_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          QD_AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          QD_AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          QD_AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          QD_AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          QD_AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          QD_AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
         run: |
+          set -euo pipefail
           npm ci
-          npx tauri build ${{ matrix.args }}
+          source ../../scripts/release-signing.sh
+          npx tauri build ${{ matrix.args }} --config "$SIGNING_CONFIG"
       - uses: actions/upload-artifact@v7
         with:
           name: quotadial-app-${{ matrix.name }}
@@ -132,21 +165,50 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # What the app job signed, for the notes: flags made from the secrets, never their values.
+      MAC_SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+      WINDOWS_SIGNED: ${{ secrets.AZURE_CLIENT_ID != '' && vars.AZURE_SIGNING_ENDPOINT != '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: The updater's latest.json and every file's checksum
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # The notes are the version's section of CHANGELOG.md (D-101); a tag with none fails here.
+          scripts/release-notes.sh "$version" > changes.md
+          # The app the updater installs on macOS is named for its version, as the dmg is.
+          find dist -name 'QuotaDial.app.tar.gz*' -print0 | while IFS= read -r -d '' file; do
+            mv "$file" "$(dirname "$file")/QuotaDial_${version}_universal.app.tar.gz${file##*.app.tar.gz}"
+          done
+          # Only a release built with the updater key has signatures, and so a latest.json.
+          node scripts/updater-manifest.mjs dist "$version" changes.md dist/latest.json
+          # Named as the release names them, so `sha256sum -c` runs in a folder of downloads.
+          find dist -type f -print0 | while IFS= read -r -d '' file; do
+            (cd "$(dirname "$file")" && sha256sum "$(basename "$file")")
+          done | sort -k 2 > SHA256SUMS.txt
+          mv SHA256SUMS.txt dist/
       - name: Draft a pre-release with every file
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The notes are the version's section of CHANGELOG.md (D-101); a tag with none fails here.
+          case "$MAC_SIGNED/$WINDOWS_SIGNED" in
+            true/true) signed="Signed and notarized for macOS, and signed for Windows." ;;
+            true/false) signed="Signed and notarized for macOS. The Windows installer is not signed yet: docs/INSTALL.md says how to open it." ;;
+            false/true) signed="Signed for Windows. The macOS app is not signed yet: docs/INSTALL.md says how to open it." ;;
+            *) signed="Pre-release builds, not signed yet. docs/INSTALL.md says how to open them on each system." ;;
+          esac
           {
-            echo "Pre-release builds, not signed yet. docs/INSTALL.md says how to open them on each system."
+            echo "$signed"
             echo
-            scripts/release-notes.sh "${GITHUB_REF_NAME#v}"
+            cat changes.md
           } > notes.md
           # The artifacts keep their folders (deb/, appimage/), so collect the files themselves.
           mapfile -t files < <(find dist -type f | sort)

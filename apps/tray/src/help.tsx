@@ -1,13 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
-import type { HelpView } from "./meter";
+import type { HelpView, UpdateView } from "./meter";
+import { UpdateStatus } from "./update";
 
 /**
- * Help: what is new in this version, Send feedback, the support address, and About. Links open in
- * the person's own browser or mail app, and only the ones named here.
+ * Help: what is new in this version, Send feedback, the support address, About with updates, and
+ * what QuotaDial reads and sends. Links open in the person's own browser or mail app, and only
+ * the ones named here.
  */
-export function HelpPanel({ onDone }: { onDone: () => void }) {
+export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDone: () => void }) {
   const [help, setHelp] = useState<HelpView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -70,6 +72,7 @@ export function HelpPanel({ onDone }: { onDone: () => void }) {
         <p>
           QuotaDial {help.version}. {help.licence}
         </p>
+        {update && <UpdateStatus update={update} />}
         {help.credits.map((credit) => (
           <p class="detail" key={credit}>
             {credit}
@@ -78,6 +81,20 @@ export function HelpPanel({ onDone }: { onDone: () => void }) {
         <button type="button" class="link" onClick={() => run("open_link", { link: "site" })}>
           quotadial.com
         </button>
+      </section>
+      <section class="privacy" aria-label="What QuotaDial reads and sends">
+        <h3>What QuotaDial reads and sends</h3>
+        {help.privacy.map((block, index) =>
+          block.kind === "paragraph" ? (
+            <p key={index}>{block.text}</p>
+          ) : (
+            <ul key={index}>
+              {block.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ),
+        )}
       </section>
       {problem && (
         <p class="note" role="alert">

@@ -1,7 +1,8 @@
 //! The app's Help (D-101): what is new in this version, read from the `CHANGELOG.md` built into the
 //! app, so it needs no network; Send feedback, which opens a new GitHub issue with what
-//! `quotadial doctor` prints filled in; the support address; and About, with the version, the
-//! licence and the credits.
+//! `quotadial doctor` prints filled in; the support address; About, with the version, the licence
+//! and the credits; and what QuotaDial reads and sends, the one text the README and the website
+//! also show (D-106).
 
 use serde::Serialize;
 
@@ -21,6 +22,16 @@ pub struct HelpView {
     pub support: String,
     /// Whose work QuotaDial uses, and under which licence.
     pub credits: Vec<String>,
+    /// What QuotaDial reads and sends, from `docs/PRIVACY.md`.
+    pub privacy: Vec<Block>,
+}
+
+/// A paragraph or a list of a text Help shows, in plain words.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Block {
+    Paragraph { text: String },
+    List { items: Vec<String> },
 }
 
 /// One version's part of the changelog.
@@ -88,8 +99,50 @@ pub fn whats_new(changelog: &str, version: &str) -> WhatsNew {
     }
 }
 
+/// `markdown`, such as `docs/PRIVACY.md`, as paragraphs and lists in plain words, without its
+/// headings. A list item's wrapped lines join it.
+#[must_use]
+pub fn blocks(markdown: &str) -> Vec<Block> {
+    fn end_paragraph(lines: &mut Vec<&str>, blocks: &mut Vec<Block>) {
+        if !lines.is_empty() {
+            blocks.push(Block::Paragraph {
+                text: plain(&lines.join(" ")),
+            });
+            lines.clear();
+        }
+    }
+    fn end_list(items: &mut Vec<String>, blocks: &mut Vec<Block>) {
+        if !items.is_empty() {
+            blocks.push(Block::List {
+                items: items.drain(..).map(|item| plain(&item)).collect(),
+            });
+        }
+    }
+    let mut blocks = Vec::new();
+    let mut lines = Vec::new();
+    let mut items: Vec<String> = Vec::new();
+    for line in markdown.lines() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            end_paragraph(&mut lines, &mut blocks);
+            end_list(&mut items, &mut blocks);
+        } else if let Some(item) = line.strip_prefix("- ") {
+            end_paragraph(&mut lines, &mut blocks);
+            items.push(item.trim().to_owned());
+        } else if let (true, Some(item)) = (line.starts_with("  "), items.last_mut()) {
+            item.push(' ');
+            item.push_str(line.trim());
+        } else {
+            end_list(&mut items, &mut blocks);
+            lines.push(line.trim());
+        }
+    }
+    end_paragraph(&mut lines, &mut blocks);
+    end_list(&mut items, &mut blocks);
+    blocks
+}
+
 /// `markdown` as plain text: code, bold and links lose their marks, and a link keeps its words.
-fn plain(markdown: &str) -> String {
+pub(crate) fn plain(markdown: &str) -> String {
     let mut text = String::with_capacity(markdown.len());
     let mut rest = markdown;
     while let Some(start) = rest.find('[') {
@@ -172,6 +225,48 @@ mod tests {
                 .iter()
                 .all(|item| !item.contains('`') && !item.contains("]("))
         }));
+    }
+
+    #[test]
+    fn what_quotadial_sends_reads_as_paragraphs_and_one_list_of_every_destination() {
+        let shown = blocks(quotadial_core::privacy::PRIVACY);
+
+        let lists: Vec<&Vec<String>> = shown
+            .iter()
+            .filter_map(|block| match block {
+                Block::List { items } => Some(items),
+                Block::Paragraph { .. } => None,
+            })
+            .collect();
+        assert_eq!(lists.len(), 1, "{shown:?}");
+        assert_eq!(lists[0].len(), 5);
+        assert!(lists[0][0].starts_with("api.anthropic.com, with your Claude Code sign-in"));
+        for host in quotadial_core::privacy::HOSTS {
+            assert!(lists[0].iter().any(|item| item.contains(host)), "{host}");
+        }
+        assert!(
+            matches!(&shown[0], Block::Paragraph { text } if text.starts_with("QuotaDial runs on your machine."))
+        );
+        let text = format!("{shown:?}");
+        assert!(!text.contains("**") && !text.contains('`') && !text.contains("# What"));
+    }
+
+    #[test]
+    fn a_wrapped_line_joins_its_paragraph_or_its_item() {
+        assert_eq!(
+            blocks("# Title\n\nOne\nline.\n\n- An\n  item.\n- Two.\nAfter.\n"),
+            [
+                Block::Paragraph {
+                    text: "One line.".into()
+                },
+                Block::List {
+                    items: vec!["An item.".into(), "Two.".into()]
+                },
+                Block::Paragraph {
+                    text: "After.".into()
+                },
+            ]
+        );
     }
 
     #[test]

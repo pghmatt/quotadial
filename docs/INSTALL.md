@@ -20,11 +20,16 @@ has these files:
 The command alone, without the tray app, comes as `quotadial-<version>-<platform>.tar.gz` (or
 `.zip` on Windows). Each archive holds `quotadial` and its short alias `qd`.
 
+`SHA256SUMS.txt` lists every file's SHA-256, to check a download against. In the folder you
+downloaded to, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` checks it on macOS, and the same
+with `sha256sum` on Linux; on Windows, `Get-FileHash` prints the hash to compare.
+
 ## Open a build that is not signed yet
 
-Until the M5 release, QuotaDial's builds are not signed or notarized. Each operating system warns
-the first time you open one. This is how to open it anyway. Only do this for a build you got from
-QuotaDial's GitHub repository.
+A release's notes say whether it is signed for each system. A signed build opens with no warning.
+Until QuotaDial's signing certificates are in place, each operating system warns the first time
+you open a build that is not signed. This is how to open it anyway. Only do this for a build you
+got from QuotaDial's GitHub repository.
 
 ### macOS
 
@@ -71,6 +76,7 @@ that; Ubuntu has it on already.
 
 **Settings**, at the bottom of the popover, has these choices:
 - Open QuotaDial when you log in.
+- Check for updates once a day, on unless you turn it off ([Updates](#updates)).
 - Alerts: each alert rule, with a box to turn it on or off and a button to remove it, and a field
   to add one in plain words, such as "warn me at 80%". QuotaDial starts with two: an account needs
   signing in again, and a limit passes 90%. Each alert comes once as a notification, as
@@ -99,10 +105,12 @@ cost at each provider's API prices, read from their session logs, with each mode
 worked out, and the setting that turns it off, are in [`CLI.md`](CLI.md#the-weeks-cost).
 
 **Help**, beside Settings, shows what is new in this version, from the changelog built into the
-app, and About: the version, the licence and the credits. Send feedback opens a new GitHub issue in
-your browser with what support asks for filled in, the same as `quotadial doctor` prints, so you see
-all of it before you send it; it holds no token, no whole email address and no licence id. The
-tray's menu has Help too, with Send Feedback and Write to Support (support@quotadial.com).
+app; About, with the version, the licence, the credits and **Check for updates**; and what QuotaDial
+reads and sends, the same text as [`PRIVACY.md`](PRIVACY.md). Send feedback opens a new GitHub issue
+in your browser with what support asks for filled in, the same as `quotadial doctor` prints, so you
+see all of it before you send it; it holds no token, no whole email address and no licence id. The
+tray's menu has Help too, with Send Feedback, Write to Support (support@quotadial.com) and Check for
+Updates.
 
 **History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
 each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
@@ -110,6 +118,21 @@ each account was used by hour of the day, and exports the readings as CSV to the
 The popover lists every Claude subscription stored on the machine, not only the one Claude Code is
 signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
 folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts).
+
+## Updates
+
+Once a day, while **Check for updates once a day** is on in Settings, the app asks GitHub whether
+there is a newer QuotaDial; Help's **Check for updates** asks at any time. A newer version is
+offered in the popover and in Help, with what changed in it, and the app tells you once as a
+notification. Nothing is downloaded until you choose **Update**. QuotaDial then checks the download
+against its signature, installs it and opens again as the new version, keeping your settings,
+history and licence key. On macOS it may ask for your password if QuotaDial's folder needs it; on
+Linux the deb asks through the system's password prompt.
+
+Only releases published as QuotaDial's latest full release are offered; a pre-release is downloaded
+by hand. The request carries nothing about you or your usage ([`PRIVACY.md`](PRIVACY.md)). The
+`quotadial` command on its own does not update itself: install a newer build the way you installed
+it. How releases are signed for the updater is in [`RELEASE.md`](RELEASE.md).
 
 ## The `quotadial` command
 
@@ -126,7 +149,7 @@ sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/
 sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/qd
 ```
 
-The links keep working when you replace the app with a newer build.
+The links keep working when the app updates itself or you replace it with a newer build.
 
 On Windows, the installer puts `quotadial.exe` beside the app, in `C:\Program Files\QuotaDial`; add
 that folder to your `PATH` to type `quotadial`. On Linux, the deb installs `quotadial` in

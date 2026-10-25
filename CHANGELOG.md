@@ -14,6 +14,9 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A Free copy says in one line where each Pro feature would be, and a key added or removed counts at once, with no restart.
 - `quotadial doctor` prints what support asks for, with nothing secret in it.
 - Help in the app: Send feedback opens a GitHub issue with the same diagnostics filled in, What's new shows this list, and About names the version, the licence and the support address.
+- Updates: once a day the app asks GitHub for a newer QuotaDial, offers it in the popover and in Help, and installs it only when you choose Update, after checking its signature. Turn the daily check off in Settings; Help's Check for updates asks at any time.
+- What QuotaDial reads and sends, in Help and the README: every address it connects to, and nothing else.
+- Each release lists every file's SHA-256 in `SHA256SUMS.txt`, and its notes say what is signed.
 - The website's key page: the "Get your QuotaDial key" link in a Lemon Squeezy receipt gives the QuotaDial licence key, the same each time it is opened.
 - Pasting the key from a Lemon Squeezy receipt into QuotaDial says where QuotaDial's own key is, and a licence that has ended says where to renew it.
 
