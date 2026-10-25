@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import {
+  appFiles,
+  buttonLabel,
+  clickDetail,
+  commandFiles,
+  commandSystemOf,
+  filesFor,
+  systemOf,
+} from "../components/conversion/download-links.ts";
 import { longDay, receiptKey, requestKey, UNREACHED, UNREADABLE } from "../components/conversion/key-state.ts";
 import { PRO_ROWS } from "../components/conversion/pro-rows.ts";
 import { PRO_ADDS } from "../lib/data/pro.ts";
+import { fenced, installGuide, repositoryFile } from "../lib/markdown.ts";
 
 const RECEIPT = "11111111-1111-4111-8111-111111111111";
 const LICENCE = { id: "ls-1", issued: "2026-10-25" };
@@ -149,27 +159,205 @@ test("the key page is not indexed and /pro offers a checkout only through the ch
   assert.doesNotMatch(pro, /process\.env/);
 });
 
-test("/download renders docs/INSTALL.md's steps and check commands, and copies none of them", () => {
-  const page = readFileSync(new URL("../app/download/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /installGuide\(\)/);
-  assert.match(page, /GUIDE\.unsigned/);
-  assert.match(page, /GUIDE\.checks/);
-  for (const copied of ["Move to Trash", "Keep anyway", "Run anyway", "--ignore-missing", "Get-FileHash", "chmod +x", "apt install ./"]) {
-    assert.ok(!page.includes(copied), `the page has "${copied}" written out: it belongs to INSTALL.md`);
+const LATEST = "https://github.com/pghmatt/quotadial/releases/latest/download/";
+const RELEASES = "https://github.com/pghmatt/quotadial/releases";
+
+/** The version-less names docs/INSTALL.md links, read from the file and not from the site's code. */
+function listedNames(): string[] {
+  return [...repositoryFile("docs/INSTALL.md").matchAll(/\]\(https:\/\/github\.com\/pghmatt\/quotadial\/releases\/latest\/download\/([^)\s]+)\)/g)].map(
+    (found) => found[1],
+  );
+}
+
+/** A file of the lane, as text. */
+function source(path: string): string {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+test("docs/INSTALL.md links eight version-less copies, and installGuide gives each its link", () => {
+  const listed = listedNames();
+  assert.equal(listed.length, 8, "four app files and four command archives");
+  assert.equal(new Set(listed).size, 8);
+  const guide = installGuide();
+  const given = [...guide.files.map((row) => row.latest), ...guide.commands.map((row) => row.latest)];
+  assert.deepEqual(given.map((link) => link.name).sort(), [...listed].sort());
+  for (const link of given) {
+    assert.equal(link.href, `${LATEST}${link.name}`);
   }
-  assert.match(page, /DownloadButton|SystemDownload/);
-  const download = readFileSync(new URL("../components/conversion/SystemDownload.tsx", import.meta.url), "utf8");
-  assert.match(download, /<DownloadButton href=\{DOWNLOAD_PAGE\} \/>/);
 });
 
-test("each system's part of /download has its own secondary download action, and only the hero's is primary", () => {
-  const page = readFileSync(new URL("../app/download/page.tsx", import.meta.url), "utf8");
-  for (const system of ["macos", "windows", "linux"]) {
-    assert.ok(page.includes(`<SystemAction system="${system}" />`), `${system} has its own action`);
+test("a version-less link that is not under releases/latest/download fails the build", () => {
+  const file = repositoryFile("docs/INSTALL.md");
+  const moved = file.replace("releases/latest/download/QuotaDial_universal.dmg", "releases/download/v1/QuotaDial_universal.dmg");
+  assert.notEqual(moved, file);
+  assert.throws(() => installGuide(moved), /not a link to a file under/);
+  const renamed = file.replace("](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial_universal.dmg)", "](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial.dmg)");
+  assert.throws(() => installGuide(renamed), /not a link to a file under/);
+  const bare = file.replace(/\[QuotaDial_amd64\.deb\]\([^)]+\)/, "QuotaDial_amd64.deb");
+  assert.throws(() => installGuide(bare), /not a link to a file under/);
+  assert.throws(() => installGuide(file.replace("### The command alone", "### Elsewhere")), /no section "The command alone"/);
+});
+
+test("the install line is the first fenced block of INSTALL.md's command section, and names an archive the table lists", () => {
+  const guide = installGuide();
+  assert.equal(guide.install.split("\n").length, 2, "a fetch and an install");
+  assert.ok(guide.install.includes(`${LATEST}quotadial-aarch64-apple-darwin.tar.gz`), "the page says the first line names Apple silicon");
+  assert.ok(listedNames().some((name) => guide.install.includes(`/${name} `)), "an archive the table links");
+  assert.equal(fenced("text\n\n```sh\none\ntwo\n```\n\n```\nthree\n```\n"), "one\ntwo");
+  assert.throws(() => fenced("no code here"), /no fenced code block/);
+});
+
+test("each app file belongs to one system, and Linux has the .deb first and the .AppImage second", () => {
+  const files = appFiles(installGuide().files);
+  assert.deepEqual(
+    files.map((file) => systemOf(file.name)),
+    ["macos", "windows", "linux", "linux"],
+  );
+  assert.deepEqual(
+    filesFor(files, "linux").map((file) => file.name),
+    ["QuotaDial_amd64.deb", "QuotaDial_amd64.AppImage"],
+  );
+  assert.deepEqual(
+    commandFiles(installGuide().commands).map((file) => commandSystemOf(file.name)),
+    ["macos", "macos", "linux", "windows"],
+  );
+  assert.throws(() => systemOf("QuotaDial.rpm"), /cannot place/);
+  assert.throws(() => commandSystemOf("quotadial-riscv.tar.gz"), /cannot place/);
+});
+
+test("a button names its file's kind where a system has two, and its system where it has one", () => {
+  const files = appFiles(installGuide().files);
+  assert.deepEqual(
+    ["macos", "windows", "linux"].flatMap((system) => {
+      const own = filesFor(files, system as "macos" | "windows" | "linux");
+      return own.map((file) => buttonLabel(file, own));
+    }),
+    ["Download for macOS", "Download for Windows", "Download the .deb", "Download the .AppImage"],
+  );
+});
+
+test("a download click reports its system, its file and where it was", () => {
+  const [mac] = appFiles(installGuide().files);
+  assert.deepEqual(clickDetail(mac, "hero"), {
+    "data-event": "download_click",
+    "data-event-system": "macos",
+    "data-event-file": "QuotaDial_universal.dmg",
+    "data-event-from": "hero",
+  });
+  assert.equal(clickDetail({ name: "quotadial-x86_64-pc-windows-msvc.zip" }, "command", "windows")["data-event-system"], "windows");
+});
+
+test("every download action goes to the file's own link, and none to the releases page", () => {
+  for (const path of ["components/conversion/SystemDownload.tsx", "components/conversion/SystemAction.tsx"]) {
+    const text = source(path);
+    assert.match(text, /href=\{file\.href\}/, `${path} links the file`);
+    assert.doesNotMatch(text, /DOWNLOAD_PAGE|releases\/|https?:\/\//, `${path} has no address of its own`);
   }
-  const action = readFileSync(new URL("../components/conversion/SystemAction.tsx", import.meta.url), "utf8");
-  assert.match(action, /data-event="download_click"/);
-  assert.match(action, /data-event-system=\{system\}/);
-  assert.match(action, /href=\{DOWNLOAD_PAGE\}/);
-  assert.doesNotMatch(action, /data-primary-action/);
+  assert.match(source("components/conversion/CommandTable.tsx"), /href=\{command\.href\}/);
+  const release = source("lib/data/release.ts");
+  assert.doesNotMatch(release, /DOWNLOAD_PAGE|COMMAND_ONLY/, "the lists that named wrong files and a page are gone");
+});
+
+test("the page takes its files, archives and install line from INSTALL.md, and links the install guide", () => {
+  const page = source("app/download/page.tsx");
+  assert.match(page, /installGuide\(\)/);
+  assert.match(page, /appFiles\(GUIDE\.files\)/);
+  assert.match(page, /commandFiles\(GUIDE\.commands\)/);
+  assert.match(page, /code=\{GUIDE\.install\}/);
+  assert.match(page, /GUIDE\.unsigned/);
+  assert.match(page, /GUIDE\.checks/);
+  assert.match(page, /href="\/install"/);
+  assert.doesNotMatch(page, /SITE\.installGuide|COMMAND_ONLY/);
+  for (const copied of ["Move to Trash", "Keep anyway", "Run anyway", "--ignore-missing", "Get-FileHash", "chmod +x", "apt install ./", "releases/latest"]) {
+    assert.ok(!page.includes(copied), `the page has "${copied}" written out: it belongs to INSTALL.md`);
+  }
+  for (const system of ["macos", "windows", "linux"]) {
+    assert.ok(page.includes(`<SystemAction system="${system}" files={FILES} />`), `${system} has its own action`);
+  }
+  assert.doesNotMatch(source("components/conversion/SystemAction.tsx"), /data-primary-action/);
+  assert.match(source("components/conversion/SystemDownload.tsx"), /data-primary-action=\{index === 0 \? "" : undefined\}/);
+});
+
+test("nothing that makes the page fetches an address when the site is built", () => {
+  for (const path of [
+    "lib/markdown.ts",
+    "lib/data/release.ts",
+    "app/download/page.tsx",
+    "components/conversion/download-links.ts",
+    "components/conversion/CommandTable.tsx",
+    "components/conversion/SystemAction.tsx",
+    "components/conversion/FilesTable.tsx",
+    "components/conversion/SystemDownload.tsx",
+  ]) {
+    assert.doesNotMatch(source(path), /\bfetch\(|node:https?|XMLHttpRequest|\bhttps?\.(?:get|request)|new URL\(|axios|undici/, `${path} reaches for the network`);
+  }
+});
+
+/** The built /download, once `npm run build` has made it. */
+const BUILT = new URL("../out/download.html", import.meta.url);
+const built = existsSync(BUILT) ? readFileSync(BUILT, "utf8") : "";
+const skip = built ? false : "run npm run build first: this reads the built page";
+
+/** Text of a built page: its tags gone, its entities read, its soft breaks closed up. */
+function words(text: string): string {
+  return text
+    .replace(/<wbr\/?>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
+}
+
+/** Each anchor in a built page as its attributes and the words it shows. */
+function anchors(text: string): { attributes: string; href: string; words: string }[] {
+  return [...text.matchAll(/<a ([^>]*)>([\s\S]*?)<\/a>/g)].map((found) => ({
+    attributes: found[1],
+    href: found[1].match(/href="([^"]*)"/)?.[1] ?? "",
+    words: words(found[2]).trim(),
+  }));
+}
+
+test("the built page shows every one of INSTALL.md's eight version-less names, each as a link to its file", { skip }, () => {
+  const text = words(built);
+  const links = anchors(built);
+  for (const name of listedNames()) {
+    assert.ok(text.includes(name), `${name} is on the page`);
+    assert.ok(links.some((link) => link.href === `${LATEST}${name}`), `${name} is a link to its file`);
+  }
+});
+
+test("the built page's download buttons are straight links to files, and every one reports its system and file", { skip }, () => {
+  const downloads = anchors(built).filter((link) => link.attributes.includes('data-event="download_click"'));
+  assert.ok(downloads.length >= 7, "the three sections' buttons (four files) and the four archives");
+  for (const link of downloads) {
+    assert.ok(link.href.startsWith(LATEST), `${link.href} is a file of the newest full release`);
+    assert.ok(link.href.endsWith(link.attributes.match(/data-event-file="([^"]*)"/)?.[1] ?? "none"), "the click names the file it fetches");
+    assert.match(link.attributes, /data-event-system="(?:macos|windows|linux)"/);
+  }
+  assert.ok(!anchors(built).some((link) => link.href === `${RELEASES}/latest`), "no button goes to the latest release's page");
+});
+
+test("the built page keeps the versioned file table, each name linking to the Releases page", { skip }, () => {
+  const links = anchors(built).filter((link) => link.href === RELEASES);
+  for (const versioned of installGuide().files.map((row) => row.file)) {
+    assert.ok(
+      links.some((link) => link.words === versioned),
+      `${versioned} links to the Releases page`,
+    );
+  }
+});
+
+test("the built page's first action is for the visitor's system once known, and a way to the systems before", { skip }, () => {
+  const text = words(built);
+  const primary = anchors(built).filter((link) => link.attributes.includes("data-primary-action"));
+  assert.equal(primary.length, 1, "one primary action");
+  assert.equal(primary[0].href, "#systems");
+  assert.equal(primary[0].words, "Choose your system");
+  assert.match(built, /id="systems"/);
+  for (const id of ["macos", "windows", "linux"]) {
+    assert.match(built, new RegExp(`id="${id}"`));
+  }
+  assert.ok(anchors(built).some((link) => link.href === "/install" && link.words === "Read the install guide"));
+  assert.ok(text.includes(installGuide().install.split("\n")[0]), "the install line is on the page");
 });

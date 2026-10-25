@@ -2,38 +2,27 @@
 
 import { useEffect, useState } from "react";
 
-import { COMMAND_ONLY, DOWNLOADS, type System } from "../../lib/data/release.ts";
+import type { System } from "../../lib/data/release.ts";
 import { detectSystem } from "../DownloadButton.tsx";
 import { TideTable } from "../TideTable.tsx";
+import { type AppFile, systemOf } from "./download-links.ts";
 
 const NOTE = "block text-[0.9375rem] font-[400] text-ink-2";
-
-interface Entry {
-  /** What the files belong to: one band for each system, both Linux files in one. */
-  group: string;
-  label: string;
-  system: System | null;
-  file: string;
-  note: string;
-}
-
-const ENTRIES: Entry[] = [
-  ...DOWNLOADS.flatMap((download) =>
-    download.files.map((file) => ({ group: download.system, label: download.label, system: download.system, file: file.name, note: file.what })),
-  ),
-  { group: "command", label: "The command alone", system: null, file: COMMAND_ONLY.file, note: `${COMMAND_ONLY.windows.slice(COMMAND_ONLY.windows.lastIndexOf("."))} on Windows` },
-];
+const LINK = "underline underline-offset-[0.2em]";
 
 /**
- * The files in each release, a band for each system. From 768 px it is a table, system then file;
- * on a phone each file stands under its system, so no name is squeezed or broken. The rows for the
- * visitor's own system say so.
+ * The files in each release, as a release holds them with the version in the name, a band for each
+ * system. Each name leads to the Releases page, where every version's files are, so a visitor whose
+ * button found no full release yet is never at a dead end. From 768 px it is a table, system then
+ * file; on a phone each file stands under its system, so no name is squeezed or broken. The rows
+ * for the visitor's own system say so.
  */
-export function FilesTable() {
+export function FilesTable({ files, releases }: { files: AppFile[]; releases: string }) {
   const [system, setSystem] = useState<System | null>(null);
   useEffect(() => setSystem(detectSystem()), []);
-  const yours = (entry: Entry) => entry.system !== null && entry.system === system;
-  const groups = ENTRIES.filter((entry, index) => ENTRIES.findIndex((other) => other.group === entry.group) === index);
+  const rows = files.map((file) => ({ ...file, group: systemOf(file.name) }));
+  const yours = (group: System) => group === system;
+  const groups = rows.filter((row, index) => rows.findIndex((other) => other.group === row.group) === index);
   return (
     <>
       <TideTable
@@ -41,24 +30,23 @@ export function FilesTable() {
         caption={{ text: "Files in each release" }}
         columns={["System", "File"]}
         whole={[false, true]}
-        rows={ENTRIES.map((entry) => ({
-          key: entry.file,
-          group: entry.group,
+        rows={rows.map((row) => ({
+          key: row.versioned,
+          group: row.group,
           cells: [
             {
               text: (
                 <>
-                  {entry.label}
-                  {yours(entry) && <span className={NOTE}>Your system</span>}
+                  {row.who}
+                  {yours(row.group) && <span className={NOTE}>Your system</span>}
                 </>
               ),
             },
             {
               text: (
-                <>
-                  {entry.file}
-                  <span className={NOTE}>{entry.note}</span>
-                </>
+                <a href={releases} className={LINK}>
+                  {row.versioned}
+                </a>
               ),
             },
           ],
@@ -71,16 +59,21 @@ export function FilesTable() {
             key={group.group}
             className={`px-3 py-3 ${number % 2 === 1 ? "bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]" : ""}`}
           >
-            <p className="m-0 font-table font-[600]">
-              {group.label}
-              {yours(group) && <span className={NOTE}>Your system</span>}
-            </p>
-            {ENTRIES.filter((entry) => entry.group === group.group).map((entry) => (
-              <p key={entry.file} className="m-0 mt-2 font-table">
-                <span className="whitespace-nowrap">{entry.file}</span>
-                <span className={NOTE}>{entry.note}</span>
-              </p>
-            ))}
+            {rows
+              .filter((row) => row.group === group.group)
+              .map((row, index) => (
+                <div key={row.versioned} className={index > 0 ? "mt-3" : undefined}>
+                  <p className="m-0 font-table font-[600]">
+                    {row.who}
+                    {yours(row.group) && <span className={NOTE}>Your system</span>}
+                  </p>
+                  <p className="m-0 mt-1 font-table">
+                    <a href={releases} className={`whitespace-nowrap ${LINK}`}>
+                      {row.versioned}
+                    </a>
+                  </p>
+                </div>
+              ))}
           </div>
         ))}
       </div>

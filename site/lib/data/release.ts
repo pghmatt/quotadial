@@ -2,16 +2,11 @@
  * What QuotaDial's releases on GitHub hold, by system, as docs/INSTALL.md lists them (a test holds
  * the two together; /download reads INSTALL.md itself through `installGuide`).
  *
- * Downloads go to the latest release's page. GitHub sends that address to the newest full release,
- * and to the list of every release while all of them are pre-releases, as now, so publishing a
- * release never needs the site built again (#49).
+ * The links come from docs/INSTALL.md through `installGuide`; this list only maps a system to the
+ * files home names.
  */
 
-import { SITE } from "./site.ts";
-
 export type System = "macos" | "windows" | "linux";
-
-export const DOWNLOAD_PAGE = `${SITE.releases}/latest`;
 
 export interface Download {
   system: System;
@@ -41,10 +36,3 @@ export const DOWNLOADS: Download[] = [
     ],
   },
 ];
-
-/** The command on its own, without the tray app. */
-export const COMMAND_ONLY = {
-  file: "quotadial-<version>-<platform>.tar.gz",
-  windows: "quotadial-<version>-<platform>.zip",
-  holds: ["quotadial", "qd"],
-} as const;
