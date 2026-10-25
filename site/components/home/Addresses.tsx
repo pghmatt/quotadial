@@ -2,7 +2,7 @@ import { ButtonLink } from "../Button.tsx";
 import { SectionHeading } from "../Section.tsx";
 import { BandedTable } from "./BandedTable.tsx";
 import { Part } from "./Part.tsx";
-import { Body, Code, Lead } from "./Text.tsx";
+import { Body, Lead } from "./Text.tsx";
 
 /** The addresses QuotaDial connects to, as docs/PRIVACY.md lists them. */
 const ADDRESSES = [
@@ -68,7 +68,7 @@ export function Addresses() {
               row.address.length ? (
                 <span className="grid justify-items-start gap-1 font-code text-[0.875rem] leading-[1.35] font-[500] [overflow-wrap:anywhere]">
                   {row.address.map((address) => (
-                    <Code key={address}>{address}</Code>
+                    <span key={address}>{address}</span>
                   ))}
                 </span>
               ) : (

@@ -23,9 +23,9 @@ export function Limits() {
             number is and whether, at the pace you are going, it runs out before it resets.
           </Lead>
           <Body>
-            Every number says where it came from: the API, the cache or the Codex CLI's own logs. When a window
-            suddenly reads 0%, QuotaDial holds it until a second fetch agrees, because a provider sometimes answers
-            0% by mistake.
+            In the menu bar or tray you see the tightest window at a glance, and one click opens the rest. Every number
+            says where it came from: the API, the cache or the Codex CLI's own logs. When a window suddenly reads 0%,
+            QuotaDial holds it until a second fetch agrees, because a provider sometimes answers 0% by mistake.
           </Body>
         </div>
         <Plate

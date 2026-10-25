@@ -23,7 +23,7 @@ export function Hero() {
       labelledBy="home-title"
       className="[&>div]:pt-10 md:[&>div]:pt-12 [&>div]:pb-16 md:[&>div]:pb-20"
     >
-      <div className="grid gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-end">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-end">
         <h1
           id="home-title"
           className="m-0 max-w-[20ch] text-[2.75rem] leading-[0.98] font-[800] tracking-[-0.015em] sm:text-[3.75rem] lg:max-w-none lg:text-[4.25rem] xl:text-[5rem]"
@@ -44,7 +44,7 @@ export function Hero() {
         </div>
       </div>
 
-      <div className="mt-10 grid items-stretch gap-6 md:mt-12 lg:grid-cols-[21.5rem_minmax(0,1fr)]">
+      <div className="mt-10 grid grid-cols-[minmax(0,1fr)] items-stretch gap-6 md:mt-12 lg:grid-cols-[21.5rem_minmax(0,1fr)]">
         <Plate
           caption={
             <>

@@ -13,7 +13,7 @@ export function SignIn() {
         writes, refreshes, moves or logs it. Every Claude subscription you keep under its own{" "}
         <Code>CLAUDE_CONFIG_DIR</Code> shows up too.
       </Lead>
-      <div className="mt-8 max-w-[64rem]">
+      <div className="mt-8">
         <BandedTable
           caption="Where QuotaDial looks for each tool's sign-in, and what to do when it stops working"
           columns={["Tool", "Where QuotaDial looks, in this order", "If it stops working"]}
