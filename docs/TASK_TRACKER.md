@@ -368,7 +368,10 @@ so they became #10.
   on the real window found 24 failures, all text cut off: the Names fieldset as wide as its longest
   word (a fieldset's minimum is its content's), the long address in History's heading and
   Settings' Names, "Write to support@quotadial.com" at 200%, Remove and Add pushed off the side,
-  and the licence field's hint.
+  and the licence field's hint. CI then found one more on all three runners, where a scroll bar
+  takes room (a Mac's lies over the page): at 200% Settings' Names fields kept a text field's own
+  width and pushed their labels off the side. They now shrink with the window, and the check
+  leaves a scroll bar's room on every system, so a Mac finds what Windows and Linux show.
 - **Fixes:** `overflow-wrap: anywhere` on the body, `min-width: 0` on fieldsets, `max-width: 100%`
   on buttons, and an alert's Remove and a field's Add wrap below when there is no room; tabular
   figures on the root; in the light theme `--muted` `#67676c` and `--warning` `#a05600`, since

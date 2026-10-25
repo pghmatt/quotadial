@@ -328,12 +328,19 @@ footer button + button {
   font-weight: 600;
 }
 
+/* The field is as wide as the window allows, however wide a text field would be by itself. */
 .name-choice {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   padding: 4px 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.name-choice input {
+  width: 100%;
+  min-width: 0;
 }
 
 .name-choice input,

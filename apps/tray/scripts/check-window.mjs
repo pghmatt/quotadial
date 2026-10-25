@@ -379,6 +379,19 @@ const MOVING = `(() => {
   return [...new Set(found)].slice(0, 10);
 })()`;
 
+/** A scroll bar's width where it takes room, in CSS pixels, as Chrome draws one. */
+const CLASSIC_BAR = 15;
+
+/** In the page: how much room a scroll bar takes, which is none where it lies over the page. */
+const SCROLL_BAR = `(() => {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;top:-500px;width:100px;height:100px;overflow:scroll';
+  document.documentElement.append(probe);
+  const room = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  return room;
+})()`;
+
 /** In the page: whether charts, meters and the heatmap carry their facts in words. */
 const WORDS = `(() => {
   const found = [];
@@ -476,10 +489,15 @@ class View {
     );
   }
 
-  /** Shows the page as the window does at `zoom`: zooming in narrows it in CSS pixels. */
+  /**
+   * Shows the page as the window does at `zoom`: zooming in narrows it in CSS pixels. Where scroll
+   * bars take no room, as on a Mac by default, the page is narrowed by a scroll bar as well, so
+   * every system checks the room Windows and Linux leave.
+   */
   async zoom(zoom) {
+    this.bar ??= (await this.evaluate(SCROLL_BAR)) > 0 ? 0 : CLASSIC_BAR;
     await this.send("Emulation.setDeviceMetricsOverride", {
-      width: Math.round(WIDTH / zoom),
+      width: Math.round(WIDTH / zoom) - this.bar,
       height: Math.round(HEIGHT / zoom),
       deviceScaleFactor: zoom,
       mobile: false,
