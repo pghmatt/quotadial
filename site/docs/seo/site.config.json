@@ -224,9 +224,9 @@
       "evidence": "docs/design-contract.json (verify-contract passed 2026-10-25 03:22 UTC); docs/DIRECTION.md; docs/brand/identity.md"
     },
     "foundation": {
-      "status": "pending",
-      "evidence": "",
-      "commit": ""
+      "status": "complete",
+      "evidence": "Commit 9743a06: tokens with Tailwind's defaults cleared, the primitives, header and footer, typed data, fonts, the app's pictures, brand files (docs/brand/assets.md), placeholder routes, docs/LANES.md and AGENTS.md; npm run check, npm test (14) and npm run build pass; seo-check on the build finds only the lanes' sections and schema",
+      "commit": "9743a0612714bd11042377a5a980daa7f73fca2f"
     }
   }
 }
