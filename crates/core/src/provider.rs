@@ -1,11 +1,49 @@
 use std::fmt;
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 
 use crate::{Account, Result, Snapshot};
+
+/// A command a provider adds to QuotaDial's CLI, which runs it as `quotadial <provider id> <name>`
+/// (P-018). The CLI, its completions and its manual pages find a provider's commands through
+/// [`Provider::commands`], so a provider adds one without the CLI knowing the provider's name.
+pub struct ProviderCommand {
+    /// One word, such as `statusline`.
+    pub name: &'static str,
+    /// One line saying what it is for, which `quotadial <provider id> --help` and the manual pages
+    /// show.
+    pub about: &'static str,
+    /// Runs the command and gives the exit status the CLI exits with.
+    pub run: Box<dyn Fn(Invocation<'_>) -> ExitCode>,
+}
+
+impl fmt::Debug for ProviderCommand {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProviderCommand")
+            .field("name", &self.name)
+            .field("about", &self.about)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What a provider's command runs with: the words typed after its name and the standard streams,
+/// which a test replaces with its own.
+pub struct Invocation<'a> {
+    /// The words after the command's name, as they were typed.
+    pub args: &'a [String],
+    /// Standard input.
+    pub stdin: &'a mut dyn Read,
+    /// Standard output.
+    pub stdout: &'a mut dyn Write,
+    /// Standard error.
+    pub stderr: &'a mut dyn Write,
+}
 
 /// The most accounts a provider shows, asked afresh at each discovery, so a change, such as a
 /// licence key added, applies without a restart (D-100). `None` is every account.
@@ -113,6 +151,12 @@ pub trait Provider: Send + Sync {
     fn log_folders(&self) -> Vec<PathBuf> {
         Vec::new()
     }
+
+    /// The provider's own commands, which the CLI runs as `quotadial <id> <name>` and lists in its
+    /// help, completions and manual pages (P-018). None by default.
+    fn commands(&self) -> Vec<ProviderCommand> {
+        Vec::new()
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +164,52 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
+
+    /// A provider that adds nothing to the trait's defaults.
+    struct Plain;
+
+    #[async_trait]
+    impl Provider for Plain {
+        fn id(&self) -> &'static str {
+            "plain"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(Vec::new())
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(Snapshot::unsupported(account.clone(), "No usage."))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+    }
+
+    #[test]
+    fn a_provider_has_no_commands_of_its_own_unless_it_adds_them() {
+        assert!(Plain.commands().is_empty());
+    }
+
+    #[test]
+    fn a_commands_debug_output_names_it() {
+        let command = ProviderCommand {
+            name: "statusline",
+            about: "Keeps what the status line hands over.",
+            run: Box::new(|_| ExitCode::SUCCESS),
+        };
+
+        assert_eq!(
+            format!("{command:?}"),
+            "ProviderCommand { name: \"statusline\", about: \"Keeps what the status line hands \
+             over.\", .. }"
+        );
+    }
 
     #[test]
     fn a_limit_is_asked_afresh_and_is_never_below_one() {
