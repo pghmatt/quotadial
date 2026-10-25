@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-25T06:00:54Z",
+  "generatedAt": "2026-10-25T16:59:44Z",
   "title": "Design System: quotadial.com",
   "extensions": {
     "colorMeta": {
@@ -199,6 +199,11 @@
         "displayName": "Row Band",
         "canonical": "color-mix(in srgb, #0c1d2b 5%, transparent)"
       },
+      "scroll-shade": {
+        "role": "neutral",
+        "displayName": "Scroll Shade",
+        "canonical": "color-mix(in srgb, #0c1d2b 24%, transparent)"
+      },
       "magenta-night": {
         "role": "primary",
         "displayName": "Chart Magenta (night)",
@@ -348,6 +353,11 @@
         "role": "neutral",
         "displayName": "Row Band (night)",
         "canonical": "color-mix(in srgb, #dce9f2 5%, transparent)"
+      },
+      "scroll-shade-night": {
+        "role": "neutral",
+        "displayName": "Scroll Shade (night)",
+        "canonical": "color-mix(in srgb, #dce9f2 24%, transparent)"
       }
     },
     "typographyMeta": {
@@ -363,9 +373,9 @@
         "displayName": "Close",
         "purpose": "The closing band's one line on the home page: Condensed 750, 3rem from 768 px and 2.25rem below, at most 22ch wide."
       },
-      "names-in-a-row": {
-        "displayName": "Names in a row",
-        "purpose": "The three systems' names on the home page and each version on /changelog: Condensed 750 at 2rem, the headline's phone size, at every width."
+      "side-head": {
+        "displayName": "Side head",
+        "purpose": "The reference pages' section names, each version on /changelog and each section of /install and /cli: Condensed 750, 2rem at every width, the headline's phone size. The three systems' names on the home page take the same size."
       },
       "ledger-heading": {
         "displayName": "Ledger heading",
@@ -385,7 +395,7 @@
       },
       "answer": {
         "displayName": "Answer",
-        "purpose": "The sentence under an H1 that answers it, in Second Ink."
+        "purpose": "The sentence under an H1 that answers it, in Second Ink; a guide's own opening paragraph takes the same size in Navy Ink."
       },
       "lead": {
         "displayName": "Lead",
@@ -393,7 +403,7 @@
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Reading text at the 52ch measure (66 to 72 characters)."
+        "purpose": "Reading text at the 52ch measure (a full line of 74 characters at most)."
       },
       "table": {
         "displayName": "Table",
@@ -409,7 +419,7 @@
       },
       "plate-title": {
         "displayName": "Plate title",
-        "purpose": "A plate's name at its head and the curve's notes, set in italic in Second Ink."
+        "purpose": "A plate's name at its head, the curve's notes, and the one label set without a plate, \"In this guide\" over a guide's contents, in italic in Second Ink."
       },
       "label": {
         "displayName": "Label",
@@ -417,7 +427,7 @@
       },
       "code": {
         "displayName": "Code",
-        "purpose": "Code, commands, file names and network addresses, with ligatures off."
+        "purpose": "Code, commands, file names and network addresses, with ligatures off, always upright, and breaking only at their marks."
       }
     },
     "shadows": [],
@@ -462,7 +472,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one magenta action in a view; a download names the visitor's system.",
+      "description": "The one magenta action in a view: a download names the visitor's system and leads with the download icon; when the page cannot tell the system, \"Choose your system\" leads with a down arrow instead.",
       "html": "<a class=\"ds-btn-primary\" href=\"#\"><svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z\"/></svg>Download for macOS</a>",
       "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-chart, 2px); background: var(--magenta-fill, #a8005f); color: var(--on-magenta, #ffffff); font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 650; line-height: 1; white-space: nowrap; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary svg { width: 20px; height: 20px; flex: none; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--magenta-fill, #a8005f) 86%, black); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
     },
@@ -517,9 +527,16 @@
       "name": "Code Block",
       "kind": "custom",
       "refersTo": "code-block",
-      "description": "Commands on the mid field in JetBrains Mono with ligatures off, wrapping on a phone, with a copy button under the code.",
-      "html": "<div class=\"ds-code-block\"><pre><code>claude mcp add quotadial -- quotadial mcp\ncodex mcp add quotadial -- quotadial mcp</code></pre><button type=\"button\" class=\"ds-btn-copy\"><svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z\"/></svg>Copy the commands</button></div>",
-      "css": ".ds-code-block { padding: 16px; border-radius: var(--radius-chart, 2px); background: var(--mid, #b3d7ec); color: var(--ink, #0c1d2b); } .ds-code-block pre { margin: 0; font-family: \"JetBrains Mono Variable\", ui-monospace, Menlo, Consolas, monospace; font-size: 0.9375rem; line-height: 1.6; font-variant-ligatures: none; white-space: pre-wrap; overflow-wrap: anywhere; } .ds-btn-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 16px; border: 1px solid currentColor; border-radius: var(--radius-chart, 2px); background: transparent; color: inherit; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.0625rem; font-weight: 650; cursor: pointer; } .ds-btn-copy svg { width: 18px; height: 18px; flex: none; } .ds-btn-copy:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+      "description": "A command on the mid field, wrapping only at its marks, with a copy button; and example output in a region that never wraps, scrolls sideways and shades its last characters on the side with more text.",
+      "html": "<div class=\"ds-code-block\"><pre class=\"ds-command\"><code>claude mcp add quotadial -- quotadial mcp\ncodex mcp add quotadial -- quotadial mcp</code></pre><button type=\"button\" class=\"ds-btn-copy\"><svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z\"/></svg>Copy the commands</button></div><div class=\"ds-code-block ds-gap\"><pre class=\"ds-output\" tabindex=\"0\" role=\"region\" aria-label=\"quotadial status output, example accounts\"><code>claude dev@example.com (max): ok\n  Weekly: 91% used, resets in 1 d 15 h, from the API 3 min ago\n    at 2.0%/h, runs out in 4 h 30 min, 1 d 11 h before it resets\n  Weekly (Opus): 74% used, resets in 1 d 15 h, from the API 3 min ago\n  Session: 38% used, resets in 2 h 10 min, from the API 3 min ago\n    at 8.5%/h, lasts until it resets</code></pre></div>",
+      "css": ".ds-code-block { padding: 16px; border-radius: var(--radius-chart, 2px); background: var(--mid, #b3d7ec); color: var(--ink, #0c1d2b); } .ds-gap { margin-top: 20px; } .ds-code-block pre { font-family: \"JetBrains Mono Variable\", ui-monospace, Menlo, Consolas, monospace; font-size: 0.9375rem; line-height: 1.6; font-variant-ligatures: none; font-style: normal; } .ds-command { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; } .ds-output { margin: -16px; padding: 16px; overflow-x: auto; white-space: pre; background-repeat: no-repeat; background-size: 2rem 100%; background-position: left, right, left, right; background-attachment: local, local, scroll, scroll; background-image: linear-gradient(to right, var(--mid, #b3d7ec), var(--mid, #b3d7ec)), linear-gradient(to left, var(--mid, #b3d7ec), var(--mid, #b3d7ec)), linear-gradient(to right, color-mix(in srgb, var(--ink, #0c1d2b) 24%, transparent), transparent), linear-gradient(to left, color-mix(in srgb, var(--ink, #0c1d2b) 24%, transparent), transparent); } .ds-output:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; } .ds-btn-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 16px; border: 1px solid currentColor; border-radius: var(--radius-chart, 2px); background: transparent; color: inherit; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.0625rem; font-weight: 650; cursor: pointer; } .ds-btn-copy svg { width: 18px; height: 18px; flex: none; } .ds-btn-copy:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Guide Page",
+      "kind": "custom",
+      "description": "A reference page's opening contents, labelled in plate-title type without a plate, and one of its sections: a side head on the 14rem column after a Rule, its text at the reading measure.",
+      "html": "<div class=\"ds-guide\"><nav class=\"ds-contents\" aria-label=\"In this guide\"><p class=\"ds-contents-label\" aria-hidden=\"true\">In this guide</p><ul><li><a href=\"#\">Download</a></li><li><a href=\"#\">Package managers</a></li><li><a href=\"#\">Open a build that is not signed yet</a></li><li><a href=\"#\">Settings</a></li><li><a href=\"#\">Updates</a></li><li><a href=\"#\">The <code>quotadial</code> command</a></li><li><a href=\"#\">Build it yourself</a></li></ul><p class=\"ds-contents-note\">This page is <a href=\"#\">docs/INSTALL.md</a> from the repository, word for word.</p></nav><section class=\"ds-side-section\" aria-labelledby=\"ds-updates\"><h2 id=\"ds-updates\">Updates</h2><div class=\"ds-side-text\"><p>Once a day, while <strong>Check for updates once a day</strong> is on in Settings, the app asks GitHub whether there is a newer QuotaDial; Help's <strong>Check for updates</strong> asks at any time. A newer version is offered in the popover and in Help, with what changed in it, and the app tells you once as a notification.</p></div></section></div>",
+      "css": ".ds-guide { color: var(--ink, #0c1d2b); font-family: \"Sofia Sans Variable\", \"Helvetica Neue\", Arial, sans-serif; } .ds-contents-label { margin: 0 0 12px; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1rem; font-style: italic; font-weight: 650; line-height: 1.3; color: var(--ink-2, #3b5466); } .ds-contents ul { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 40px; } .ds-contents li { break-inside: avoid; padding: 4px 0; font-size: 1.0625rem; line-height: 1.35; } .ds-guide a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; } .ds-guide a:hover { text-decoration-thickness: 2px; } .ds-guide a:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; } .ds-guide code { border-radius: var(--radius-chart, 2px); background: var(--shallow, #dcedf6); padding: 0 4px; font-family: \"JetBrains Mono Variable\", ui-monospace, Menlo, Consolas, monospace; font-size: 0.875em; font-style: normal; font-variant-ligatures: none; } .ds-contents-note { margin: 16px 0 0; max-width: var(--container-measure, 52ch); font-family: \"Sofia Sans Semi Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 0.9375rem; font-style: italic; color: var(--ink-2, #3b5466); } .ds-side-section { display: grid; grid-template-columns: 14rem minmax(0, 1fr); column-gap: 40px; margin-top: 56px; padding-top: 56px; border-top: 1px solid var(--rule, color-mix(in srgb, #0c1d2b 18%, transparent)); } .ds-side-section h2 { margin: 0; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 2rem; font-weight: 750; line-height: 1.05; } .ds-side-text p { margin: 0; max-width: var(--container-measure, 52ch); font-size: 1.0625rem; line-height: 1.6; }"
     },
     {
       "name": "Notice",
@@ -532,14 +549,15 @@
   ],
   "narrative": {
     "northStar": "The Tide Almanac",
-    "overview": "The site reads every plan limit the way an almanac reads the tide: as a predicted time. When a window resets, and when it would run out at the pace it is going, are set in tables of tabular figures and on curves that climb towards a dashed high-water line at 100%. The look is the nautical chart's own. Flat fields of chart blue, fine vector line work and navy ink carry everything, and one chart magenta is held back for the action and for cautions, much as a chart keeps magenta for its lights and warnings.\n\nEach page descends as it scrolls, from chart white through the shallow and mid blue fields to the navy deep of the closing band and footer, one tone to a band. Sofia Sans carries every word in three widths: condensed for headings, actions and chart labels, regular for reading, semi-condensed with tabular figures for tables and captions. Density is moderate: tables carry real numbers, reading blocks stay short, and generous space separates the bands. The only pictures are captures of the real QuotaDial window with example accounts. Light and dark follow the visitor's system as the day chart and the night chart, and every colour token has its night pair.\n\nThe system rejects the usage-tracker category's centred app hero with a floating popover, the dark documentation template with icon cards, the cream almanac with a serif display and hairlines, and nautical ornament of every kind.",
+    "overview": "The site reads every plan limit the way an almanac reads the tide: as a predicted time. When a window resets, and when it would run out at the pace it is going, are set in tables of tabular figures and on curves that climb towards a dashed high-water line at 100%. The look is the nautical chart's own. Flat fields of chart blue, fine vector line work and navy ink carry everything, and one chart magenta is held back for the action and for cautions, much as a chart keeps magenta for its lights and warnings.\n\nEach page descends as it scrolls, from chart white through the shallow and mid blue fields to the navy deep of the closing band and footer, one tone to a band. Sofia Sans carries every word in three widths: condensed for headings, actions and chart labels, regular for reading, semi-condensed with tabular figures for tables and captions. Density is moderate: tables carry real numbers, reading blocks stay short, and generous space separates the bands. The only pictures are captures of the real QuotaDial window with example accounts. The pages read for reference, the changelog and the install and command guides, keep one quiet family throughout: each section's name stands in a margin column beside its text, as a printed reference book sets its side heads. Light and dark follow the visitor's system as the day chart and the night chart, and every colour token has its night pair.\n\nThe system rejects the usage-tracker category's centred app hero with a floating popover, the dark documentation template with icon cards, the cream almanac with a serif display and hairlines, and nautical ornament of every kind.",
     "keyCharacteristics": [
       "Predicted times in tables and curves, read against a dashed high-water line at 100%.",
       "Depth bands that descend each page from chart white to the navy deep.",
       "One reserved accent, chart magenta, in four places and nowhere else.",
       "Sofia Sans in three widths for every word; JetBrains Mono only for code, commands, file names and addresses.",
       "Flat fields and hairline line work: no shadows, and a 2 px corner on every box.",
-      "Plates framed with a neatline and a graduated scale, in place of cards."
+      "Plates framed with a neatline and a graduated scale, in place of cards.",
+      "Reference pages that set every section as a side head on a 14rem column, one family from top to bottom."
     ],
     "rules": [
       {
@@ -569,12 +587,17 @@
       },
       {
         "name": "The Unbroken Time Rule",
-        "body": "A time, a duration or a file name in a table never breaks across two lines (\"Tue 18:40\", \"1 d 15 h\", \"QuotaDial_<version>_universal.dmg\"). When a column cannot hold them whole, the layout changes and the time does not: on a phone the home table sets each row as two lines, and the files table stacks each file under its system. In running text a long file name may break only after an underscore or a hyphen.",
+        "body": "A time or a duration never breaks across two lines (\"Tue 18:40\", \"1 d 15 h\"), and a file name in a table stays whole wherever its column has the room: every name on /download is whole at 1440 and 1920 px. When a column cannot hold them, the layout changes first: on a phone the home table sets each row as two lines, and the files table stacks each file under its system. A name still wider than a phone's column breaks only at a mark.",
+        "section": "typography"
+      },
+      {
+        "name": "The Break Marks Rule",
+        "body": "Code, file names and addresses break only at their marks: after a slash (never between the two of `https://`), after an underscore, and after a hyphen inside a word, so a release address breaks after `releases/`, `latest/` or `download/` and never inside \"latest\". A flag (`--ignore-missing`) and a version (`0.2.0`) never break. `lib/breaks.ts` finds the marks and `components/Breakable.tsx` sets a `<wbr>` at each, with `overflow-wrap: break-word`, never `anywhere`, so a name stays whole wherever it fits and breaks inside a piece only when that piece is wider than the whole line.",
         "section": "typography"
       },
       {
         "name": "The Reading Measure Rule",
-        "body": "Reading text holds 66 to 72 characters a line: the measure token, 52ch (`--container-measure`). A ch is the width of a zero, wider than Sofia Sans' average letter, which is why 52ch gives 66 to 72 characters.",
+        "body": "Reading text holds the measure token, 52ch (`--container-measure`). A ch is the width of a zero, wider than Sofia Sans' average letter, so 52ch holds a full line of body text to 74 characters at most, measured on every built page at 1440 px.",
         "section": "typography"
       },
       {
@@ -589,7 +612,12 @@
       },
       {
         "name": "The Changing Family Rule",
-        "body": "Down the home page no two sections in a row share a layout family; a new long page keeps the same habit, so it never reads as a template.",
+        "body": "The home page, the one page that persuades at length, changes layout family from section to section: no two of its sections in a row share one. A page read for reference does the opposite, under the Side Head Rule.",
+        "section": "layout"
+      },
+      {
+        "name": "The Side Head Rule",
+        "body": "A long reference page keeps one family from top to bottom: every section is a side head on the 14rem column beside its text, after a Rule, so a reader finds each section's name in the same place on every screen. /changelog and the guides read this way, and a new reference page joins them rather than inventing a layout of its own.",
         "section": "layout"
       },
       {
@@ -616,7 +644,10 @@
       "Do descend the bands down the page: chart white, shallow, mid, then the deep for the close and the footer.",
       "Do say every caution in words as well as in magenta.",
       "Do keep a time on one line, and change the layout when a column cannot hold it.",
-      "Do keep reading text at the reading measure, 52ch (66 to 72 characters).",
+      "Do break code, file names and addresses only at their marks (after a slash, an underscore or a word's hyphen), and keep every flag and version whole.",
+      "Do name each file on /download as its button saves it, with the release's versioned name under it in Second Ink.",
+      "Do set a long reference page's sections as side heads on the 14rem column, each after a Rule, one family from top to bottom.",
+      "Do keep reading text at the reading measure, 52ch (a full line of 74 characters at most).",
       "Do show the app only as a real capture matched to the theme, captioned as example accounts.",
       "Do keep motion to one authored moment, the home curve drawing once in 900 ms, with reduced motion showing the end state."
     ],
@@ -625,7 +656,8 @@
       "Don't set a label, a kicker or a plate title above a heading; a heading carries itself.",
       "Don't use magenta on a heading, a name, a link in running text or decoration.",
       "Don't set Line Blue as text.",
-      "Don't cast a shadow, blur a surface or use glass.",
+      "Don't cast a shadow, blur a surface or use glass; the Scroll Shade on output is a sign of more text, not depth.",
+      "Don't let code break inside a word, a flag or a version, and never set it with `overflow-wrap: anywhere`.",
       "Don't round a box past 2 px: no pill buttons and no soft cards.",
       "Don't use a cream, parchment or warm paper ground; the ground is a cool chart white.",
       "Don't draw nautical ornament (anchors, rope, ship's wheels, waves as decoration); a curve on this site always plots real numbers.",
