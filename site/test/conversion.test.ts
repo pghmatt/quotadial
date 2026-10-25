@@ -16,6 +16,7 @@ import { longDay, receiptKey, requestKey, UNREACHED, UNREADABLE } from "../compo
 import { PRO_ROWS } from "../components/conversion/pro-rows.ts";
 import { PRO_ADDS } from "../lib/data/pro.ts";
 import { fenced, installGuide, repositoryFile } from "../lib/markdown.ts";
+import { NOT_BUILT } from "./built.ts";
 
 const RECEIPT = "11111111-1111-4111-8111-111111111111";
 const LICENCE = { id: "ls-1", issued: "2026-10-25" };
@@ -296,7 +297,7 @@ test("nothing that makes the page fetches an address when the site is built", ()
 /** The built /download, once `npm run build` has made it. */
 const BUILT = new URL("../out/download.html", import.meta.url);
 const built = existsSync(BUILT) ? readFileSync(BUILT, "utf8") : "";
-const skip = built ? false : "run npm run build first: this reads the built page";
+const skip = built ? false : NOT_BUILT;
 
 /** Text of a built page: its tags gone, its entities read, its soft breaks closed up. */
 function words(text: string): string {
