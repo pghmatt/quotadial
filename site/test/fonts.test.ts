@@ -25,6 +25,14 @@ test("every width of Sofia Sans the site sets is loaded with its own italic", ()
   }
 });
 
+test("code stays upright, so the code face, loaded without an italic, is never slanted", () => {
+  // An italic caption that names a command would otherwise slant the command too.
+  const rule = styles.match(/code,\s*kbd,\s*pre\s*\{([^}]*)\}/);
+  assert.ok(rule, "the stylesheet styles code, kbd and pre together");
+  assert.match(rule[1], /font-style:\s*normal;/);
+  assert.ok(!imported().get("jetbrains-mono")?.includes("wght-italic.css"), "the code face loads no italic it would never use");
+});
+
 test("each typeface the stylesheet names is one the site loads", () => {
   const names = new Map([
     ["Sofia Sans Variable", "sofia-sans"],

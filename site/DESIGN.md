@@ -270,12 +270,12 @@ A full palette with chart roles: the blues own whole regions of the page, line b
 - **Caption** (Semi Condensed italic 400, 0.9375rem, Second Ink): what a figure shows; beside any picture or sample of the app it says the accounts are examples.
 - **Plate title** (Condensed italic 650, 1rem, line height 1.3, Second Ink): a plate's name at its head, sloped the way a chart letters the names of water. The curve's notes ("High water: 100%", the reset, the prediction) share this condensed italic.
 - **Label** (Condensed 650, 1.125rem, line height 1): button labels; navigation links take the same size at 600.
-- **Code** (JetBrains Mono 400, 0.9375rem in blocks and 0.875em inline, line height 1.6): code, commands, file names and network addresses, with ligatures off so a double hyphen never joins into one long dash.
+- **Code** (JetBrains Mono 400, 0.9375rem in blocks and 0.875em inline, line height 1.6): code, commands, file names and network addresses, with ligatures off so a double hyphen never joins into one long dash. Code is always upright, even inside an italic caption.
 
 ### Named Rules
 **The Three Widths Rule.** Condensed speaks, regular reads, semi-condensed counts. Headings, actions, labels and chart notes are condensed; paragraphs and the sentences in a table of words are regular; figures, times, table heads, row heads and captions are semi-condensed. A width never takes another width's job.
 
-**The True Italic Rule.** A width that slopes loads its own italic file beside its upright, from the same package. The browser never invents a slope.
+**The True Italic Rule.** A width that slopes loads its own italic file beside its upright, from the same package. The browser never invents a slope, and code, which has no italic, never slopes.
 
 **The Unbroken Time Rule.** A time, a duration or a file name in a table never breaks across two lines ("Tue 18:40", "1 d 15 h", "QuotaDial_<version>_universal.dmg"). When a column cannot hold them whole, the layout changes and the time does not: on a phone the home table sets each row as two lines, and the files table stacks each file under its system. In running text a long file name may break only after an underscore or a hyphen.
 

@@ -548,7 +548,7 @@
       },
       {
         "name": "The True Italic Rule",
-        "body": "A width that slopes loads its own italic file beside its upright, from the same package. The browser never invents a slope.",
+        "body": "A width that slopes loads its own italic file beside its upright, from the same package. The browser never invents a slope, and code, which has no italic, never slopes.",
         "section": "typography"
       },
       {
