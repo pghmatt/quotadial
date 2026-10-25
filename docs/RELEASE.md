@@ -84,9 +84,9 @@ npx tauri signer generate -w "$HOME/Library/Application Support/quotadial-issue/
 It asks for a password and writes `updater.key` and `updater.key.pub`. The public half goes in
 `apps/tray/src-tauri/tauri.conf.json` as `plugins.updater.pubkey`, which every build carries.
 
-QuotaDial's updater key was made this way on Matt's Mac for the pull request that added updates (#59),
-with a random password kept in his login Keychain as "QuotaDial updater signing key"; the public
-half is the one committed. These two commands put both into the repository's secrets without
+QuotaDial's updater key was made this way on Matt's Mac for the pull request that added updates
+(#59), with a random password kept in his login Keychain as "QuotaDial updater signing key"; the
+public half is the one committed. These two commands put both into the repository's secrets without
 showing either:
 
 ```sh
