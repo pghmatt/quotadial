@@ -80,12 +80,12 @@ queue, by its numbers:
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
   (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs
-  (D-116), in review (PR #71);
+  (D-116), in review (PR #72; the fake provider is PR #71, and the recording a third);
 - then the M6 plan, starting with a fake provider while it waits.
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (PR #71), then M6.
+#64's fix (PR #69); from here: 12 (PRs #71 and #72, then the recording), then M6.
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
 an undici override (notes below).
@@ -168,7 +168,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
 | 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
-| 12: docs | In review (PR #71) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
+| 12: docs | In review (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
