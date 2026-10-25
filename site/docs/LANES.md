@@ -6,13 +6,14 @@ worktree, branch and port, and the Brain merges them with the merge train
 
 | Lane | Branch | Worktree | Port | Routes | Owns (and nothing else) |
 | --- | --- | --- | --- | --- | --- |
-| home | `site/home` | `~/ClaudeCode/QuotaDial-site-home` | 3082 | `/` | `site/app/page.tsx`, `site/components/home/` |
-| conversion | `site/conversion` | `~/ClaudeCode/QuotaDial-site-conversion` | 3083 | `/download`, `/pro`, `/key` | `site/app/download/`, `site/app/pro/`, `site/app/key/`, `site/components/conversion/` |
-| reference | `site/reference` | `~/ClaudeCode/QuotaDial-site-reference` | 3084 | `/privacy`, `/support`, `/changelog`, the 404 page | `site/app/privacy/`, `site/app/support/`, `site/app/changelog/`, `site/app/not-found.tsx`, `site/components/reference/` |
+| home | `site/home` | `~/ClaudeCode/QuotaDial-site-home` | 3082 | `/` | `site/app/page.tsx`, `site/components/home/`, `site/test/home.test.ts` |
+| conversion | `site/conversion` | `~/ClaudeCode/QuotaDial-site-conversion` | 3083 | `/download`, `/pro`, `/key` | `site/app/download/`, `site/app/pro/`, `site/app/key/`, `site/components/conversion/`, `site/test/conversion.test.ts` |
+| reference | `site/reference` | `~/ClaudeCode/QuotaDial-site-reference` | 3084 | `/privacy`, `/support`, `/changelog`, the 404 page | `site/app/privacy/`, `site/app/support/`, `site/app/changelog/`, `site/app/not-found.tsx`, `site/components/reference/`, `site/test/reference.test.ts` |
 
 Everything else is shared and the Brain's: `app/layout.tsx`, `app/globals.css`, `components/*.tsx`,
 `lib/`, `scripts/`, `public/`, the brand files in `app/`, `docs/`, `package.json` and the configs.
-A lane that needs a change there asks the Brain (message_brain) and waits; it never edits them.
+A lane that needs a change there asks the Brain (message_brain) and carries on; it never edits them.
+Each lane's tests go in its own `site/test/<lane>.test.ts`, which `npm test` runs.
 
 ## Each lane's done report
 

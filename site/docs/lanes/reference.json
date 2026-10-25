@@ -1,7 +1,18 @@
 {
   "id": "reference",
   "branch": "site/reference",
-  "ownedPaths": ["site/app/privacy", "site/app/support", "site/app/changelog", "site/app/not-found.tsx", "site/components/reference"],
-  "routes": ["/privacy", "/support", "/changelog"],
+  "ownedPaths": [
+    "site/app/privacy",
+    "site/app/support",
+    "site/app/changelog",
+    "site/app/not-found.tsx",
+    "site/components/reference",
+    "site/test/reference.test.ts"
+  ],
+  "routes": [
+    "/privacy",
+    "/support",
+    "/changelog"
+  ],
   "requiredSkills": []
 }
