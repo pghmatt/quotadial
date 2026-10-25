@@ -1,4 +1,4 @@
-//! The example accounts: what each window reads when the provider is made, how fast it fills, and
+//! The example accounts: what each window reads when the examples start, how fast it fills, and
 //! when it resets. They come from `fixtures/fake/example.json`, built in, or from a JSON file of the
 //! same form that `QUOTADIAL_FAKE_ACCOUNTS` names, so a recording can show other numbers.
 //!
@@ -45,7 +45,7 @@ pub(crate) struct ExampleAccount {
     pub(crate) windows: Vec<ExampleWindow>,
 }
 
-/// One example window, as it reads when the provider is made.
+/// One example window, as it reads when the examples start.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ExampleWindow {
     kind: WindowKind,
@@ -53,9 +53,9 @@ pub(crate) struct ExampleWindow {
     scope_model: Option<String>,
     /// Its length in seconds, from [`MIN_WINDOW_SECONDS`] to [`MAX_WINDOW_SECONDS`].
     window_seconds: i64,
-    /// Its share used when the provider is made, from 0 to 100.
+    /// Its share used when the examples start, from 0 to 100.
     used_pct: f64,
-    /// How many seconds after the provider is made it first resets: at least 1, at most its length.
+    /// How many seconds after the examples start it first resets: at least 1, at most its length.
     resets_in_seconds: i64,
     /// How fast it fills, in points an hour, from 0 to [`MAX_PCT_PER_HOUR`].
     pct_per_hour: f64,

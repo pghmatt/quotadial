@@ -6,9 +6,9 @@
 //! It reads no sign-in, no Keychain and no network, and it keeps nothing. Its accounts are built in
 //! (`fixtures/fake/example.json`), or come from a JSON file of the same form that
 //! `QUOTADIAL_FAKE_ACCOUNTS` names, read once when the provider is made. Each is called "Example",
-//! with a plan and no address. Each window fills at its own pace from the moment the provider is
-//! made and starts again at each reset, so the daemon's history of it gives it a pace, as a real
-//! account's does. Every window carries the time it was read and says it is an example
+//! with a plan and no address. Each window fills at its own pace from the first whole minute after
+//! the provider is made, and starts again at each reset, so the daemon's history of it gives it a
+//! pace, as a real account's does. Every window carries the time it was read and says it is an example
 //! (`Source::Example`).
 
 mod examples;
