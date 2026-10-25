@@ -29,6 +29,9 @@ use crate::settings::Method;
 /// The provider id used in [`Account::provider`].
 pub const ID: &str = "gemini";
 
+/// What the provider calls itself (P-020).
+pub const NAME: &str = "Gemini CLI";
+
 /// How often the daemon may look at a Gemini CLI account again. Nothing is asked, so this only
 /// keeps its history short; discovery, every minute, already sees a sign-in come or go.
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -123,6 +126,27 @@ impl SignedIn {
         }
     }
 
+    /// What QuotaDial does with the sign-in, in the provider's words (P-020): for a Google account,
+    /// that it only checks the sign-in is at `place`; otherwise what it reads from the settings at
+    /// `place`.
+    fn sign_in_use(self, place: &str) -> String {
+        match self {
+            Self::Google => {
+                format!(
+                    "QuotaDial only checks that Gemini CLI's sign-in is at {place}. It never opens it."
+                )
+            }
+            Self::ApiKey => format!(
+                "QuotaDial only reads, from {place}, that Gemini CLI uses a Gemini API key. It never \
+                 reads the key."
+            ),
+            Self::VertexAi => format!(
+                "QuotaDial only reads, from {place}, that Gemini CLI uses Vertex AI. It reads none of \
+                 its sign-in."
+            ),
+        }
+    }
+
     /// Why there are no numbers, in one line.
     fn reason(self) -> &'static str {
         match self {
@@ -139,6 +163,10 @@ impl Provider for GeminiProvider {
         ID
     }
 
+    fn name(&self) -> &'static str {
+        NAME
+    }
+
     /// The one account Gemini CLI is signed in to, if any, named for how it signs in, with where
     /// QuotaDial saw it (P-015): the sign-in file for a Google account, the settings for the rest.
     fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -149,13 +177,16 @@ impl Provider for GeminiProvider {
             SignedIn::Google => self.env.sign_in_file(),
             SignedIn::ApiKey | SignedIn::VertexAi => self.env.settings_file(),
         };
+        let place = place.map(|path| quotadial_core::text::tilde(&path, self.env.home.as_deref()));
         Ok(vec![Account {
             provider: ID.to_owned(),
+            provider_name: NAME.to_owned(),
             account_id: signed_in.account_id().to_owned(),
             display_name: signed_in.display_name().to_owned(),
             plan: None,
             org: None,
-            sign_in: place.map(|path| quotadial_core::text::tilde(&path, self.env.home.as_deref())),
+            sign_in_use: signed_in.sign_in_use(place.as_deref().unwrap_or_default()),
+            sign_in: place,
         }])
     }
 
@@ -277,14 +308,16 @@ mod tests {
         format!("~/{}", parts.iter().collect::<PathBuf>().display())
     }
 
-    fn account(account_id: &str, display_name: &str, sign_in: &str) -> Account {
+    fn account(account_id: &str, display_name: &str, sign_in: &str, sign_in_use: &str) -> Account {
         Account {
             provider: "gemini".into(),
+            provider_name: "Gemini CLI".into(),
             account_id: account_id.into(),
             display_name: display_name.into(),
             plan: None,
             org: None,
             sign_in: Some(sign_in.into()),
+            sign_in_use: sign_in_use.into(),
         }
     }
 
@@ -308,14 +341,19 @@ mod tests {
 
         let found = look(&home.provider()).await;
 
+        let place = in_home(&[".gemini", "oauth_creds.json"]);
         let expected = account(
             "google",
             "Google account",
-            &in_home(&[".gemini", "oauth_creds.json"]),
+            &place,
+            &format!(
+                "QuotaDial only checks that Gemini CLI's sign-in is at {place}. It never opens it."
+            ),
         );
         assert_eq!(found.len(), 1);
         let (account, snapshot) = &found[0];
         assert_eq!(account, &expected);
+        assert_eq!(account.provider_name, home.provider().name());
         assert_eq!(snapshot.account, expected);
         assert_eq!(snapshot.status, Status::Unsupported);
         assert!(snapshot.windows.is_empty());
@@ -362,15 +400,23 @@ mod tests {
 
     #[tokio::test]
     async fn an_api_key_or_vertex_ai_shows_an_account_with_no_plan_limits() {
-        for (value, account_id, name, reason) in [
+        for (value, account_id, name, reason, uses) in [
             (
                 "gemini-api-key",
                 "api-key",
                 "Gemini API key",
                 advice::API_KEY,
+                "uses a Gemini API key. It never reads the key.",
             ),
-            ("vertex-ai", "vertex-ai", "Vertex AI", advice::VERTEX_AI),
+            (
+                "vertex-ai",
+                "vertex-ai",
+                "Vertex AI",
+                advice::VERTEX_AI,
+                "uses Vertex AI. It reads none of its sign-in.",
+            ),
         ] {
+            let settings = in_home(&[".gemini", "settings.json"]);
             for home in [
                 Home::new().choosing(value),
                 Home::new().signed_in().choosing(value),
@@ -381,7 +427,12 @@ mod tests {
                 let (account, snapshot) = &found[0];
                 assert_eq!(
                     account,
-                    &self::account(account_id, name, &in_home(&[".gemini", "settings.json"]))
+                    &self::account(
+                        account_id,
+                        name,
+                        &settings,
+                        &format!("QuotaDial only reads, from {settings}, that Gemini CLI {uses}")
+                    )
                 );
                 assert_eq!(snapshot.status, Status::Unsupported);
                 assert!(snapshot.windows.is_empty());
@@ -493,7 +544,12 @@ mod tests {
     #[tokio::test]
     async fn every_account_it_shows_is_one_it_can_fetch_and_no_other() {
         let provider = Home::new().provider();
-        let stranger = account("someone-else", "Google account", "~/.gemini");
+        let stranger = account(
+            "someone-else",
+            "Google account",
+            "~/.gemini",
+            "QuotaDial reads no one's sign-in.",
+        );
 
         let error = provider
             .fetch(&stranger)

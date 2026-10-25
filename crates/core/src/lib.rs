@@ -27,7 +27,10 @@ pub use cost::{Cost, ModelCost, Tokens};
 pub use diagnostics::{Diagnostics, mask_emails};
 pub use error::{Error, Result};
 pub use licence::{KeyError, Licence, Plan, Standing};
-pub use model::{Account, ExtraUsage, Pace, Snapshot, Source, Status, Window, WindowKind};
+pub use model::{
+    Account, ExtraUsage, Pace, Snapshot, Source, Status, UNNAMED_PROVIDER, UNSAID_SIGN_IN_USE,
+    Window, WindowKind,
+};
 pub use pace::{MIN_READINGS, MIN_SPAN, Reading};
 pub use provider::{AccountLimit, Invocation, Provider, ProviderCommand};
 pub use redact::{REDACTED, outside_text, redact_secrets};

@@ -110,6 +110,11 @@ pub trait Provider: Send + Sync {
     /// The stable provider id, for example `"claude"`. Matches [`Account::provider`].
     fn id(&self) -> &'static str;
 
+    /// What the provider calls itself, as people know it, such as `Claude` or `Gemini CLI`: what
+    /// every surface shows for it and its accounts, whose [`Account::provider_name`] it is, so none
+    /// of them needs a list of providers' names (P-020).
+    fn name(&self) -> &'static str;
+
     /// Finds the accounts this machine is signed in to by reading the official CLI's stored
     /// credentials. Never writes, refreshes or copies them.
     ///
@@ -172,6 +177,10 @@ mod tests {
     impl Provider for Plain {
         fn id(&self) -> &'static str {
             "plain"
+        }
+
+        fn name(&self) -> &'static str {
+            "Plain"
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {

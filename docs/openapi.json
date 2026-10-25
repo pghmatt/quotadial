@@ -60,18 +60,30 @@
             "description": "The provider's id, such as `\"claude\"`.",
             "type": "string"
           },
+          "provider_name": {
+            "default": "Unnamed provider",
+            "description": "What the provider calls itself, as people know it, such as `Claude`, `Codex` or `Gemini CLI`, shown as given wherever the account is. An account from an older QuotaDial, which sent none, reads as `Unnamed provider`.",
+            "type": "string"
+          },
           "sign_in": {
-            "description": "Where QuotaDial read this account's sign-in, written for people, with `~` for the home folder, such as `the macOS Keychain item \"Claude Code-credentials-a1b2c3d4\" (CLAUDE_CONFIG_DIR ~/.claude-work)`. Never a token. Left out when unknown.",
+            "description": "Where the account's sign-in is, written for people, with `~` for the home folder, such as `the macOS Keychain item \"Claude Code-credentials-a1b2c3d4\" (CLAUDE_CONFIG_DIR ~/.claude-work)`. Never a token. Left out when unknown.",
             "type": [
               "string",
               "null"
             ]
+          },
+          "sign_in_use": {
+            "default": "This account came from an older QuotaDial, which did not say what it does with the account's sign-in.",
+            "description": "One sentence, in the provider's words, saying what QuotaDial does with this account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.`, shown as given. An account from an older QuotaDial, which sent none, says that it did not say.",
+            "type": "string"
           }
         },
         "required": [
           "provider",
+          "provider_name",
           "account_id",
-          "display_name"
+          "display_name",
+          "sign_in_use"
         ],
         "type": "object"
       },

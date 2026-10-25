@@ -288,11 +288,13 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: format!("The {provider} provider"),
                 account_id: format!("{name}-id"),
                 display_name: format!("{name}@example.com"),
                 plan: None,
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: windows
                 .iter()

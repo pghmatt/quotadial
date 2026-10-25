@@ -79,7 +79,9 @@ pub fn left_out<P: AsRef<dyn Provider>>(tier: Tier, providers: &[P], costs: bool
                 .iter()
                 .map(AsRef::as_ref)
                 .filter(|provider| provider.held_back() > 0)
-                .map(|provider| LeftOut::accounts(provider.id(), provider.held_back())),
+                .map(|provider| {
+                    LeftOut::accounts(provider.id(), provider.name(), provider.held_back())
+                }),
         );
     }
     if costs && !tier.allows(ProFeature::CostScan) {

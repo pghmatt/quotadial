@@ -765,13 +765,15 @@ impl Poller {
         let provider = Arc::clone(&self.providers[tracked.provider]);
         let floor = provider.min_poll_interval();
         let mut unreached = false;
+        // What an older QuotaDial left out of a snapshot it kept is taken from the account found
+        // (P-020).
         let result = match provider.fetch(&tracked.account).await {
-            Ok(snapshot) => Ok(snapshot.without_secrets()),
+            Ok(snapshot) => Ok(snapshot.completed_from(&tracked.account).without_secrets()),
             Err(error) => {
                 unreached = matches!(error, quotadial_core::Error::Request { .. });
                 provider
                     .fallback(&tracked.account)
-                    .map(Snapshot::without_secrets)
+                    .map(|snapshot| snapshot.completed_from(&tracked.account).without_secrets())
                     .ok_or_else(|| ProviderError::new(provider.id(), &error))
             }
         };
@@ -909,6 +911,8 @@ mod tests {
     /// A provider whose answers the test sets.
     struct Scripted {
         id: &'static str,
+        /// What it calls itself: its id written as a name, as its accounts give it.
+        name: &'static str,
         floor: Duration,
         accounts: Mutex<std::result::Result<Vec<Account>, String>>,
         used_pct: Mutex<std::result::Result<f64, String>>,
@@ -927,12 +931,16 @@ mod tests {
         /// Whether its answers are its last numbers again, as a provider gives while it cannot
         /// reach its usage endpoint.
         stale: std::sync::atomic::AtomicBool,
+        /// Whether its answers are ones an older QuotaDial kept, whose accounts name no provider
+        /// and say nothing of the sign-in.
+        older: std::sync::atomic::AtomicBool,
     }
 
     impl Scripted {
         fn new(id: &'static str, floor_minutes: u64) -> Self {
             Self {
                 id,
+                name: Box::leak(named(id).into_boxed_str()),
                 floor: Duration::from_secs(floor_minutes * 60),
                 accounts: Mutex::new(Ok(vec![account(id, "user-1")])),
                 used_pct: Mutex::new(Ok(10.0)),
@@ -944,7 +952,17 @@ mod tests {
                 logs: Mutex::default(),
                 held: AtomicUsize::new(0),
                 stale: std::sync::atomic::AtomicBool::new(false),
+                older: std::sync::atomic::AtomicBool::new(false),
             }
+        }
+
+        /// `snapshot` as an older QuotaDial kept it, when the test says so.
+        fn as_kept(&self, mut snapshot: Snapshot) -> Snapshot {
+            if self.older.load(Ordering::SeqCst) {
+                snapshot.account.provider_name = quotadial_core::UNNAMED_PROVIDER.to_owned();
+                snapshot.account.sign_in_use = quotadial_core::UNSAID_SIGN_IN_USE.to_owned();
+            }
+            snapshot
         }
 
         fn fetches(&self) -> usize {
@@ -964,6 +982,10 @@ mod tests {
     impl Provider for Scripted {
         fn id(&self) -> &'static str {
             self.id
+        }
+
+        fn name(&self) -> &'static str {
+            self.name
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1003,12 +1025,12 @@ mod tests {
             if self.stale.load(Ordering::SeqCst) {
                 answer.status = Status::Stale;
             }
-            Ok(answer)
+            Ok(self.as_kept(answer))
         }
 
         fn fallback(&self, account: &Account) -> Option<Snapshot> {
             self.fallback
-                .map(|used_pct| snapshot(account, used_pct, 0, Source::LocalLog))
+                .map(|used_pct| self.as_kept(snapshot(account, used_pct, 0, Source::LocalLog)))
         }
 
         fn min_poll_interval(&self) -> Duration {
@@ -1048,6 +1070,10 @@ mod tests {
             "claude"
         }
 
+        fn name(&self) -> &'static str {
+            "Claude"
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![account("claude", "user-1")])
         }
@@ -1079,15 +1105,26 @@ mod tests {
         }
     }
 
+    /// An account of `provider`, named as such a provider names itself: `Claude` for `claude`.
     fn account(provider: &str, id: &str) -> Account {
         Account {
             provider: provider.into(),
+            provider_name: named(provider),
             account_id: id.into(),
             display_name: "user@example.com".into(),
             plan: None,
             org: None,
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
+    }
+
+    /// `id` written as a name, `Claude` for `claude`, as a test provider calls itself.
+    fn named(id: &str) -> String {
+        let mut letters = id.chars();
+        letters.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(letters).collect()
+        })
     }
 
     fn base() -> DateTime<Utc> {
@@ -1200,6 +1237,22 @@ mod tests {
             }
             tokio::time::sleep_until(wake).await;
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_snapshot_an_older_quotadial_kept_is_completed_from_the_account_found() {
+        let (_dir, history) = history();
+        let codex = Arc::new(Scripted::new("codex", 2));
+        codex.older.store(true, Ordering::SeqCst);
+        let mut poller = poller(vec![Arc::clone(&codex)], history);
+
+        poller.poll_due().await;
+
+        let report = poller.latest().report();
+        assert_eq!(report.snapshots.len(), 1);
+        let account = &report.snapshots[0].account;
+        assert_eq!(account.provider_name, "Codex");
+        assert_eq!(account.sign_in_use, "QuotaDial reads this test's sign-in.");
     }
 
     #[tokio::test(start_paused = true)]
@@ -1821,15 +1874,15 @@ mod tests {
         poller.poll_due().await;
         assert_eq!(
             poller.latest().report().left_out,
-            [LeftOut::accounts("claude", 8)]
+            [LeftOut::accounts("claude", "Claude", 8)]
         );
         assert_eq!(
-            LeftOut::accounts("claude", 8).text,
+            LeftOut::accounts("claude", "Claude", 8).text,
             "8 more Claude accounts are on this machine. Showing every account is part of \
              QuotaDial Pro: quotadial.com/pro"
         );
         assert_eq!(
-            LeftOut::accounts("claude", 1).text,
+            LeftOut::accounts("claude", "Claude", 1).text,
             "1 more Claude account is on this machine. Showing every account is part of \
              QuotaDial Pro: quotadial.com/pro"
         );

@@ -355,7 +355,8 @@ impl Rule {
         occurrence: &Occurrence,
         now: DateTime<Utc>,
     ) -> (String, String) {
-        let provider = text::provider_name(&account.provider);
+        // As the provider names itself (P-020).
+        let provider = &account.provider_name;
         let name = &account.display_name;
         let window = occurrence.label.as_deref().unwrap_or_default();
         let used = occurrence
@@ -412,7 +413,9 @@ impl Rule {
 /// check the grammar read what they meant.
 impl fmt::Display for Rule {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let provider = self.scope.provider.as_deref().map(text::provider_name);
+        // The provider word the grammar read, written back as a name: `Claude` for `claude`.
+        let provider = self.scope.provider.as_deref().map(capitalized);
+        let provider = provider.as_deref();
         let window = match (provider, self.scope.window.as_deref()) {
             (None, None) => "any window".to_owned(),
             (Some(provider), None) => format!("any {provider} window"),
@@ -944,14 +947,17 @@ mod tests {
             + TimeDelta::minutes(minutes)
     }
 
+    /// An account of `provider`, named as its provider names itself: `Claude` for `claude`.
     fn account(provider: &str) -> Account {
         Account {
             provider: provider.into(),
+            provider_name: capitalized(provider),
             account_id: "user-1".into(),
             display_name: "user@example.com".into(),
             plan: None,
             org: None,
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
     }
 
@@ -1165,6 +1171,30 @@ mod tests {
                 "Codex needs you to sign in again".to_owned(),
                 "user@example.com: Run `codex` to sign in again.".to_owned()
             )
+        );
+    }
+
+    #[test]
+    fn a_notification_names_the_provider_as_the_provider_names_itself() {
+        let account = Account {
+            provider_name: "Gemini CLI".into(),
+            ..account("gemini")
+        };
+        let occurrence = Occurrence {
+            label: Some("Daily".into()),
+            scope_model: None,
+            instance: Some(at(3000)),
+            used_pct: Some(85.0),
+            resets_at: None,
+            pace: None,
+            note: None,
+        };
+
+        assert_eq!(
+            rule("warn me at 80%")
+                .message(&account, &occurrence, at(0))
+                .0,
+            "Gemini CLI Daily passed 80%"
         );
     }
 

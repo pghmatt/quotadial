@@ -171,26 +171,32 @@ async fn discovers_the_signed_in_account_without_a_request() {
     let harness = Harness::new().await;
     harness.sign_in("pro", FAR_FUTURE);
 
-    let account = discovered(&harness.provider());
+    let provider = harness.provider();
+    let account = discovered(&provider);
 
+    let place = harness
+        .codex_home
+        .path()
+        .join("auth.json")
+        .display()
+        .to_string();
     assert_eq!(
         account,
         Account {
             provider: "codex".into(),
+            provider_name: "Codex".into(),
             account_id: USER_ID.into(),
             display_name: "user@example.com".into(),
             plan: Some("pro".into()),
             org: Some(WORKSPACE.into()),
-            sign_in: Some(
-                harness
-                    .codex_home
-                    .path()
-                    .join("auth.json")
-                    .display()
-                    .to_string()
+            sign_in: Some(place.clone()),
+            sign_in_use: format!(
+                "QuotaDial reads this account's sign-in from {place}. It only reads it and never \
+                 changes it."
             ),
         }
     );
+    assert_eq!(account.provider_name, provider.name());
     assert_eq!(harness.usage_requests().await, 0);
 }
 
@@ -221,6 +227,15 @@ async fn an_api_key_sign_in_is_shown_as_unsupported_without_a_request() {
     let snapshot = provider.fetch(&account).await.expect("fetches");
 
     assert_eq!(account.display_name, "OpenAI API key");
+    assert_eq!(account.provider_name, "Codex");
+    assert_eq!(
+        account.sign_in_use,
+        format!(
+            "QuotaDial reads this account's sign-in from {}. It only reads it and never changes \
+             it.",
+            harness.auth_file().display()
+        )
+    );
     assert_eq!(snapshot.status, Status::Unsupported);
     assert_eq!(snapshot.error.as_deref(), Some(advice::API_KEY));
     assert!(!printed(&Ok(snapshot)).contains("sk-proj"));

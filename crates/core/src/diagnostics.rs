@@ -70,13 +70,13 @@ impl Diagnostics {
             });
             lines.push(format!(
                 "  {} {}{plan}: {}{fetched}",
-                account.provider,
+                account.provider_name,
                 account.display_name,
                 text::status_label(snapshot.status)
             ));
-            if let Some(sign_in) = &account.sign_in {
-                lines.push(format!("    sign-in: {sign_in}"));
-            }
+            // What QuotaDial does with the sign-in, in the provider's words, which name where it is
+            // when the provider knows (P-020).
+            lines.push(format!("    sign-in: {}", account.sign_in_use));
             if let Some(error) = &snapshot.error {
                 lines.push(format!("    {error}"));
             }
@@ -233,15 +233,19 @@ mod tests {
     }
 
     fn diagnostics() -> Diagnostics {
+        let place = "the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR \
+                     /home/someone/.claude-work)";
         let account = Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "a-1".into(),
             display_name: "matt@example.com".into(),
             plan: Some("max".into()),
             org: None,
-            sign_in: Some(
-                "the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR /home/someone/.claude-work)"
-                    .into(),
+            sign_in: Some(place.into()),
+            sign_in_use: format!(
+                "QuotaDial reads this account's sign-in from {place}. It only reads it and never \
+                 changes it."
             ),
         };
         Diagnostics {
@@ -300,8 +304,10 @@ mod tests {
              Numbers: from the daemon\n\
              \n\
              Accounts (1):\n  \
-             claude m***@e***.com (max): ok, fetched 3 min ago from the API\n    \
-             sign-in: the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR ~/.claude-work)\n\
+             Claude m***@e***.com (max): ok, fetched 3 min ago from the API\n    \
+             sign-in: QuotaDial reads this account's sign-in from the macOS Keychain item \
+             \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR ~/.claude-work). It only reads it and \
+             never changes it.\n\
              Left out on QuotaDial Free:\n  \
              The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n\
              Problems:\n  \

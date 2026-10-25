@@ -15,7 +15,7 @@ use std::path::Path;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{
-    Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Tier, Window, text,
+    Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Tier, Window,
 };
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,11 @@ use crate::history::{History, HistoryError, timestamp};
 
 /// Two times of one occurrence closer than this are the same time.
 const SAME_TIME: TimeDelta = TimeDelta::minutes(10);
+
+/// What the account an incident is kept under does with a sign-in: there is none, since a status
+/// page is public (P-020).
+const STATUS_PAGE_SIGN_IN_USE: &str =
+    "QuotaDial reads this provider's public status page, which needs no sign-in.";
 /// The rules a new database starts with, as written.
 const STARTING_RULES: [&str; 2] = [
     "warn me when a window passes 90%",
@@ -313,15 +318,18 @@ impl History {
                 }
             }
             // An incident belongs to a provider, not an account, so it is kept under the
-            // provider's name.
+            // provider's name, as its accounts give it (P-020).
             for (page, occurrence) in stored.rule.incidents(&report.status_pages) {
+                let name = report.provider_name(&page.provider);
                 let provider = Account {
                     provider: page.provider.clone(),
+                    provider_name: name.to_owned(),
                     account_id: String::new(),
-                    display_name: text::provider_name(&page.provider).to_owned(),
+                    display_name: name.to_owned(),
                     plan: None,
                     org: None,
                     sign_in: None,
+                    sign_in_use: STATUS_PAGE_SIGN_IN_USE.to_owned(),
                 };
                 if let Some(firing) = self.fire(&stored, &provider, &occurrence, quiet, now)?
                     && !quiet
@@ -653,11 +661,13 @@ mod tests {
     fn account() -> Account {
         Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "user-1".into(),
             display_name: "user@example.com".into(),
             plan: None,
             org: Some("org-1".into()),
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
     }
 
@@ -952,6 +962,18 @@ mod tests {
         let (_dir, history) = with_rule("warn me about outages");
         let with_page = |indicator, since| {
             let mut report = report(10.0, 0, 300);
+            // Status pages are read only for providers with accounts, whose accounts name them.
+            report.snapshots.push(Snapshot {
+                account: Account {
+                    provider: "codex".into(),
+                    provider_name: "Codex".into(),
+                    ..account()
+                },
+                windows: Vec::new(),
+                extra_usage: None,
+                status: quotadial_core::Status::Ok,
+                error: None,
+            });
             report.status_pages = vec![quotadial_core::StatusPage {
                 provider: "codex".into(),
                 indicator,

@@ -39,6 +39,9 @@ use crate::usage::Reading;
 /// The provider id used in [`Account::provider`].
 pub const ID: &str = "codex";
 
+/// What the provider calls itself (P-020).
+pub const NAME: &str = "Codex";
+
 /// The fastest adaptive poll interval in the PRD: every two minutes while a CLI is active.
 /// QuotaDial never asks ChatGPT more often than this for one account.
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(2 * 60);
@@ -264,6 +267,10 @@ impl Provider for CodexProvider {
         ID
     }
 
+    fn name(&self) -> &'static str {
+        NAME
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         // Where the sign-in was read, as every account carries it (P-015).
         let place = self
@@ -276,6 +283,7 @@ impl Provider for CodexProvider {
             SignIn::ChatGpt { auth, .. } => account_for(&auth),
         };
         Ok(vec![Account {
+            sign_in_use: sign_in_use(place.as_deref()),
             sign_in: place,
             ..account
         }])
@@ -428,6 +436,7 @@ fn account_for(auth: &Auth) -> Account {
     };
     Account {
         provider: ID.to_owned(),
+        provider_name: NAME.to_owned(),
         account_id,
         display_name: auth
             .email
@@ -436,18 +445,36 @@ fn account_for(auth: &Auth) -> Account {
         plan: auth.plan.clone(),
         org,
         sign_in: None,
+        sign_in_use: sign_in_use(None),
     }
 }
 
 fn api_key_account() -> Account {
     Account {
         provider: ID.to_owned(),
+        provider_name: NAME.to_owned(),
         account_id: API_KEY_ACCOUNT.to_owned(),
         display_name: "OpenAI API key".to_owned(),
         plan: None,
         org: None,
         sign_in: None,
+        sign_in_use: sign_in_use(None),
     }
+}
+
+/// What QuotaDial does with the sign-in in `auth.json` at `place`, in the Codex CLI's words
+/// (P-020): where it read it, or, with no place known, where the Codex CLI keeps it, as the popover
+/// used to say.
+fn sign_in_use(place: Option<&str>) -> String {
+    place.map_or_else(
+        || {
+            "QuotaDial reads the sign-in the Codex CLI keeps in auth.json, in ~/.codex or the \
+             folder CODEX_HOME names. It only reads the sign-in and never changes it. If it stops \
+             working, run codex once."
+                .to_owned()
+        },
+        quotadial_core::text::sign_in_read_from,
+    )
 }
 
 /// Why an answer cannot be this sign-in's: ChatGPT named another user or workspace than the token
@@ -522,5 +549,20 @@ impl CodexProvider {
     pub(crate) fn with_request_timeout(mut self, timeout: Duration) -> Self {
         self.request_timeout = timeout;
         self
+    }
+}
+
+#[cfg(test)]
+mod sign_in_tests {
+    use super::*;
+
+    #[test]
+    fn with_no_place_known_the_sentence_says_where_the_codex_cli_keeps_its_sign_in() {
+        assert_eq!(
+            sign_in_use(None),
+            "QuotaDial reads the sign-in the Codex CLI keeps in auth.json, in ~/.codex or the \
+             folder CODEX_HOME names. It only reads the sign-in and never changes it. If it stops \
+             working, run codex once."
+        );
     }
 }

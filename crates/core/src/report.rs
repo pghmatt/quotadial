@@ -58,10 +58,10 @@ impl LeftOut {
         }
     }
 
-    /// `more` accounts of `provider` held back by QuotaDial Free's one account per provider.
+    /// `more` accounts of the provider `provider`, which calls itself `name`, held back by QuotaDial
+    /// Free's one account per provider.
     #[must_use]
-    pub fn accounts(provider: &str, more: usize) -> Self {
-        let name = crate::text::provider_name(provider);
+    pub fn accounts(provider: &str, name: &str, more: usize) -> Self {
         let accounts = match more {
             1 => format!("1 more {name} account is"),
             more => format!(
@@ -137,6 +137,18 @@ pub struct ProviderError {
 }
 
 impl StatusReport {
+    /// What the provider `id` calls itself, as its accounts in the report say (P-020): what status
+    /// pages and costs, which come only for providers with accounts, are shown under.
+    #[must_use]
+    pub fn provider_name(&self, id: &str) -> &str {
+        self.snapshots
+            .iter()
+            .find(|snapshot| snapshot.account.provider == id)
+            .map_or(crate::UNNAMED_PROVIDER, |snapshot| {
+                snapshot.account.provider_name.as_str()
+            })
+    }
+
     /// The report as every consumer shows it: one snapshot per account (D-024), in an order that
     /// lasts. Two sign-ins can turn out to belong to one subscription only once each has been
     /// asked, as with Keychain items whose folder is gone (#34): a working snapshot beats one that
@@ -215,7 +227,8 @@ impl ProviderError {
 /// Asks every provider for its accounts, then fetches each account, using the provider's local
 /// fallback when the fetch fails. What a provider could not look at while finding its accounts is
 /// reported beside them. Error text is checked for tokens here, whichever provider wrote it, so
-/// none reaches a report.
+/// none reaches a report, and what an older QuotaDial left out of a snapshot it kept is taken from
+/// the account discovery found (P-020).
 pub async fn collect<P: AsRef<dyn Provider>>(providers: &[P]) -> StatusReport {
     let mut report = StatusReport::default();
     for provider in providers {
@@ -237,9 +250,13 @@ pub async fn collect<P: AsRef<dyn Provider>>(providers: &[P]) -> StatusReport {
         );
         for account in accounts {
             match provider.fetch(&account).await {
-                Ok(snapshot) => report.snapshots.push(snapshot.without_secrets()),
+                Ok(snapshot) => report
+                    .snapshots
+                    .push(snapshot.completed_from(&account).without_secrets()),
                 Err(error) => match provider.fallback(&account) {
-                    Some(snapshot) => report.snapshots.push(snapshot.without_secrets()),
+                    Some(snapshot) => report
+                        .snapshots
+                        .push(snapshot.completed_from(&account).without_secrets()),
                     None => report
                         .errors
                         .push(ProviderError::new(provider.id(), &error)),
@@ -267,11 +284,13 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: "claude".into(),
+                provider_name: "Claude".into(),
                 account_id: account_id.into(),
                 display_name: format!("{account_id}@example.com"),
                 plan: None,
                 org: Some("org-1".into()),
                 sign_in: Some(place.into()),
+                sign_in_use: format!("QuotaDial reads this account's sign-in from {place}."),
             },
             windows: vec![Window {
                 kind: WindowKind::Session,
@@ -323,6 +342,39 @@ mod tests {
             rows,
             [("a", Some("second")), ("b", Some("newer"))],
             "a working snapshot beats one that needs the user; otherwise the newer numbers win"
+        );
+    }
+
+    #[test]
+    fn a_report_names_a_provider_as_its_accounts_do() {
+        let report = StatusReport {
+            snapshots: vec![snapshot(
+                "a-1",
+                "~/.claude",
+                Status::Ok,
+                "2099-01-01T00:00:00Z",
+            )],
+            ..StatusReport::default()
+        };
+
+        assert_eq!(report.provider_name("claude"), "Claude");
+        assert_eq!(
+            report.provider_name("gemini"),
+            crate::UNNAMED_PROVIDER,
+            "a provider with no account in the report"
+        );
+    }
+
+    #[test]
+    fn the_accounts_left_out_are_counted_under_the_providers_own_name() {
+        assert_eq!(
+            LeftOut::accounts("gemini", "Gemini CLI", 2).text,
+            "2 more Gemini CLI accounts are on this machine. Showing every account is part of \
+             QuotaDial Pro: quotadial.com/pro"
+        );
+        assert_eq!(
+            LeftOut::accounts("claude", "Claude", 1).provider.as_deref(),
+            Some("claude")
         );
     }
 

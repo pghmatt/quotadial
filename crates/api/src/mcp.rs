@@ -436,11 +436,13 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: format!("The {provider} provider"),
                 account_id: format!("{provider}-user"),
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: vec![Window {
                 kind: WindowKind::Weekly,
@@ -616,7 +618,9 @@ mod tests {
             expected
         );
         assert!(
-            text.starts_with(r#"{"snapshots":[{"account":{"provider":"claude","account_id""#),
+            text.starts_with(
+                r#"{"snapshots":[{"account":{"provider":"claude","provider_name":"The claude provider","account_id""#
+            ),
             "the text keeps the order `quotadial status --json` prints: {text}"
         );
     }

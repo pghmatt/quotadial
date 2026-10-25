@@ -46,6 +46,9 @@ use crate::usage::Reading;
 /// The provider id used in [`Account::provider`].
 pub const ID: &str = "claude";
 
+/// What the provider calls itself (P-020).
+pub const NAME: &str = "Claude";
+
 /// Anthropic rate-limits its usage endpoint aggressively, so QuotaDial polls it at most once every
 /// five minutes per account.
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -710,6 +713,10 @@ impl Provider for ClaudeProvider {
         ID
     }
 
+    fn name(&self) -> &'static str {
+        NAME
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         Ok(self.locate_all()?.iter().map(Login::account).collect())
     }
@@ -744,6 +751,7 @@ impl Provider for ClaudeProvider {
         // Named by where its sign-in was found this time, which may have moved (P-015).
         let account = Account {
             sign_in: Some(login.place.clone()),
+            sign_in_use: login::sign_in_use(Some(&login.place)),
             ..account.clone()
         };
         let now = self.clock.now();
@@ -861,8 +869,10 @@ fn known_account(login: &Login, state: &AccountState, stand_in: &Account) -> Opt
                 .map(|snapshot| &snapshot.account)
         })?;
     (known.account_id != stand_in.account_id).then(|| Account {
+        provider_name: stand_in.provider_name.clone(),
         plan: stand_in.plan.clone().or_else(|| known.plan.clone()),
         sign_in: stand_in.sign_in.clone(),
+        sign_in_use: stand_in.sign_in_use.clone(),
         ..known.clone()
     })
 }
@@ -874,6 +884,7 @@ fn named(account: Account, identity: &Identity) -> Account {
     Account {
         plan: account.plan.or(named.plan.clone()),
         sign_in: account.sign_in,
+        sign_in_use: account.sign_in_use,
         ..named
     }
 }

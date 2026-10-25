@@ -17,11 +17,11 @@ const EXAMPLE: bool = cfg!(feature = "fake");
 
 /// How the daemon and `watch` say how often each provider is asked.
 const ASKS: &str = if EXAMPLE {
-    "asks fake at most every 1 min"
+    "asks Example at most every 1 min"
 } else if cfg!(feature = "gemini") {
-    "asks claude at most every 5 min and codex at most every 2 min and gemini at most every 5 min"
+    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
 } else {
-    "asks claude at most every 5 min and codex at most every 2 min"
+    "asks Claude at most every 5 min and Codex at most every 2 min"
 };
 
 /// An empty directory used as the home directory, so no stored login on the machine is found.
@@ -179,8 +179,8 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
     assert_eq!(
         stdout(&text),
         format!(
-            "gemini Google account: unsupported\n  {why}\nThe week's cost at API prices is part of \
-             QuotaDial Pro: quotadial.com/pro\n"
+            "Gemini CLI Google account: unsupported\n  {why}\nThe week's cost at API prices is part \
+             of QuotaDial Pro: quotadial.com/pro\n"
         )
     );
 
@@ -196,9 +196,14 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
             "snapshots": [{
                 "account": {
                     "provider": "gemini",
+                    "provider_name": "Gemini CLI",
                     "account_id": "google",
                     "display_name": "Google account",
-                    "sign_in": sign_in
+                    "sign_in": sign_in,
+                    "sign_in_use": format!(
+                        "QuotaDial only checks that Gemini CLI's sign-in is at {sign_in}. It never \
+                         opens it."
+                    )
                 },
                 "windows": [],
                 "status": "unsupported",
@@ -215,8 +220,8 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
     let doctor = stdout(&run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home));
     assert!(
         doctor.contains(&format!(
-            "Accounts (1):\n  gemini Google account: unsupported\n    sign-in: {sign_in}\n    \
-             {why}\n"
+            "Accounts (1):\n  Gemini CLI Google account: unsupported\n    sign-in: QuotaDial only \
+             checks that Gemini CLI's sign-in is at {sign_in}. It never opens it.\n    {why}\n"
         )),
         "{doctor}"
     );
@@ -240,8 +245,8 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
     assert_eq!(
         accounts,
         [
-            "fake Example (Claude Max 5x): ok",
-            "fake Example (ChatGPT Pro): ok"
+            "Example Example (Claude Max 5x): ok",
+            "Example Example (ChatGPT Pro): ok"
         ],
         "{text}"
     );
@@ -253,7 +258,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
             "{window}"
         );
     }
-    assert!(text.starts_with("fake Example (Claude Max 5x): ok\n  Weekly: 91% used"));
+    assert!(text.starts_with("Example Example (Claude Max 5x): ok\n  Weekly: 91% used"));
     assert!(!text.contains('@'), "{text}");
 }
 
@@ -311,7 +316,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     let output = first_refresh(&["watch"], &home, |line| line.contains("Ctrl-C"));
 
     let first = if EXAMPLE {
-        "fake Example (Claude Max 5x): ok\n"
+        "Example Example (Claude Max 5x): ok\n"
     } else {
         "no accounts found\n\nUpdated "
     };
@@ -731,8 +736,8 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
     let accounts: &[&str] = if EXAMPLE {
         &[
             "Accounts (2):",
-            "  fake Example (Claude Max 5x): ok, fetched just now from the example build",
-            "  fake Example (ChatGPT Pro): ok, fetched just now from the example build",
+            "  Example Example (Claude Max 5x): ok, fetched just now from the example build",
+            "  Example Example (ChatGPT Pro): ok, fetched just now from the example build",
         ]
     } else {
         &["Accounts (0):", "  none found"]

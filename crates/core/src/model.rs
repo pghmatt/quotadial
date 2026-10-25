@@ -29,6 +29,11 @@ pub struct Account {
     /// The provider's id, such as `"claude"`.
     // As `Provider::id` gives it.
     pub provider: String,
+    /// What the provider calls itself, as people know it, such as `Claude`, `Codex` or `Gemini
+    /// CLI`, shown as given wherever the account is (P-020). An account from an older QuotaDial,
+    /// which sent none, reads as `Unnamed provider`.
+    #[serde(default = "unnamed_provider")]
+    pub provider_name: String,
     /// The provider's id for this account.
     pub account_id: String,
     /// What to call the account, usually its email address.
@@ -39,11 +44,34 @@ pub struct Account {
     /// The organization or workspace the account belongs to, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
-    /// Where QuotaDial read this account's sign-in, written for people, with `~` for the home
-    /// folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4"
-    /// (CLAUDE_CONFIG_DIR ~/.claude-work)`. Never a token. Left out when unknown (P-015).
+    /// Where the account's sign-in is, written for people, with `~` for the home folder, such as
+    /// `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR
+    /// ~/.claude-work)`. Never a token. Left out when unknown (P-015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sign_in: Option<String>,
+    /// One sentence, in the provider's words, saying what QuotaDial does with this account's
+    /// sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only
+    /// reads it and never changes it.`, shown as given (P-020). An account from an older QuotaDial,
+    /// which sent none, says that it did not say.
+    #[serde(default = "unsaid_sign_in_use")]
+    pub sign_in_use: String,
+}
+
+/// What an account from an older QuotaDial, which did not name its provider, is shown as, rather
+/// than the provider's id: the app may hear from an older daemon, and the history holds older
+/// snapshots (P-020).
+pub const UNNAMED_PROVIDER: &str = "Unnamed provider";
+
+/// What an account from an older QuotaDial, which did not say, is shown to do with its sign-in.
+pub const UNSAID_SIGN_IN_USE: &str = "This account came from an older QuotaDial, which did not \
+                                      say what it does with the account's sign-in.";
+
+fn unnamed_provider() -> String {
+    UNNAMED_PROVIDER.to_owned()
+}
+
+fn unsaid_sign_in_use() -> String {
+    UNSAID_SIGN_IN_USE.to_owned()
 }
 
 impl Account {
@@ -200,6 +228,24 @@ impl Snapshot {
         self
     }
 
+    /// The same snapshot, with what an older QuotaDial left out of its account, the provider's name
+    /// and what QuotaDial does with the sign-in, taken from `account`, the one discovery found just
+    /// now (P-020). A snapshot an older QuotaDial kept in its cache is then shown as the provider
+    /// names it now; what a provider said itself, such as where the sign-in was when it fetched,
+    /// stays.
+    #[must_use]
+    pub fn completed_from(mut self, account: &Account) -> Self {
+        if self.account.provider_name == UNNAMED_PROVIDER {
+            self.account
+                .provider_name
+                .clone_from(&account.provider_name);
+        }
+        if self.account.sign_in_use == UNSAID_SIGN_IN_USE {
+            self.account.sign_in_use.clone_from(&account.sign_in_use);
+        }
+        self
+    }
+
     /// The same snapshot served again from QuotaDial's own store: every window that came from the
     /// API now says it came from the cache. `fetched_at` keeps the time of the original fetch.
     #[must_use]
@@ -279,11 +325,14 @@ mod tests {
     fn account() -> Account {
         Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
             sign_in: None,
+            sign_in_use: "QuotaDial reads this account's sign-in from a test. It only reads it."
+                .into(),
         }
     }
 
@@ -343,7 +392,15 @@ mod tests {
         );
         assert_eq!(
             keys(&value["account"]),
-            ["account_id", "display_name", "org", "plan", "provider"]
+            [
+                "account_id",
+                "display_name",
+                "org",
+                "plan",
+                "provider",
+                "provider_name",
+                "sign_in_use"
+            ]
         );
         assert_eq!(
             keys(&value["windows"][0]),
@@ -367,6 +424,74 @@ mod tests {
             value["windows"][0]["pace"]["runs_out_at"],
             json!("2099-01-01T04:00:00Z")
         );
+    }
+
+    #[test]
+    fn an_account_names_its_provider_and_says_what_quotadial_does_with_its_sign_in() {
+        let value = serde_json::to_value(account()).expect("serializes");
+
+        assert_eq!(value["provider_name"], json!("Claude"));
+        assert_eq!(
+            value["sign_in_use"],
+            json!("QuotaDial reads this account's sign-in from a test. It only reads it.")
+        );
+        let read_back: Account = serde_json::from_value(value).expect("deserializes");
+        assert_eq!(read_back, account());
+    }
+
+    #[test]
+    fn an_account_from_an_older_quotadial_reads_back_with_honest_words() {
+        let older = json!({
+            "provider": "claude",
+            "account_id": "00000000-0000-0000-0000-000000000001",
+            "display_name": "user@example.com"
+        });
+
+        let account: Account = serde_json::from_value(older).expect("deserializes");
+
+        assert_eq!(account.provider_name, UNNAMED_PROVIDER);
+        assert_eq!(account.sign_in_use, UNSAID_SIGN_IN_USE);
+        assert_ne!(account.provider_name, account.provider, "never the id");
+    }
+
+    #[test]
+    fn a_snapshot_kept_by_an_older_quotadial_is_completed_from_its_account_now() {
+        let older: Account = serde_json::from_value(json!({
+            "provider": "claude",
+            "account_id": "00000000-0000-0000-0000-000000000001",
+            "display_name": "user@example.com",
+            "plan": "pro"
+        }))
+        .expect("an older account");
+        let kept = Snapshot {
+            account: older,
+            windows: vec![window(WindowKind::Session, None, Source::Cache)],
+            extra_usage: None,
+            status: Status::Ok,
+            error: None,
+        };
+
+        let completed = kept.clone().completed_from(&account());
+
+        assert_eq!(completed.account.provider_name, account().provider_name);
+        assert_eq!(completed.account.sign_in_use, account().sign_in_use);
+        assert_eq!(
+            completed.account.plan.as_deref(),
+            Some("pro"),
+            "the rest as kept"
+        );
+        assert_eq!(completed.windows, kept.windows);
+
+        // What a provider said when it fetched, such as where the sign-in was then, stays.
+        let fresh = Snapshot {
+            account: Account {
+                provider_name: "Claude".into(),
+                sign_in_use: "QuotaDial reads this account's sign-in from ~/.claude-new.".into(),
+                ..account()
+            },
+            ..kept
+        };
+        assert_eq!(fresh.clone().completed_from(&account()), fresh);
     }
 
     #[test]
@@ -451,7 +576,13 @@ mod tests {
         assert_eq!(keys(&value), ["account", "status", "windows"]);
         assert_eq!(
             keys(&value["account"]),
-            ["account_id", "display_name", "provider"]
+            [
+                "account_id",
+                "display_name",
+                "provider",
+                "provider_name",
+                "sign_in_use"
+            ]
         );
         assert_eq!(
             keys(&value["windows"][0]),

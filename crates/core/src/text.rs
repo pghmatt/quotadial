@@ -59,6 +59,16 @@ pub fn provider_name(id: &str) -> &str {
     }
 }
 
+/// What QuotaDial does with a sign-in it reads from `place`, as a provider that reads one says it
+/// (P-020): such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads
+/// it and never changes it.`
+#[must_use]
+pub fn sign_in_read_from(place: &str) -> String {
+    format!(
+        "QuotaDial reads this account's sign-in from {place}. It only reads it and never changes it."
+    )
+}
+
 /// A share as people write it: `80` for 80.0 and `80.5` for 80.5, to a tenth.
 #[must_use]
 pub fn percent(pct: f64) -> String {
@@ -306,6 +316,15 @@ mod tests {
             source_label(Source::Example),
             "the example build",
             "so an example is never taken for a real account's numbers"
+        );
+    }
+
+    #[test]
+    fn a_sign_in_read_from_a_place_says_so_and_that_it_is_never_changed() {
+        assert_eq!(
+            sign_in_read_from("~/.codex/auth.json"),
+            "QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and \
+             never changes it."
         );
     }
 
