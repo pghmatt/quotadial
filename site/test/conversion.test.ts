@@ -16,6 +16,7 @@ import { longDay, receiptKey, requestKey, UNREACHED, UNREADABLE } from "../compo
 import { PRO_ROWS } from "../components/conversion/pro-rows.ts";
 import { PRO_ADDS } from "../lib/data/pro.ts";
 import { fenced, installGuide, repositoryFile } from "../lib/markdown.ts";
+import { breakPieces } from "../lib/breaks.ts";
 import { NOT_BUILT } from "./built.ts";
 
 const RECEIPT = "11111111-1111-4111-8111-111111111111";
@@ -254,7 +255,7 @@ test("every download action goes to the file's own link, and none to the release
     assert.match(text, /href=\{file\.href\}/, `${path} links the file`);
     assert.doesNotMatch(text, /DOWNLOAD_PAGE|releases\/|https?:\/\//, `${path} has no address of its own`);
   }
-  assert.match(source("components/conversion/CommandTable.tsx"), /href=\{command\.href\}/);
+  assert.match(source("components/conversion/FileName.tsx"), /href=\{file\.href\}/, "both tables link the file through FileName");
   const release = source("lib/data/release.ts");
   assert.doesNotMatch(release, /DOWNLOAD_PAGE|COMMAND_ONLY/, "the lists that named wrong files and a page are gone");
 });
@@ -292,6 +293,28 @@ test("nothing that makes the page fetches an address when the site is built", ()
   ]) {
     assert.doesNotMatch(source(path), /\bfetch\(|node:https?|XMLHttpRequest|\bhttps?\.(?:get|request)|new URL\(|axios|undici/, `${path} reaches for the network`);
   }
+});
+
+const NAME_TABLES = ["FilesTable", "CommandTable", "FileName", "InlineCode", "SystemAction"].map((name) => `components/conversion/${name}.tsx`);
+
+test("file names, archive names and addresses break only where Breakable marks, and never anywhere", () => {
+  for (const path of NAME_TABLES) {
+    const text = source(path);
+    assert.ok(!/overflow-wrap:\s*anywhere|anywhere\]|break-all|whitespace-nowrap|soft\(/.test(text), `${path} does not break names anywhere or keep them from breaking`);
+  }
+  for (const path of ["FileName", "InlineCode"].map((name) => `components/conversion/${name}.tsx`)) {
+    const text = source(path);
+    assert.match(text, /<Breakable text=/, `${path} sets its names with Breakable`);
+    assert.match(text, /overflow-wrap:break-word/, `${path} breaks inside a piece only when one piece is wider than the line`);
+  }
+});
+
+test("both tables set a file the same way: the name its button saves, then the name a release holds it by", () => {
+  for (const table of ["FilesTable", "CommandTable"]) {
+    assert.match(source(`components/conversion/${table}.tsx`), /<FileName file=\{/, `${table} sets each file with FileName`);
+  }
+  assert.match(source("components/conversion/FilesTable.tsx"), /record=\{releases\}/, "the plate's versioned names still lead to the Releases page");
+  assert.ok(!/record=/.test(source("components/conversion/CommandTable.tsx")), "an archive's versioned name is the record, not a link");
 });
 
 /** The built /download, once `npm run build` has made it. */
@@ -361,4 +384,33 @@ test("the built page's first action is for the visitor's system once known, and 
   }
   assert.ok(anchors(built).some((link) => link.href === "/install" && link.words === "Read the install guide"));
   assert.ok(text.includes(installGuide().install.split("\n")[0]), "the install line is on the page");
+});
+
+test("the built page's files plate names what each button saves, with its versioned name under it", { skip }, () => {
+  const links = anchors(built);
+  const files = installGuide().files;
+  for (const row of files) {
+    const saved = links.find((link) => link.href === `${LATEST}${row.latest.name}` && link.attributes.includes('data-event-from="files"'));
+    assert.ok(saved, `${row.latest.name} is a link to its file in the plate`);
+    assert.equal(saved.words, row.latest.name);
+    const at = built.indexOf(saved.attributes);
+    const record = built.indexOf(`>${row.file.replace(/</g, "&lt;")}`.replace(/[_-]/g, (mark) => `${mark}<wbr/>`).slice(0, 12), at);
+    assert.ok(record > at, `${row.file} follows ${row.latest.name}`);
+  }
+  for (const link of links.filter((found) => found.attributes.includes('data-event-from="files"'))) {
+    assert.ok(link.href.startsWith(LATEST));
+  }
+});
+
+test("the built page's install line breaks after a slash, an underscore or a hyphen, never inside a word", { skip }, () => {
+  const line = installGuide().install.split("\n")[0];
+  const shown = built
+    .replace(/<wbr\/?>/g, "\u0001")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+  assert.ok(shown.includes(breakPieces(line).join("\u0001")), "the line carries its marks at breakPieces' places and nowhere else");
+  assert.ok(!shown.includes("lat\u0001est"), "no mark inside latest");
+  assert.ok(shown.includes("latest/\u0001download"), "the mark follows the slash after latest");
 });
