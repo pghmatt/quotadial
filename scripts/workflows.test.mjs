@@ -227,13 +227,15 @@ const SHELLS = ["sh", "bash", "zsh"].filter((name) => spawnSync(name, ["-c", "ex
 
 /**
  * Runs `lines` in `shell` as a reader pastes them, with three changes only: the release in `dist`
- * in place of GitHub's newest full release, `bin` in place of /usr/local/bin, and no sudo. Gives
- * the run, the folder the lines worked in, and what they installed.
+ * in place of GitHub's newest full release, `bin` in place of /usr/local/bin, and no sudo. `bin`
+ * does not exist until the lines make it, as /usr/local/bin does not on a new Apple silicon Mac.
+ * Gives the run, the folder the lines worked in, and what they installed.
  */
 function paste(lines, shell, dist) {
-  const bin = folder();
+  const bin = join(folder(), "bin");
   const local = lines
     .replaceAll(LATEST, `${pathToFileURL(dist).href}/`)
+    .replaceAll("sudo mkdir -p /usr/local/bin ", `mkdir -p ${bin} `)
     .replaceAll("sudo install ", "install ")
     .replaceAll(" /usr/local/bin/", ` ${bin}/`);
   assert.doesNotMatch(local, /https?:|sudo|\/usr\/local/, "the lines would reach the network, run as root or install outside the test");
@@ -256,7 +258,8 @@ function paste(lines, shell, dist) {
   assert.ok(where, `${shell}: the lines did not say where they left the shell: ${run.stdout}${run.stderr}`);
   assert.notEqual(where, start, `${shell}: the lines work in a folder of their own`);
   assert.ok(temporaries.includes(dirname(where)), `${shell}: their folder, ${where}, is a new temporary one`);
-  return { ...run, output: run.stdout + run.stderr, where: readdirSync(where).sort(), installed: readdirSync(bin).sort(), bin };
+  const installed = existsSync(bin) ? readdirSync(bin).sort() : [];
+  return { ...run, output: run.stdout + run.stderr, where: readdirSync(where).sort(), installed, bin };
 }
 
 /** A copy of the release in `dist`, as a folder of its own, changed by `change`. */

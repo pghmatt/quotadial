@@ -57,6 +57,7 @@ curl -fsSLO https://github.com/pghmatt/quotadial/releases/latest/download/quotad
 curl -fsSLO https://github.com/pghmatt/quotadial/releases/latest/download/SHA256SUMS.txt &&
 shasum -a 256 -c SHA256SUMS.txt --ignore-missing &&
 tar -xzf quotadial-*.tar.gz &&
+sudo mkdir -p /usr/local/bin &&
 sudo install quotadial-v*/quotadial quotadial-v*/qd /usr/local/bin/
 ```
 

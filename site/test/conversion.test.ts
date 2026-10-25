@@ -217,9 +217,11 @@ test("the install lines are the first fenced block of INSTALL.md's command secti
   const check = lines.indexOf(`${guide.checks.find((row) => row.system === "macOS")?.command} &&`);
   assert.notEqual(check, -1, "the check is the table's own command for macOS");
   const unpack = at("tar -xzf ");
+  // A new Apple silicon Mac has no /usr/local/bin, and `install` will not make the folder it names.
+  const folder = at("sudo mkdir -p /usr/local/bin ");
   const install = at("sudo install ");
   assert.ok(archive < check && sums < check, "the archive is checked after both files are fetched");
-  assert.ok(check < unpack && unpack < install, "and only then unpacked and installed");
+  assert.ok(check < unpack && unpack < folder && folder < install, "and only then unpacked and installed");
   assert.equal(install, lines.length - 1);
   lines.slice(0, -1).forEach((line, index) => {
     assert.ok(line.endsWith(" &&"), `line ${index + 1} ends with &&, so a step that fails stops the ones after it`);
