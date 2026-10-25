@@ -11,8 +11,8 @@ export function Questions() {
       q: "Why use a tracker when Claude Code has /usage and Codex has /status?",
       a: (
         <p>
-          Those commands answer when you type them, inside the one tool you are in. QuotaDial keeps both providers at
-          a glance in the menu bar or tray, adds the pace and a history, and warns you before a limit instead of
+          Those commands answer when you type them, inside the one tool you are in. QuotaDial is a usage monitor that keeps
+          both providers at a glance in the menu bar or tray, adds the pace and a history, and warns you before a limit instead of
           after it.
         </p>
       ),

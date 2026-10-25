@@ -4,11 +4,13 @@ import { READ_ALOUD } from "./examples.ts";
 import { Part } from "./Part.tsx";
 import { Body, Lead, Times } from "./Text.tsx";
 
+/** The first three say what the number is; the last says where it is heading, so it sits in a band of its own. */
 const PARTS = [
-  { term: "Share used", says: "How much of the window is gone." },
-  { term: "Reset", says: "When the window starts again at zero." },
-  { term: "Age and source", says: "Where the number came from, and how long ago." },
+  { term: "Share used", says: "How much of the window is gone.", prediction: false },
+  { term: "Reset", says: "When the window starts again at zero.", prediction: false },
+  { term: "Age and source", says: "Where the number came from, and how long ago.", prediction: false },
   {
+    prediction: true,
     term: "Pace",
     says: `How fast the window fills, and whether it reaches 100% before it resets. Here it does, ${READ_ALOUD.early} early.`,
   },
@@ -34,6 +36,7 @@ export function Limits() {
         </div>
         <Plate
           tone="chart"
+          title="One row of the window, read aloud"
           caption="Example accounts. One row from Claude Work's weekly window, Tuesday 14:10."
         >
           <p className="m-0 font-table text-[1.5rem] leading-[1.25] font-[600] md:text-[1.75rem]">
@@ -47,7 +50,7 @@ export function Limits() {
             {PARTS.map((part) => (
               <div
                 key={part.term}
-                className="grid gap-x-4 px-3 py-2.5 even:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] sm:grid-cols-[8rem_1fr]"
+                className={`grid gap-x-4 px-3 py-2.5 sm:grid-cols-[8rem_1fr] ${part.prediction ? "bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]" : ""}`}
               >
                 <dt className="font-[650]">{part.term}</dt>
                 <dd className="m-0 text-ink-2">

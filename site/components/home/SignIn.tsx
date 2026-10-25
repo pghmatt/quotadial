@@ -11,10 +11,12 @@ export function SignIn() {
       <Lead>
         QuotaDial reads the sign-in that Claude Code and the Codex CLI already keep, and only reads it: it never
         writes, refreshes, moves or logs it. Every Claude subscription you keep under its own{" "}
-        <Code>CLAUDE_CONFIG_DIR</Code> shows up too.
+        <Code>CLAUDE_CONFIG_DIR</Code> is found too: QuotaDial Pro shows each one, and Free shows one and says how many
+        more it found.
       </Lead>
       <div className="mt-8">
         <BandedTable
+          wholeFirst
           caption="Where QuotaDial looks for each tool's sign-in, and what to do when it stops working"
           columns={["Tool", "Where QuotaDial looks, in this order", "If it stops working"]}
           rows={[

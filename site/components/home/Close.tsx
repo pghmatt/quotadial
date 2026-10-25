@@ -14,7 +14,7 @@ export function Close() {
         </p>
         <div>
           <DownloadButton primary={false} />
-          <p className="m-0 mt-4 text-on-deep-2">Free software under the MIT licence, for macOS, Windows and Linux.</p>
+          <p className="m-0 mt-4 text-on-deep-2">One download each for macOS, Windows and Linux, with no account to make.</p>
         </div>
       </div>
     </Section>
