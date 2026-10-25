@@ -1,6 +1,7 @@
 // Runs workflow steps' own shell on this machine, as GitHub runs it, with CI's other script tests:
 // the Release workflow's step that writes latest.json, the copies without the version and the
-// checksums, on a release laid out as its publish job downloads it. Nothing here uses the network.
+// checksums, on a release laid out as its publish job downloads it; and the site deploy gate,
+// against GitHub's answers given by a fake `gh`. Nothing here uses the network.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -168,4 +169,132 @@ test("the release's SHA256SUMS.txt lists both names of each download, and latest
   const copy = checks(one, "--ignore-missing");
   assert.equal(copy.status, 0, copy.stdout + copy.stderr);
   assert.equal(copy.stdout.trim(), "QuotaDial_universal.dmg: OK");
+});
+
+/**
+ * gh, faked for the gate: it notes what it was asked and answers `gh api <path> --jq <filter>` from
+ * answer.json as gh does, or, given an error, fails as gh does: the answer unfiltered on stdout, the
+ * error on stderr and status 1.
+ */
+const GH = `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_GH/asked"
+if [ -s "$FAKE_GH/error" ]; then
+  cat "$FAKE_GH/answer.json"
+  cat "$FAKE_GH/error" >&2
+  exit 1
+fi
+if [ "$1" != api ] || [ "$3" != --jq ]; then
+  echo "the fake gh answers only gh api <path> --jq <filter>, not gh $*" >&2
+  exit 2
+fi
+command -v jq > /dev/null || { echo "the fake gh needs jq" >&2; exit 3; }
+exec jq -r "$4" "$FAKE_GH/answer.json"
+`;
+
+/**
+ * Runs the site deploy gate in `cwd`, a checkout, with GitHub's `answer` to releases/latest, or
+ * gh's `error`, and says whether it found the site ready, what it wrote and what it asked.
+ */
+function gate({ answer, error = "", token = "a token", cwd = ROOT }) {
+  const fake = folder();
+  writeFileSync(join(fake, "gh"), GH, { mode: 0o755 });
+  writeFileSync(join(fake, "answer.json"), answer === undefined ? "" : JSON.stringify(answer));
+  writeFileSync(join(fake, "error"), error);
+  for (const file of ["asked", "output", "summary"]) {
+    writeFileSync(join(fake, file), "");
+  }
+  const ran = bash(shell("site-deploy.yml", "check"), cwd, {
+    PATH: `${fake}:${process.env.PATH}`,
+    FAKE_GH: fake,
+    CLOUDFLARE_API_TOKEN: token,
+    GH_TOKEN: "",
+    GITHUB_REPOSITORY: "pghmatt/quotadial",
+    GITHUB_OUTPUT: join(fake, "output"),
+    GITHUB_STEP_SUMMARY: join(fake, "summary"),
+  });
+  const read = (file) => readFileSync(join(fake, file), "utf8");
+  return { ...ran, ready: /^ready=true$/m.test(read("output")), summary: read("summary"), asked: read("asked") };
+}
+
+/** GitHub's answer for a published full release with these files, as far as the gate reads it. */
+const full = (tag, names) => ({ tag_name: tag, draft: false, prerelease: false, assets: names.map((name) => ({ name })) });
+
+/** v0.3.0 as the Release workflow now drafts it with every key set, once published as a full release. */
+const NEXT = [
+  ...[...latestNames("0.3.0")].flat(),
+  "QuotaDial_0.3.0_universal.app.tar.gz",
+  "QuotaDial_0.3.0_universal.app.tar.gz.sig",
+  "QuotaDial_0.3.0_x64_en-US.msi.sig",
+  "QuotaDial_0.3.0_amd64.deb.sig",
+  "QuotaDial_0.3.0_amd64.AppImage.sig",
+  "latest.json",
+  "quotadial-v0.3.0-cli.cdx.json",
+  "QuotaDial_0.3.0_app.cdx.json",
+  "SHA256SUMS.txt",
+];
+
+test("the site deploys when the newest full release has its checksums and all eight copies", () => {
+  const ran = gate({ answer: full("v0.3.0", NEXT) });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(ran.ready, true);
+  assert.equal(ran.asked, "api repos/pghmatt/quotadial/releases/latest --jq .tag_name, .assets[].name\n");
+});
+
+test("the site waits while every release is a pre-release, which GitHub answers with 404", () => {
+  // GitHub's answer for pghmatt/quotadial on 2026-10-25, when v0.1.0 and v0.2.0 were pre-releases.
+  const answer = {
+    message: "Not Found",
+    documentation_url: "https://docs.github.com/rest/releases/releases#get-the-latest-release",
+    status: "404",
+  };
+  const ran = gate({ answer, error: "gh: Not Found (HTTP 404)\n" });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(ran.ready, false);
+  assert.match(ran.summary, /^No release is published as a full release yet/);
+});
+
+test("the site waits when the newest full release lacks one copy, and names it", () => {
+  const ran = gate({ answer: full("v0.3.0", NEXT.filter((name) => name !== "QuotaDial_amd64.AppImage")) });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(ran.ready, false);
+  assert.match(ran.summary, /^The newest full release, v0\.3\.0, has no QuotaDial_amd64\.AppImage: /);
+});
+
+test("the site still waits for a full release with checksums", () => {
+  const unsummed = gate({ answer: full("v0.3.0", NEXT.filter((name) => name !== "SHA256SUMS.txt")) });
+  assert.equal(unsummed.ready, false);
+  assert.match(unsummed.summary, /, v0\.3\.0, has no SHA256SUMS\.txt: /);
+  // v0.2.0's files, were it published as a full release: neither the checksums nor any copy.
+  const old = gate({ answer: full("v0.2.0", [...latestNames("0.2.0").keys()]) });
+  assert.equal(old.ready, false);
+  assert.ok(old.summary.includes(`, v0.2.0, has no SHA256SUMS.txt, ${NAMES.join(", ")}: `), old.summary);
+});
+
+test("the site does not deploy, and the gate fails, when GitHub cannot be asked", () => {
+  const ran = gate({ error: "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n" });
+  assert.notEqual(ran.status, 0);
+  assert.equal(ran.ready, false);
+  assert.match(ran.stdout, /^::error::GitHub could not say which release is the newest full release: error connecting to api\.github\.com$/m);
+});
+
+test("the site does not deploy, and the gate fails, when the names cannot be read", () => {
+  // No scripts/latest-names.mjs, then one that names nothing.
+  const empty = folder();
+  const missing = gate({ answer: full("v0.3.0", NEXT), cwd: empty });
+  assert.notEqual(missing.status, 0);
+  assert.equal(missing.ready, false);
+  mkdirSync(join(empty, "scripts"));
+  writeFileSync(join(empty, "scripts/latest-names.mjs"), "");
+  const silent = gate({ answer: full("v0.3.0", NEXT), cwd: empty });
+  assert.notEqual(silent.status, 0);
+  assert.equal(silent.ready, false);
+  assert.match(silent.stdout, /^::error::scripts\/latest-names\.mjs named no files/m);
+});
+
+test("the site waits for CLOUDFLARE_API_TOKEN, without asking GitHub", () => {
+  const ran = gate({ answer: full("v0.3.0", NEXT), token: "" });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(ran.ready, false);
+  assert.equal(ran.asked, "");
+  assert.match(ran.summary, /^CLOUDFLARE_API_TOKEN is not set/);
 });
