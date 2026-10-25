@@ -1,14 +1,18 @@
 //! The history view (D-095): each shown account's windows charted over the last 7 or 30 days, a
-//! heatmap of when it was used by hour of the day, and an export of every reading as CSV.
+//! heatmap of when it was used by hour of the day, and an export of every reading as CSV. It also
+//! carries what the window needs to draw a picture of an account's history to share (D-115): each
+//! account's label, the days covered, and on QuotaDial Free the line said in the buttons' place.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, NaiveDate, TimeDelta, TimeZone, Timelike, Utc};
-use quotadial_core::{WindowKind, text};
+use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, TimeZone, Timelike, Utc};
+use quotadial_core::{ProFeature, Tier, WindowKind, text};
 use quotadial_daemon::{History, Series, SeriesQuery, write_csv};
 use serde::Serialize;
 
-use crate::settings::{Settings, key};
+use crate::settings::{Settings, account_key, key};
+use crate::share;
 
 /// The most points a chart gets: more readings than this are thinned evenly.
 const CHART_POINTS: usize = 240;
@@ -21,7 +25,14 @@ pub struct HistoryView {
     /// What the charts span, such as "The last 7 days." or, for a history that began since,
     /// "Since Fri 23 at 09:16, when the history begins."
     pub span: String,
+    /// The days the view covers, as people write them, such as "19 to 25 October 2026": from the
+    /// period's first day, or the history's when it began since, to today.
+    pub dates: String,
     pub accounts: Vec<AccountHistory>,
+    /// On QuotaDial Free, the line saying a picture of an account's history to share is part of
+    /// QuotaDial Pro ([`ProFeature::ShareImage`]), which the view shows once where the Share image
+    /// buttons would be; `None` on Pro, which shows them (D-100, D-115).
+    pub share_left_out: Option<String>,
 }
 
 /// One account's history.
@@ -33,6 +44,9 @@ pub struct AccountHistory {
     pub provider: String,
     /// The name the user gave the account, or its email address.
     pub name: String,
+    /// What the picture of this account's history calls it ([`share::label`]): its provider and
+    /// the name given it, or its plan, and never its address.
+    pub label: String,
     pub windows: Vec<WindowChart>,
     pub heatmap: Heatmap,
 }
@@ -78,6 +92,7 @@ pub fn view<Tz: TimeZone>(
     days: u32,
     now: DateTime<Utc>,
     zone: &Tz,
+    tier: Tier,
 ) -> Result<HistoryView, String> {
     let since = now - TimeDelta::days(i64::from(days));
     let mut series = history
@@ -103,22 +118,29 @@ pub fn view<Tz: TimeZone>(
     } else {
         format!("The last {days} days.")
     };
+    let today = now.with_timezone(zone).date_naive();
+    let first_day =
+        (today - TimeDelta::days(i64::from(days) - 1)).max(start.with_timezone(zone).date_naive());
+    let plans = plans(history)?;
     let mut accounts: Vec<AccountHistory> = Vec::new();
     let mut group: Vec<&Series> = Vec::new();
     for one in &series {
         if group.last().is_some_and(|last| !same_account(last, one)) {
-            accounts.push(account(&group, settings, days, start, now, zone));
+            accounts.push(account(&group, settings, &plans, days, start, now, zone));
             group.clear();
         }
         group.push(one);
     }
     if !group.is_empty() {
-        accounts.push(account(&group, settings, days, start, now, zone));
+        accounts.push(account(&group, settings, &plans, days, start, now, zone));
     }
     Ok(HistoryView {
         days,
         span,
+        dates: dates(first_day, today),
         accounts,
+        share_left_out: (!tier.allows(ProFeature::ShareImage))
+            .then(|| ProFeature::ShareImage.line()),
     })
 }
 
@@ -147,6 +169,56 @@ pub fn export(
     Ok(path)
 }
 
+/// What the picture of the account `key` calls it ([`share::label`]): the label [`view`] gives it,
+/// from its newest snapshot in `history` and the name `settings` give it.
+///
+/// # Errors
+///
+/// When the history cannot be read, or does not know the account.
+pub fn label(history: &History, settings: &Settings, key: &str) -> Result<String, String> {
+    let snapshot = history
+        .latest()
+        .map_err(|error| format!("QuotaDial could not read its history: {error}"))?
+        .into_iter()
+        .find(|snapshot| account_key(&snapshot.account) == key)
+        .ok_or_else(share::unknown_account)?;
+    let account = snapshot.account;
+    Ok(share::label(
+        text::provider_name(&account.provider),
+        settings.aliases.get(key).map(String::as_str),
+        account.plan.as_deref(),
+    ))
+}
+
+/// Each account's plan, by [`account_key`], from its newest snapshot: a series carries only the
+/// account's id and display name.
+fn plans(history: &History) -> Result<HashMap<String, String>, String> {
+    Ok(history
+        .latest()
+        .map_err(|error| format!("QuotaDial could not read its history: {error}"))?
+        .into_iter()
+        .filter_map(|snapshot| {
+            let key = account_key(&snapshot.account);
+            snapshot.account.plan.map(|plan| (key, plan))
+        })
+        .collect())
+}
+
+/// The days from `first` to `last`, as people write them: "19 to 25 October 2026", "26 September
+/// to 25 October 2026", "29 December 2026 to 4 January 2027", or "25 October 2026" for one day.
+fn dates(first: NaiveDate, last: NaiveDate) -> String {
+    let whole = |day: NaiveDate| day.format("%-d %B %Y").to_string();
+    if first >= last {
+        whole(last)
+    } else if first.year() != last.year() {
+        format!("{} to {}", whole(first), whole(last))
+    } else if first.month() != last.month() {
+        format!("{} to {}", first.format("%-d %B"), whole(last))
+    } else {
+        format!("{} to {}", first.format("%-d"), whole(last))
+    }
+}
+
 fn same_account(a: &Series, b: &Series) -> bool {
     a.provider == b.provider && a.account_id == b.account_id && a.org == b.org
 }
@@ -154,6 +226,7 @@ fn same_account(a: &Series, b: &Series) -> bool {
 fn account<Tz: TimeZone>(
     group: &[&Series],
     settings: &Settings,
+    plans: &HashMap<String, String>,
     days: u32,
     since: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -161,15 +234,18 @@ fn account<Tz: TimeZone>(
 ) -> AccountHistory {
     let first = group[0];
     let key = key(&first.provider, &first.account_id, first.org.as_deref());
-    let name = settings
-        .aliases
-        .get(&key)
-        .cloned()
-        .unwrap_or_else(|| first.account.clone());
+    let alias = settings.aliases.get(&key);
+    let name = alias.cloned().unwrap_or_else(|| first.account.clone());
+    let provider = text::provider_name(&first.provider);
     let period = format!("in the last {days} days");
     AccountHistory {
-        provider: text::provider_name(&first.provider).to_owned(),
+        provider: provider.to_owned(),
         name,
+        label: share::label(
+            provider,
+            alias.map(String::as_str),
+            plans.get(&key).map(String::as_str),
+        ),
         windows: group
             .iter()
             .map(|series| chart(series, since, now, &period))
@@ -347,7 +423,7 @@ mod tests {
                 provider: provider.into(),
                 account_id: "user-1".into(),
                 display_name: format!("{provider}@example.com"),
-                plan: None,
+                plan: (provider == "claude").then(|| "max".to_owned()),
                 org: None,
                 sign_in: None,
             },
@@ -416,7 +492,15 @@ mod tests {
             ..Settings::default()
         };
 
-        let view = view(&history, &settings, 7, at("2099-01-07T00:00:00Z"), &Utc).expect("reads");
+        let view = view(
+            &history,
+            &settings,
+            7,
+            at("2099-01-07T00:00:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
 
         assert_eq!(view.accounts.len(), 1, "Codex is hidden");
         let work = &view.accounts[0];
@@ -448,6 +532,7 @@ mod tests {
             7,
             at("2099-01-07T00:00:00Z"),
             &Utc,
+            Tier::Pro,
         )
         .expect("reads");
 
@@ -464,6 +549,119 @@ mod tests {
             codex.window, "Weekly",
             "a weekly window when there is no session"
         );
+    }
+
+    #[test]
+    fn each_account_is_labelled_for_its_picture_by_name_or_plan_never_address() {
+        let (_dir, history) = history();
+        let named = Settings {
+            aliases: BTreeMap::from([("claude user-1 -".into(), "Work".into())]),
+            ..Settings::default()
+        };
+        let now = at("2099-01-07T00:00:00Z");
+
+        let labels = |settings: &Settings| {
+            view(&history, settings, 7, now, &Utc, Tier::Pro)
+                .expect("reads")
+                .accounts
+                .into_iter()
+                .map(|account| account.label)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(labels(&named), ["Claude Work", "Codex"]);
+        assert_eq!(
+            labels(&Settings::default()),
+            ["Claude Max", "Codex"],
+            "the plan from the account's newest snapshot, or the provider alone"
+        );
+        assert_eq!(
+            label(&history, &named, "claude user-1 -").as_deref(),
+            Ok("Claude Work"),
+            "the command names the file by the label the view gave"
+        );
+        assert_eq!(
+            label(&history, &Settings::default(), "codex user-1 -").as_deref(),
+            Ok("Codex")
+        );
+        assert_eq!(
+            label(&history, &named, "claude someone-else -"),
+            Err(crate::share::unknown_account())
+        );
+        for account in view(&history, &named, 7, now, &Utc, Tier::Pro)
+            .expect("reads")
+            .accounts
+        {
+            assert!(!account.label.contains('@'), "{}", account.label);
+        }
+    }
+
+    #[test]
+    fn the_view_says_which_days_it_covers() {
+        let (_dir, history) = history();
+        let now = at("2099-01-07T00:00:00Z");
+
+        let young = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+        assert_eq!(
+            young.dates, "5 to 7 January 2099",
+            "from the history's first day, as the charts begin"
+        );
+        let later = at("2099-01-20T12:00:00Z");
+        for (fetched_at, used) in [
+            ("2099-01-13T12:30:00Z", 5.0),
+            ("2099-01-20T11:00:00Z", 40.0),
+        ] {
+            history
+                .record(
+                    &snapshot(
+                        "claude",
+                        &[(WindowKind::Session, "Session", used)],
+                        fetched_at,
+                    ),
+                    at(fetched_at),
+                )
+                .expect("records");
+        }
+        let full = view(&history, &Settings::default(), 7, later, &Utc, Tier::Pro).expect("reads");
+        assert_eq!(
+            full.dates, "14 to 20 January 2099",
+            "the heatmap's seven days"
+        );
+        assert_eq!(full.span, "The last 7 days.");
+
+        assert_eq!(
+            dates(day("2026-10-19"), day("2026-10-25")),
+            "19 to 25 October 2026"
+        );
+        assert_eq!(
+            dates(day("2026-09-26"), day("2026-10-25")),
+            "26 September to 25 October 2026"
+        );
+        assert_eq!(
+            dates(day("2026-12-29"), day("2027-01-04")),
+            "29 December 2026 to 4 January 2027"
+        );
+        assert_eq!(
+            dates(day("2026-10-25"), day("2026-10-25")),
+            "25 October 2026"
+        );
+    }
+
+    fn day(text: &str) -> NaiveDate {
+        text.parse().expect("a date")
+    }
+
+    #[test]
+    fn on_free_the_view_carries_the_line_in_place_of_the_share_buttons() {
+        let (_dir, history) = history();
+        let now = at("2099-01-07T00:00:00Z");
+
+        let free = view(&history, &Settings::default(), 7, now, &Utc, Tier::Free).expect("reads");
+        let pro = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(free.share_left_out, Some(ProFeature::ShareImage.line()));
+        assert_eq!(pro.share_left_out, None);
+        assert_eq!(free.accounts, pro.accounts, "Free sees the same history");
     }
 
     #[test]

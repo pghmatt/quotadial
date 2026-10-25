@@ -26,6 +26,7 @@ position can and cannot do. [`SECURITY.md`](../SECURITY.md) says how to report a
 | `config.json` in the data folder | Settings, including webhook addresses | Written by the user; QuotaDial warns when others can read it |
 | The app's config folder | `settings.json`, `alerts.json`, `updates.json` | 0600 |
 | The cache folder (`quotadial/` in the OS cache directory) | When each account may be asked next, and its last answer | Private permissions; derived data only, never a token |
+| The Downloads folder | Only what the user saves from History: Export CSV's readings, and on QuotaDial Pro a picture of an account's history (D-115) | The folder's own permissions, as for any download; never a token, a picture never shows an address, and a picture is never written over another file |
 
 A damaged history is moved aside under a dated name, never deleted, so it stays for support
 (D-108).
@@ -91,7 +92,10 @@ an agent sends the MCP server are all read as data, never run. A property test o
 proves no input can make it panic, and found one overflow, now fixed (#52). Text from outside is
 cut to one line and redacted before it is shown. The app's window runs only its own code, under a
 content security policy (`default-src 'self'`), can call only the commands the app's own panels
-use, and can open only the links Help names.
+use, and can open only the links Help names. A picture it sends to save is written only if the
+copy is QuotaDial Pro and the bytes are a whole PNG of exactly 2400 by 1350 under 4 MB, read by
+hand, and only into the Downloads folder, under a name the app makes from what it knows of the
+account, never over another file.
 
 ### Agents through MCP
 

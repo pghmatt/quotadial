@@ -86,7 +86,7 @@ test("a licence's day is written as people write it", () => {
 /** The words the app lists, down to where its own "not" clause begins. */
 const lead = (what: string) => what.split(", not ")[0].toLowerCase();
 
-test("the Pro table has the app's seven features, in its order, in its words", () => {
+test("the Pro table has the app's features, in its order, in its words", () => {
   assert.equal(PRO_ROWS.length, PRO_ADDS.length);
   PRO_ROWS.forEach((row, index) => {
     assert.equal(row.feature.toLowerCase(), lead(PRO_ADDS[index]));

@@ -7,14 +7,20 @@
 // - a panel takes the focus when it opens, and its Done gives it back to the button that opened it;
 // - no text is cut off, at 100% and at 200% zoom, with a very long account name;
 // - nothing moves when the system asks for less motion;
-// - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses.
+// - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
+// - on QuotaDial Pro, each account in History has a Share image button named by its label, which
+//   works from the keyboard and sends the app a whole 2400 by 1350 PNG for that account, drawn only
+//   with the strings `shareStrings` lists (the label, never an address), in the stylesheet's text
+//   colours and the window's font, with tabular figures; on QuotaDial Free there is no button and
+//   the feature's line shows once (D-115).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, with the made-up accounts in window-fixtures.mjs answering
 // in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
-// picture of each view, `-- --only "pro, dark"` checks only the views named so, and
+// picture of each view, `-- --share-images <folder>` saves the picture to share of each account in
+// each copy and theme, `-- --only "pro, dark"` checks only the views named so, and
 // `-- --fixtures <module>` answers from another set of copies (the website's pictures use
 // `site-fixtures.mjs`). Fails, naming the view and the control, when a check does not pass.
 import { spawn } from "node:child_process";
@@ -24,6 +30,12 @@ import { tmpdir } from "node:os";
 import { delimiter, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// The picture's own list of what it draws, read straight from the window's source (Node strips its
+// types), so the check holds the drawing to it.
+import { ACCOUNT_HEADER, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, shareStrings } from "../src/share.ts";
+
+/** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
+const SHARED = { width: 2400, height: 1350 };
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const CONFIG = JSON.parse(
@@ -220,6 +232,45 @@ function stand_in(copy) {
   return `(() => {
     const copy = ${JSON.stringify(copy)};
     const calls = [];
+    // Each picture sent to share, and everything a canvas writes and fills, as it is drawn.
+    const pictures = [];
+    const drawn = [];
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    // What is behind each piece of text, in the canvas's own pixels, so its contrast can be
+    // measured against what is really there: across its middle just before it is written, and
+    // just above it once the picture is finished, in case something was drawn over it after.
+    const texts = new WeakMap();
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      const width = this.measureText(String(text)).width;
+      const size = Number(this.font.match(/([0-9.]+)px/)?.[1] ?? 10);
+      const place = this.getTransform();
+      const at = (along, up) => [
+        Math.round(place.a * (x + width * along) + place.e),
+        Math.round(place.d * (y - up) + place.f),
+      ];
+      const ground = [0.15, 0.5, 0.85].map((along) => [...this.getImageData(...at(along, size * 0.35), 1, 1).data]);
+      // Just over its figures and capitals, below the line above.
+      const above = [0.15, 0.5, 0.85].map((along) => at(along, size * 0.75 + 3));
+      const item = { text: String(text), fill: String(this.fillStyle), font: this.font, x, y, width, ground };
+      drawn.push(item);
+      texts.set(this.canvas, [...(texts.get(this.canvas) ?? []), { item, above }]);
+      return fillText.call(this, text, x, y, ...rest);
+    };
+    const toBlob = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (...args) {
+      const context = this.getContext("2d");
+      for (const { item, above } of texts.get(this) ?? []) {
+        for (const point of above) {
+          item.ground.push([...context.getImageData(...point, 1, 1).data]);
+        }
+      }
+      return toBlob.apply(this, args);
+    };
+    const fillRect = CanvasRenderingContext2D.prototype.fillRect;
+    CanvasRenderingContext2D.prototype.fillRect = function (...box) {
+      drawn.push({ rect: box, fill: String(this.fillStyle) });
+      return fillRect.apply(this, box);
+    };
     const callbacks = new Map();
     const listeners = new Map();
     let next = 1;
@@ -231,6 +282,16 @@ function stand_in(copy) {
       help: () => copy.help,
       history: ({ days }) => copy.history[days],
       export_history: () => "Saved 1,204 readings to ~/Downloads/quotadial-history.csv.",
+      // As the app answers: it names the file from what it knows of the account the header names.
+      save_share_image: (body, options) => {
+        const key = decodeURIComponent(options?.headers?.["${ACCOUNT_HEADER}"] ?? "");
+        const account = Object.values(copy.history).flatMap((view) => view.accounts).find((one) => one.key === key);
+        if (!account) {
+          throw "QuotaDial no longer knows the account this picture is of, so nothing was saved; open History again and press Share image.";
+        }
+        pictures.push({ key, bytes: new Uint8Array(body) });
+        return "Saved to ~/Downloads/QuotaDial " + account.label + " 2026-10-25.png.";
+      },
       settings: () => settings,
       set_settings: ({ view }) => (settings = view),
       add_alert: ({ rule }) =>
@@ -254,12 +315,14 @@ function stand_in(copy) {
       "plugin:event|unlisten": () => null,
     };
     window.__TAURI_INTERNALS__ = {
-      invoke: async (cmd, args = {}) => {
-        calls.push({ cmd, args: JSON.parse(JSON.stringify(args)) });
+      invoke: async (cmd, args = {}, options = {}) => {
+        // A raw body, as the picture is sent, is recorded by its size.
+        const raw = args instanceof ArrayBuffer || ArrayBuffer.isView(args);
+        calls.push({ cmd, args: raw ? { bytes: args.byteLength } : JSON.parse(JSON.stringify(args)) });
         if (!answers[cmd]) {
           throw new Error("The app has no command " + cmd);
         }
-        return structuredClone(answers[cmd](args));
+        return structuredClone(answers[cmd](args, options));
       },
       transformCallback: (callback, once) => {
         const id = next++;
@@ -275,8 +338,25 @@ function stand_in(copy) {
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
     window.__check = {
       calls,
+      pictures,
+      drawn,
       emit: (event, payload) => {
         for (const id of listeners.get(event) ?? []) callbacks.get(id)?.({ event, id: 0, payload });
+      },
+      /** The picture sent at \`index\`, as base64, to read out of the page. */
+      picture: (index) => {
+        const { key, bytes } = pictures[index];
+        let binary = "";
+        for (let at = 0; at < bytes.length; at += 0x8000) {
+          binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+        }
+        return { key, base64: btoa(binary) };
+      },
+      /** The stylesheet's colour \`property\` as a canvas writes it back. */
+      colour: (property) => {
+        const context = document.createElement("canvas").getContext("2d");
+        context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+        return String(context.fillStyle);
       },
     };
   })();`;
@@ -311,6 +391,7 @@ const FOCUSED = `(() => {
 /** In the page: what pressing a key could change, to tell whether it did anything. */
 const STATE = `JSON.stringify({
   calls: window.__check.calls.filter((call) => call.cmd !== 'fit' && !call.cmd.startsWith('plugin:')).length,
+  drawn: window.__check.drawn.length,
   open: [...document.querySelectorAll('details')].map((details) => details.open),
   checked: [...document.querySelectorAll('input[type=checkbox]')].map((box) => box.checked),
   pressed: [...document.querySelectorAll('[aria-pressed]')].map((button) => button.getAttribute('aria-pressed')),
@@ -704,6 +785,332 @@ async function checkView(view, panel, operate) {
   return controls.length;
 }
 
+/** The CRC-32 a PNG chunk ends with. */
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/** A PNG's width and height, read from its header as the app reads them, or why it is not a whole
+ * PNG. */
+function pngSize(bytes) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const end = [0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
+  if (bytes.length < 45 || signature.some((byte, at) => bytes[at] !== byte)) {
+    return "it does not begin as a PNG";
+  }
+  if (end.some((byte, at) => bytes[bytes.length - end.length + at] !== byte)) {
+    return "it does not end as a PNG";
+  }
+  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("latin1", 12, 16) !== "IHDR") {
+    return "its first chunk is not its header";
+  }
+  if (bytes.readUInt32BE(29) !== crc32(bytes.subarray(12, 29))) {
+    return "its header's checksum is wrong";
+  }
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/** In the page: each account's Share image button in History, as its place among the controls Tab
+ * reaches, or null for an account without one. */
+const SHARE_BUTTONS = `[...document.querySelectorAll('section.history .account-history')].map((section) => {
+  const button = section.querySelector('button.share');
+  return button ? window.__focusables.indexOf(button) : null;
+})`;
+
+/** In the page: the lines History shows, outside the accounts. */
+const HISTORY_LINES = `[...document.querySelectorAll('section.history > p')].map((line) => line.textContent.trim())`;
+
+/**
+ * The History panel's Share image (D-115). On QuotaDial Pro: a button for each account, after the
+ * periods and before Export CSV, in the accounts' order, named by the account's label; pressed
+ * from the keyboard, it sends the app a whole PNG of 2400 by 1350 for that account, says where it
+ * went, and draws only what `shareStrings` lists, with the label and never an @, in the
+ * stylesheet's text colours on its background, the window's font and tabular figures: each
+ * account over 7 days, and the first over 30. On QuotaDial Free: no button, and the feature's line
+ * once. Saves each picture in `folder` when one is named.
+ */
+async function checkSharing(view, name, copy, theme, folder) {
+  const label = `${view.label}, Share image`;
+  const history = copy.history[7];
+  await view.load("history");
+  const controls = await view.evaluate(FOCUSABLE);
+  const places = await view.evaluate(SHARE_BUTTONS);
+  const lines = await view.evaluate(HISTORY_LINES);
+  if (history.share_left_out !== null) {
+    check(label, places.some((place) => place !== null) && "a QuotaDial Free copy has a Share image button");
+    const shown = lines.filter((line) => line === history.share_left_out).length;
+    check(label, shown !== 1 && `a QuotaDial Free copy says "${history.share_left_out}" ${shown} times, not once`);
+    return;
+  }
+  check(label, lines.some((line) => line.includes("part of QuotaDial Pro")) && "a QuotaDial Pro copy says Share image is part of Pro");
+  check(label, places.length !== history.accounts.length && `History shows ${places.length} accounts, not ${history.accounts.length}`);
+  const month = controls.indexOf("30 days");
+  const exporting = controls.indexOf("Export CSV");
+  let before = month;
+  for (const [number, account] of history.accounts.entries()) {
+    const place = places[number];
+    if (place === null || place === undefined || place < 0) {
+      check(label, `${account.label} has no Share image button that Tab reaches`);
+      continue;
+    }
+    check(label, !(place > before && place < exporting) && `${account.label}'s Share image is Tab stop ${place + 1}, out of order`);
+    before = place;
+    const told = await view.told(place);
+    check(label, told.name !== `Share image of ${account.label}` && `${account.label}'s Share image is named "${told.name}" for a screen reader`);
+  }
+
+  const look = {
+    allowed: new Set(await view.evaluate(`['--text', '--muted', '--warning', '--high'].map(window.__check.colour)`)),
+    background: await view.evaluate(`window.__check.colour('--background')`),
+    family: await view.evaluate("getComputedStyle(document.documentElement).fontFamily"),
+  };
+  // Each account over 7 days, and the first over 30 where the copy has a month of its own.
+  const month30 = copy.history[30];
+  const shares = [
+    ...history.accounts.map((account, number) => ({ days: 7, number, account })),
+    ...(month30?.days === 30 && month30.accounts.length > 0 ? [{ days: 30, number: 0, account: month30.accounts[0] }] : []),
+  ];
+  for (const { days, number, account } of shares) {
+    const place = places[number];
+    if (place === null || place === undefined || place < 0) {
+      continue;
+    }
+    // From a window opened afresh, by keyboard: the period, then Tab to the button and Enter.
+    await view.load("history");
+    await view.evaluate(FOCUSABLE);
+    if (days === 30) {
+      await tabTo(view, month);
+      await view.press("Enter");
+      await view.until(
+        `document.querySelector('section.history > p.detail')?.textContent === ${JSON.stringify(copy.history[30].span)}`,
+        "History showing 30 days",
+      );
+    }
+    const sent = await view.evaluate("window.__check.pictures.length");
+    await view.evaluate("window.__check.drawn.length = 0");
+    if (!(await tabTo(view, place))) {
+      check(label, `Tab did not reach ${account.label}'s Share image`);
+      continue;
+    }
+    await view.press("Enter");
+    await view.until(`window.__check.pictures.length > ${sent}`, `${account.label}'s picture reaching the app`);
+    await view.until(
+      `document.querySelector('section.history [role=status]').textContent.startsWith('Saved to ')`,
+      `History saying where ${account.label}'s picture went`,
+    );
+    const picture = await view.evaluate(`window.__check.picture(${sent})`);
+    const what = `${account.label}'s picture of ${days} days`;
+    check(label, picture.key !== account.key && `${what} was sent for the account "${picture.key}"`);
+    const bytes = Buffer.from(picture.base64, "base64");
+    const size = pngSize(bytes);
+    if (typeof size === "string") {
+      check(label, `${what} is not a whole PNG: ${size}`);
+    } else {
+      check(
+        label,
+        (size.width !== SHARED.width || size.height !== SHARED.height) &&
+          `${what} is ${size.width} by ${size.height}, not ${SHARED.width} by ${SHARED.height}`,
+      );
+    }
+    if (folder) {
+      const slug = account.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      writeFileSync(join(folder, `${name}-${theme}-${days}-days-${number + 1}-${slug}.png`), bytes);
+    }
+    const drawn = await view.evaluate("window.__check.drawn");
+    for (const verdict of drawingVerdicts(drawn, shareStrings(copy.history[days], account), account, copy, look)) {
+      check(label, verdict && `${what} ${verdict}`);
+    }
+    const strings = writings(drawn);
+    for (const verdict of [
+      ...readingVerdicts(strings, account),
+      ...listingVerdicts(strings, shareStrings(copy.history[days], account)),
+      ...contrastVerdicts(drawn),
+    ]) {
+      check(label, verdict && `${what} ${verdict}`);
+    }
+  }
+}
+
+/** Presses Tab until the control at `index` has the focus, and answers whether it got there. */
+async function tabTo(view, index) {
+  for (let presses = 0; presses < 60; presses += 1) {
+    if ((await view.evaluate(FOCUSED)).index === index) {
+      return true;
+    }
+    await view.press("Tab");
+  }
+  return false;
+}
+
+/**
+ * The strings a picture wrote, rebuilt from the canvas's record of each piece: a piece joins the
+ * one before when it is in the same font, colour and line and starts where that one ended, give or
+ * take the room a figure is centred in. Each string keeps its font size.
+ */
+function writings(drawn) {
+  const strings = [];
+  for (const item of drawn.filter((one) => "text" in one)) {
+    const size = Number(item.font.match(/([0-9.]+)px/)?.[1] ?? 0);
+    const last = strings.at(-1);
+    const joins =
+      last &&
+      last.font === item.font &&
+      last.fill === item.fill &&
+      Math.abs(last.y - item.y) < 0.01 &&
+      item.x >= last.end - 0.5 &&
+      item.x <= last.end + size * 0.3;
+    if (joins) {
+      last.text += item.text;
+      last.end = item.x + item.width;
+    } else {
+      strings.push({ text: item.text, font: item.font, fill: item.fill, y: item.y, size, end: item.x + item.width });
+    }
+  }
+  return strings;
+}
+
+/**
+ * Verdicts on what a picture says about each window, read away from the app with nothing around
+ * it: "highest N%" only for a window whose highest differs from its latest share, where it adds
+ * something, in the windows' order; and "90%" in small type beside every chart, so its dashed line
+ * is not taken for the limit itself.
+ */
+function readingVerdicts(strings, account) {
+  const differing = account.windows
+    .filter((window) => Math.floor(window.highest) !== Math.floor(window.latest))
+    .map((window) => `highest ${Math.floor(window.highest)}%`);
+  const highest = strings.filter((one) => one.text.startsWith("highest ")).map((one) => one.text);
+  const limits = strings.filter((one) => one.text === "90%");
+  return [
+    highest.join() !== differing.join() &&
+      `writes ${JSON.stringify(highest)} where only ${JSON.stringify(differing)} add something`,
+    limits.length !== account.windows.length &&
+      `labels the 90% line ${limits.length} times for ${account.windows.length} charts`,
+    limits.some((one) => one.size > 18) && "labels the 90% line in large type",
+  ];
+}
+
+/**
+ * Verdicts holding what a picture wrote, string by string, to what `shareStrings` lists: each
+ * written string is a listed one, or the start of one cut short with "…", and each listed string
+ * is written, so the list is the whole of the picture's words and nothing in it goes unseen.
+ */
+function listingVerdicts(strings, listed) {
+  const verdicts = [];
+  const isStart = (written, whole) =>
+    written === whole || (written.endsWith("…") && whole.startsWith(written.slice(0, -1)));
+  for (const written of strings) {
+    verdicts.push(
+      !listed.some((whole) => isStart(written.text, whole)) && `writes "${written.text}", which shareStrings does not list`,
+    );
+  }
+  for (const whole of listed) {
+    verdicts.push(!strings.some((written) => isStart(written.text, whole)) && `lists "${whole}" but never writes it`);
+  }
+  return verdicts;
+}
+
+/** `colour` as the canvas wrote it, `#rrggbb` or `rgba(r, g, b, a)`, laid over the opaque `under`. */
+function rgb(colour, under = [255, 255, 255]) {
+  const hex = colour.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const number = Number.parseInt(hex[1], 16);
+    return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
+  }
+  const parts = colour.match(/^rgba?\(([^)]+)\)$/)?.[1].split(",").map(Number) ?? [0, 0, 0, 1];
+  const alpha = parts[3] ?? 1;
+  return [0, 1, 2].map((index) => parts[index] * alpha + under[index] * (1 - alpha));
+}
+
+/** The contrast of two colours, as WCAG works it out (check-contrast.mjs does the same). */
+function contrast(a, b) {
+  const luminance = (colour) => {
+    const [r, g, b] = colour.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.039_28 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/**
+ * Verdicts on the contrast of every piece of text a picture wrote against what the canvas held
+ * behind it just before: 4.5:1, as check-contrast.mjs holds the window's text, whatever the theme.
+ */
+function contrastVerdicts(drawn) {
+  const said = new Set();
+  return drawn
+    .filter((item) => "text" in item && item.text.trim())
+    .map((item) => {
+      const lowest = Math.min(
+        ...item.ground.map(([r, g, b, a]) => {
+          const behind = rgb(`rgba(${r}, ${g}, ${b}, ${a / 255})`);
+          return contrast(rgb(item.fill, behind), behind);
+        }),
+      );
+      const problem = lowest < 4.5 && `writes "${item.text}" at ${lowest.toFixed(2)}:1 against what is behind it`;
+      if (!problem || said.has(problem)) {
+        return false;
+      }
+      said.add(problem);
+      return problem;
+    });
+}
+
+/**
+ * A verdict on each thing a picture drew, from the canvas's record of it: false where it passed,
+ * or what is wrong (each kind of problem said once). Nothing may be written that `listed` does not
+ * hold, or a cut-short start of it; nothing with an @; the name given the account must be in its
+ * label; writing only in the stylesheet's text colours and the window's font, figures one by one
+ * in equal room; and the ground the window's background.
+ */
+function drawingVerdicts(drawn, listed, account, copy, look) {
+  const said = new Set();
+  const verdict = (problem) => {
+    if (!problem || said.has(problem)) {
+      return false;
+    }
+    said.add(problem);
+    return problem;
+  };
+  const verdicts = [];
+  const alias = copy.meter.accounts.find((one) => one.key === account.key)?.alias;
+  verdicts.push(verdict(alias && !listed.some((text) => text.includes(alias)) && `does not name the account by "${alias}"`));
+  verdicts.push(verdict(listed.some((text) => text.includes("@")) && "lists a string with an @"));
+  const [ground] = drawn;
+  verdicts.push(
+    verdict(
+      !(ground && "rect" in ground && ground.fill === look.background && ground.rect.join() === `0,0,${PICTURE_WIDTH},${PICTURE_HEIGHT}`) &&
+        "does not begin with the window's background",
+    ),
+  );
+  const written = drawn.filter((item) => "text" in item);
+  verdicts.push(verdict(written.length === 0 && "writes nothing"));
+  const title = written.find((item) => item.text !== "QuotaDial" && item.text !== "quotadial.com");
+  const opening = title?.text.replace(/…$/, "") ?? "";
+  verdicts.push(verdict(!(opening.length > 0 && account.label.startsWith(opening)) && `opens with "${title?.text}", not the account's label`));
+  for (const item of written) {
+    const whole = item.text.replace(/…$/, "");
+    verdicts.push(
+      verdict(item.text.includes("@") && `writes "${item.text}", with an @`),
+      verdict(!listed.some((text) => text.includes(whole)) && `writes "${item.text}", which shareStrings does not list`),
+      verdict(!look.allowed.has(item.fill) && `writes "${item.text}" in ${item.fill}, not one of the stylesheet's text colours`),
+      verdict(!item.font.endsWith(look.family) && `writes "${item.text}" in ${item.font}, not the window's font`),
+      verdict(/[0-9]/.test(item.text) && item.text.length > 1 && `writes "${item.text}" without tabular figures`),
+    );
+  }
+  return verdicts;
+}
+
 async function screenshot(view, panel, folder) {
   await view.load(panel);
   await view.send("Emulation.setDeviceMetricsOverride", {
@@ -728,9 +1135,13 @@ async function screenshot(view, panel, folder) {
 async function main() {
   const at = process.argv.indexOf("--screenshots");
   const pictures = at > 0 ? resolve(process.argv[at + 1] ?? "") : null;
+  const sharing = process.argv.indexOf("--share-images");
+  const shares = sharing > 0 ? resolve(process.argv[sharing + 1] ?? "") : null;
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
-  if (pictures) {
-    mkdirSync(pictures, { recursive: true });
+  for (const folder of [pictures, shares]) {
+    if (folder) {
+      mkdirSync(folder, { recursive: true });
+    }
   }
   if (!existsSync(join(DIST, "index.html"))) {
     console.error("There is no built window in dist/; run npm run build first.");
@@ -760,6 +1171,10 @@ async function main() {
           try {
             // Pressing each control is the same in either theme, so once is enough.
             await checkView(view, panel, theme === "light");
+            // The picture to share follows the theme, so it is checked in both.
+            if (panel === "history") {
+              await checkSharing(view, name, copy, theme, shares);
+            }
             if (pictures) {
               await screenshot(view, panel, pictures);
             }
@@ -777,8 +1192,9 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names and reduced motion.` +
-          (pictures ? ` Pictures are in ${pictures}.` : ""),
+          `keys, zoom to 200%, long names, reduced motion and the picture to share.` +
+          (pictures ? ` Pictures are in ${pictures}.` : "") +
+          (shares ? ` Pictures to share are in ${shares}.` : ""),
       );
     }
   } finally {

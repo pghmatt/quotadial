@@ -213,7 +213,8 @@ mod tests {
             ProFeature::ALL.len(),
             "what Pro adds, on Free"
         );
-        assert_eq!(free.adds[4], "the week's cost at API prices");
+        assert_eq!(free.adds[2], "a picture of an account's history to share");
+        assert_eq!(free.adds[5], "the week's cost at API prices");
         let key = Licence {
             id: "app-1".into(),
             plan: Plan::Pro,

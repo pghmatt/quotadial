@@ -1,9 +1,11 @@
 // @ts-check
 // What the window check (check-window.mjs) answers in place of the app: the shapes the app's
 // commands return, typed against src/meter.ts, so `tsc` fails here when a shape changes there. The
-// accounts are made up, on example.com, and one has a very long address, so the check proves long
-// text wraps rather than being cut off. Two copies of the app: Pro, with the week's cost and a key
-// kept, and Free, with what Pro adds and an update on offer.
+// accounts are made up, on example.com, and one has a very long address and a long name given it,
+// so the check proves long text wraps rather than being cut off, and that a picture to share cuts
+// a long name short and never shows an address. Two copies of the app: Pro, with the week's cost,
+// a key kept and a Share image button on each account in History, and Free, with what Pro adds,
+// the line said in the buttons' place, and an update on offer.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -29,8 +31,8 @@ const CODEX_SIGN_IN =
 const ACCOUNTS = [
   {
     key: "claude:dev@example.com",
-    alias: "Work",
-    summary: "Claude Work: Weekly 91%",
+    alias: "Work, the team account we share across two offices",
+    summary: "Claude Work, the team account we share across two offices: Weekly 91%",
     provider: "Claude",
     name: "dev@example.com",
     plan: "Max 5x",
@@ -171,6 +173,50 @@ const SETTINGS = {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
+const SESSIONS = ["Session", "5-hour"];
+
+/** The most a session window reached on each day of the week, Monday first. */
+const SESSION_PEAKS = [56, 64, 71, 58, 49, 6, 0];
+
+/**
+ * A window's readings over `days` days, four a day: a weekly window climbs to its share now, and
+ * a session window fills during each day and resets, so its highest is above its latest.
+ *
+ * @param {Meter["accounts"][number]["windows"][number]} window
+ * @param {number} days
+ * @returns {[number, number][]}
+ */
+function readings(window, days) {
+  const count = days * 4;
+  return Array.from({ length: count }, (_, index) => {
+    const along = index / (count - 1);
+    if (!SESSIONS.includes(window.label)) {
+      return [along, Math.min(100, (index * window.used_pct) / (count - 1))];
+    }
+    // The last day fills to the share now.
+    const peak = index >= count - 4 ? window.used_pct : SESSION_PEAKS[Math.floor(index / 4) % 7];
+    return [along, Math.round((peak * ((index % 4) + 1)) / 0.4) / 10];
+  });
+}
+
+/** The days each period covers, as the app writes them, from Monday 20 April 2026. */
+const DATES = { 7: "20 to 26 April 2026", 30: "20 April to 19 May 2026" };
+
+/** On QuotaDial Free, the line History shows where the Share image buttons would be. */
+const SHARE_LEFT_OUT = "A picture of an account's history to share is part of QuotaDial Pro: quotadial.com/pro";
+
+/**
+ * What a picture of the account's history calls it, as the app does (`share::label`): its provider
+ * and the name given it, or its plan, or the provider alone.
+ *
+ * @param {Meter["accounts"][number]} account
+ */
+function label(account) {
+  const named = account.alias ?? account.plan;
+  return named ? `${account.provider} ${named}` : account.provider;
+}
+
 /**
  * An account's history over `days` days: a working day's use, heavier mid-week, the same each
  * run so a failure can be reproduced.
@@ -205,19 +251,17 @@ function accountHistory(account, days) {
     key: account.key,
     provider: account.provider,
     name: account.alias ?? account.name,
+    label: label(account),
     windows: account.windows.map((window) => {
-      /** @type {[number, number][]} */
-      const points = Array.from({ length: days * 4 }, (_, index) => [
-        index / (days * 4 - 1),
-        Math.min(100, (index * window.used_pct) / (days * 4 - 1)),
-      ]);
+      const points = readings(window, days);
       const latest = window.used_pct;
+      const highest = Math.max(latest, ...points.map(([, used]) => used));
       return {
         label: window.label,
         points,
         latest,
-        highest: latest,
-        summary: `${window.label}: latest ${Math.floor(latest)}%, highest ${Math.floor(latest)}% in the last ${days} days`,
+        highest,
+        summary: `${window.label}: latest ${Math.floor(latest)}%, highest ${Math.floor(highest)}% in the last ${days} days`,
       };
     }),
     heatmap: {
@@ -230,14 +274,20 @@ function accountHistory(account, days) {
   };
 }
 
-/** @param {number} days @returns {HistoryView} */
-function history(days) {
+/**
+ * @param {7 | 30} days
+ * @param {string | null} shareLeftOut
+ * @returns {HistoryView}
+ */
+function history(days, shareLeftOut) {
   return {
     days,
     span: `The last ${days} days.`,
+    dates: DATES[days],
     accounts: ACCOUNTS.filter((account) => account.windows.length > 0).map((account) =>
       accountHistory(account, days),
     ),
+    share_left_out: shareLeftOut,
   };
 }
 
@@ -298,7 +348,7 @@ export const pro = {
     ],
   },
   settings: SETTINGS,
-  history: { 7: history(7), 30: history(30) },
+  history: { 7: history(7, null), 30: history(30, null) },
   help: HELP,
   update: {
     text: "QuotaDial 0.3.0 is the newest version. Checked 5 min ago.",
@@ -329,6 +379,7 @@ export const free = {
       adds: [
         "every account on this machine, not one per provider",
         "a year of history, not 30 days",
+        "a picture of an account's history to share",
         "alerts before a window runs out, before a reset, and for provider incidents",
         "alerts sent to webhooks and Slack",
         "the week's cost at API prices",
@@ -337,7 +388,7 @@ export const free = {
       ],
     },
   },
-  history: { 7: history(7), 30: history(30) },
+  history: { 7: history(7, SHARE_LEFT_OUT), 30: history(30, SHARE_LEFT_OUT) },
   help: { ...HELP, licence: "QuotaDial Free, with no licence key." },
   update: {
     text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",

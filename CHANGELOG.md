@@ -33,6 +33,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - Tab completion for bash, zsh, fish and PowerShell, and a manual page for every command (`man quotadial`), in each release's archives and in the app; the deb installs both.
 - `quotadial --help` describes QuotaDial with examples, and every command's `--help` says what each of its arguments is for.
 - On macOS, VoiceOver and Full Keyboard Access open QuotaDial from its menu bar icon, as a click does.
+- On QuotaDial Pro, each account in History has Share image, which saves a picture of its last 7 or 30 days in your Downloads folder, ready to post. The picture shows the plan or the name you gave the account, never its email address.
 
 ### Fixed
 

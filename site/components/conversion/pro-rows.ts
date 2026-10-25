@@ -2,7 +2,8 @@
  * What QuotaDial Pro adds, one row per feature, in the order the app lists them. `feature` is the
  * app's own phrase (crates/core/src/tier.rs, `ProFeature::what`) up to its "not" half, which `free`
  * says as what a Free copy has (docs/CLI.md, QuotaDial Free and Pro). `changes` is what the feature
- * does for the reader. test/conversion.test.ts holds the seven to lib/data/pro.ts.
+ * does for the reader. test/conversion.test.ts holds the rows to lib/data/pro.ts, and
+ * test/pro.test.ts holds that to tier.rs.
  */
 
 export interface ProRow {
@@ -25,6 +26,13 @@ export const PRO_ROWS: readonly ProRow[] = [
     feature: "A year of history",
     free: "30 days of history",
     changes: "How a window filled over many weeks stays on your machine for a year.",
+  },
+  {
+    group: "seen",
+    feature: "A picture of an account's history to share",
+    free: "A line in History saying it is part of Pro",
+    changes:
+      "Under each account in History, Share image saves its last 7 or 30 days as a picture in your Downloads folder. It shows the plan or the name you gave the account, never its email address.",
   },
   {
     group: "warnings",
