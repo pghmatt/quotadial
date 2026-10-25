@@ -15,13 +15,14 @@ mod icon;
 pub mod icon_press;
 mod meter;
 mod settings;
+mod share;
 mod updates;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use chrono::Utc;
+use chrono::{Local, Utc};
 use quotadial_core::{ProFeature, StatusReport, text};
 use quotadial_daemon::{AddError, Config, DataDir, History, Licensing, licence, needs_pro};
 use serde::{Deserialize, Serialize};
@@ -545,7 +546,8 @@ fn open(app: &AppHandle, address: &str) -> Result<(), String> {
         .map_err(|error| format!("QuotaDial could not open {address}: {error}"))
 }
 
-/// The history view of the last `days`: 7 or 30.
+/// The history view of the last `days`: 7 or 30. It says whether the copy may share a picture of
+/// an account's history, so the window needs no second command to know (D-115).
 ///
 /// # Errors
 ///
@@ -564,6 +566,7 @@ fn history(state: tauri::State<'_, AppState>, days: u32) -> Result<history::Hist
         days.clamp(1, 365),
         Utc::now(),
         &chrono::Local,
+        Licensing::new(DataDir::from_env().as_ref()).tier(),
     )
 }
 
@@ -589,6 +592,46 @@ fn export_history(
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
     let path = history::export(&history, &settings, days.clamp(1, 365), Utc::now(), &folder)?;
+    Ok(format!(
+        "Saved to {}.",
+        text::tilde(&path, app.path().home_dir().ok().as_deref())
+    ))
+}
+
+/// Saves a picture of an account's history to the Downloads folder, and says where (D-115). The
+/// window draws it from the History view and sends the PNG as the request's raw body, with the
+/// account's settings key in [`share::ACCOUNT_HEADER`]. QuotaDial Pro's, asked of the copy's
+/// `Licensing`. The file's name is chosen here from what QuotaDial knows of the account, never
+/// taken from the window.
+///
+/// # Errors
+///
+/// On QuotaDial Free, the feature's line; otherwise what went wrong, naming the fix, for the
+/// popover to show.
+#[tauri::command]
+fn save_share_image(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
+    let picture = share::picture(
+        &Licensing::new(DataDir::from_env().as_ref()),
+        request.body(),
+    )?;
+    let key = share::account(request.headers())?;
+    let history = state.history().ok_or_else(no_history)?;
+    let settings = state
+        .settings
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let label = history::label(&history, &settings, &key)?;
+    let folder = app.path().download_dir().map_err(|_| {
+        "This system names no Downloads folder for the picture; on Linux, name one as \
+         XDG_DOWNLOAD_DIR in ~/.config/user-dirs.dirs, then press Share image again."
+            .to_owned()
+    })?;
+    let path = share::save(&folder, &label, Local::now().date_naive(), picture)?;
     Ok(format!(
         "Saved to {}.",
         text::tilde(&path, app.path().home_dir().ok().as_deref())
@@ -689,6 +732,7 @@ pub fn run() {
             open_link,
             history,
             export_history,
+            save_share_image,
             updates,
             check_for_updates,
             install_update
