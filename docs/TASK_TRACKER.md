@@ -76,8 +76,8 @@ queue, by its numbers:
 - 5, the website in `site/`, built but not deployed, and the shareable image: started;
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
-  (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), in review
-  (PR #66); package managers; and docs;
+  (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
+  (PR #66); package managers, completions and manual pages (D-112), in review (PR #67); and docs;
 - then the M6 plan, starting with a fake provider while it waits.
 The manager's 02:30 UTC check on 2026-10-25 set the order from here: 5, 10, 11, 12, then M6.
 
@@ -154,7 +154,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
 | 9: accessibility | Done (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
-| 10: the OpenAPI description | In review (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
+| 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
+| 11: package managers, completions and manual pages | In review (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -342,6 +343,58 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 11: package managers, completions and manual pages (D-112)
+
+- **Completions and manual pages, from the commands:** `crates/cli/src/packaging.rs`, compiled
+  only for tests, writes `packaging/completions/` (`quotadial.bash`, `_quotadial`,
+  `quotadial.fish`, `quotadial.ps1`, and the same for `qd`) with clap_complete 4.6.11, and
+  `packaging/man/` (17 pages: `quotadial.1` and one per command and subcommand) with clap_mangen
+  0.3.3 and roff 1.1.1, all three dev-dependencies of the CLI only. `quotadial(1)` adds EXAMPLES
+  (from the examples `quotadial --help` now ends with), EXIT STATUS, ENVIRONMENT
+  (`QUOTADIAL_DATA_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`), FILES (the
+  data folder on each system) and SEE ALSO; clap's `help` subcommand gets no page. Tests:
+  `the_completions_and_manual_pages_are_the_commands` (any difference fails, and
+  `QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial packaging` writes them again),
+  `every_command_and_argument_says_what_it_is_for` (its first run found `alerts remove`, `on` and
+  `off` with an undocumented rule number, now "The rule's number, as `quotadial alerts` lists
+  it"), and `there_is_a_manual_page_for_every_command`. `quotadial --help` gains a description and
+  five examples.
+- **Shipped:** the release's command archives carry `completions/` and `man/`; the deb maps them to
+  `/usr/share/man/man1`, `/usr/share/bash-completion/completions`, `/usr/share/zsh/vendor-completions`
+  and `/usr/share/fish/vendor_completions.d` (`tauri.linux.conf.json`); the macOS app carries them
+  in `Contents/Resources` (`tauri.macos.conf.json`), checked in a local `tauri build`.
+- **The packages:** `scripts/packages.mjs <version> <SHA256SUMS.txt> <folder>` writes
+  `Formula/quotadial.rb` (both commands, the pages with `qd.1` linked to `quotadial.1`, the
+  completions, a test of `--version` and `--help`), `Casks/quotadial-app.rb` (the dmg, the app's
+  command, every page and the three completions, `uninstall quit` and a `zap` of the folders
+  QuotaDial makes, `auto_updates` only when the release has `latest.json`), `bucket/quotadial.json`
+  (the Windows archive, with `checkver` and `autoupdate` from `SHA256SUMS.txt`) and winget's three
+  manifests (schema 1.10.0, the msi with its product code). `scripts/packages.test.mjs` (8 tests)
+  runs in CI with the other scripts' tests. `.github/workflows/packages.yml` runs on a full
+  release, or by hand with a version: it checks the release's files against `SHA256SUMS.txt`, reads
+  the msi's product code with msitools, writes everything as the artifact `packages`, commits the
+  formula, cask and manifest to `pghmatt/homebrew-quotadial` when `HOMEBREW_TAP_TOKEN` is set, and
+  opens winget's pull request with wingetcreate 1.12.13.0, checked against its SHA-256, when
+  `WINGET_TOKEN` is set.
+- **How it was checked:** in a local tap on this Mac, against archives built from this branch
+  exactly as the Release workflow packs them and a dmg of the app built here, with the real
+  v0.2.0 checksums for the other files: `brew audit --strict` passed for both after two fixes it
+  found (a cask cannot say `conflicts_with formula:`; the formula's `version` was redundant), and
+  `brew style` after a third (`depends_on :macos`, since Homebrew supports no macOS older than the
+  app's minimum). `brew install` of the formula put `quotadial` and `qd` on the path with 18 pages
+  and the bash, zsh and fish completions, and `brew test` passed; the cask, installed into a
+  scratch folder, linked the app's command, 17 pages and three completions. Both were uninstalled
+  and the tap removed. The Scoop manifest and winget's three manifests pass their published JSON
+  schemas, and a manifest broken on purpose fails each. Bash completion offered `alerts` for `al`
+  and `--since` for `history --s`. `actionlint` passes on both workflows. A Release run by hand on
+  this branch (run 40161006745) built every file: its command archives hold `completions/` and
+  `man/`, and its deb installs `quotadial` in `/usr/bin`, the 17 pages in `/usr/share/man/man1`, and
+  the completions in `/usr/share/bash-completion/completions`, `/usr/share/zsh/vendor-completions`
+  and `/usr/share/fish/vendor_completions.d`.
+- **Not done here:** the tap repository and the two tokens are Matt's (#51); until then each full
+  release's files are an artifact of the Packages workflow. The changelog gains its line about
+  Homebrew, Scoop and winget when the tap is live.
 
 ### M5 queue item 10: the OpenAPI description (D-111)
 

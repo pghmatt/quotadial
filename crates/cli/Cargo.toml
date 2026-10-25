@@ -36,6 +36,9 @@ tokio = { workspace = true, features = ["io-std", "io-util", "rt", "time", "sign
 
 [dev-dependencies]
 async-trait.workspace = true
+clap_complete.workspace = true
+clap_mangen.workspace = true
+roff.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 

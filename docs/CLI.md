@@ -27,6 +27,28 @@ CLI already store and never writes them.
 | `quotadial doctor` | Prints what support asks for, with nothing secret in it (see Doctor) |
 | `quotadial --version` | Prints the version |
 
+`quotadial --help` says what every command does, with examples, and `quotadial <command> --help`
+says what each takes.
+
+## Completions and manual pages
+
+Homebrew and the deb install both. Otherwise they are in the release's archive, in `completions/`
+and `man/`, and in the app on macOS, in `QuotaDial.app/Contents/Resources`:
+
+- **Manual pages:** `quotadial(1)`, and a page for each command, such as `quotadial-alerts-add(1)`.
+  `man ./man/quotadial.1` reads one from the archive; copy the folder's files into
+  `/usr/local/share/man/man1` to make `man quotadial` work.
+- **bash:** add `source /path/to/completions/quotadial.bash` to `~/.bashrc`, or copy the file to
+  `~/.local/share/bash-completion/completions/quotadial`.
+- **zsh:** copy `_quotadial` into a folder on your `$fpath`, such as `~/.zfunc` after
+  `fpath=(~/.zfunc $fpath)` in `~/.zshrc`, then start a new shell.
+- **fish:** copy `quotadial.fish` to `~/.config/fish/completions/`.
+- **PowerShell:** add `. C:\path\to\completions\quotadial.ps1` to your `$PROFILE`.
+
+The archives and Homebrew's formula have the same for `qd`. Both kinds are written from the
+commands' own definitions, and a test fails when they differ (`QUOTADIAL_WRITE_PACKAGING=1 cargo
+test -p quotadial packaging` writes them again).
+
 ## How often providers are asked
 
 No command asks a provider more often than its own limit, counted across every QuotaDial process

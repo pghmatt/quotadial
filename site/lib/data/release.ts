@@ -1,14 +1,17 @@
 /**
- * What QuotaDial's releases on GitHub hold, by system, as docs/INSTALL.md lists them. While every
- * release is a pre-release, downloads go to the releases page; once a full release exists,
- * `DOWNLOAD_PAGE` becomes `${SITE.releases}/latest`, a one-line change.
+ * What QuotaDial's releases on GitHub hold, by system, as docs/INSTALL.md lists them (a test holds
+ * the two together; /download reads INSTALL.md itself through `installGuide`).
+ *
+ * Downloads go to the latest release's page. GitHub sends that address to the newest full release,
+ * and to the list of every release while all of them are pre-releases, as now, so publishing a
+ * release never needs the site built again (#49).
  */
 
 import { SITE } from "./site.ts";
 
 export type System = "macos" | "windows" | "linux";
 
-export const DOWNLOAD_PAGE = SITE.releases;
+export const DOWNLOAD_PAGE = `${SITE.releases}/latest`;
 
 export interface Download {
   system: System;

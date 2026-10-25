@@ -30,6 +30,8 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A screen reader reads when an account was used as a line a day, in place of History's grid of squares.
 - `docs/ACCESSIBILITY.md` says how to use QuotaDial by keyboard and screen reader, and what is not there yet.
 - `GET /v1/openapi.json` describes the local API in OpenAPI 3.1, the same as `docs/openapi.json`: every request, its parameters, and the shape of each answer and error.
+- Tab completion for bash, zsh, fish and PowerShell, and a manual page for every command (`man quotadial`), in each release's archives and in the app; the deb installs both.
+- `quotadial --help` describes QuotaDial with examples, and every command's `--help` says what each of its arguments is for.
 
 ### Fixed
 
