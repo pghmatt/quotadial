@@ -17,7 +17,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use quotadial_core::{
     Account, Condition, Occurrence, ProFeature, Rule, StatusReport, Tier, Window, text,
 };
-use rusqlite::{Connection, OptionalExtension, Row, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 
 use crate::deliveries::Delivery;
@@ -531,21 +531,20 @@ pub fn needs_pro(condition: &Condition) -> bool {
 /// records what already holds rather than telling it again. Returns how many; when none can be
 /// read, the new history keeps its starting rules.
 pub(crate) fn carry_rules(history: &History, damaged: &Path) -> usize {
-    let read = || -> rusqlite::Result<Vec<(String, String, bool, String)>> {
-        let old = Connection::open(damaged)?;
-        let mut statement =
-            old.prepare("SELECT written, rule, enabled, created_at FROM rules ORDER BY id")?;
-        let rows = statement.query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })?;
-        Ok(rows.filter_map(Result::ok).collect())
-    };
-    // A rule this version cannot read, from a newer one, is left behind.
-    let rules: Vec<_> = read()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|(_, rule, _, _)| serde_json::from_str::<Rule>(rule).is_ok())
-        .collect();
+    // SQLite makes a shared-memory file, and a WAL if there was none, even to read; those it made
+    // go again once the rules are read, so the moved file is left exactly as it was found.
+    let companions = ["-wal", "-shm"].map(|suffix| {
+        let mut path = damaged.as_os_str().to_owned();
+        path.push(suffix);
+        std::path::PathBuf::from(path)
+    });
+    let found = companions.clone().map(|path| path.exists());
+    let rules = read_rules(damaged);
+    for (path, found) in companions.iter().zip(found) {
+        if !found {
+            let _ = std::fs::remove_file(path);
+        }
+    }
     if rules.is_empty() {
         return 0;
     }
@@ -563,6 +562,30 @@ pub(crate) fn carry_rules(history: &History, damaged: &Path) -> usize {
         transaction.commit()
     };
     if carried().is_ok() { rules.len() } else { 0 }
+}
+
+/// The rules the damaged history at `damaged` still gives, that this version can read.
+fn read_rules(damaged: &Path) -> Vec<(String, String, bool, String)> {
+    let read = || -> rusqlite::Result<Vec<(String, String, bool, String)>> {
+        // Read only, so SQLite never checkpoints into the moved file or rewrites a page of it:
+        // it stays as it was found, for support (#61's review).
+        let old = Connection::open_with_flags(
+            damaged,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        let mut statement =
+            old.prepare("SELECT written, rule, enabled, created_at FROM rules ORDER BY id")?;
+        let rows = statement.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?;
+        Ok(rows.filter_map(Result::ok).collect())
+    };
+    // A rule this version cannot read, from a newer one, is left behind.
+    read()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, rule, _, _)| serde_json::from_str::<Rule>(rule).is_ok())
+        .collect()
 }
 
 fn insert_rule(
@@ -698,6 +721,44 @@ mod tests {
             .check(&report(55.0, 310, 600), at(310), Tier::Pro)
             .expect("checks");
         assert_eq!(next.len(), 1, "the next window's crossing is told");
+    }
+
+    #[test]
+    fn the_damaged_file_is_only_read_and_left_as_it_was_found() {
+        let (old_dir, old) = with_rule("warn me at 50%");
+        drop(old);
+        let damaged = old_dir.path().join("history.db");
+        // Each file's name, size and a hash of its bytes.
+        let snapshot = |dir: &std::path::Path| -> Vec<(String, usize, u64)> {
+            use std::hash::{Hash, Hasher};
+            let mut files: Vec<_> = std::fs::read_dir(dir)
+                .expect("lists")
+                .map(|entry| {
+                    let path = entry.expect("an entry").path();
+                    let name = path
+                        .file_name()
+                        .expect("a name")
+                        .to_string_lossy()
+                        .into_owned();
+                    let bytes = std::fs::read(&path).expect("reads");
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    bytes.hash(&mut hasher);
+                    (name, bytes.len(), hasher.finish())
+                })
+                .collect();
+            files.sort();
+            files
+        };
+        let before = snapshot(old_dir.path());
+        let (_dir, new) = open();
+
+        assert_eq!(carry_rules(&new, &damaged), 1);
+
+        assert_eq!(
+            snapshot(old_dir.path()),
+            before,
+            "not a byte changed, and nothing added"
+        );
     }
 
     #[test]

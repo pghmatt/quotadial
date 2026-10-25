@@ -149,7 +149,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 3: help and feedback | Done (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
 | 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
 | Free at once (#56's review) | Done (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
-| 7: resilience | In review (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
+| 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -337,6 +337,18 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5: the two notes from the review of PR #61
+
+- **The moved file stays as found** (`alerts::carry_rules`, `read_rules`): the damaged history is
+  opened read-only, and the `-shm`, and an empty `-wal`, that SQLite makes beside it even to read
+  are removed once the rules are read, unless they were there before. A test compares the folder's
+  files, sizes and hashes before and after carrying the rules: unchanged.
+- **The app holds no history open:** `AppState::history` is the daemon's own handle while the app
+  runs the daemon, and is otherwise opened for each use and closed after it, so a daemon the app
+  follows can move a damaged history aside, which Windows refuses while any handle is open, and
+  the app's next use reads the new file. The handle opened at setup for what M3 left and what was
+  told is closed before the daemon starts; a role that becomes Following drops the daemon's handle.
 
 ### M5 queue item 7: resilience (D-107, D-108)
 

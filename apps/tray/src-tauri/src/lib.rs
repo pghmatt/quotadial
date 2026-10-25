@@ -66,9 +66,8 @@ struct AppState {
     /// When the popover last opened, and how.
     opened: Mutex<Option<(Instant, Opened)>>,
     settings: Mutex<Settings>,
-    /// The daemon's history, which keeps the alert rules and their firings: the daemon's own while
-    /// the app runs it, or one the app opens while it follows another. Read through
-    /// [`AppState::history`].
+    /// The daemon's own history, which keeps the alert rules and their firings, while the app runs
+    /// the daemon. Read through [`AppState::history`].
     history: Mutex<Option<Arc<History>>>,
     /// The newest firing told as a notification.
     told: Mutex<Told>,
@@ -125,14 +124,16 @@ struct Known {
 }
 
 impl AppState {
-    /// The daemon's history, opened now if it could not be before, as when the daemon that has
-    /// since started found it damaged and began a new one.
+    /// The daemon's history: its own while the app runs it, or else opened for this use only.
+    /// The app never holds the file open itself, so a daemon it follows can move a damaged one
+    /// aside, which Windows refuses while the file is open, and the app reads the new one at its
+    /// next use rather than the moved file (D-108).
     fn history(&self) -> Option<Arc<History>> {
-        let mut history = self.history.lock().unwrap_or_else(PoisonError::into_inner);
-        if history.is_none() {
-            *history = open_history();
-        }
-        history.clone()
+        self.history
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+            .or_else(open_history)
     }
 
     fn meter(&self) -> Meter {
@@ -730,6 +731,8 @@ pub fn run() {
                     last: history.last_firing().unwrap_or_default(),
                 });
             }
+            // Closed before the daemon starts, which may need to move a damaged history aside.
+            drop(history);
             let licence_changed = Arc::new(Notify::new());
             let record = files
                 .as_ref()
@@ -742,7 +745,7 @@ pub fn run() {
                 hidden_at: Mutex::default(),
                 opened: Mutex::default(),
                 settings: Mutex::new(settings),
-                history: Mutex::new(history),
+                history: Mutex::default(),
                 told: Mutex::new(told),
                 files,
                 licence_changed: Arc::clone(&licence_changed),
@@ -890,7 +893,13 @@ fn receive(app: &AppHandle, update: Update) {
             }
             // The last numbers stay on show, with what is wrong.
             Update::Problem(problem) => known.problem = Some(problem),
-            Update::Role(role) => known.role = Some(role),
+            Update::Role(role) => {
+                if role == Role::Following {
+                    // The daemon is another's now: its history is read afresh at each use.
+                    *state.history.lock().unwrap_or_else(PoisonError::into_inner) = None;
+                }
+                known.role = Some(role);
+            }
             Update::Fired => {
                 drop(known);
                 tell(app);
