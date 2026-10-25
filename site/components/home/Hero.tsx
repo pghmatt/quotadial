@@ -56,6 +56,7 @@ export function Hero() {
               See what Pro adds
             </ButtonLink>
           </div>
+          {/* Free and open source stays under the action: the keyword map's related searches ask for free and GitHub (docs/seo/blueprints/home.md). */}
           <p className="m-0 mt-5 max-w-[40ch] text-ink-2">
             Free and open source under the MIT licence, for macOS, Windows and Linux.
           </p>

@@ -20,7 +20,7 @@ export function Agents() {
             The same numbers come through <Code>quotadial status</Code>, a local API on <Code>127.0.0.1</Code> and an
             MCP server with a SKILL.md, so an agent can check its headroom before it begins a long job.
           </Lead>
-          <ul className="m-0 mt-6 grid max-w-[62ch] list-none gap-3 p-0 text-ink-2">
+          <ul className="m-0 mt-6 grid max-w-[52ch] list-none gap-3 p-0 text-ink-2">
             <li>
               <Code>quotadial status</Code> in a terminal, or with <Code>--json</Code> for a script. <Code>qd</Code> is
               the short name.
