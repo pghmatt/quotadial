@@ -13,13 +13,13 @@ on the page (D-098): Lemon Squeezy's checkout shows it. Source: `README.md` (Fre
    Squeezy checkout link in `lib/data/site.ts`. Until Matt adds that link (#51), the button is
    replaced by one sentence saying buying opens soon, and the primary action is "Download
    QuotaDial Free".
-4. Proof: the seven features, each in the words the app itself uses.
+4. Proof: the eight features, each in the words the app itself uses.
 
 ## Sections
 
 | H2 | Answer |
 |---|---|
-| What Pro adds | The seven Pro features (`ProFeature::what`), each with what it changes for the reader |
+| What Pro adds | The eight Pro features (`ProFeature::what`), each with what it changes for the reader |
 | What stays free | QuotaDial Free: one account per provider, every window with pace and reset, 30 days of history, alerts for a share used, a reset and a sign-in, status pages, read-only status for agents |
 | How buying works | Lemon Squeezy is the merchant of record and shows the price and tax; the receipt has a button, "Get your QuotaDial key", that opens /key |
 | Adding your key | Settings' Licence field or `quotadial licence add <key>`; checked on the machine, no call home; a Free copy says where each Pro feature would be |

@@ -517,10 +517,23 @@ footer button + button {
   background: var(--bar-normal);
 }
 
+/* Each account's Share image (QuotaDial Pro), under its heatmap. */
+.account-history .share {
+  margin-top: 8px;
+}
+
+/* On QuotaDial Free, the one line said where the Share image buttons would be. */
+.history .left-out {
+  margin: 12px 0 0;
+}
+
+/* The panel's own actions, ruled off from the last account's Share image above them. */
 .history-actions {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
 }
 
 .history-actions .done {

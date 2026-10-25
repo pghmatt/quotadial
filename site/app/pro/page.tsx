@@ -36,7 +36,7 @@ export default function Pro() {
           </div>
 
           <div className="md:col-span-7 md:col-start-6 md:row-span-2 md:row-start-1">
-            <Plate caption="The seven additions, in the words Settings uses. A Free copy says in one line where each would be.">
+            <Plate caption="The eight additions, in the words Settings uses. A Free copy says in one line where each would be.">
               <h2
                 id="adds-heading"
                 className="m-0 mb-4 px-3 text-[1.875rem] leading-[1.1] font-[750] tracking-[-0.01em]"
