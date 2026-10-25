@@ -390,6 +390,25 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
+### CI: the window check gives Chrome a minute to start
+
+- **What happened:** main's CI failed on #74's merge (run 40236269486, 21:38 UTC on 2026-10-25) in
+  the tray job on Linux, at the window check: "Chrome did not start". The check waited 20 s for
+  headless Chrome to say where its DevTools listen, and that runner's Chrome was still starting at
+  17 to 20 s. #74 changed nothing in the window, the same job had passed on the PR, and a rerun of
+  the failed job passed, so main was green again at 21:48 UTC without a change.
+- **The fix, at the cause:** the launcher moves from `apps/tray/scripts/check-window.mjs` to
+  `chrome.mjs`, unchanged but for the wait, now a minute (`START_WAIT_MS`), and saying how long it
+  waited when it gives up. Chrome usually answers within a few seconds, so a minute only matters on
+  a slow runner, and still stops a Chrome that never answers. On failure the check still stops
+  Chrome and removes its profile, as before.
+- **Tests:** `apps/tray/scripts/chrome.test.mjs`, the tray scripts' first, run by `npm test` in the
+  tray job before the window check: a script standing in for Chrome gives the address it announces,
+  a quiet one fails within its wait saying what it said, one that exits fails with its status, the
+  sandbox is turned off on Linux only, and the wait is at least a minute (that test failed with the
+  old 20 s). The stand-in needs a shebang, so on Windows only the last runs. The real check passed
+  here with the new launcher: 3,350 checks over 16 views.
+
 ### M6 PR 1: the groundwork (P-018, P-019, D-118 to D-122)
 
 - **The decisions:** the manager's on #73 (2026-10-25, 20:29 UTC), taken as decided at 20:32 UTC:
