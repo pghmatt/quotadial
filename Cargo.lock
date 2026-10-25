@@ -1592,6 +1592,7 @@ dependencies = [
  "quotadial-daemon",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
+ "quotadial-provider-fake",
 ]
 
 [[package]]
