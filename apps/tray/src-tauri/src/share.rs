@@ -547,6 +547,49 @@ mod tests {
         );
     }
 
+    proptest::proptest! {
+        #[test]
+        fn no_bytes_make_reading_a_png_panic(
+            middle in proptest::collection::vec(proptest::num::u8::ANY, 0..64),
+            framed in proptest::bool::ANY,
+        ) {
+            // Framed, the bytes reach the header's checks; bare, they mostly stop at the signature.
+            let bytes = if framed { [&SIGNATURE[..], &middle, &END].concat() } else { middle };
+            let _ = size(&bytes);
+        }
+
+        #[test]
+        fn no_header_makes_reading_the_account_panic(text in proptest::arbitrary::any::<String>()) {
+            let _ = percent_decoded(&text);
+        }
+
+        #[test]
+        fn every_label_makes_a_safe_name(
+            label in proptest::arbitrary::any::<String>(),
+            copy in 0_u32..2000,
+        ) {
+            let name = file_name(&label, day(), copy);
+            let stem = name.strip_suffix(".png").unwrap_or_default();
+            proptest::prop_assert!(name.starts_with("QuotaDial ") && !stem.is_empty(), "{name:?}");
+            proptest::prop_assert!(
+                !stem.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|', '.']),
+                "{name:?}"
+            );
+            proptest::prop_assert!(!name.chars().any(char::is_control), "{name:?}");
+            proptest::prop_assert!(name.len() <= 120, "{name:?}");
+        }
+
+        #[test]
+        fn no_label_shows_an_at_or_a_control_character(
+            alias in proptest::option::of(proptest::arbitrary::any::<String>()),
+            plan in proptest::option::of(proptest::arbitrary::any::<String>()),
+        ) {
+            let label = label("Claude", alias.as_deref(), plan.as_deref());
+            proptest::prop_assert!(!label.contains('@'), "{label:?}");
+            proptest::prop_assert!(!label.chars().any(char::is_control), "{label:?}");
+        }
+    }
+
     #[test]
     fn the_account_is_read_as_encode_uri_component_writes_it() {
         let mut headers = HeaderMap::new();
