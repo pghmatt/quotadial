@@ -25,6 +25,27 @@ test("the site's examples match the pictures of the app", () => {
   assert.equal(WEEKLY_CURVE.runsOut.hour - (WEEKLY_CURVE.points.at(-1)?.hour ?? 0), 4.5);
 });
 
+/** Each period the pictures' History offers is as long as it is named, so its picture to share is. */
+test("each period of the pictures' History covers the days it is named for, a row and four readings a day", () => {
+  for (const [key, view] of Object.entries(site.history)) {
+    const days = Number(key);
+    assert.equal(view.days, days, `the ${key}-day period says it covers ${view.days} days`);
+    assert.equal(view.span, `The last ${days} days.`);
+    for (const account of view.accounts) {
+      const labels = account.heatmap.days;
+      assert.equal(labels.length, days, `${account.label} over ${key} days: a heatmap row a day`);
+      assert.equal(new Set(labels).size, days, `${account.label} over ${key} days: each day named once`);
+      const [first, last] = [labels[0], labels[labels.length - 1]].map((label) => label.split(" ")[1]);
+      assert.ok(view.dates.startsWith(`${first} `) && view.dates.includes(` to ${last} `), `${view.dates} runs from ${first} to ${last}`);
+      for (const window of account.windows) {
+        assert.equal(window.points.length, days * 4, `${account.label} ${window.label} over ${key} days: four readings a day`);
+        assert.ok(window.summary.endsWith(`in the last ${days} days`), window.summary);
+      }
+    }
+  }
+  assert.deepEqual(Object.keys(site.history), ["7", "30"], "History's two periods");
+});
+
 test("the Buy button takes only an https link to Lemon Squeezy", async () => {
   const { checkoutLink } = await import("../lib/data/site.ts");
   assert.equal(checkoutLink(undefined), null);
