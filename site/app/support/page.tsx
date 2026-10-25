@@ -69,7 +69,7 @@ export default function Support() {
 
       <Section tone="shallow" labelledBy="github">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-x-12">
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-4">
             <h2 id="github" className={H2}>
               Report a problem on GitHub
             </h2>
@@ -88,7 +88,7 @@ export default function Support() {
               ))}
             </dl>
           </div>
-          <div className="min-w-0 lg:col-span-7">
+          <div className="min-w-0 lg:col-span-8">
             <DoctorSample />
           </div>
         </div>
