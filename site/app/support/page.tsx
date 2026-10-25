@@ -52,7 +52,8 @@ export default function Support() {
             </h2>
             <p className="mt-4 mb-0 max-w-measure">
               Say what you were doing and what you saw. Run this first and paste what it prints: it names your
-              version, your system and each account (with its address cut short), and nothing secret.
+              version, your system and each account (with its address cut short), and nothing secret.{" "}
+              <InlineLink href="/cli#doctor">The command guide</InlineLink> shows an example of what it prints.
             </p>
             <div className="mt-5 max-w-[34rem]">
               <CodeBlock code="quotadial doctor" label="Copy the command" />
