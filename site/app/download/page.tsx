@@ -38,7 +38,10 @@ export default function Download() {
             <SystemDownload />
           </div>
           <div className="md:col-span-6 lg:col-span-7">
-            <Plate caption="The files a release holds. Replace <version> with the number in the release's name.">
+            <Plate
+              title="Files in each release"
+              caption="The files a release holds. Replace <version> with the number in the release's name."
+            >
               <FilesTable />
             </Plate>
           </div>

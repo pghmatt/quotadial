@@ -35,13 +35,16 @@ export default function Pro() {
             <ProActions checkout={SITE.checkout} />
           </div>
 
-          <div className="md:col-span-7 md:row-span-2 md:row-start-1 md:col-start-6">
-            <SectionHeading id="adds-heading">What Pro adds</SectionHeading>
-            <div className="mt-6">
-              <Plate caption="The seven additions, in the words Settings uses. A Free copy says in one line where each would be.">
-                <ProLedger />
-              </Plate>
-            </div>
+          <div className="md:col-span-7 md:col-start-6 md:row-span-2 md:row-start-1">
+            <Plate caption="The seven additions, in the words Settings uses. A Free copy says in one line where each would be.">
+              <h2
+                id="adds-heading"
+                className="m-0 mb-4 px-3 text-[1.875rem] leading-[1.1] font-[750] tracking-[-0.01em]"
+              >
+                What Pro adds
+              </h2>
+              <ProLedger />
+            </Plate>
           </div>
 
           <div className="md:col-span-5">
@@ -50,14 +53,9 @@ export default function Pro() {
               If you keep one Claude and one Codex sign-in, QuotaDial Free already covers both, because it reads one
               account for each provider. It needs no key, with no strings attached.
             </p>
-            <ul className="m-0 mt-5 list-none p-0">
+            <ul className="m-0 mt-5 grid list-disc gap-2 pl-6 text-[1.0625rem] leading-[1.45]">
               {FREE_HAS.map((item) => (
-                <li
-                  key={item}
-                  className="px-3 py-2 font-display text-[1.125rem] leading-[1.25] font-[650] even:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
-                >
-                  {upper(item)}
-                </li>
+                <li key={item}>{upper(item)}</li>
               ))}
             </ul>
             <p className="mt-5 mb-0 max-w-[40ch]">
