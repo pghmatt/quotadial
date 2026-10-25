@@ -15,6 +15,7 @@ export function SignIn() {
       </Lead>
       <div className="mt-8">
         <BandedTable
+          wholeFirst
           caption="Where QuotaDial looks for each tool's sign-in, and what to do when it stops working"
           columns={["Tool", "Where QuotaDial looks, in this order", "If it stops working"]}
           rows={[

@@ -8,30 +8,35 @@ import { Body, Lead } from "./Text.tsx";
 const ADDRESSES = [
   {
     key: "anthropic",
+    group: "limits",
     address: ["api.anthropic.com"],
     why: "Each Claude account's limits, with your Claude Code sign-in.",
     often: "At most every 5 minutes per account",
   },
   {
     key: "chatgpt",
+    group: "limits",
     address: ["chatgpt.com"],
     why: "Your ChatGPT/Codex limits, with your Codex CLI sign-in.",
     often: "At most every 2 minutes",
   },
   {
     key: "status",
+    group: "status",
     address: ["status.claude.com", "status.openai.com"],
     why: "The providers' public status pages. No sign-in.",
     often: "Every 5 minutes, and you can turn it off",
   },
   {
     key: "github",
+    group: "updates",
     address: ["github.com", "release-assets.githubusercontent.com"],
     why: "Checking for a newer QuotaDial, and fetching it when you choose Update. No sign-in, nothing about you or your usage.",
     often: "Once a day, or when you check yourself",
   },
   {
     key: "yours",
+    group: "yours",
     address: [],
     why: "The webhook and Slack addresses you add, if you add any. Each gets the alert and its numbers.",
     often: "When an alert fires",
@@ -64,6 +69,7 @@ export function Addresses() {
           columns={["Address", "What for", "How often"]}
           rows={ADDRESSES.map((row) => ({
             key: row.key,
+            group: row.group,
             cells: [
               row.address.length ? (
                 <span className="grid justify-items-start gap-1 font-code text-[0.875rem] leading-[1.35] font-[500] [overflow-wrap:anywhere]">

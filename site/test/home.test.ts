@@ -5,7 +5,9 @@ import { test } from "node:test";
 import { site } from "../../apps/tray/scripts/site-fixtures.mjs";
 import { ALERT_SAMPLES, READ_ALOUD, STATUS_SAMPLE } from "../components/home/examples.ts";
 import { HOME_META } from "../components/home/meta.ts";
+import { PLAN_ROWS } from "../components/home/plan-rows.ts";
 import { WEEKLY_CURVE } from "../lib/data/examples.ts";
+import { FREE_HAS, PRO_FEATURES } from "../lib/data/pro.ts";
 
 type Window = (typeof site.meter.accounts)[number]["windows"][number];
 
@@ -86,4 +88,14 @@ test("the home page's title and description are the route map's", () => {
   assert.equal(`${HOME_META.title} | QuotaDial`, route.title);
   assert.equal(HOME_META.path, route.path);
   assert.equal(HOME_META.description.length, 153, "the blueprint's meta description is 153 characters");
+});
+
+test("the Free and Pro table holds every line of both lists in exactly one row", () => {
+  const once = (indexes: number[], length: number) =>
+    assert.deepEqual(
+      [...indexes].sort((a, b) => a - b),
+      Array.from({ length }, (_, index) => index),
+    );
+  once(PLAN_ROWS.flatMap((row) => row.free), FREE_HAS.length);
+  once(PLAN_ROWS.flatMap((row) => row.pro), PRO_FEATURES.length);
 });

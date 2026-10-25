@@ -2,25 +2,23 @@ import { FREE_HAS, PRO_FEATURES } from "../../lib/data/pro.ts";
 import { ButtonLink } from "../Button.tsx";
 import { Plate } from "../Plate.tsx";
 import { SectionHeading } from "../Section.tsx";
+import { BandedTable } from "./BandedTable.tsx";
 import { Part } from "./Part.tsx";
+import { PLAN_ROWS } from "./plan-rows.ts";
 import { Body, Lead } from "./Text.tsx";
 
-function List({ title, items }: { title: string; items: readonly string[] }) {
-  return (
-    <div>
-      <h3 className="m-0 text-[1.75rem] leading-none font-[750]">{title}</h3>
-      <ul className="m-0 mt-4 list-none p-0">
-        {items.map((item) => (
-          <li key={item} className="px-3 py-2.5 even:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]">
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+const lines = (source: readonly string[], indexes: number[]) =>
+  indexes.length ? (
+    <>
+      {indexes.map((index) => (
+        <span key={index} className="block [&+&]:mt-2">
+          {source[index]}
+        </span>
+      ))}
+    </>
+  ) : null;
 
-/** Free and Pro, side by side, with no figure beside either. */
+/** Free and Pro, in one plate. */
 export function Plans() {
   return (
     <Part id="plans" headingId="plans-title">
@@ -30,11 +28,15 @@ export function Plans() {
         cost and headroom for agents.
       </Lead>
       <div className="mt-8">
-        <Plate tone="chart" className="md:p-8">
-          <div className="grid gap-10 md:grid-cols-[5fr_6fr] md:gap-12">
-            <List title="QuotaDial Free" items={FREE_HAS} />
-            <List title="QuotaDial Pro adds" items={PRO_FEATURES} />
-          </div>
+        <Plate tone="chart" title="QuotaDial Free beside QuotaDial Pro">
+          <BandedTable
+            caption="What QuotaDial Free has, and what QuotaDial Pro adds, topic by topic"
+            columns={["Topic", "QuotaDial Free", "QuotaDial Pro adds"]}
+            rows={PLAN_ROWS.map((row) => ({
+              key: row.topic,
+              cells: [row.topic, lines(FREE_HAS, row.free), lines(PRO_FEATURES, row.pro)],
+            }))}
+          />
         </Plate>
       </div>
       <Body>
