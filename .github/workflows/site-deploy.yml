@@ -1,8 +1,10 @@
 name: Site deploy
 
 # Publishes the website (site/) to Cloudflare Pages, with the key page's function beside it. Nothing
-# is published until Matt adds the secret CLOUDFLARE_API_TOKEN (#51, #49): without it the gate job
-# says so and the deploy job is skipped, and CI still builds every page on every pull request.
+# is published until Matt adds the secret CLOUDFLARE_API_TOKEN (#51, #49), and not before a published
+# release carries what the site describes (checksums, quotadial doctor, licence keys, updates): the
+# gate job says which is missing and the deploy job is skipped. CI still builds every page on every
+# pull request.
 # CLOUDFLARE_ACCOUNT_ID, a secret, names the account the Pages project "quotadial" is in.
 # QUOTADIAL_CHECKOUT_URL, a repository variable, is the Buy button's Lemon Squeezy link; without it
 # the Pro page says buying opens soon.
@@ -28,21 +30,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # A job's `if` cannot read secrets, so this one says whether the token is there.
+  # A job's `if` cannot read secrets, so this one says whether the site may go out.
   gate:
     runs-on: ubuntu-latest
     outputs:
-      ready: ${{ steps.token.outputs.ready }}
+      ready: ${{ steps.check.outputs.ready }}
     steps:
-      - id: token
+      - id: check
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "CLOUDFLARE_API_TOKEN is not set (#51), so the site is not published."
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN is not set (#51), so the site is not published." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+          # The site describes what the release after 0.2.0 brings; SHA256SUMS.txt is the sign of it.
+          latest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')
+          if [ -z "$latest" ] || ! gh release view "$latest" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'SHA256SUMS.txt'; then
+            echo "The newest release (${latest:-none}) carries no SHA256SUMS.txt: publish the release after 0.2.0 before the site goes live (#51)." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: gate
