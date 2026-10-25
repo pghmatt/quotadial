@@ -1,33 +1,145 @@
 {
   "jargon": [
-    ["quota", "limit (a 'window' when it has its own reset)", true],
-    ["quotas", "limits (or 'windows')", true],
-    ["OAuth", "sign-in", true],
-    ["credential", "sign-in", false],
-    ["token", "sign-in (a provider's); for model tokens say usage", false],
-    ["auth", "sign-in", true],
-    ["authenticat", "sign-in, or signing in", false],
-    ["endpoint", "address", false],
-    ["poll", "asks", true],
-    ["polls", "asks", true],
-    ["polled", "asked", true],
-    ["polling", "asking", true],
-    ["poller", "the part that asks", true],
-    ["pollers", "the parts that ask", true],
-    ["daemon", "runs in the background", false],
-    ["telemetry", "data sent home", false],
-    ["JSONL", "session logs", true],
-    ["rate limit", "how often the provider allows it", false],
-    ["rate-limit", "how often the provider allows it", false],
-    ["backoff", "waits longer before asking again", false],
-    ["back-off", "waits longer before asking again", false],
-    ["parse", "read", true],
-    ["parses", "reads", true],
-    ["parsed", "read", true],
-    ["parser", "the part that reads", true],
-    ["parsing", "reading", true],
-    ["normalis", "puts into one shape for every provider", false],
-    ["normaliz", "puts into one shape for every provider", false]
+    [
+      "quota",
+      "limit (a 'window' when it has its own reset)",
+      true
+    ],
+    [
+      "quotas",
+      "limits (or 'windows')",
+      true
+    ],
+    [
+      "OAuth",
+      "sign-in",
+      true
+    ],
+    [
+      "credential",
+      "sign-in",
+      false
+    ],
+    [
+      "token",
+      "sign-in (a provider's); for model tokens say usage",
+      false
+    ],
+    [
+      "auth",
+      "sign-in",
+      true
+    ],
+    [
+      "authenticat",
+      "sign-in, or signing in",
+      false
+    ],
+    [
+      "endpoint",
+      "address",
+      false
+    ],
+    [
+      "poll",
+      "asks",
+      true
+    ],
+    [
+      "polls",
+      "asks",
+      true
+    ],
+    [
+      "polled",
+      "asked",
+      true
+    ],
+    [
+      "polling",
+      "asking",
+      true
+    ],
+    [
+      "poller",
+      "the part that asks",
+      true
+    ],
+    [
+      "pollers",
+      "the parts that ask",
+      true
+    ],
+    [
+      "daemon",
+      "runs in the background",
+      false
+    ],
+    [
+      "telemetry",
+      "data sent home",
+      false
+    ],
+    [
+      "JSONL",
+      "session logs",
+      true
+    ],
+    [
+      "rate limit",
+      "how often the provider allows it",
+      false
+    ],
+    [
+      "rate-limit",
+      "how often the provider allows it",
+      false
+    ],
+    [
+      "backoff",
+      "waits longer before asking again",
+      false
+    ],
+    [
+      "back-off",
+      "waits longer before asking again",
+      false
+    ],
+    [
+      "parse",
+      "read",
+      true
+    ],
+    [
+      "parses",
+      "reads",
+      true
+    ],
+    [
+      "parsed",
+      "read",
+      true
+    ],
+    [
+      "parser",
+      "the part that reads",
+      true
+    ],
+    [
+      "parsing",
+      "reading",
+      true
+    ],
+    [
+      "normalis",
+      "puts into one shape for every provider",
+      false
+    ],
+    [
+      "normaliz",
+      "puts into one shape for every provider",
+      false
+    ]
   ],
   "coined": [],
   "allowedAnywhere": [
@@ -44,7 +156,15 @@
     "SHA-256",
     "webhook"
   ],
-  "allowedLines": [],
+  "allowedLines": [
+    "numbers: token counts and model names for the week's cost, and the Codex CLI's own record of your",
+    "alert: what fired and its numbers, never a token or where a sign-in is kept.",
+    "The local API answers only on this machine, at  , and asks for QuotaDial's own token. The",
+    "On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.",
+    "A log line with an impossible token count no longer makes the week's cost wrong.",
+    "The week's cost at each provider's API prices, from the token counts in Claude Code's and the Codex CLI's logs, never their content.",
+    "The daemon: one poller for everything, a local history, and a local HTTP API on 127.0.0.1 with a bearer token."
+  ],
   "concrete": [
     "\\d",
     "%",
@@ -75,7 +195,7 @@
       "webhook": "Pro sends alerts to webhooks the reader adds; the audience writes webhooks and the setting is named for them, and any plain alternative would be longer and harder to find. Kept for a developer audience; re-argue it if the audience widens. Its plural is plain text no jargon rule matches."
     },
     "keptOffTheList": "'cache' and 'fetched' are the app's own words for where a number came from and when (crates/core/src/text.rs source_label: 'the API', 'local logs', 'cache'; doctor output 'fetched 3 min ago'), and #52 asks for the same words in the app, the command and the site. Flagging them here would fail the site for quoting the app faithfully. 'webhook' is allowed above for the same audience reason.",
-    "verbatimRenders": "Open decision for the owner: /privacy renders docs/PRIVACY.md word for word (D-106) and /changelog renders CHANGELOG.md (D-101). Today PRIVACY.md uses 'token' three times and CHANGELOG.md uses 'token' three times, 'daemon' twice and 'poller' once; docs/INSTALL.md, the source for /download, uses 'daemon' and 'token'. A rendered page will fail this gate until either those texts change at the source (they are also shown in the app and the README) or the rendered lines are added to allowedLines once the pages exist. Allowed lines exempt the whole line, so add them only by exact text and only for verbatim renders.",
+    "verbatimRenders": "Decided 2026-10-25: /privacy and /changelog show docs/PRIVACY.md (D-106) and CHANGELOG.md (D-101) word for word, because each is the product's one text, also shown in the app and the README, and its own words (token, daemon, poller) are accurate there. allowedLines holds exactly the lines of those renders that this list flags, as the engine splits the built pages (a code element is dropped to a space, and the files' own line breaks split lines). The site's own words around them follow this list. When either file changes, build the site, run the engine on out/privacy.html and out/changelog.html, and replace these lines with the ones it reports from the renders; never add a line the site wrote itself.",
     "selftest": "Run JARGON_CONFIG=<this file> node ~/.claude/skills/codus-copy/scripts/check-jargon.mjs --selftest. It plants every jargon term, a code-mock control, the beside-line control (the first allowed token, API, beside the first jargon term, quota) and the engine's own boundary probes."
   }
 }
