@@ -1,9 +1,10 @@
 # Releasing QuotaDial
 
-How a release is made, what signs it, and how the app's updater finds it (D-103 to D-105). Every
-kind of signing is a step in the Release workflow (`.github/workflows/release.yml`) that runs only
-when its secrets are set, through `scripts/release-signing.sh`, so a release builds with all of
-them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` describes.
+How a release is made, what signs it, how the app's updater finds it (D-103 to D-105), and the
+names that always fetch the newest full release (D-116). Every kind of signing is a step in the
+Release workflow (`.github/workflows/release.yml`) that runs only when its secrets are set, through
+`scripts/release-signing.sh`, so a release builds with all of them, some or none. Without them the
+builds are unsigned, as `docs/INSTALL.md` describes.
 
 ## Making a release
 
@@ -17,6 +18,9 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
 3. **The Release workflow** builds the CLI for four platforms and the app as a universal dmg, an
    msi, a deb and an AppImage, signing what its secrets allow, and drafts a pre-release with:
    - every file, and `SHA256SUMS.txt`, their checksums;
+   - each of the eight downloads (the dmg, the msi, the deb, the AppImage and the command's four
+     archives) a second time, under a name without the version, such as `QuotaDial_universal.dmg`
+     ([below](#names-without-the-version));
    - `quotadial-v<version>-cli.cdx.json` and `QuotaDial_<version>_app.cdx.json`, the software bills
      of materials: every crate the command and the app are built from, for every system, as
      CycloneDX JSON (`cargo cyclonedx`);
@@ -25,8 +29,8 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
      installs;
    - notes from the version's section of `CHANGELOG.md`, under a line saying what is signed.
 4. **Publishing** is Matt's. Published as a pre-release, it can be downloaded. Published as a full
-   release, which GitHub then marks Latest, it is also what every copy's updater offers, within a
-   day.
+   release, which GitHub then marks Latest, it is also what every installed copy's updater offers,
+   within a day, and what the names without the version fetch.
 5. **The package managers** follow a full release, never a pre-release: the Packages workflow
    (`.github/workflows/packages.yml`) runs when one is published. `scripts/packages.mjs` writes the
    Homebrew formula (`quotadial`, the command for macOS and Linux) and cask (`quotadial-app`, the
@@ -37,6 +41,10 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
    set it opens the pull request to `microsoft/winget-pkgs`, which winget's maintainers merge
    after their checks. Without them, the files are the run's `packages` artifact. Running the
    workflow by hand with a version does the same for a release already out.
+6. **The website** follows a full release too: publishing one runs the Site deploy workflow
+   (`.github/workflows/site-deploy.yml`), which publishes quotadial.com once
+   `CLOUDFLARE_API_TOKEN` is set (#51) and only when the newest full release carries
+   `SHA256SUMS.txt` and all eight copies without the version, so no download button answers 404.
 
 ## The secrets and variables
 
@@ -153,9 +161,33 @@ gh secret set WINGET_TOKEN --repo pghmatt/quotadial
   Linux. It refuses a signature for another version and a system with no signed file, so a release
   is never half updatable.
 
+## Names without the version
+
+From the release after 0.2.0, each of the eight downloads, the app's dmg, msi, deb and AppImage
+and the command's four archives, is on the release twice: under the name its build gives it, such
+as `QuotaDial_0.3.0_universal.dmg`, and as a copy named without the version, such as
+`QuotaDial_universal.dmg` (D-116). GitHub answers
+`https://github.com/pghmatt/quotadial/releases/latest/download/<name>` from the newest full release,
+so a link to a copy always fetches that release's file. `docs/INSTALL.md` and the website's download
+buttons link to the copies: one address for each system, which never goes stale.
+
+- The copy is a convenience name for the newest full release, and the versioned file is the record.
+  `latest.json` and `scripts/packages.mjs` name only the versioned files: the updater is unchanged,
+  and a package manager pins a version.
+- The publish job makes the copies with `scripts/latest-names.mjs`, after `latest.json` is written
+  and before the checksums. It copies, never renames or links, so both names hold the same signed
+  and notarized bytes and `SHA256SUMS.txt` lists both with one SHA-256. It fails, naming the file,
+  if any of the eight is missing, so a release never goes out with a link that answers 404, and it
+  copies nothing else: not the `.sig` files, the macOS update, `latest.json` or the bills of
+  materials.
+- While every release is a pre-release, `releases/latest/download/` answers 404. The website waits
+  for a full release with all eight copies (step 6), and `docs/INSTALL.md` names each versioned
+  file beside its link and sends people to the Releases page until then.
+
 ## Checking a download
 
-`SHA256SUMS.txt` lists every file's SHA-256. In a folder with the downloads:
+`SHA256SUMS.txt` lists every file's SHA-256, each download under both its names, so the check passes
+whichever was downloaded. In a folder with the downloads:
 
 ```sh
 shasum -a 256 -c SHA256SUMS.txt --ignore-missing    # macOS

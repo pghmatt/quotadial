@@ -1,8 +1,9 @@
 # Builds QuotaDial for every system: the CLI on its own, and the tray app with the CLI inside it
 # (a universal dmg, an msi, a deb and an AppImage). A tag such as v0.1.0 drafts a GitHub release
-# with every file attached, their SHA-256 checksums and, when the updater key is set, the
-# latest.json the app's updater reads (D-103); running the workflow by hand builds the same files as
-# workflow artifacts, without a release. Each kind of signing runs only when its secrets are set,
+# with every file attached, each download also under a name without its version (D-116), their
+# SHA-256 checksums and, when the updater key is set, the latest.json the app's updater reads
+# (D-103); running the workflow by hand builds the same files as workflow artifacts, without a
+# release. Each kind of signing runs only when its secrets are set,
 # and a build without them is unsigned as before (scripts/release-signing.sh): docs/RELEASE.md names
 # every secret, and docs/INSTALL.md says how to open an unsigned build.
 name: Release
@@ -192,7 +193,7 @@ jobs:
           cargo cyclonedx --format json --spec-version 1.5 --target all --manifest-path apps/tray/src-tauri/Cargo.toml
           cp crates/cli/quotadial.cdx.json "dist/quotadial-v${version}-cli.cdx.json"
           cp apps/tray/src-tauri/quotadial-tray.cdx.json "dist/QuotaDial_${version}_app.cdx.json"
-      - name: The updater's latest.json and every file's checksum
+      - name: The updater's latest.json, the copies without the version and every file's checksum
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
@@ -204,6 +205,10 @@ jobs:
           done
           # Only a release built with the updater key has signatures, and so a latest.json.
           node scripts/updater-manifest.mjs dist "$version" changes.md dist/latest.json
+          # Each of the eight downloads again, signed and notarized as it is, under a name without the
+          # version, which releases/latest/download/ answers from the newest full release (D-116).
+          # After latest.json, which names the versioned files; before the checksums, which list both.
+          node scripts/latest-names.mjs dist "$version"
           # Named as the release names them, so `sha256sum -c` runs in a folder of downloads.
           find dist -type f -print0 | while IFS= read -r -d '' file; do
             (cd "$(dirname "$file")" && sha256sum "$(basename "$file")")

@@ -75,16 +75,17 @@ queue, by its numbers:
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
 - 5, in two pull requests: the website in `site/`, built but not deployed (D-113), merged
   (PR #68); and the shareable image (decision f on #40), a feature of the app's History
-  (D-115), in review (PR #70);
+  (D-115), merged (PR #70);
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
-  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs;
+  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs
+  (D-116), in review (PR #71);
 - then the M6 plan, starting with a fake provider while it waits.
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
-the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68) and
-#64's fix (PR #69); from here: the shareable image (PR #70), 12, M6.
+the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
+#64's fix (PR #69); from here: 12 (PR #71), then M6.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -163,7 +164,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
-| 5: the shareable image (second PR) | In review (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
+| 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
+| 12: docs | In review (PR #71) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -350,6 +352,79 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 12: docs (D-116)
+
+Item 12 is the docs. This part is the release side of the manager's decision on #49 (05:30 UTC):
+from the release after 0.2.0, each download is on the release a second time, under a name without
+the version, which the install guide and the site's buttons link to (D-116). `docs/INSTALL.md`'s
+tables, already on `feat/docs`, and the site's buttons are the item's other parts.
+
+- **The copies:** `scripts/latest-names.mjs <folder> <version>` copies each of the eight downloads
+  (`QuotaDial_universal.dmg`, `QuotaDial_x64_en-US.msi`, `QuotaDial_amd64.deb`,
+  `QuotaDial_amd64.AppImage`, and `quotadial-<target>.tar.gz` or `.zip` for the command's four
+  builds) beside its versioned file, in whichever folder the download step left it (`dmg/`, `deb/`,
+  `appimage/` or the top). It finds the eight by exact name, so a `.sig`, the macOS update,
+  `latest.json` or a bill of materials is never copied; it names every missing file before copying
+  anything, and refuses a name found twice. `--names` prints the eight for the deploy gate.
+- **The publish job** runs it after `latest.json` and before `SHA256SUMS.txt`, in the step now
+  called "The updater's latest.json, the copies without the version and every file's checksum".
+  `latest.json` cannot name a copy: it is written from the `.sig` files, and a copy has none.
+- **The site deploy gate** used to ask for the newest published release, pre-releases included,
+  and look only for `SHA256SUMS.txt`. It now checks out main and asks
+  `gh api repos/<repo>/releases/latest`, the release `releases/latest/download/` resolves to, and
+  sets `ready` only when that release has `SHA256SUMS.txt` and the eight names
+  `node scripts/latest-names.mjs --names` prints. GitHub's 404 (every release a pre-release, as
+  today) skips with a line in the summary; any other gh error, or a list of names that is missing
+  or empty, fails the gate. On an error `gh api --jq` prints GitHub's answer unfiltered and exits 1,
+  so the gate reads the answer only after gh succeeds.
+- **Found on the way:** Node gives `import.meta.url` as a module's real path and `process.argv[1]`
+  as typed, so a script that compares the two as given does nothing, and exits 0, when it is
+  started through a link, as macOS's `/var` is, even on input that should fail. `latest-names.mjs`
+  compared real paths from the start; `updater-manifest.mjs` and `packages.mjs` compared them as
+  given, which was safe on the runners' plain paths, and now compare real paths too, each change
+  kept to that check. A test starts each of the three through a link. Without the gate's
+  empty-list check, a list of names that came back empty would have let the site out having
+  checked no copy (its control showed it).
+- **Tests** (CI's `node --test scripts/*.test.mjs`, now 34): `latest-names.test.mjs` (8) holds the
+  eight to v0.2.0's real file names, copies each byte for byte into a file of its own beside it,
+  copies nothing else, names every missing file and copies nothing, refuses a name found twice,
+  prints `--names`, runs through a link, and holds `docs/INSTALL.md`'s `releases/latest/download/`
+  links to exactly the eight. `workflows.test.mjs` (8) runs the publish step's own shell, read from
+  `release.yml`, on a release laid out as the download step leaves it and signed for v0.2.0, then
+  checks every file with `sha256sum -c` (`shasum -a 256 -c` on macOS) and the copies alone with
+  `--ignore-missing`; and runs the gate's own shell against GitHub's answers from a fake `gh`:
+  ready with all eight, GitHub's real 404 for this repository, one copy missing, no checksums and
+  v0.2.0's files as a full release, gh unable to connect, no list of names or an empty one, and no
+  token. `updater-manifest.test.mjs` and `packages.test.mjs` gain two each: the copies leave
+  `latest.json` naming the versioned files, and no package names a copy or `releases/latest`; and
+  each script, started through a symlink in a temporary folder, writes what it writes when started
+  directly.
+- **Controls, each seen failing, then restored:** the version left in the command's names; a hard
+  link, and a rename, in place of the copy; the copy taking its `.sig` too (which also makes the
+  manifest refuse the release); no missing-file check, only the first missing file named, and the
+  copies made before the check; no twice check; `--names` on one line; the as-given main-module
+  check, in all three scripts (in `updater-manifest.mjs` and `packages.mjs` it was the code before
+  the fix, which printed nothing through a link); an INSTALL.md link changed, and one removed; the
+  publish step without the copy, and with it after the checksums; packages pointing at
+  `releases/latest`, or at the msi's copy; and in the gate: no `ready`, another endpoint, no 404
+  branch, the old condition (checksums only, which let a release missing a copy through), no
+  checksums in the list, a gh error that exits 0, no empty-list check (which let the site out),
+  and no token check.
+- **How it was checked:** the publish step's shell from `release.yml`, run on a scratch release of
+  v0.2.0's names, wrote `latest.json` for 9 targets, all versioned, made the 8 copies, and
+  `sha256sum -c` and `shasum -a 256 -c` printed OK for all 24 files, both names of each download
+  among them; with only two copies downloaded, `--ignore-missing` passed for both. actionlint
+  1.7.12 with shellcheck 0.11.0 passes on all four workflows, and reports an unquoted variable put
+  into the gate on purpose. `gh api repos/pghmatt/quotadial/releases/latest` answers 404 today, as
+  the gate expects. shellcheck on `scripts/*.sh`, `scripts/public-prd.sh --check`,
+  `scripts/privacy.sh --check` and the changelog check pass, and so do the site's type check, its
+  44 tests and its build, which read the changelog's new line.
+- **Docs:** `docs/RELEASE.md` (step 3's list, step 4, a step 6 for the website, "Names without the
+  version", and the checksums under both names); the supply chain in `docs/SECURITY.md`; a line in
+  `CHANGELOG.md`; the scripts row in `AGENTS.md`; D-116.
+- **Not done here:** no release has the copies until the next tag, so `releases/latest/download/`
+  answers 404 until the first full release after it; the Release workflow was not run here.
 
 ### M5 queue item 5, second PR: the shareable image (D-115)
 
