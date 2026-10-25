@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1c4f2e93e327210ebcb37c1123cbb9b2ec9c4cd84ba7581fb20340fc8457671e # shrinks to seconds = 0, nanos = 1
+cc 470a934a2acfbb72bd2286a2751a24aa800cce36b194d46a579619242f1f254c # shrinks to body = "{\"accounts\":[{\"plan\":\"Max\",\"windows\":[{\"kind\":\"session\",\"label\":\"Weekly\",\"pct_per_hour\":40.970578461904076,\"resets_in_seconds\":5299,\"scope_model\":null,\"used_pct\":61.95922811836358,\"window_seconds\":8871}]}]}", minutes = 2022972

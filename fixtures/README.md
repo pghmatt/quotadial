@@ -29,6 +29,14 @@ shapes the live account does not show.
 | `wham-usage.synthetic.json` | CodexBar's field names | A Plus plan's session and weekly windows, credits turned off |
 | `rollout.jsonl` | A live Codex CLI session log, 2026-10-23, reduced to its event shapes with ids, paths and text replaced | `session_meta` naming the creating account and user, `token_count` events with rate limits (one for the `premium` limit), other events after the last one |
 
+## Fake
+
+The example build's accounts (D-117): made up for pictures of the app, never a capture.
+
+| File | Source | Covers |
+| --- | --- | --- |
+| `fake/example.json` | Hand-written, the numbers of the site's pictures; built into `quotadial-provider-fake`, and the form of the file `QUOTADIAL_FAKE_ACCOUNTS` names | One account like a Claude Max 5x plan (Weekly, Weekly (Opus), Session) and one like a ChatGPT Pro plan (Weekly, Session), each window with its share used when the provider starts, its reset and how fast it fills |
+
 ## Status pages
 
 | File | Source | Covers |
