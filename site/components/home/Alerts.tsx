@@ -2,6 +2,7 @@ import { AppShot } from "../AppShot.tsx";
 import { Plate } from "../Plate.tsx";
 import { SectionHeading } from "../Section.tsx";
 import { BandedTable } from "./BandedTable.tsx";
+import { ALERT_SAMPLES } from "./examples.ts";
 import { Part } from "./Part.tsx";
 import { Body, Lead } from "./Text.tsx";
 
@@ -20,30 +21,17 @@ export function Alerts() {
             <BandedTable
               caption="Two example alert rules as typed, and the notification each one gives"
               columns={["You type", "QuotaDial tells you"]}
-              rows={[
-                {
-                  key: "share",
-                  cells: [
-                    "warn me at 80%",
-                    <>
-                      <strong className="font-[650]">Claude Weekly passed 80%</strong>
-                      <br />
-                      dev@example.com: 81% used, resets in <span className="whitespace-nowrap">1 d 21 h</span>.
-                    </>,
-                  ],
-                },
-                {
-                  key: "runs-out",
-                  cells: [
-                    "tell me 30 minutes before the weekly window runs out",
-                    <>
-                      <strong className="font-[650]">Claude Weekly runs out before it resets</strong>
-                      <br />
-                      dev@example.com: 99% used, at 2.0%/h, runs out in <span className="whitespace-nowrap">30 min</span>, <span className="whitespace-nowrap">1 d 11 h</span> before it resets.
-                    </>,
-                  ],
-                },
-              ]}
+              rows={ALERT_SAMPLES.map((sample) => ({
+                key: sample.key,
+                cells: [
+                  sample.rule,
+                  <>
+                    <strong className="font-[650]">{sample.title}</strong>
+                    <br />
+                    {sample.text}
+                  </>,
+                ],
+              }))}
             />
             <p className="m-0 mt-2 px-3 font-table text-[0.9375rem] text-ink-2 italic">Example accounts.</p>
           </div>

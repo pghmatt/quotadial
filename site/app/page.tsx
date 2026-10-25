@@ -6,6 +6,7 @@ import { Alerts } from "../components/home/Alerts.tsx";
 import { Close } from "../components/home/Close.tsx";
 import { Hero } from "../components/home/Hero.tsx";
 import { Limits } from "../components/home/Limits.tsx";
+import { HOME_META } from "../components/home/meta.ts";
 import { Plans } from "../components/home/Plans.tsx";
 import { Questions } from "../components/home/Questions.tsx";
 import { SignIn } from "../components/home/SignIn.tsx";
@@ -13,12 +14,7 @@ import { Systems } from "../components/home/Systems.tsx";
 import { Section } from "../components/Section.tsx";
 import { jsonLd, pageMetadata, softwareJsonLd } from "../lib/metadata.ts";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Claude and Codex usage tracker for the menu bar",
-  description:
-    "See how much of each Claude and ChatGPT/Codex plan limit you have used and when it resets, from the sign-in your CLI keeps. For macOS, Windows and Linux.",
-  path: "/",
-});
+export const metadata: Metadata = pageMetadata(HOME_META);
 
 /**
  * The home page, from docs/seo/blueprints/home.md: the first screen, then the sections in the

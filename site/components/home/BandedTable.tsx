@@ -39,7 +39,7 @@ export function BandedTable({
                   key={index}
                   scope={index === 0 ? "row" : undefined}
                   data-label={columns[index]}
-                  className={`block px-3 py-1 text-left align-top md:table-cell md:py-3 ${
+                  className={`block px-3 py-1 text-left align-top text-pretty md:table-cell md:py-3 ${
                     index === 0
                       ? "font-table text-[1.0625rem] font-[650]"
                       : "before:mb-0.5 before:block before:font-table before:text-[0.875rem] before:font-[600] before:text-ink-2 before:content-[attr(data-label)] md:before:hidden"

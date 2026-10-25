@@ -1,7 +1,7 @@
 import { CodeBlock } from "../CodeBlock.tsx";
 import { SectionHeading } from "../Section.tsx";
 import { Part } from "./Part.tsx";
-import { STATUS_SAMPLE } from "./status-sample.ts";
+import { STATUS_SAMPLE } from "./examples.ts";
 import { Body, Code, Lead } from "./Text.tsx";
 
 const MCP = `claude mcp add quotadial -- quotadial mcp

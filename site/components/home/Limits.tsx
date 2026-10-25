@@ -1,5 +1,6 @@
 import { Plate } from "../Plate.tsx";
 import { SectionHeading } from "../Section.tsx";
+import { READ_ALOUD } from "./examples.ts";
 import { Part } from "./Part.tsx";
 import { Body, Lead } from "./Text.tsx";
 
@@ -7,7 +8,10 @@ const PARTS = [
   { term: "Share used", says: "How much of the window is gone." },
   { term: "Reset", says: "When the window starts again at zero." },
   { term: "Age and source", says: "Where the number came from, and how long ago." },
-  { term: "Pace", says: "How fast the window fills, and whether it reaches 100% before it resets. Here it does, 1 d 11 h early." },
+  {
+    term: "Pace",
+    says: `How fast the window fills, and whether it reaches 100% before it resets. Here it does, ${READ_ALOUD.early} early.`,
+  },
 ];
 
 /** What it tracks: every window, and one row of the app read aloud, part by part. */
@@ -33,10 +37,10 @@ export function Limits() {
           caption="Example accounts. One row from Claude Work's weekly window, Tuesday 14:10."
         >
           <p className="m-0 font-table text-[1.5rem] leading-[1.25] font-[600] md:text-[1.75rem]">
-            Weekly 91%, resets in <span className="whitespace-nowrap">1 d 15 h</span>, from the API{" "}
-            <span className="whitespace-nowrap">3 min ago</span>;{" "}
+            {READ_ALOUD.label} {READ_ALOUD.used}%, resets in <span className="whitespace-nowrap">{READ_ALOUD.resets}</span>,
+            from the API <span className="whitespace-nowrap">{READ_ALOUD.fetched}</span>;{" "}
             <span className="text-magenta">
-              at 2.0%/h, runs out in <span className="whitespace-nowrap">4 h 30 min</span>
+              at {READ_ALOUD.rate}, runs out in <span className="whitespace-nowrap">{READ_ALOUD.runsOut}</span>
             </span>
           </p>
           <dl className="m-0 mt-6 font-table">
