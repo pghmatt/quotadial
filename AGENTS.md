@@ -91,6 +91,12 @@ Nothing is named `usage`, the PRD's old working name.
   `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, which CI never sets.
 - `cargo fmt`, `cargo clippy -D warnings` and `cargo test` must pass on macOS, Windows and Linux
   before anything merges to `main`. CI enforces this and `main` is protected.
+- Every parser of text from outside, such as a provider's answer, a log line, a settings file or
+  what an agent sends, has a property test that no input makes it panic. `quotadial-core`'s
+  `testing` feature gives tests arbitrary JSON seeded with the keys real answers use.
+- `cargo deny` and `cargo audit` run in CI on both workspaces. An advisory is fixed, or excepted in
+  `deny.toml` and `.cargo/audit.toml` with why it cannot reach a user (D-109); `docs/SECURITY.md` is
+  the threat model, kept true with each change.
 - What QuotaDial reads and sends is one text, `docs/PRIVACY.md`, which the app's Help shows and
   `scripts/privacy.sh` copies into the README (D-106). A new network destination goes into it and
   into `quotadial_core::privacy::HOSTS` first; a test in the crate that makes the request holds its
@@ -116,6 +122,7 @@ scripts/update-prices.sh                                # before tagging a relea
 scripts/release-notes.sh 0.3.0                          # the notes the Release workflow puts on v0.3.0, from CHANGELOG.md
 scripts/privacy.sh                                      # after editing docs/PRIVACY.md: copy it into the README (CI runs it with --check)
 node --test scripts/*.test.mjs                          # the release scripts' tests, as CI runs them
+cargo deny check && cargo audit                         # the supply chain, as CI runs it (also in apps/tray/src-tauri)
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
 (cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)

@@ -21,6 +21,8 @@ serde_json.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
+quotadial-core = { workspace = true, features = ["testing"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 wiremock.workspace = true

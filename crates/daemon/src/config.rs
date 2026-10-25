@@ -357,4 +357,31 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("chmod");
         assert!(Config::load(&dir).warnings.is_empty());
     }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn no_settings_file_makes_loading_panic(
+            settings in quotadial_core::testing::json(),
+            webhooks in proptest::collection::vec(".{0,60}", 0..4),
+            slack in ".{0,60}",
+            days in proptest::prelude::any::<i64>(),
+        ) {
+            let (_temp, dir) = written(&settings.to_string());
+            let _ = Config::load(&dir);
+            let shaped = serde_json::json!({
+                "alert_webhooks": webhooks,
+                "slack_webhook": slack,
+                "history_days": days,
+                "max_accounts": days,
+                "extra_config_dirs": settings,
+            });
+            let (_temp, dir) = written(&shaped.to_string());
+            let config = Config::load(&dir);
+            for webhook in &config.webhooks {
+                proptest::prop_assert!(!webhook.host().is_empty());
+            }
+        }
+    }
 }

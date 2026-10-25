@@ -1164,4 +1164,79 @@ mod tests {
             )
         );
     }
+
+    /// The words the grammar reads, so arbitrary sentences of them reach far into it.
+    const WORDS: &[&str] = &[
+        "warn",
+        "tell",
+        "me",
+        "at",
+        "when",
+        "if",
+        "it",
+        "is",
+        "above",
+        "below",
+        "any",
+        "the",
+        "a",
+        "window",
+        "windows",
+        "weekly",
+        "session",
+        "opus",
+        "sonnet",
+        "claude",
+        "codex",
+        "passes",
+        "reaches",
+        "resets",
+        "reset",
+        "before",
+        "after",
+        "will",
+        "run",
+        "out",
+        "minutes",
+        "minute",
+        "hours",
+        "hour",
+        "days",
+        "sign",
+        "in",
+        "again",
+        "account",
+        "needs",
+        "to",
+        "about",
+        "outages",
+        "incident",
+        "80%",
+        "50",
+        "100%",
+        "0%",
+        "150%",
+        "-5%",
+        "30",
+        "1.5",
+        "99999999999999999999",
+        "%",
+        "",
+    ];
+
+    proptest::proptest! {
+        #[test]
+        fn no_words_make_the_grammar_panic(written in ".*") {
+            let _ = Rule::parse(&written);
+        }
+
+        #[test]
+        fn no_sentence_of_its_own_words_makes_it_panic(
+            words in proptest::collection::vec(proptest::sample::select(WORDS), 0..14),
+        ) {
+            if let Ok(rule) = Rule::parse(&words.join(" ")) {
+                let _ = rule.to_string();
+            }
+        }
+    }
 }

@@ -156,4 +156,16 @@ mod tests {
 
         assert_eq!(Told::load(&path), Some(Told { last: 9 }));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_record_of_what_was_told_makes_loading_panic(
+            bytes in quotadial_core::testing::line(),
+        ) {
+            let temp = tempfile::tempdir().expect("temp dir");
+            let path = temp.path().join("alerts.json");
+            std::fs::write(&path, &bytes).expect("writes");
+            let _ = Told::load(&path);
+        }
+    }
 }

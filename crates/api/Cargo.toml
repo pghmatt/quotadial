@@ -23,6 +23,8 @@ tokio = { workspace = true, features = ["io-util", "net", "rt", "sync", "macros"
 
 [dev-dependencies]
 async-trait.workspace = true
+proptest.workspace = true
+quotadial-core = { workspace = true, features = ["testing"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 

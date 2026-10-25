@@ -24,11 +24,13 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A damaged history is moved aside under a dated name and a new one started, keeping your alert rules.
 - After the machine wakes from sleep, every account is asked again at once rather than at its next turn.
 - When a provider cannot be reached, QuotaDial asks again within a minute, so the numbers are current soon after the network is back.
+- Each release carries a software bill of materials for the app and the command, and `SECURITY.md` says how to report a vulnerability.
 
 ### Fixed
 
 - On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.
 - A clock set back no longer holds up a webhook's next try.
+- A log line with an impossible token count no longer makes the week's cost wrong.
 
 ## [0.2.0] - 2026-10-24
 

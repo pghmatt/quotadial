@@ -271,4 +271,31 @@ mod tests {
 
         assert_eq!(reopened.status_pages().expect("reads"), [page]);
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_answer_makes_the_status_reader_panic(
+            body in quotadial_core::testing::line(),
+            status in quotadial_core::testing::json(),
+            page in quotadial_core::testing::json(),
+        ) {
+            let now = at("2026-10-25T01:12:00Z");
+            let before = parse(
+                "codex",
+                "https://status.openai.com",
+                br#"{"status": {"indicator": "minor", "description": "Degraded"}}"#,
+                None,
+                now,
+            );
+            let _ = parse("codex", "https://status.openai.com", &body, before.as_ref(), now);
+            let shaped = serde_json::json!({ "status": status, "page": page });
+            let _ = parse(
+                "claude",
+                "https://status.claude.com",
+                shaped.to_string().as_bytes(),
+                before.as_ref(),
+                now,
+            );
+        }
+    }
 }

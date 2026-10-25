@@ -316,4 +316,17 @@ mod tests {
                 if message == "token [redacted token] is not allowed"
         ));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_answer_makes_the_classifier_panic(
+            status in 100_u16..600,
+            retry_after in proptest::option::of(".{0,20}"),
+            body in quotadial_core::testing::line(),
+        ) {
+            let status = StatusCode::from_u16(status).expect("a status");
+            let _ = error_message(&body);
+            let _ = classify(status, retry_after, Ok(body));
+        }
+    }
 }

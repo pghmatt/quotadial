@@ -308,4 +308,45 @@ mod tests {
             "a record without an id still shows the CLI writes records"
         );
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_line_in_a_log_makes_the_reader_panic(
+            lines in proptest::collection::vec(quotadial_core::testing::line(), 0..6),
+            input in proptest::prelude::any::<u64>(),
+            output in proptest::prelude::any::<u64>(),
+            cached in proptest::prelude::any::<u64>(),
+            written in proptest::prelude::any::<u64>(),
+            reasoning in proptest::prelude::any::<u64>(),
+            model in ".{0,20}",
+        ) {
+            let reader = Reader::new();
+            let mut session = Session::default();
+            for line in &lines {
+                let _ = reader.request(&mut session, line);
+            }
+            let context = serde_json::json!({
+                "timestamp": "2026-10-25T01:12:00Z",
+                "type": "turn_context",
+                "payload": { "model": model },
+            });
+            let record = serde_json::json!({
+                "timestamp": "2026-10-25T01:12:01Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_usage_record",
+                    "response_id": "r1",
+                    "usage": {
+                        "input_tokens": input,
+                        "output_tokens": output,
+                        "cached_input_tokens": cached,
+                        "cache_write_input_tokens": written,
+                        "reasoning_output_tokens": reasoning,
+                    },
+                },
+            });
+            let _ = reader.request(&mut session, context.to_string().as_bytes());
+            let _ = reader.request(&mut session, record.to_string().as_bytes());
+        }
+    }
 }

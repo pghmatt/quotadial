@@ -327,4 +327,28 @@ pub(crate) mod tests {
         assert!(!auth.is_expired(expires_at - chrono::TimeDelta::seconds(1)));
         assert!(auth.is_expired(expires_at));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_text_in_auth_json_makes_the_reader_panic(contents in ".*") {
+            let _ = Auth::parse(&contents);
+        }
+
+        #[test]
+        fn no_tokens_make_the_reader_panic(
+            claims in quotadial_core::testing::json(),
+            other in ".{0,80}",
+            account in quotadial_core::testing::json(),
+        ) {
+            let contents = json!({
+                "tokens": {
+                    "id_token": jwt(&claims),
+                    "access_token": other,
+                    "account_id": account,
+                },
+            });
+            let _ = Auth::parse(&contents.to_string());
+            let _ = Auth::parse(&json!({ "tokens": { "id_token": other } }).to_string());
+        }
+    }
 }

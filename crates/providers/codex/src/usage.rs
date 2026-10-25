@@ -414,4 +414,27 @@ mod tests {
         assert_eq!(reading.extra_usage, None);
         assert_eq!(reading.plan, None);
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_answer_makes_the_reading_panic(
+            body in quotadial_core::testing::json(),
+            rate_limit in quotadial_core::testing::json(),
+            additional in quotadial_core::testing::json(),
+        ) {
+            let fetched_at = DateTime::parse_from_rfc3339("2026-10-25T01:12:00Z")
+                .expect("a time")
+                .with_timezone(&Utc);
+            let _ = read(&body, fetched_at);
+            let shaped = json!({
+                "plan_type": "pro",
+                "rate_limit": rate_limit,
+                "additional_rate_limits": additional,
+            });
+            let reading = read(&shaped, fetched_at);
+            for window in &reading.windows {
+                proptest::prop_assert!(window.used_pct.is_finite());
+            }
+        }
+    }
 }

@@ -150,6 +150,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
 | Free at once (#56's review) | Done (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
+| 8: security | In review (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -337,6 +338,36 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 8: security (D-109)
+
+- **Supply chain:** `deny.toml` at the root and in `apps/tray/src-tauri`, and
+  `apps/tray/src-tauri/.cargo/audit.toml`; a `supply-chain` CI job (cargo-deny 0.20.2 and
+  cargo-audit 0.22.2 through `taiki-e/install-action`) on both workspaces, which `ci-success` needs,
+  and a weekly run of CI. The core workspace has no advisory; the tray's seven exceptions (three
+  `zip` 4 vulnerabilities only on Windows' zipped-update path, which QuotaDial never ships and
+  which runs only after the signature checks out, and four unmaintained crates through gtk-rs and
+  zbus 5 on Linux) each say why and what ends them. Without the exceptions `cargo audit` fails on
+  the three, which is the control.
+- **Reporting and the threat model:** `SECURITY.md` (private reports, an answer in 3 working days,
+  a fix in 14 for the serious ones) and `docs/SECURITY.md` (what QuotaDial is trusted with, where
+  it keeps it, what goes over the network, what each kind of attacker can and cannot do, the supply
+  chain and the known limits), each claim checked against the code: files 0600 in a 0700 folder,
+  `daemon.json` included; the API's token, address check and lack of cross-site headers; MCP's
+  three tools and what they answer.
+- **Property tests** (27 new, 21 in the workspace and 6 in the app, with `quotadial_core::testing::json()` and `line()`): core's alert
+  grammar, `redact_secrets` and `outside_text`, including that no Anthropic or OpenAI key or JSON
+  Web Token anywhere in a text survives redaction; the Claude provider's sign-in files, usage
+  answers, profile and error bodies; the Codex provider's `auth.json` with arbitrary JWT claims,
+  usage answers, session-log events and error bodies; the cost scan's Claude and Codex log lines,
+  with token counts at their extremes, and the price table; the status pages; `config.json`; any
+  input to the MCP server, each answer of which must be JSON; and the app's release notes, settings
+  and records. They found `Tokens` summing with `+`, which overflows on a log line with impossible
+  counts: a panic in a debug build, a silently wrong week's cost in a release one. It saturates
+  now.
+- **SBOM:** the Release workflow's publish job writes CycloneDX 1.5 JSON for the CLI package and
+  the tray app with `cargo cyclonedx --target all` (265 components for the CLI) and attaches both,
+  inside the checksums.
 
 ### M5: the two notes from the review of PR #61
 

@@ -430,4 +430,14 @@ mod tests {
             "a hidden provider's held-back accounts go too; what belongs to no provider stays"
         );
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_settings_file_makes_loading_panic(bytes in quotadial_core::testing::line()) {
+            let temp = tempfile::tempdir().expect("temp dir");
+            let path = temp.path().join("settings.json");
+            std::fs::write(&path, &bytes).expect("writes");
+            let _ = Settings::load(&path);
+        }
+    }
 }

@@ -302,4 +302,19 @@ mod tests {
         .expect("parses");
         assert_eq!(as_text.expires_at, Some(ts("2099-01-01T00:00:00Z")));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_text_in_a_sign_in_makes_the_reader_panic(payload in ".*") {
+            let _ = Credentials::parse(&payload);
+        }
+
+        #[test]
+        fn no_json_in_a_sign_in_makes_the_reader_panic(
+            value in quotadial_core::testing::json(),
+        ) {
+            let _ = Credentials::parse(&value.to_string());
+            let _ = Credentials::parse(&json!({ "claudeAiOauth": value }).to_string());
+        }
+    }
 }

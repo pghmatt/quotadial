@@ -264,4 +264,47 @@ mod tests {
             "a finished response is never an estimate"
         );
     }
+
+    /// A token count, often at the extremes a damaged log could hold.
+    fn count() -> impl proptest::strategy::Strategy<Value = serde_json::Value> {
+        use proptest::prelude::*;
+        prop_oneof![
+            any::<u64>().prop_map(serde_json::Value::from),
+            Just(serde_json::Value::from(u64::MAX)),
+            quotadial_core::testing::json(),
+        ]
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn no_line_in_a_log_makes_the_reader_panic(
+            line in quotadial_core::testing::line(),
+            input in count(),
+            output in count(),
+            cache_read in count(),
+            cache_write in count(),
+            hour in count(),
+            id in ".{0,20}",
+        ) {
+            let reader = Reader::new();
+            let _ = reader.request(&line);
+            let shaped = serde_json::json!({
+                "type": "assistant",
+                "timestamp": "2026-10-25T01:12:00Z",
+                "requestId": id,
+                "message": {
+                    "id": id,
+                    "model": "claude-opus-5-5",
+                    "usage": {
+                        "input_tokens": input,
+                        "output_tokens": output,
+                        "cache_read_input_tokens": cache_read,
+                        "cache_creation_input_tokens": cache_write,
+                        "cache_creation": { "ephemeral_1h_input_tokens": hour },
+                    },
+                },
+            });
+            let _ = reader.request(shaped.to_string().as_bytes());
+        }
+    }
 }

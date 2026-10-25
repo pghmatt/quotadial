@@ -25,27 +25,34 @@ fn is_zero(count: &u64) -> bool {
     *count == 0
 }
 
+// Counts come from logs on disk, which can hold anything, so sums saturate rather than overflow:
+// a damaged count can make a total absurd, never panic or wrap round to a small one.
 impl Tokens {
     /// Every token, read or written.
     #[must_use]
     pub fn total(self) -> u64 {
-        self.input + self.output + self.cache_read + self.cache_write
+        self.input
+            .saturating_add(self.output)
+            .saturating_add(self.cache_read)
+            .saturating_add(self.cache_write)
     }
 
     /// The context the model read: fresh input and the cache, read or written.
     #[must_use]
     pub fn context(self) -> u64 {
-        self.input + self.cache_read + self.cache_write
+        self.input
+            .saturating_add(self.cache_read)
+            .saturating_add(self.cache_write)
     }
 }
 
 impl std::ops::AddAssign for Tokens {
     fn add_assign(&mut self, other: Self) {
-        self.input += other.input;
-        self.output += other.output;
-        self.cache_read += other.cache_read;
-        self.cache_write += other.cache_write;
-        self.cache_write_1h += other.cache_write_1h;
+        self.input = self.input.saturating_add(other.input);
+        self.output = self.output.saturating_add(other.output);
+        self.cache_read = self.cache_read.saturating_add(other.cache_read);
+        self.cache_write = self.cache_write.saturating_add(other.cache_write);
+        self.cache_write_1h = self.cache_write_1h.saturating_add(other.cache_write_1h);
     }
 }
 
