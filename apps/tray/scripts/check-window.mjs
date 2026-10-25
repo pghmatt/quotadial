@@ -14,8 +14,9 @@
 // in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
-// picture of each view, and `-- --only "pro, dark"` checks only the views named so. Fails, naming
-// the view and the control, when a check does not pass.
+// picture of each view, `-- --only "pro, dark"` checks only the views named so, and
+// `-- --fixtures <module>` answers from another set of copies (the website's pictures use
+// `site-fixtures.mjs`). Fails, naming the view and the control, when a check does not pass.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -23,7 +24,6 @@ import { tmpdir } from "node:os";
 import { delimiter, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { free, pro } from "./window-fixtures.mjs";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const CONFIG = JSON.parse(
@@ -32,7 +32,13 @@ const CONFIG = JSON.parse(
 /** The popover's width (POPOVER_WIDTH in src-tauri/src/lib.rs) and its tallest height. */
 const WIDTH = CONFIG.app.windows[0].width;
 const HEIGHT = 640;
-const COPIES = { pro, free };
+/** The copies of the app to check: each named export of the fixtures module that has a meter. */
+const FIXTURES = process.argv.includes("--fixtures")
+  ? new URL(process.argv[process.argv.indexOf("--fixtures") + 1], `file://${process.cwd()}/`)
+  : new URL("./window-fixtures.mjs", import.meta.url);
+const COPIES = Object.fromEntries(
+  Object.entries(await import(FIXTURES.href)).filter(([, copy]) => copy && typeof copy === "object" && "meter" in copy),
+);
 const THEMES = ["light", "dark"];
 const PANELS = ["accounts", "history", "settings", "help"];
 /** How each panel is opened from the footer: History with Space, the others with Enter. */

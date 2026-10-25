@@ -1,0 +1,74 @@
+name: Site deploy
+
+# Publishes the website (site/) to Cloudflare Pages, with the key page's function beside it. Nothing
+# is published until Matt adds the secret CLOUDFLARE_API_TOKEN (#51, #49): without it the gate job
+# says so and the deploy job is skipped, and CI still builds every page on every pull request.
+# CLOUDFLARE_ACCOUNT_ID, a secret, names the account the Pages project "quotadial" is in.
+# QUOTADIAL_CHECKOUT_URL, a repository variable, is the Buy button's Lemon Squeezy link; without it
+# the Pro page says buying opens soon.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/PRIVACY.md"
+      - "CHANGELOG.md"
+      - ".github/workflows/site-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  # A job's `if` cannot read secrets, so this one says whether the token is there.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.token.outputs.ready }}
+    steps:
+      - id: token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "CLOUDFLARE_API_TOKEN is not set (#51), so the site is not published."
+          fi
+
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Build
+        env:
+          QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}
+        run: npm run build
+      - name: Publish to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is set, but CLOUDFLARE_ACCOUNT_ID is missing (#51)."
+            exit 1
+          fi
+          npx --yes wrangler@4.152.0 pages deploy out --project-name quotadial --branch main

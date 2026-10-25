@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://quotadial.com",
+  "brand": "QuotaDial",
+  "primaryOwner": "/",
+  "seedKey": "9497ca73",
+  "scaffoldFavicon": {
+    "sha256": [],
+    "absentEvidence": "site/ held no web app and no favicon before the foundation (inspected 2026-10-25 03:05 UTC: functions/, lib/, test/, package.json, tsconfig.json only); the Next.js app is written by hand, with no template icon"
+  },
+  "routes": [
+    {
+      "path": "/",
+      "kind": "seo",
+      "intent": "find a tool that shows Claude Code and Codex plan usage and resets",
+      "job": "Show a developer that QuotaDial keeps every Claude and ChatGPT/Codex plan limit and its reset in view, with no new sign-in, and get them to download it",
+      "primary": "claude usage tracker",
+      "secondaries": [
+        "claude code usage monitor",
+        "codex usage tracker",
+        "claude usage tracker windows"
+      ],
+      "title": "Claude and Codex usage tracker for the menu bar | QuotaDial",
+      "blueprint": "docs/seo/blueprints/home.md",
+      "sections": [
+        "Uses the sign-in you already have",
+        "A warning before a run stops",
+        "Your agents can check before they start",
+        "On macOS, Windows and Linux",
+        "Questions before you install"
+      ],
+      "schemaTypes": [
+        "SoftwareApplication"
+      ],
+      "internalLinks": [
+        "/download",
+        "/pro",
+        "/privacy"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "See what Pro adds",
+        "events": [
+          "download_click"
+        ]
+      }
+    },
+    {
+      "path": "/download",
+      "kind": "utility",
+      "intent": "download QuotaDial for my system",
+      "job": "Let a visitor pick the right file for their system, check it, and open a build that is not signed yet",
+      "primary": "",
+      "title": "Download for macOS, Windows and Linux | QuotaDial",
+      "blueprint": "docs/seo/blueprints/download.md",
+      "sections": [
+        "macOS",
+        "Windows",
+        "Linux",
+        "The command on its own",
+        "Check a download",
+        "Opening a build that is not signed yet"
+      ],
+      "schemaTypes": [
+        "SoftwareApplication"
+      ],
+      "internalLinks": [
+        "/pro",
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Read the install guide",
+        "events": [
+          "download_click"
+        ]
+      }
+    },
+    {
+      "path": "/pro",
+      "kind": "utility",
+      "intent": "see what QuotaDial Pro adds and buy it",
+      "job": "Show what Pro adds and what stays free, then hand a buyer to the checkout",
+      "primary": "",
+      "title": "What Pro adds: every account and a year of history | QuotaDial",
+      "blueprint": "docs/seo/blueprints/pro.md",
+      "sections": [
+        "What Pro adds",
+        "What stays free",
+        "How buying works",
+        "Adding your key"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/download",
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Download QuotaDial Free",
+        "events": [
+          "checkout_click"
+        ]
+      }
+    },
+    {
+      "path": "/key",
+      "kind": "utility",
+      "intent": "collect my QuotaDial Pro licence key after buying",
+      "job": "Turn the key in a Lemon Squeezy receipt link into the QuotaDial key, show it with where to paste it, and explain every failure in one sentence",
+      "primary": "",
+      "title": "Your QuotaDial Pro key | QuotaDial",
+      "blueprint": "docs/seo/blueprints/key.md",
+      "sections": [
+        "Your QuotaDial key"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/download",
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Write to support",
+        "events": [
+          "key_shown",
+          "key_copied"
+        ]
+      }
+    },
+    {
+      "path": "/privacy",
+      "kind": "utility",
+      "intent": "check what QuotaDial reads and sends before installing",
+      "job": "Show the one privacy text, docs/PRIVACY.md, with every address QuotaDial connects to",
+      "primary": "",
+      "title": "What QuotaDial reads and sends | QuotaDial",
+      "blueprint": "docs/seo/blueprints/privacy.md",
+      "sections": [
+        "What QuotaDial reads and sends"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Write to support",
+        "events": [
+          "download_click"
+        ]
+      }
+    },
+    {
+      "path": "/support",
+      "kind": "utility",
+      "intent": "get help with QuotaDial or report a problem",
+      "job": "Send a person with a problem to the right channel, with what support needs from them",
+      "primary": "",
+      "title": "Support, feedback and security reports | QuotaDial",
+      "blueprint": "docs/seo/blueprints/support.md",
+      "sections": [
+        "Write to support",
+        "Report a problem on GitHub",
+        "Report a security problem"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/privacy",
+        "/changelog"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Open an issue on GitHub",
+        "events": [
+          "support_mail_click",
+          "issue_click"
+        ]
+      }
+    },
+    {
+      "path": "/changelog",
+      "kind": "utility",
+      "intent": "see what changed in each QuotaDial version",
+      "job": "Show CHANGELOG.md, newest first, so a person can see what an update brings",
+      "primary": "",
+      "title": "Changelog: what changed in each version | QuotaDial",
+      "blueprint": "docs/seo/blueprints/changelog.md",
+      "sections": [
+        "What changed in QuotaDial"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/download"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Read the release notes on GitHub",
+        "events": [
+          "download_click"
+        ]
+      }
+    }
+  ],
+  "upstream": {
+    "brainReads": {
+      "status": "complete",
+      "evidence": "docs/design/skill-preflight.md"
+    },
+    "product": {
+      "status": "complete",
+      "evidence": "PRODUCT.md"
+    },
+    "research": {
+      "status": "complete",
+      "evidence": "docs/seo/keyword-map.md; the study and captures are private (the Brain's workspace, quotadial-site-private/seo/intent/home)"
+    },
+    "blueprints": {
+      "status": "complete",
+      "evidence": "docs/seo/blueprints/ (home, download, pro, key, privacy, support, changelog)"
+    },
+    "contract": {
+      "status": "complete",
+      "evidence": "docs/design-contract.json (verify-contract passed 2026-10-25 03:22 UTC); docs/DIRECTION.md; docs/brand/identity.md"
+    },
+    "foundation": {
+      "status": "pending",
+      "evidence": "",
+      "commit": ""
+    }
+  }
+}

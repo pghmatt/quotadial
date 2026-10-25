@@ -117,6 +117,9 @@ jobs:
         run: npm run check
       - name: Test
         run: npm test
+      # The website itself (M5 item 5): every page exported as static files, as Pages serves them.
+      - name: Build
+        run: npm run build
 
   # docs/PUBLIC_SCOPE.md: the full PRD stays private; only the generated public copy is committed.
   public-scope:

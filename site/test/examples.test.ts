@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { site } from "../../apps/tray/scripts/site-fixtures.mjs";
+import { TIDE_ROWS, WEEKLY_CURVE } from "../lib/data/examples.ts";
+
+/** The pictures of the app and the home page's table and curve show the same example week. */
+test("the site's examples match the pictures of the app", () => {
+  const windows = new Map<string, { used_pct: number; pace: string | null; runs_out: boolean }>();
+  for (const account of site.meter.accounts) {
+    for (const window of account.windows) {
+      windows.set(`${account.provider} ${window.label}`, window);
+    }
+  }
+  for (const row of TIDE_ROWS) {
+    const window = windows.get(row.window);
+    assert.ok(window, `the app shows ${row.window}`);
+    assert.equal(window.used_pct, row.used, `${row.window}'s share used`);
+    assert.equal(window.runs_out, row.runsOutFirst, `${row.window} runs out first or not`);
+  }
+  const weekly = windows.get("Claude Weekly");
+  assert.equal(WEEKLY_CURVE.points.at(-1)?.used, weekly?.used_pct, "the curve ends where the app reads");
+  // At 2.0% an hour from 91%, 100% comes 4.5 hours later: the curve's prediction and the app's pace.
+  assert.match(weekly?.pace ?? "", /at 2\.0%\/h, runs out in 4 h 30 min/);
+  assert.equal(WEEKLY_CURVE.runsOut.hour - (WEEKLY_CURVE.points.at(-1)?.hour ?? 0), 4.5);
+});
+
+test("the Buy button takes only an https link to Lemon Squeezy", async () => {
+  const { checkoutLink } = await import("../lib/data/site.ts");
+  assert.equal(checkoutLink(undefined), null);
+  assert.equal(checkoutLink(""), null);
+  assert.equal(checkoutLink("https://quotadial.lemonsqueezy.com/buy/abc"), "https://quotadial.lemonsqueezy.com/buy/abc");
+  assert.equal(checkoutLink("http://quotadial.lemonsqueezy.com/buy/abc"), null, "not https");
+  assert.equal(checkoutLink("https://lemonsqueezy.com.example.net/buy"), null, "another host");
+  assert.equal(checkoutLink("not a link"), null);
+});

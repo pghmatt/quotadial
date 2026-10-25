@@ -16,5 +16,5 @@
     "allowJs": true,
     "types": []
   },
-  "include": ["src", "vite.config.ts", "scripts/window-fixtures.mjs"]
+  "include": ["src", "vite.config.ts", "scripts/window-fixtures.mjs", "scripts/site-fixtures.mjs"]
 }

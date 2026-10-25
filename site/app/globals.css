@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/*
+ * The site's tokens: the chart palette and Sofia Sans in three widths (docs/brand/identity.md,
+ * docs/DIRECTION.md). Tailwind's own colours, fonts, shadows and radii are cleared, so a page can
+ * only use these.
+ */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --shadow-*: initial;
+  --radius-*: initial;
+  --drop-shadow-*: initial;
+
+  --color-chart: var(--chart);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-shallow: var(--shallow);
+  --color-mid: var(--mid);
+  --color-line: var(--line);
+  --color-deep: var(--deep);
+  --color-on-deep: var(--on-deep);
+  --color-on-deep-2: var(--on-deep-2);
+  --color-magenta: var(--magenta);
+  --color-magenta-fill: var(--magenta-fill);
+  --color-on-magenta: var(--on-magenta);
+  --color-rule: var(--rule);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-display: "Sofia Sans Condensed Variable", "Arial Narrow", sans-serif;
+  --font-body: "Sofia Sans Variable", "Helvetica Neue", Arial, sans-serif;
+  --font-table: "Sofia Sans Semi Condensed Variable", "Arial Narrow", sans-serif;
+  --font-code: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+
+  --radius-chart: 2px;
+
+  /* The home page's one authored moment: the week's curve draws to its prediction while the dial's
+     needle sweeps to the share used. Reduced motion shows the end state at once. */
+  --animate-draw: draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-sweep: sweep 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes sweep {
+    from {
+      transform: rotate(-120deg);
+    }
+    to {
+      transform: rotate(var(--needle));
+    }
+  }
+
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+}
+
+/* Light: the day chart. */
+:root {
+  color-scheme: light dark;
+  --chart: #f6f9fb;
+  --ink: #0c1d2b;
+  --ink-2: #3b5466;
+  --shallow: #dcedf6;
+  --mid: #b3d7ec;
+  --line: #2f74a6;
+  --deep: #0b2236;
+  --on-deep: #e6f1f8;
+  --on-deep-2: #a9c3d6;
+  /* Reserved: the primary action, a runs-out-first prediction, the focus ring, the unsigned-build
+     caution. Nowhere else (docs/brand/identity.md). */
+  --magenta: #a8005f;
+  --magenta-fill: #a8005f;
+  --on-magenta: #ffffff;
+  --rule: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+/* Dark: the night chart. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart: #08131d;
+    --ink: #dce9f2;
+    --ink-2: #9fb6c7;
+    --shallow: #0e2233;
+    --mid: #143149;
+    --line: #5b9fd0;
+    --deep: #040d15;
+    --on-deep: #e6f1f8;
+    --on-deep-2: #a9c3d6;
+    --magenta: #ff6db5;
+    --magenta-fill: #c2186f;
+    --on-magenta: #ffffff;
+  }
+}
+
+@layer base {
+  html {
+    background: var(--chart);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--magenta);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--mid);
+    color: var(--ink);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  code,
+  kbd,
+  pre {
+    font-family: var(--font-code);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Nothing moves for someone who asked their system for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

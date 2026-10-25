@@ -1,0 +1,7 @@
+# The Next.js build and its static export.
+.next/
+out/
+next-env.d.ts
+# The concept roll's catalog images: a craft bar to look at, not ours to publish.
+.impeccable/quality-bar/
+tsconfig.tsbuildinfo
