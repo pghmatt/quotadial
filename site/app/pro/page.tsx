@@ -90,20 +90,20 @@ export default function Pro() {
                   </li>
                 </Steps>
               </div>
-              <p className="mt-4 mb-0 max-w-[56ch]">
+              <p className="mt-4 mb-0 max-w-measure">
                 Lost the page? Open the receipt's button again: the same receipt always gives the same key.
               </p>
             </div>
 
             <div id="adding-your-key">
               <SectionHeading id="key-heading">Adding your key</SectionHeading>
-              <p className="mt-5 mb-0 max-w-[56ch]">
+              <p className="mt-5 mb-0 max-w-measure">
                 In QuotaDial, open <strong>Settings</strong>, find <strong>Licence</strong>, paste the key into the
                 field and choose <strong>Add</strong>. It counts at once.
               </p>
-              <p className="mt-4 mb-3 max-w-[56ch]">If you would rather use a terminal, run this and paste the key when it asks:</p>
+              <p className="mt-4 mb-3 max-w-measure">If you would rather use a terminal, run this and paste the key when it asks:</p>
               <CodeBlock code="quotadial licence add" label="Copy the command" />
-              <p className="mt-4 mb-0 max-w-[56ch]">
+              <p className="mt-4 mb-0 max-w-measure">
                 QuotaDial checks the key on your machine with no network call, so it never phones home. Once the key is
                 in, the lines saying where Pro would be go away.{" "}
                 <a href="/support" className={LINK}>
