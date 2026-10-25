@@ -1,27 +1,46 @@
 import type { Metadata } from "next";
 
-import { ButtonLink } from "../components/Button.tsx";
 import { Section } from "../components/Section.tsx";
+import { PageIntro } from "../components/reference/PageIntro.tsx";
 
 export const metadata: Metadata = {
   title: { absolute: "Page not found | QuotaDial" },
   robots: { index: false, follow: true },
 };
 
+const WAYS = [
+  { href: "/", name: "The home page", what: "Every Claude and Codex limit and its reset, in the menu bar or tray." },
+  { href: "/download", name: "Download", what: "QuotaDial for macOS, Windows and Linux." },
+  { href: "/support", name: "Support", what: "Write to us, open an issue or report a problem in private." },
+] as const;
+
 /** Any address the site does not have. */
 export default function NotFound() {
   return (
-    <Section>
-      <h1 className="m-0 text-[2.5rem] leading-[1.05] font-[800]">This page is not on the chart</h1>
-      <p className="mt-4 max-w-[60ch] text-ink-2">
-        The address may be mistyped, or the page may have moved. Everything QuotaDial offers is a
-        link or two from the home page.
-      </p>
-      <p className="mt-6">
-        <ButtonLink href="/" variant="secondary">
-          Go to the home page
-        </ButtonLink>
-      </p>
+    <Section className="md:min-h-[calc(100dvh-24rem)]">
+      <div className="grid gap-14 lg:grid-cols-12 lg:gap-x-12">
+        <div className="lg:col-span-6">
+          <PageIntro
+            title="This page is not on the chart"
+            answer="The address may be mistyped, or the page may have moved. Start from one of these."
+          />
+        </div>
+        <nav aria-label="Ways on" className="lg:col-span-5 lg:col-start-8">
+          <ul className="m-0 grid list-none gap-8 p-0">
+            {WAYS.map((way) => (
+              <li key={way.href}>
+                <a
+                  href={way.href}
+                  className="font-display text-[1.75rem] leading-[1.1] font-[700] underline decoration-2 underline-offset-[0.2em]"
+                >
+                  {way.name}
+                </a>
+                <p className="mt-1 mb-0 max-w-[40ch] text-ink-2">{way.what}</p>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
     </Section>
   );
 }
