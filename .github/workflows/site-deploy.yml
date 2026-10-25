@@ -126,4 +126,7 @@ jobs:
             echo "::error::CLOUDFLARE_API_TOKEN is set, but CLOUDFLARE_ACCOUNT_ID is missing (#51)."
             exit 1
           fi
-          npx --yes wrangler@4.152.0 pages deploy out --project-name quotadial --branch main
+          # The wrangler npm ci installed from site/package-lock.json. In CI npx would fetch the newest
+          # wrangler if it were missing; --no makes it fail instead, and -- keeps npx from reading
+          # wrangler as the value of --no.
+          npx --no -- wrangler pages deploy out --project-name quotadial --branch main

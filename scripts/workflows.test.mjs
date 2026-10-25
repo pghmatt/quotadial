@@ -299,6 +299,32 @@ test("the site waits for CLOUDFLARE_API_TOKEN, without asking GitHub", () => {
   assert.match(ran.summary, /^CLOUDFLARE_API_TOKEN is not set/);
 });
 
+test("the site is published with the wrangler site/package-lock.json locks, never one fetched for the run", () => {
+  const step = shell("site-deploy.yml", "Publish to Cloudflare Pages");
+  const version = JSON.parse(readFileSync(join(ROOT, "site/package.json"), "utf8")).devDependencies?.wrangler ?? "";
+  const lock = JSON.parse(readFileSync(join(ROOT, "site/package-lock.json"), "utf8"));
+  assert.match(version, /^\d+\.\d+\.\d+$/, "site/package.json pins wrangler to one version");
+  assert.equal(lock.packages["node_modules/wrangler"]?.version, version, "and site/package-lock.json locks it");
+  assert.match(step, /^npx --no -- wrangler pages deploy out --project-name quotadial --branch main$/m);
+  assert.doesNotMatch(step, /wrangler@|--yes|(^|\s)-y(\s|$)/m, "no version and no --yes: nothing is fetched for the run");
+  // Run as GitHub runs it, beside a stand-in for the installed wrangler, with npm kept offline.
+  const site = folder();
+  writeFileSync(join(site, "package.json"), "{}\n");
+  mkdirSync(join(site, "node_modules/.bin"), { recursive: true });
+  const called = join(site, "called");
+  writeFileSync(join(site, "node_modules/.bin/wrangler"), `#!/bin/sh\nprintf '%s\\n' "$*" > "${called}"\n`, { mode: 0o755 });
+  const offline = { npm_config_offline: "true" };
+  const ran = bash(step, site, { ...offline, CLOUDFLARE_ACCOUNT_ID: "an account" });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(readFileSync(called, "utf8"), "pages deploy out --project-name quotadial --branch main\n");
+  // Without the account it stops before wrangler runs.
+  rmSync(called);
+  const stopped = bash(step, site, { ...offline, CLOUDFLARE_ACCOUNT_ID: "" });
+  assert.notEqual(stopped.status, 0);
+  assert.match(stopped.stdout, /^::error::CLOUDFLARE_API_TOKEN is set, but CLOUDFLARE_ACCOUNT_ID is missing/m);
+  assert.throws(() => readFileSync(called), /ENOENT/);
+});
+
 /** The lines of `job` in `workflow`, from its name to the next job's. */
 function jobLines(workflow, job) {
   const lines = readFileSync(join(ROOT, ".github/workflows", workflow), "utf8").split("\n");
