@@ -256,7 +256,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .iter()
             .map(|provider| ProviderChoice {
                 id: provider.id().to_owned(),
-                name: text::provider_name(provider.id()).to_owned(),
+                name: provider.name().to_owned(),
                 shown: settings.shows(provider.id()),
             })
             .collect(),
@@ -272,8 +272,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
                 AccountChoice {
                     label: format!(
                         "{} {}",
-                        text::provider_name(&snapshot.account.provider),
-                        snapshot.account.display_name
+                        snapshot.account.provider_name, snapshot.account.display_name
                     ),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
                     key,

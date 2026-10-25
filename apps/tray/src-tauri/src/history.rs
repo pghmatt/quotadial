@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, TimeZone, Timelike, Utc};
-use quotadial_core::{ProFeature, Tier, WindowKind, text};
+use quotadial_core::{ProFeature, Tier, WindowKind};
 use quotadial_daemon::{History, Series, SeriesQuery, write_csv};
 use serde::Serialize;
 
@@ -121,18 +121,18 @@ pub fn view<Tz: TimeZone>(
     let today = now.with_timezone(zone).date_naive();
     let first_day =
         (today - TimeDelta::days(i64::from(days) - 1)).max(start.with_timezone(zone).date_naive());
-    let plans = plans(history)?;
+    let newest = newest(history)?;
     let mut accounts: Vec<AccountHistory> = Vec::new();
     let mut group: Vec<&Series> = Vec::new();
     for one in &series {
         if group.last().is_some_and(|last| !same_account(last, one)) {
-            accounts.push(account(&group, settings, &plans, days, start, now, zone));
+            accounts.push(account(&group, settings, &newest, days, start, now, zone));
             group.clear();
         }
         group.push(one);
     }
     if !group.is_empty() {
-        accounts.push(account(&group, settings, &plans, days, start, now, zone));
+        accounts.push(account(&group, settings, &newest, days, start, now, zone));
     }
     Ok(HistoryView {
         days,
@@ -184,24 +184,47 @@ pub fn label(history: &History, settings: &Settings, key: &str) -> Result<String
         .ok_or_else(share::unknown_account)?;
     let account = snapshot.account;
     Ok(share::label(
-        text::provider_name(&account.provider),
+        &account.provider_name,
         settings.aliases.get(key).map(String::as_str),
         account.plan.as_deref(),
     ))
 }
 
-/// Each account's plan, by [`account_key`], from its newest snapshot: a series carries only the
-/// account's id and display name.
-fn plans(history: &History) -> Result<HashMap<String, String>, String> {
-    Ok(history
+/// What the newest snapshots say that a series does not carry: each account's plan, by
+/// [`account_key`], and what each provider calls itself, by its id (P-020).
+#[derive(Default)]
+struct Newest {
+    plans: HashMap<String, String>,
+    names: HashMap<String, String>,
+}
+
+impl Newest {
+    /// What the provider `id` calls itself, or what an account from an older QuotaDial is shown
+    /// as.
+    fn name(&self, id: &str) -> &str {
+        self.names
+            .get(id)
+            .map_or(quotadial_core::UNNAMED_PROVIDER, String::as_str)
+    }
+}
+
+fn newest(history: &History) -> Result<Newest, String> {
+    let mut newest = Newest::default();
+    for snapshot in history
         .latest()
         .map_err(|error| format!("QuotaDial could not read its history: {error}"))?
-        .into_iter()
-        .filter_map(|snapshot| {
-            let key = account_key(&snapshot.account);
-            snapshot.account.plan.map(|plan| (key, plan))
-        })
-        .collect())
+    {
+        let account = snapshot.account;
+        // A name an older QuotaDial left out never replaces one a provider gave.
+        let name = newest.names.entry(account.provider.clone()).or_default();
+        if name.is_empty() || name == quotadial_core::UNNAMED_PROVIDER {
+            name.clone_from(&account.provider_name);
+        }
+        if let Some(plan) = account.plan.clone() {
+            newest.plans.insert(account_key(&account), plan);
+        }
+    }
+    Ok(newest)
 }
 
 /// The days from `first` to `last`, as people write them: "19 to 25 October 2026", "26 September
@@ -226,7 +249,7 @@ fn same_account(a: &Series, b: &Series) -> bool {
 fn account<Tz: TimeZone>(
     group: &[&Series],
     settings: &Settings,
-    plans: &HashMap<String, String>,
+    newest: &Newest,
     days: u32,
     since: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -236,7 +259,7 @@ fn account<Tz: TimeZone>(
     let key = key(&first.provider, &first.account_id, first.org.as_deref());
     let alias = settings.aliases.get(&key);
     let name = alias.cloned().unwrap_or_else(|| first.account.clone());
-    let provider = text::provider_name(&first.provider);
+    let provider = newest.name(&first.provider);
     let period = format!("in the last {days} days");
     AccountHistory {
         provider: provider.to_owned(),
@@ -244,7 +267,7 @@ fn account<Tz: TimeZone>(
         label: share::label(
             provider,
             alias.map(String::as_str),
-            plans.get(&key).map(String::as_str),
+            newest.plans.get(&key).map(String::as_str),
         ),
         windows: group
             .iter()
@@ -421,11 +444,18 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: if provider == "claude" {
+                    "Claude"
+                } else {
+                    "Codex"
+                }
+                .into(),
                 account_id: "user-1".into(),
                 display_name: format!("{provider}@example.com"),
                 plan: (provider == "claude").then(|| "max".to_owned()),
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: windows
                 .iter()

@@ -346,11 +346,13 @@ mod tests {
             Snapshot::auth_required(
                 Account {
                     provider: provider.into(),
+                    provider_name: provider.to_uppercase(),
                     account_id: "user-1".into(),
                     display_name: "user@example.com".into(),
                     plan: None,
                     org: None,
                     sign_in: None,
+                    sign_in_use: "QuotaDial reads this test's sign-in.".into(),
                 },
                 "Sign in again.",
             )
@@ -408,8 +410,8 @@ mod tests {
             status_pages: vec![page("claude"), page("codex")],
             costs: vec![cost("claude"), cost("codex")],
             left_out: vec![
-                quotadial_core::LeftOut::accounts("claude", 2),
-                quotadial_core::LeftOut::accounts("codex", 1),
+                quotadial_core::LeftOut::accounts("claude", "Claude", 2),
+                quotadial_core::LeftOut::accounts("codex", "Codex", 1),
                 quotadial_core::LeftOut::feature(ProFeature::CostScan),
             ],
             problems: Vec::new(),
@@ -425,7 +427,7 @@ mod tests {
         assert_eq!(
             shown.left_out,
             [
-                quotadial_core::LeftOut::accounts("claude", 2),
+                quotadial_core::LeftOut::accounts("claude", "Claude", 2),
                 quotadial_core::LeftOut::feature(ProFeature::CostScan),
             ],
             "a hidden provider's held-back accounts go too; what belongs to no provider stays"

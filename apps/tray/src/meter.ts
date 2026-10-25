@@ -54,7 +54,7 @@ export interface Account {
   extra_usage: string | null;
   /** Why the status is not ok, naming the fix. */
   note: string | null;
-  /** Where QuotaDial reads this account's sign-in. */
+  /** What QuotaDial does with this account's sign-in, in its provider's words. */
   sign_in: string;
 }
 

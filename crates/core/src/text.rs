@@ -49,16 +49,6 @@ pub fn pace(pace: &Pace, resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -
     }
 }
 
-/// The name people know a provider by, such as `Claude` for `claude`.
-#[must_use]
-pub fn provider_name(id: &str) -> &str {
-    match id {
-        "claude" => "Claude",
-        "codex" => "Codex",
-        other => other,
-    }
-}
-
 /// What QuotaDial does with a sign-in it reads from `place`, as a provider that reads one says it
 /// (P-020): such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads
 /// it and never changes it.`
@@ -329,10 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn providers_and_shares_are_named_as_people_write_them() {
-        assert_eq!(provider_name("claude"), "Claude");
-        assert_eq!(provider_name("codex"), "Codex");
-        assert_eq!(provider_name("other"), "other");
+    fn shares_are_written_as_people_write_them() {
         assert_eq!(percent(80.0), "80");
         assert_eq!(percent(80.5), "80.5");
         assert_eq!(percent(33.333), "33.3");

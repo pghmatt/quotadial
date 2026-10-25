@@ -208,14 +208,20 @@ mod tests {
             "claude"
         }
 
+        fn name(&self) -> &'static str {
+            "Claude"
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![Account {
                 provider: "claude".into(),
+                provider_name: "Claude".into(),
                 account_id: "user-1".into(),
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             }])
         }
 
