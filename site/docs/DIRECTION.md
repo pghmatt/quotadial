@@ -26,11 +26,15 @@ questions.
 hold the H1 "Claude and Codex usage tracker for your menu bar or tray" (Sofia Sans Condensed 700,
 about 64 px, at most three lines), the answer sentence (about 20 px, second ink) and the primary
 action, "Download for macOS" or the visitor's system, in magenta, with "See what Pro adds" beside it
-as a text link. The right seven columns hold the almanac plate on the shallow field: the real
+as a text link, and under them one line that QuotaDial is free and open source under the MIT
+licence, for macOS, Windows and Linux (the searches ask for free and GitHub; see the home
+blueprint). The right seven columns hold the almanac plate on the shallow field: the real
 QuotaDial window with example accounts, overlapping a three-row tide table (window, used, resets,
 at this pace) under the week's curve rising to the high-water line, its dashed prediction meeting
-100% before the reset mark. Phone 390x844: H1, answer, action, and the plate's window image
-starting inside the fold.
+100% before the reset mark. Where seven columns cannot hold the table's times whole beside the
+window, the window is layered over the plate's lower edge instead, and `components/home/Hero.tsx`
+says why. Phone 390x844: H1, answer, action, and the plate's window image starting inside the
+fold.
 
 **FORM.** The tide table and the almanac: candidate 7 of 7 on the grounded list
 (`docs/design/candidates.md`), assigned by the concept seed recorded in

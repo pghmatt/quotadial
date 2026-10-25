@@ -1,6 +1,6 @@
-/** The reading style: 65 to 72 characters, with room between paragraphs and list items. */
+/** The reading style: the reading measure, with room between paragraphs and list items. */
 const TEXT =
-  "max-w-[68ch] text-[1.0625rem] leading-[1.6] [&_p]:my-4 [&_li]:mt-2 [&_strong]:font-[700] [&_a]:underline [&_a]:underline-offset-[0.2em]";
+  "max-w-measure text-[1.0625rem] leading-[1.6] [&_p]:my-4 [&_li]:mt-2 [&_strong]:font-[700] [&_a]:underline [&_a]:underline-offset-[0.2em]";
 /** Lists: bullets, and numbers where the order is the information (steps). */
 const LISTS = "[&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6";
 /** A section's own headings, in the display face the base styles give h2 and h3. */

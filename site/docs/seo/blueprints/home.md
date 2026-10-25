@@ -14,8 +14,11 @@ Study: private (the Brain's workspace, `quotadial-site-private/seo/intent/home/s
 2. Answer sentence: "See how much of each Claude and ChatGPT/Codex plan limit you have used,
    and when it resets, from the sign-in Claude Code and the Codex CLI already keep."
 3. Primary action: "Download for macOS" (or Windows, or Linux, by the visitor's system; "Download
-   QuotaDial" when it cannot tell), a link to `/download#<system>`, marked `data-primary-action`,
-   firing `download_click` with the system.
+   QuotaDial" when it cannot tell), a link to `/download`, whose first screen names that system's
+   file, marked `data-primary-action`, firing `download_click` with the system. Under it, one line:
+   free and open source under the MIT licence, for macOS, Windows and Linux. The related searches
+   in the keyword map ask for free and for GitHub, and the SEO and conversion review asked for it
+   (finding 8 of its first pass).
 4. Proof: the real QuotaDial window, as the app draws it, with made-up example accounts, labelled
    "Example accounts" where it is shown. No price, no rating, no user count.
 
