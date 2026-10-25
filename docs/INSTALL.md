@@ -8,19 +8,16 @@ the `quotadial` command inside it.
 ## Download
 
 Each release on the repository's [Releases page](https://github.com/pghmatt/quotadial/releases)
-has these files:
+has these files. From the release after 0.2.0, each also comes as a copy named without the version,
+so the links in the last column always fetch the newest full release. They work once the first
+full release after 0.2.0 is out; until then, take the file from the Releases page.
 
-| System | File |
-| --- | --- |
-| macOS (Apple silicon and Intel) | `QuotaDial_<version>_universal.dmg` |
-| Windows | `QuotaDial_<version>_x64_en-US.msi` |
-| Debian or Ubuntu | `QuotaDial_<version>_amd64.deb` |
-| Other Linux | `QuotaDial_<version>_amd64.AppImage` |
-
-The command alone, without the tray app, comes as `quotadial-<version>-<platform>.tar.gz` (or
-`.zip` on Windows). Each archive holds `quotadial` and its short alias `qd`, with their shell
-completions in `completions/` and manual pages in `man/` ([CLI.md](CLI.md) says how to turn them
-on).
+| System | File | The newest full release |
+| --- | --- | --- |
+| macOS (Apple silicon and Intel) | `QuotaDial_<version>_universal.dmg` | [QuotaDial_universal.dmg](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial_universal.dmg) |
+| Windows | `QuotaDial_<version>_x64_en-US.msi` | [QuotaDial_x64_en-US.msi](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial_x64_en-US.msi) |
+| Debian or Ubuntu | `QuotaDial_<version>_amd64.deb` | [QuotaDial_amd64.deb](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial_amd64.deb) |
+| Other Linux | `QuotaDial_<version>_amd64.AppImage` | [QuotaDial_amd64.AppImage](https://github.com/pghmatt/quotadial/releases/latest/download/QuotaDial_amd64.AppImage) |
 
 `SHA256SUMS.txt` lists every file's SHA-256, to check a download against. In the folder you
 downloaded to, run the line for your system. On macOS and Linux it prints OK beside each file that
@@ -32,6 +29,30 @@ matches; on Windows, PowerShell prints the file's hash, to compare with its line
 | macOS | `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` |
 | Linux | `sha256sum -c SHA256SUMS.txt --ignore-missing` |
 | Windows | `Get-FileHash .\QuotaDial_*.msi` |
+
+From the release after 0.2.0, `SHA256SUMS.txt` lists both names of each file, so the check passes
+whichever you downloaded.
+
+### The command alone
+
+The `quotadial` command without the tray app comes as an archive for each system. Each holds
+`quotadial` and its short alias `qd`, with their shell completions in `completions/` and manual
+pages in `man/` ([CLI.md](CLI.md) says how to turn them on).
+
+| System | Archive | The newest full release |
+| --- | --- | --- |
+| macOS, Apple silicon | `quotadial-v<version>-aarch64-apple-darwin.tar.gz` | [quotadial-aarch64-apple-darwin.tar.gz](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-aarch64-apple-darwin.tar.gz) |
+| macOS, Intel | `quotadial-v<version>-x86_64-apple-darwin.tar.gz` | [quotadial-x86_64-apple-darwin.tar.gz](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-x86_64-apple-darwin.tar.gz) |
+| Linux | `quotadial-v<version>-x86_64-unknown-linux-gnu.tar.gz` | [quotadial-x86_64-unknown-linux-gnu.tar.gz](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-x86_64-unknown-linux-gnu.tar.gz) |
+| Windows | `quotadial-v<version>-x86_64-pc-windows-msvc.zip` | [quotadial-x86_64-pc-windows-msvc.zip](https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-x86_64-pc-windows-msvc.zip) |
+
+On macOS or Linux, this fetches the newest full release's command and puts it on your `PATH`
+(Apple silicon shown; use your system's name from the table):
+
+```sh
+curl -fsSL https://github.com/pghmatt/quotadial/releases/latest/download/quotadial-aarch64-apple-darwin.tar.gz | tar -xz
+sudo install quotadial-v*/quotadial quotadial-v*/qd /usr/local/bin/
+```
 
 ## Package managers
 
