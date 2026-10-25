@@ -310,7 +310,7 @@ test("commands carry a copy button, example output scrolls, and a block inside a
   const result = output.blocks[0];
   assert.ok(result.kind === "code" && !result.command && result.name === "Output, example output");
   const table = output.blocks[1];
-  assert.ok(table.kind === "table" && table.columns.join() === "Name,Meaning" && table.rows[0][0] === "<code>x</code>");
+  assert.ok(table.kind === "table" && table.columns.join() === "Name,Meaning" && unmarked(table.rows[0][0]) === "<code>x</code>");
   assert.throws(() => readGuide("# Guide\n\n## One\n\n## Two\n").sections[5].heading);
   assert.throws(() => readGuide("# Guide\n\nOpening.\n\nA second paragraph before any section.\n\n## One\n"), /before its first section/);
 });
@@ -331,6 +331,9 @@ test("the sitemap lists both guide pages and the footer leads to them rather tha
   assert.ok(!footer.includes("SITE.installGuide") && !footer.includes("SITE.cliGuide"));
 });
 
+/** A guide's HTML without the marks that say where a word may break: they add no word and no space. */
+const unmarked = (html: string) => html.replace(/<wbr>/g, "").replace(/<span class="whitespace-nowrap">([^<]*)<\/span>/g, "$1");
+
 const DOWNLOAD = /<a href="([^"]*\/releases\/latest\/download\/([^"]+))"([^>]*)>/g;
 
 test("each of the install guide's eight direct file links reports a download with its file, its system and where it was", () => {
@@ -348,7 +351,7 @@ test("each of the install guide's eight direct file links reports a download wit
     assert.match(attributes, new RegExp(`data-event-system="${system}"`), `${name} names its system`);
     assert.match(attributes, /data-event-from="install-guide"/, `${name} says it came from the install guide`);
   }
-  assert.equal(finish('<a href="https://example.com/x.dmg">x</a>', "guide"), '<a href="https://example.com/x.dmg">x</a>', "a link elsewhere is left alone");
+  assert.equal(unmarked(finish('<a href="https://example.com/x.dmg">x</a>', "guide")), '<a href="https://example.com/x.dmg">x</a>', "a link elsewhere is left alone");
 });
 
 test("the built /install page carries those events on its links, and a click on one reports the file", { skip: built ? false : NOT_BUILT }, () => {
@@ -361,11 +364,17 @@ test("the built /install page carries those events on its links, and a click on 
   }
 });
 
-test("a guide's code and links break only at the marks, and its stylesheet never lets a word break anywhere", () => {
-  assert.equal(finish("<code>releases/latest/download/quotadial-aarch64.tar.gz</code>", "g"), "<code>releases/<wbr>latest/<wbr>download/<wbr>quotadial-<wbr>aarch64.tar.gz</code>");
-  assert.equal(finish("<code>shasum -c --ignore-missing</code>", "g"), "<code>shasum -c --ignore-missing</code>", "a flag stays whole");
+test("a guide's code and links break only at a space or a mark, and its stylesheet never lets a word break anywhere", () => {
+  /** A piece the browser may not break, as Breakable sets it. */
+  const whole = (...pieces: string[]) => pieces.map((piece) => `<span class="whitespace-nowrap">${piece}</span>`).join("<wbr>");
+  assert.equal(finish("<code>releases/latest/download/quotadial-aarch64.tar.gz</code>", "g"), `<code>${whole("releases/", "latest/", "download/", "quotadial-", "aarch64.tar.gz")}</code>`);
+  assert.equal(
+    finish("<code>shasum -c --ignore-missing</code>", "g"),
+    `<code>${whole("shasum")} ${whole("-c")} ${whole("--ignore-missing")}</code>`,
+    "a flag is one unbreakable piece, and the browser may break only at the spaces round it",
+  );
   assert.equal(finish("<p>built-in and/or plain</p>", "g"), "<p>built-in and/or plain</p>", "words outside code and links are not marked");
-  assert.equal(finish('<a href="/x">QuotaDial_universal.dmg</a>', "g"), '<a href="/x">QuotaDial_<wbr>universal.dmg</a>');
+  assert.equal(finish('<a href="/x">QuotaDial_universal.dmg</a>', "g"), `<a href="/x">${whole("QuotaDial_", "universal.dmg")}</a>`);
   for (const file of ["Guide.tsx", "GuidePage.tsx"]) {
     const source = readFileSync(new URL(`../components/reference/${file}`, import.meta.url), "utf8");
     assert.ok(!source.includes("anywhere]") && !source.includes("overflow-wrap:anywhere"), `${file} never breaks a word anywhere`);
@@ -373,7 +382,7 @@ test("a guide's code and links break only at the marks, and its stylesheet never
   const archive = guide("install")
     .sections.flatMap((section) => section.blocks)
     .find((block) => block.kind === "table" && block.caption.startsWith("The command alone"));
-  assert.ok(archive?.kind === "table" && archive.rows[2][1].includes("quotadial-<wbr>v&lt;version&gt;-x86_<wbr>64-<wbr>unknown-<wbr>linux-<wbr>gnu.tar.gz"));
+  assert.ok(archive?.kind === "table" && archive.rows[2][1].includes(whole("quotadial-", "v&lt;version&gt;-x86_", "64-", "unknown-", "linux-", "gnu.tar.gz")));
 });
 
 test("example output that scrolls shows the side that has more text, and is still a labelled region the keyboard reaches", { skip: built ? false : NOT_BUILT }, () => {
