@@ -4,7 +4,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{Cost, Error, ProFeature, Provider, Snapshot, Status, redact_secrets};
+use crate::{Cost, Error, ProFeature, Provider, ProviderName, Snapshot, Status, redact_secrets};
 
 /// A snapshot per account, and every provider or account that produced none.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -31,6 +31,11 @@ pub struct StatusReport {
     /// when there is none, and of a direct fetch.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub problems: Vec<String>,
+    /// Every provider this copy asks, by its id and its own name for itself, in the order it asks
+    /// them (P-020): what a status page, a cost or anything else that has only a provider's id is
+    /// named by. A report from an older QuotaDial lists none, and its ids are shown.
+    #[serde(default)]
+    pub providers: Vec<ProviderName>,
 }
 
 /// Something a QuotaDial Free copy leaves out of a report, such as more accounts on the machine or
@@ -137,16 +142,12 @@ pub struct ProviderError {
 }
 
 impl StatusReport {
-    /// What the provider `id` calls itself, as its accounts in the report say (P-020): what status
-    /// pages and costs, which come only for providers with accounts, are shown under.
+    /// What the provider `id` calls itself, as the report's [`StatusReport::providers`] say
+    /// (P-020): what a status page, a cost or an incident is shown under. A provider the report
+    /// does not list, as in a report from an older QuotaDial, keeps its id.
     #[must_use]
-    pub fn provider_name(&self, id: &str) -> &str {
-        self.snapshots
-            .iter()
-            .find(|snapshot| snapshot.account.provider == id)
-            .map_or(crate::UNNAMED_PROVIDER, |snapshot| {
-                snapshot.account.provider_name.as_str()
-            })
+    pub fn provider_name<'a>(&'a self, id: &'a str) -> &'a str {
+        ProviderName::find(&self.providers, id)
     }
 
     /// The report as every consumer shows it: one snapshot per account (D-024), in an order that
@@ -228,9 +229,16 @@ impl ProviderError {
 /// fallback when the fetch fails. What a provider could not look at while finding its accounts is
 /// reported beside them. Error text is checked for tokens here, whichever provider wrote it, so
 /// none reaches a report, and what an older QuotaDial left out of a snapshot it kept is taken from
-/// the account discovery found (P-020).
+/// the account discovery found (P-020). The report lists every provider asked, by its id and its
+/// own name.
 pub async fn collect<P: AsRef<dyn Provider>>(providers: &[P]) -> StatusReport {
-    let mut report = StatusReport::default();
+    let mut report = StatusReport {
+        providers: providers
+            .iter()
+            .map(|provider| ProviderName::of(provider.as_ref()))
+            .collect(),
+        ..StatusReport::default()
+    };
     for provider in providers {
         let provider = provider.as_ref();
         let accounts = match provider.discover_accounts() {
@@ -324,6 +332,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let merged = report.normalized();
@@ -346,22 +355,31 @@ mod tests {
     }
 
     #[test]
-    fn a_report_names_a_provider_as_its_accounts_do() {
+    fn a_report_names_each_provider_as_the_provider_names_itself() {
         let report = StatusReport {
-            snapshots: vec![snapshot(
-                "a-1",
-                "~/.claude",
-                Status::Ok,
-                "2099-01-01T00:00:00Z",
-            )],
+            providers: vec![
+                ProviderName {
+                    id: "claude".into(),
+                    name: "Claude".into(),
+                },
+                ProviderName {
+                    id: "gemini".into(),
+                    name: "Gemini CLI".into(),
+                },
+            ],
             ..StatusReport::default()
         };
 
-        assert_eq!(report.provider_name("claude"), "Claude");
         assert_eq!(
             report.provider_name("gemini"),
-            crate::UNNAMED_PROVIDER,
-            "a provider with no account in the report"
+            "Gemini CLI",
+            "with no account of it in the report"
+        );
+        assert_eq!(report.provider_name("claude"), "Claude");
+        assert_eq!(
+            report.provider_name("codex"),
+            "codex",
+            "a provider the report does not list, as from an older QuotaDial, keeps its id"
         );
     }
 
@@ -398,6 +416,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let sorted = report.normalized();

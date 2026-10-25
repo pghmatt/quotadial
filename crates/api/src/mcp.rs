@@ -349,6 +349,11 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| of == provider))
             .collect(),
         problems: report.problems,
+        providers: report
+            .providers
+            .into_iter()
+            .filter(|named| named.id == provider)
+            .collect(),
     }
 }
 
@@ -476,6 +481,14 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: vec![provider("claude", "Claude"), provider("codex", "Codex")],
+        }
+    }
+
+    fn provider(id: &str, name: &str) -> quotadial_core::ProviderName {
+        quotadial_core::ProviderName {
+            id: id.into(),
+            name: name.into(),
         }
     }
 
@@ -700,7 +713,7 @@ mod tests {
     }
 
     #[test]
-    fn narrowing_to_a_provider_keeps_its_status_page_and_cost_only() {
+    fn narrowing_to_a_provider_keeps_its_status_page_cost_and_name_only() {
         let mut report = report();
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
@@ -728,6 +741,7 @@ mod tests {
 
         assert_eq!(narrowed.status_pages, [page("codex")]);
         assert_eq!(narrowed.costs, [cost("codex")]);
+        assert_eq!(narrowed.providers, [provider("codex", "Codex")]);
     }
 
     #[tokio::test]

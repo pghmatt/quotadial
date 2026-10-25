@@ -654,6 +654,24 @@
         ],
         "type": "object"
       },
+      "ProviderName": {
+        "description": "A provider's id and its own name for itself, as a report lists the providers it is from, so a status page, a cost or a rule that has only a provider's id is named as the provider names itself.",
+        "properties": {
+          "id": {
+            "description": "The provider's id, such as `claude`.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The provider's own short name for itself, such as `Claude` or `Gemini CLI`, as the provider gives it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "RuleChange": {
         "description": "What `PATCH /v1/alerts/{id}` takes.",
         "properties": {
@@ -887,6 +905,14 @@
             },
             "type": "array"
           },
+          "providers": {
+            "default": [],
+            "description": "Every provider this copy asks, by its id and its own name for itself, in the order it asks them: what a status page, a cost or anything else that has only a provider's id is named by. A report from an older QuotaDial lists none, and its ids are shown.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderName"
+            },
+            "type": "array"
+          },
           "snapshots": {
             "description": "One per account, in provider order.",
             "items": {
@@ -904,7 +930,8 @@
         },
         "required": [
           "snapshots",
-          "errors"
+          "errors",
+          "providers"
         ],
         "type": "object"
       },

@@ -230,8 +230,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        Account, Indicator, LeftOut, ProFeature, ProviderError, Snapshot, Source, Status,
-        StatusPage, Window, WindowKind,
+        Account, Indicator, LeftOut, ProFeature, ProviderError, ProviderName, Snapshot, Source,
+        Status, StatusPage, Window, WindowKind,
     };
 
     fn at(text: &str) -> DateTime<Utc> {
@@ -291,6 +291,16 @@ mod tests {
                 costs: Vec::new(),
                 left_out: vec![LeftOut::feature(ProFeature::CostScan)],
                 problems: Vec::new(),
+                providers: vec![
+                    ProviderName {
+                        id: "claude".into(),
+                        name: "Claude".into(),
+                    },
+                    ProviderName {
+                        id: "codex".into(),
+                        name: "Codex".into(),
+                    },
+                ],
             },
             settings: vec![
                 ("history_days".into(), "30".into()),

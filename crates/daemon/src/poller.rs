@@ -27,8 +27,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use quotadial_core::{
-    Account, Cost, LeftOut, ProFeature, Provider, ProviderError, Snapshot, Status, StatusPage,
-    StatusReport, Tier,
+    Account, Cost, LeftOut, ProFeature, Provider, ProviderError, ProviderName, Snapshot, Status,
+    StatusPage, StatusReport, Tier,
 };
 use quotadial_cost::CostScan;
 use tokio::sync::{Notify, watch};
@@ -110,6 +110,8 @@ struct Costs {
 
 #[derive(Debug, Clone)]
 struct ProviderState {
+    /// The provider's id and its own name, which the report lists (P-020).
+    provider: ProviderName,
     /// Why the provider's accounts could not be discovered, or what its discovery could not look
     /// at.
     problems: Vec<ProviderError>,
@@ -127,6 +129,7 @@ impl Latest {
             .unwrap_or_else(PoisonError::into_inner);
         let mut report = StatusReport::default();
         for provider in providers.iter() {
+            report.providers.push(provider.provider.clone());
             report.errors.extend(provider.problems.iter().cloned());
             for (_, result) in &provider.accounts {
                 match result {
@@ -364,6 +367,7 @@ impl Poller {
             *states = providers
                 .iter()
                 .map(|provider| ProviderState {
+                    provider: ProviderName::of(provider.as_ref()),
                     problems: Vec::new(),
                     accounts: stored
                         .iter()
@@ -1256,6 +1260,31 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn the_report_lists_each_provider_by_its_id_and_its_own_name() {
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        let codex = Arc::new(Scripted::new("codex", 2));
+        let poller = poller(vec![claude, codex], history);
+
+        let listed = |report: StatusReport| {
+            report
+                .providers
+                .into_iter()
+                .map(|provider| (provider.id, provider.name))
+                .collect::<Vec<_>>()
+        };
+        let expected = vec![
+            ("claude".to_owned(), "Claude".to_owned()),
+            ("codex".to_owned(), "Codex".to_owned()),
+        ];
+        assert_eq!(
+            listed(poller.latest().report()),
+            expected,
+            "before any poll, with no account found yet"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn moving_numbers_are_asked_about_at_the_providers_floor() {
         let (_dir, history) = history();
         let codex = Arc::new(Scripted::new("codex", 2));
@@ -1401,7 +1430,17 @@ mod tests {
         claude.set_accounts(Ok(Vec::new()));
         tokio::time::advance(DISCOVER_EVERY).await;
         poller.poll_due().await;
-        assert_eq!(poller.latest().report(), StatusReport::default());
+        assert_eq!(
+            poller.latest().report(),
+            StatusReport {
+                providers: vec![ProviderName {
+                    id: "claude".into(),
+                    name: "Claude".into(),
+                }],
+                ..StatusReport::default()
+            },
+            "nothing but the provider asked"
+        );
     }
 
     #[tokio::test(start_paused = true)]

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::{Account, Result, Snapshot};
 
@@ -110,9 +111,9 @@ pub trait Provider: Send + Sync {
     /// The stable provider id, for example `"claude"`. Matches [`Account::provider`].
     fn id(&self) -> &'static str;
 
-    /// What the provider calls itself, as people know it, such as `Claude` or `Gemini CLI`: what
-    /// every surface shows for it and its accounts, whose [`Account::provider_name`] it is, so none
-    /// of them needs a list of providers' names (P-020).
+    /// The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, never a
+    /// sentence: what every surface shows for it and its accounts, whose [`Account::provider_name`]
+    /// it is, so none of them needs a list of providers' names (P-020).
     fn name(&self) -> &'static str;
 
     /// Finds the accounts this machine is signed in to by reading the official CLI's stored
@@ -161,6 +162,42 @@ pub trait Provider: Send + Sync {
     /// help, completions and manual pages (P-018). None by default.
     fn commands(&self) -> Vec<ProviderCommand> {
         Vec::new()
+    }
+}
+
+/// A provider's id and its own name for itself (P-020), as a report lists the providers it is from,
+/// so a status page, a cost or a rule that has only a provider's id is named as the provider names
+/// itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct ProviderName {
+    /// The provider's id, such as `claude`.
+    // As `Provider::id` gives it.
+    pub id: String,
+    /// The provider's own short name for itself, such as `Claude` or `Gemini CLI`, as the provider
+    /// gives it.
+    // As `Provider::name` gives it.
+    pub name: String,
+}
+
+impl ProviderName {
+    /// `provider`'s id and name.
+    #[must_use]
+    pub fn of(provider: &dyn Provider) -> Self {
+        Self {
+            id: provider.id().to_owned(),
+            name: provider.name().to_owned(),
+        }
+    }
+
+    /// What `providers` call the provider `id`, or `id` itself when none of them is it, as in a
+    /// report from a QuotaDial older than P-020, which lists no providers.
+    #[must_use]
+    pub fn find<'a>(providers: &'a [ProviderName], id: &'a str) -> &'a str {
+        providers
+            .iter()
+            .find(|provider| provider.id == id)
+            .map_or(id, |provider| provider.name.as_str())
     }
 }
 

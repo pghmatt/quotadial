@@ -14,7 +14,8 @@ use clap::{Arg, ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{
-    Indicator, Invocation, ProFeature, Provider, ProviderCommand, StatusReport, Tier, collect, text,
+    Indicator, Invocation, ProFeature, Provider, ProviderCommand, ProviderName, StatusReport, Tier,
+    collect, text,
 };
 use quotadial_daemon::{
     AddError, Alerts, Config, DataDir, History, HistoryError, KEEP_DAYS, Licensing, Series,
@@ -180,7 +181,10 @@ pub fn run() -> ExitCode {
         Command::Watch { json } => watch(&providers, json),
         Command::Daemon { port } => daemon(providers, port),
         Command::Mcp => mcp(&providers),
-        Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
+        Command::Alerts { action } => alerts(
+            &providers,
+            action.unwrap_or(AlertsAction::List { json: false }),
+        ),
         Command::Doctor => doctor(&providers),
         Command::Licence { action } => {
             licence(action.unwrap_or(LicenceAction::Show { json: false }))
@@ -211,7 +215,7 @@ fn command<P: AsRef<dyn Provider>>(providers: &[P]) -> clap::Command {
         }
         cli.subcommand(
             clap::Command::new(provider.id())
-                .about(format!("Commands the {} provider adds", provider.id()))
+                .about(format!("Commands the {} provider adds", provider.name()))
                 .subcommand_required(true)
                 .arg_required_else_help(true)
                 .subcommands(commands.iter().map(|own| {
@@ -415,8 +419,13 @@ fn mcp(providers: &[Arc<dyn Provider>]) -> ExitCode {
 }
 
 /// Lists or changes the alert rules. They live in the daemon's history, which a running daemon
-/// reads again at every check, so a change counts within a minute whether or not one runs.
-fn alerts(action: AlertsAction) -> ExitCode {
+/// reads again at every check, so a change counts within a minute whether or not one runs. A rule
+/// narrowed to a provider is read back with the name `providers` give it (P-020).
+fn alerts<P: AsRef<dyn Provider>>(providers: &[P], action: AlertsAction) -> ExitCode {
+    let names: Vec<ProviderName> = providers
+        .iter()
+        .map(|provider| ProviderName::of(provider.as_ref()))
+        .collect();
     let history = match open_history() {
         Ok(history) => history,
         Err(error) => {
@@ -434,14 +443,15 @@ fn alerts(action: AlertsAction) -> ExitCode {
     let written = match action {
         AlertsAction::List { json } => match history.alerts(now, tier) {
             Ok(alerts) if json => write_json(&alerts, &mut stdout),
-            Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &mut stdout),
+            Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &names, &mut stdout),
             Err(error) => return history_failed(&error),
         },
         AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now, tier) {
             Ok(added) => writeln!(
                 stdout,
                 "Added alert rule {}. QuotaDial reads it as: {}.",
-                added.id, added.rule
+                added.id,
+                added.rule.read_as(&names)
             ),
             Err(error @ (AddError::Unread(_) | AddError::Pro)) => {
                 eprintln!("quotadial: {error}");
@@ -806,14 +816,16 @@ fn fix_for(error: &HistoryError) -> &'static str {
      moves it aside and starts a new one with your alert rules"
 }
 
-/// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
-/// what they told lately, with where each went. On QuotaDial Free a kind of rule only Pro checks is
-/// marked as waiting, as [`History::alerts`] says, and webhooks are named as Pro's.
+/// The alert rules, each with what QuotaDial read it as, a provider named as `providers` name it,
+/// where they are sent besides the app, and what they told lately, with where each went. On
+/// QuotaDial Free a kind of rule only Pro checks is marked as waiting, as [`History::alerts`] says,
+/// and webhooks are named as Pro's.
 fn write_alerts(
     alerts: &Alerts,
     config: &Config,
     tier: Tier,
     now: DateTime<Utc>,
+    providers: &[ProviderName],
     out: &mut impl Write,
 ) -> io::Result<()> {
     if alerts.rules.is_empty() {
@@ -827,7 +839,11 @@ fn write_alerts(
             let state = if rule.enabled { "on " } else { "off" };
             let waiting = if rule.waits { " (waits for Pro)" } else { "" };
             writeln!(out, "  {:>3}  {state}  {}{waiting}", rule.id, rule.written)?;
-            writeln!(out, "             read as: {}", rule.rule)?;
+            writeln!(
+                out,
+                "             read as: {}",
+                rule.rule.read_as(providers)
+            )?;
         }
         if alerts.rules.iter().any(|rule| rule.waits) {
             writeln!(out, "{}", ProFeature::AlertRules.line())?;
@@ -1375,13 +1391,14 @@ mod tests {
         }
     }
 
-    /// An account of the provider `id`, which calls itself `name`.
-    fn account_of(id: &str, name: &str) -> Account {
-        Account {
-            provider: id.into(),
-            provider_name: name.into(),
-            ..account()
-        }
+    /// Claude's and Codex's ids and names, as a release's report lists them.
+    fn names() -> Vec<ProviderName> {
+        [("claude", "Claude"), ("codex", "Codex")]
+            .map(|(id, name)| ProviderName {
+                id: id.into(),
+                name: name.into(),
+            })
+            .to_vec()
     }
 
     fn snapshot(account: Account, source: Source) -> Snapshot {
@@ -1433,7 +1450,10 @@ mod tests {
         let value: Value =
             serde_json::from_str(&render(&StatusReport::default(), true)).expect("valid JSON");
 
-        assert_eq!(value, json!({ "snapshots": [], "errors": [] }));
+        assert_eq!(
+            value,
+            json!({ "snapshots": [], "errors": [], "providers": [] })
+        );
     }
 
     #[test]
@@ -1445,6 +1465,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
@@ -1468,6 +1489,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
@@ -1490,6 +1512,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1515,6 +1538,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1566,7 +1590,7 @@ mod tests {
         };
         let mut out = Vec::new();
 
-        write_alerts(&alerts, &config, Tier::Pro, now(), &mut out).expect("writes");
+        write_alerts(&alerts, &config, Tier::Pro, now(), &[], &mut out).expect("writes");
 
         let shown = String::from_utf8(out).expect("UTF-8");
         let expected = [
@@ -1584,6 +1608,42 @@ mod tests {
         ];
         assert_eq!(shown, expected.join("\n"));
         assert!(!shown.contains("XXXXXXXX"));
+    }
+
+    #[test]
+    fn a_rule_narrowed_to_a_provider_is_read_with_the_providers_own_name() {
+        let alerts = Alerts {
+            rules: vec![quotadial_daemon::StoredRule {
+                id: 1,
+                written: "tell me when codex resets".into(),
+                enabled: true,
+                rule: quotadial_core::Rule::parse("tell me when codex resets").expect("reads"),
+                created_at: ts("2099-01-01T00:00:00Z"),
+                waits: false,
+            }],
+            firings: Vec::new(),
+        };
+        let names = [ProviderName {
+            id: "codex".into(),
+            name: "OpenAI Codex".into(),
+        }];
+        let mut out = Vec::new();
+
+        write_alerts(
+            &alerts,
+            &Config::default(),
+            Tier::Pro,
+            now(),
+            &names,
+            &mut out,
+        )
+        .expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(
+            shown.contains("    1  on   tell me when codex resets\n             read as: when any OpenAI Codex window resets\n"),
+            "{shown}"
+        );
     }
 
     fn series(account: &str, window: &str, points: &[(i64, f64)]) -> Series {
@@ -1667,12 +1727,8 @@ mod tests {
                 notes,
             }
         };
-        // Costs come only for providers with accounts, which name them.
         let report = StatusReport {
-            snapshots: vec![
-                snapshot(account_of("claude", "Claude"), Source::Api),
-                snapshot(account_of("codex", "Codex"), Source::Api),
-            ],
+            snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
             status_pages: Vec::new(),
             costs: vec![
@@ -1692,6 +1748,7 @@ mod tests {
             ],
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: names(),
         };
 
         let shown = render(&report, false);
@@ -1717,12 +1774,8 @@ mod tests {
             since: (indicator != Indicator::None).then(|| ts("2099-01-01T00:00:00Z")),
             checked_at: now(),
         };
-        // Status pages come only for providers with accounts, which name them.
         let report = StatusReport {
-            snapshots: vec![
-                snapshot(account_of("claude", "Claude"), Source::Api),
-                snapshot(account_of("codex", "Codex"), Source::Api),
-            ],
+            snapshots: vec![snapshot(account(), Source::Api)],
             errors: Vec::new(),
             status_pages: vec![
                 page("claude", Indicator::None, "All Systems Operational"),
@@ -1731,6 +1784,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: names(),
         };
 
         let shown = render(&report, false);
@@ -1756,6 +1810,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
@@ -1777,6 +1832,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
@@ -1806,6 +1862,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
@@ -1830,6 +1887,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1862,6 +1920,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");
@@ -2017,6 +2076,35 @@ mod tests {
              permission denied\n"
         );
     }
+    #[tokio::test]
+    async fn the_report_lists_every_provider_asked_by_its_id_and_own_name() {
+        let providers: Vec<Box<dyn Provider>> = vec![
+            Box::new(ScriptedProvider {
+                discovery_fails: true,
+                fetch_fails: false,
+                fallback: None,
+            }),
+            Box::new(LeakyProvider { fetch_fails: false }),
+        ];
+
+        let report = collect(&providers).await;
+
+        assert_eq!(
+            report.providers,
+            [
+                ProviderName {
+                    id: "scripted".into(),
+                    name: "Scripted".into(),
+                },
+                ProviderName {
+                    id: "leaky".into(),
+                    name: "Leaky".into(),
+                },
+            ],
+            "one whose discovery failed too"
+        );
+    }
+
     #[tokio::test]
     async fn while_a_daemon_runs_the_cli_asks_it_instead_of_polling() {
         let (_temp, dir) = data_dir();
@@ -2314,6 +2402,11 @@ mod tests {
             .clone();
         let help = group.render_long_help().to_string();
         assert!(help.contains("echo") && help.contains(ECHO_ABOUT), "{help}");
+        assert_eq!(
+            group.get_about().map(ToString::to_string).as_deref(),
+            Some("Commands the Chatty provider adds"),
+            "named as the provider names itself (P-020)"
+        );
     }
 
     #[test]

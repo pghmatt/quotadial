@@ -32,7 +32,7 @@ pub use model::{
     Window, WindowKind,
 };
 pub use pace::{MIN_READINGS, MIN_SPAN, Reading};
-pub use provider::{AccountLimit, Invocation, Provider, ProviderCommand};
+pub use provider::{AccountLimit, Invocation, Provider, ProviderCommand, ProviderName};
 pub use redact::{REDACTED, outside_text, redact_secrets};
 pub use report::{Indicator, LeftOut, ProviderError, StatusPage, StatusReport, collect};
 pub use secret::Secret;

@@ -446,6 +446,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: [("claude", "Claude"), ("codex", "Codex")]
+                .map(|(id, name)| quotadial_core::ProviderName {
+                    id: id.into(),
+                    name: name.into(),
+                })
+                .to_vec(),
         }
     }
 
@@ -565,6 +571,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -761,6 +768,7 @@ mod tests {
                 costs: Vec::new(),
                 left_out: Vec::new(),
                 problems: Vec::new(),
+                providers: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -789,6 +797,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -837,6 +846,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());

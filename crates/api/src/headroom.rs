@@ -159,6 +159,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -206,6 +207,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -240,6 +242,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -265,6 +268,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(rank(&report).accounts[0].headroom_pct, Some(0.0));
@@ -290,6 +294,7 @@ mod tests {
             costs: vec![cost.clone()],
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);

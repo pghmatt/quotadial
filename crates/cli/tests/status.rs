@@ -24,6 +24,27 @@ const ASKS: &str = if EXAMPLE {
     "asks Claude at most every 5 min and Codex at most every 2 min"
 };
 
+/// The providers each build asks, by id and as each names itself (P-020).
+const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
+    &[("fake", "Example")]
+} else if cfg!(feature = "gemini") {
+    &[
+        ("claude", "Claude"),
+        ("codex", "Codex"),
+        ("gemini", "Gemini CLI"),
+    ]
+} else {
+    &[("claude", "Claude"), ("codex", "Codex")]
+};
+
+/// [`PROVIDERS`] as a report lists them.
+fn providers() -> Value {
+    PROVIDERS
+        .iter()
+        .map(|(id, name)| json!({ "id": id, "name": name }))
+        .collect()
+}
+
 /// An empty directory used as the home directory, so no stored login on the machine is found.
 fn empty_home(test: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("quotadial-{test}-{}", std::process::id()));
@@ -102,10 +123,14 @@ fn stdout(output: &Output) -> String {
 /// window an example with its age and its reset.
 fn assert_empty_home_report(report: &Value) {
     if !EXAMPLE {
-        assert_eq!(report, &json!({ "snapshots": [], "errors": [] }));
+        assert_eq!(
+            report,
+            &json!({ "snapshots": [], "errors": [], "providers": providers() })
+        );
         return;
     }
     assert_eq!(report["errors"], json!([]), "{report}");
+    assert_eq!(report["providers"], providers(), "{report}");
     let snapshots = report["snapshots"].as_array().expect("snapshots");
     let plans: Vec<&str> = snapshots
         .iter()
@@ -213,7 +238,8 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
             "left_out": [{
                 "feature": "cost_scan",
                 "text": "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro"
-            }]
+            }],
+            "providers": providers()
         })
     );
 
@@ -495,7 +521,11 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     assert!(!body.contains("snapshots"));
     let report = polled_status(port, &token);
     // QuotaDial Free says what it leaves out; the accounts are what an empty home holds.
-    let accounts = json!({ "snapshots": report["snapshots"], "errors": report["errors"] });
+    let accounts = json!({
+        "snapshots": report["snapshots"],
+        "errors": report["errors"],
+        "providers": report["providers"],
+    });
     assert_empty_home_report(&accounts);
     let (status, body) = get(port, "/v1/headroom", Some(&token));
     assert_eq!(
@@ -600,9 +630,11 @@ fn mcp_answers_an_agent_on_standard_input_and_output() {
         .collect();
     assert_eq!(tools, ["get_usage", "get_account_headroom", "list_alerts"]);
     let usage = &replies[2]["result"]["structuredContent"];
-    assert_empty_home_report(
-        &json!({ "snapshots": usage["snapshots"], "errors": usage["errors"] }),
-    );
+    assert_empty_home_report(&json!({
+        "snapshots": usage["snapshots"],
+        "errors": usage["errors"],
+        "providers": usage["providers"],
+    }));
     assert_eq!(
         replies[3]["result"]["isError"], true,
         "headroom is QuotaDial Pro's"

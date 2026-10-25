@@ -149,8 +149,8 @@ impl Settings {
             .any(|hidden| hidden == provider)
     }
 
-    /// `report` without the providers that are hidden, their accounts, errors, status pages, costs
-    /// and what QuotaDial Free leaves out of them.
+    /// `report` without the providers that are hidden: their names, accounts, errors, status pages,
+    /// costs and what QuotaDial Free leaves out of them.
     #[must_use]
     pub fn shown(&self, report: &StatusReport) -> StatusReport {
         StatusReport {
@@ -186,6 +186,12 @@ impl Settings {
                 .collect(),
             // QuotaDial's own problems belong to no provider.
             problems: report.problems.clone(),
+            providers: report
+                .providers
+                .iter()
+                .filter(|provider| self.shows(&provider.id))
+                .cloned()
+                .collect(),
         }
     }
 }
@@ -367,6 +373,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -383,8 +390,15 @@ mod tests {
         assert!(!settings.shows("codex"));
     }
 
+    fn provider(id: &str, name: &str) -> quotadial_core::ProviderName {
+        quotadial_core::ProviderName {
+            id: id.into(),
+            name: name.into(),
+        }
+    }
+
     #[test]
-    fn a_hidden_providers_status_page_cost_and_held_back_accounts_leave_the_report_too() {
+    fn a_hidden_providers_name_status_page_cost_and_held_back_accounts_leave_the_report_too() {
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
             indicator: quotadial_core::Indicator::Minor,
@@ -415,6 +429,7 @@ mod tests {
                 quotadial_core::LeftOut::feature(ProFeature::CostScan),
             ],
             problems: Vec::new(),
+            providers: vec![provider("claude", "Claude"), provider("codex", "Codex")],
         };
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
@@ -424,6 +439,7 @@ mod tests {
         let shown = settings.shown(&report);
         assert_eq!(shown.status_pages, [page("claude")]);
         assert_eq!(shown.costs, [cost("claude")]);
+        assert_eq!(shown.providers, [provider("claude", "Claude")]);
         assert_eq!(
             shown.left_out,
             [
