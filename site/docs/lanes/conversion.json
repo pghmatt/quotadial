@@ -1,7 +1,17 @@
 {
   "id": "conversion",
   "branch": "site/conversion",
-  "ownedPaths": ["site/app/download", "site/app/pro", "site/app/key", "site/components/conversion"],
-  "routes": ["/download", "/pro", "/key"],
+  "ownedPaths": [
+    "site/app/download",
+    "site/app/pro",
+    "site/app/key",
+    "site/components/conversion",
+    "site/test/conversion.test.ts"
+  ],
+  "routes": [
+    "/download",
+    "/pro",
+    "/key"
+  ],
   "requiredSkills": []
 }

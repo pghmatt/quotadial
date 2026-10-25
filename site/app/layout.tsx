@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en-GB">
-      <body>
+      <body className="flex flex-col">
         <a
           href="#content"
           className="sr-only rounded-chart bg-ink px-4 py-2 text-chart focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-30"
@@ -39,7 +39,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to the content
         </a>
         <Header />
-        <main id="content">{children}</main>
+        <main id="content" className="flex-1">
+          {children}
+        </main>
         <Footer />
         <EventBridge />
       </body>
