@@ -23,8 +23,15 @@ completions in `completions/` and manual pages in `man/` ([CLI.md](CLI.md) says 
 on).
 
 `SHA256SUMS.txt` lists every file's SHA-256, to check a download against. In the folder you
-downloaded to, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` checks it on macOS, and the same
-with `sha256sum` on Linux; on Windows, `Get-FileHash` prints the hash to compare.
+downloaded to, run the line for your system. On macOS and Linux it prints OK beside each file that
+matches; on Windows, PowerShell prints the file's hash, to compare with its line in
+`SHA256SUMS.txt`.
+
+| System | Command |
+| --- | --- |
+| macOS | `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` |
+| Linux | `sha256sum -c SHA256SUMS.txt --ignore-missing` |
+| Windows | `Get-FileHash .\QuotaDial_*.msi` |
 
 ## Package managers
 

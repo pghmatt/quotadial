@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractId": "quotadial-site-2026-10-25",
+  "createdAt": "2026-10-25T03:20:00Z",
+  "surface": {
+    "type": "web",
+    "name": "quotadial.com",
+    "mode": "persuade",
+    "subject": "QuotaDial: a menu bar and tray app, command, local API and MCP server that shows how much of each Claude and ChatGPT/Codex plan limit is used and when it resets",
+    "audience": "Developers who pay for Claude or ChatGPT and work in Claude Code or the Codex CLI, on macOS, Windows or Linux",
+    "job": "Make the offer clear in one screen (every limit and its reset in view, no new sign-in, every system) and get the download; then sell Pro, hand a buyer their key, and answer privacy and support questions",
+    "productTruth": [
+      "PRODUCT.md",
+      "README.md, docs/INSTALL.md, docs/CLI.md, docs/PRIVACY.md, CHANGELOG.md, SECURITY.md in the repository",
+      "docs/seo/site.config.json and docs/seo/blueprints/",
+      "Decisions D-098 (site, no price in the repository) and D-102 (the key page's function)"
+    ]
+  },
+  "scope": {
+    "kind": "new-surface",
+    "modules": [
+      "/ home",
+      "/download",
+      "/pro",
+      "/key",
+      "/privacy",
+      "/support",
+      "/changelog",
+      "404 page",
+      "header",
+      "footer",
+      "brand assets (favicon, icons, share card)",
+      "metadata and schema layer",
+      "event adapter",
+      "deploy workflow"
+    ],
+    "affectedSharedSurfaces": [
+      "site/functions/api/key.ts (called by /key, unchanged)",
+      ".github/workflows/ci.yml site job (builds the site)",
+      "apps/tray/scripts/check-window.mjs (captures the app's window for the site)"
+    ],
+    "excluded": [
+      "Deployment and the domain: built, not deployed, until Matt says",
+      "Docs pages rendered from docs/INSTALL.md and docs/CLI.md (queue item 12)",
+      "Guides per provider for the informational limit searches (later)",
+      "Analytics: no service chosen; events reach a local adapter only"
+    ]
+  },
+  "direction": {
+    "incumbentDisposition": "create",
+    "territory": "The tide table and the almanac: predicted times in tables, curves against a high-water line, nautical chart colours",
+    "rationale": "Assigned by the concept roll (seed recorded in docs/seo/site.config.json) from seven grounded candidates; it carries QuotaDial's distinct fact, prediction of when a limit runs out against when it resets, in the form people have long read predicted times in, and avoids the category's centred Mac-app hero and its dark docs template. The strongest challenger, an oscilloscope bench, was set aside because its phosphor-on-black grammar is the category's own costume.",
+    "signature": "The almanac plate: the real QuotaDial window over a tide table of predictions, under the week's curve meeting the dashed high-water line before the reset mark",
+    "palette": [
+      "Ground chart white #f6f9fb (dark #08131d)",
+      "Ink #0c1d2b (dark #dce9f2); second ink #3b5466 (dark #9fb6c7)",
+      "Shallow field #dcedf6 (dark #0e2233); mid field #b3d7ec (dark #143149)",
+      "Line blue #2f74a6 (dark #5b9fd0), graphics only",
+      "The deep #0b2236 with #e6f1f8 and #a9c3d6 text (dark #040d15)",
+      "Reserved accent chart magenta #a8005f (dark #ff6db5 text, #c2186f fill): the primary action, a runs-out-first prediction, the focus ring and the one caution on the unsigned-build steps; nowhere else"
+    ],
+    "typography": [
+      "Display and headings: Sofia Sans Condensed variable, 650 to 800; its italic for chart labels",
+      "Reading: Sofia Sans variable, 400 and 600, 17 to 18 px, line height 1.55, 65 to 72 characters",
+      "Tables and figures: Sofia Sans Semi Condensed with tabular figures",
+      "Code only: JetBrains Mono variable",
+      "All OFL 1.1, self-hosted through @fontsource-variable 5.3.0"
+    ],
+    "layout": "A 12-column grid, max width 1280 px, 24 px gutters (16 px under 768). Bands of depth tone descend the page; the home hero is split 5 and 7 columns, never centred; sections change layout family down the page (split plate, table, code beside text, three systems in a row of unequal widths, the address list, two lists side by side, questions in two columns)",
+    "motion": "One authored moment, on the home page only: the curve draws to its prediction as the dial's needle sweeps to the share used, about 900 ms ease-out from a visible state; reduced motion shows the final state",
+    "density": "Moderate (4 of 10): tables carry real numbers; reading blocks stay short; generous space between bands",
+    "copyVoice": "Plain, specific and numerate, second person, British English; the product's words (window, reset, sign-in); built from docs/copy/source-library.md under codus-copy",
+    "accessibility": [
+      "WCAG 2.2 AA contrast in light and dark, measured at runtime on every page",
+      "Keyboard reach and visible focus (magenta ring) on every control; skip link",
+      "Every chart has a table equivalent; images of the app have alt text saying they show example accounts",
+      "prefers-reduced-motion removes all movement; nothing cut off at 200% zoom; 390 px with no horizontal scroll"
+    ],
+    "antiDefaults": [
+      "No kicker or eyebrow above a heading",
+      "No cream, parchment or paper ground; no centred hero; no three equal cards; no icon-in-a-square grids",
+      "No gradient text; no photograph under a dark overlay; no neon on black; no monospace outside code",
+      "No nautical clip-art (anchors, ropes, wheels, waves as ornament)",
+      "No interface drawn from divs to look like the app: the real window only",
+      "No price, rating, user count, countdown or testimonial; no 'Get started' or 'Learn more'; no em dashes"
+    ]
+  },
+  "sources": [
+    {
+      "id": "user-updated:impeccable",
+      "kind": "project",
+      "revision": "sha256:770786c46979aaf06015d368b1d86d590dab43902b99e89c3fb004960ee01d69",
+      "role": "Craft floor, the roll, the finish review",
+      "reason": "Always routed; read in full with craft-floor, new-work and init",
+      "reference": "/Users/matthewfowkes/.claude/skills/impeccable"
+    },
+    {
+      "id": "user-updated:anthropic-frontend-design",
+      "kind": "project",
+      "revision": "sha256:404fa218d2bceee72b50221c08cd30987242420d81f9528582e4cbaa2210b7f1",
+      "role": "Originality, subject grounding and the signature",
+      "reason": "A new surface and a new visual world",
+      "reference": "/Users/matthewfowkes/.claude/skills/frontend-design"
+    },
+    {
+      "id": "user-updated:design-taste-frontend",
+      "kind": "project",
+      "revision": "sha256:c036d80362333ae419d8bf2fe4680fa8705881ee9ea14f4501e8d2716c1e1508",
+      "role": "Persuade-surface layout and copy tells",
+      "reason": "A marketing site; its scope fits",
+      "reference": "/Users/matthewfowkes/.claude/skills/design-taste-frontend"
+    },
+    {
+      "id": "quotadial-brand-identity",
+      "kind": "research",
+      "revision": "docs/brand/identity.md 2026-10-25",
+      "role": "Mark, type and colour roles with measured contrast",
+      "reason": "The identity handoff codus-brand-identity requires before the contract",
+      "accessedAt": "2026-10-25T03:15:00Z"
+    }
+  ],
+  "implementation": {
+    "componentSystem": "The site's own primitives (Section, Plate, TideTable, TideCurve, AppShot, Dial, Button, CodeBlock, Notice, Question, Header, Footer) on Next.js App Router exported as static files, Tailwind v4 with every default colour and font cleared, Phosphor icons",
+    "shadcnRole": "not-used",
+    "constraints": [
+      "Static export served by Cloudflare Pages beside functions/api/key.ts; no server code beyond that function",
+      "Dependencies: next, react, react-dom, tailwindcss with @tailwindcss/postcss, @phosphor-icons/react, the four @fontsource-variable faces, and a Markdown renderer for PRIVACY.md and CHANGELOG.md; nothing else without the Brain",
+      "No cookies, no third-party scripts, no analytics service; events go to a local adapter",
+      "No price, no dollar amounts, no 'Pro price', 'lifetime' or 'per month' anywhere in the repository",
+      "Contract, seed and reviewer text never in served HTML or public assets"
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "A1",
+      "statement": "At 390x844 the home page shows the H1 (with claude, usage and tracker), the answer sentence, the download action and the start of the app plate without scrolling",
+      "source": "docs/seo/blueprints/home.md"
+    },
+    {
+      "id": "A2",
+      "statement": "Every page measures WCAG AA contrast for every text and its ground, in light and dark",
+      "source": "PRODUCT.md Accessibility; docs/brand/identity.md"
+    },
+    {
+      "id": "A3",
+      "statement": "No price, rating, user count, countdown or testimonial appears anywhere on the site or in its source",
+      "source": "D-098; PRODUCT.md Evidence on Hand"
+    },
+    {
+      "id": "A4",
+      "statement": "Every picture of the app is a capture of the real QuotaDial window with example accounts, labelled as example",
+      "source": "PRODUCT.md Product Principles"
+    },
+    {
+      "id": "A5",
+      "statement": "/key shows a designed state for no link, checking, the key with a working copy button, and each refusal /api/key can give, in the function's own sentence",
+      "source": "docs/seo/blueprints/key.md; site/lib/key.ts"
+    },
+    {
+      "id": "A6",
+      "statement": "/privacy renders docs/PRIVACY.md and /changelog renders CHANGELOG.md at build time, word for word",
+      "source": "D-106; docs/seo/blueprints/privacy.md and changelog.md"
+    },
+    {
+      "id": "A7",
+      "statement": "Magenta appears only on the primary action, a runs-out-first prediction, the focus ring and the unsigned-build caution",
+      "source": "docs/brand/identity.md"
+    },
+    {
+      "id": "A8",
+      "statement": "With reduced motion, nothing on any page moves",
+      "source": "PRODUCT.md Accessibility"
+    },
+    {
+      "id": "A9",
+      "statement": "seo-check.mjs passes on the production build: one H1 per page, the approved titles, canonicals, required sections, icons and share metadata, robots.txt, sitemap.xml and a 404 status",
+      "source": "docs/seo/site.config.json"
+    },
+    {
+      "id": "A10",
+      "statement": "Every control is reachable by keyboard with a visible focus ring, and the header menu works by keyboard under 768 px",
+      "source": "PRODUCT.md Accessibility"
+    },
+    {
+      "id": "A11",
+      "statement": "Download actions go to QuotaDial's GitHub releases for the visitor's system; /pro's buy action uses the configured checkout link, or says buying opens soon when none is configured",
+      "source": "docs/seo/blueprints/download.md and pro.md"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- QuotaDial's app icon: a dial whose needle shows how much of a limit is used. -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#1c1c1e"/>
+  <!-- The whole dial: 240 degrees, from lower left over the top to lower right. -->
+  <path d="M 252.19 710 A 300 300 0 1 1 771.81 710" fill="none" stroke="#3a3a3c" stroke-width="84" stroke-linecap="round"/>
+  <!-- The part used: 65 percent. -->
+  <path d="M 252.19 710 A 300 300 0 0 1 688.34 317.29" fill="none" stroke="#0a84ff" stroke-width="84" stroke-linecap="round"/>
+  <line x1="512" y1="560" x2="647.19" y2="373.93" stroke="#ffffff" stroke-width="44" stroke-linecap="round"/>
+  <circle cx="512" cy="560" r="60" fill="#ffffff"/>
+</svg>

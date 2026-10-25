@@ -1,0 +1,640 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T06:00:54Z",
+  "title": "Design System: quotadial.com",
+  "extensions": {
+    "colorMeta": {
+      "magenta": {
+        "role": "primary",
+        "displayName": "Chart Magenta",
+        "canonical": "#a8005f",
+        "tonalRamp": [
+          "#1d000c",
+          "#470025",
+          "#770141",
+          "#a90360",
+          "#d33e83",
+          "#fe66a7",
+          "#feb0cc",
+          "#ffe7ef"
+        ]
+      },
+      "magenta-fill": {
+        "role": "primary",
+        "displayName": "Chart Magenta Fill",
+        "canonical": "#a8005f",
+        "tonalRamp": [
+          "#1d000c",
+          "#470025",
+          "#770141",
+          "#a90360",
+          "#d33e83",
+          "#fe66a7",
+          "#feb0cc",
+          "#ffe7ef"
+        ]
+      },
+      "magenta-fill-hover": {
+        "role": "primary",
+        "displayName": "Magenta Fill Hover",
+        "canonical": "color-mix(in srgb, #a8005f 86%, black)"
+      },
+      "on-magenta": {
+        "role": "primary",
+        "displayName": "On Magenta",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "line": {
+        "role": "secondary",
+        "displayName": "Line Blue",
+        "canonical": "#2f74a6",
+        "tonalRamp": [
+          "#000c19",
+          "#012640",
+          "#00436b",
+          "#1a6394",
+          "#4387ba",
+          "#68ace1",
+          "#9bd1fe",
+          "#e1f1fe"
+        ]
+      },
+      "chart": {
+        "role": "neutral",
+        "displayName": "Chart White",
+        "canonical": "#f6f9fb",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222426",
+          "#3e4042",
+          "#5b5e60",
+          "#7e8182",
+          "#a2a5a7",
+          "#c8cbcd",
+          "#eceff1"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "#0c1d2b",
+        "tonalRamp": [
+          "#010c19",
+          "#152634",
+          "#304252",
+          "#4d6071",
+          "#6f8395",
+          "#93a7ba",
+          "#b8cee1",
+          "#e2f1fe"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Second Ink",
+        "canonical": "#3b5466",
+        "tonalRamp": [
+          "#000d18",
+          "#0e2737",
+          "#2a4354",
+          "#486174",
+          "#6a8498",
+          "#8da9bd",
+          "#b2cfe4",
+          "#dff1ff"
+        ]
+      },
+      "shallow": {
+        "role": "neutral",
+        "displayName": "Shallow Field",
+        "canonical": "#dcedf6",
+        "tonalRamp": [
+          "#030d13",
+          "#19262d",
+          "#344249",
+          "#526068",
+          "#74838b",
+          "#97a7b0",
+          "#bdced6",
+          "#e1f2fb"
+        ]
+      },
+      "mid": {
+        "role": "neutral",
+        "displayName": "Mid Field",
+        "canonical": "#b3d7ec",
+        "tonalRamp": [
+          "#000d16",
+          "#062838",
+          "#244455",
+          "#426275",
+          "#648599",
+          "#87aabe",
+          "#add1e5",
+          "#ddf2ff"
+        ]
+      },
+      "deep": {
+        "role": "neutral",
+        "displayName": "The Deep",
+        "canonical": "#0b2236",
+        "tonalRamp": [
+          "#000c1b",
+          "#0f263a",
+          "#2b4258",
+          "#486078",
+          "#6a839c",
+          "#8da8c2",
+          "#b2cee9",
+          "#e2f0fe"
+        ]
+      },
+      "on-deep": {
+        "role": "neutral",
+        "displayName": "On Deep",
+        "canonical": "#e6f1f8",
+        "tonalRamp": [
+          "#060c11",
+          "#1d252a",
+          "#384147",
+          "#565f65",
+          "#788288",
+          "#9ca6ad",
+          "#c2ccd3",
+          "#e5f0f7"
+        ]
+      },
+      "on-deep-2": {
+        "role": "neutral",
+        "displayName": "On Deep Second",
+        "canonical": "#a9c3d6",
+        "tonalRamp": [
+          "#000d18",
+          "#112635",
+          "#2c4352",
+          "#4a6172",
+          "#6b8496",
+          "#8fa8bb",
+          "#b4cfe2",
+          "#e0f1fe"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "color-mix(in srgb, #0c1d2b 18%, transparent)"
+      },
+      "row-band": {
+        "role": "neutral",
+        "displayName": "Row Band",
+        "canonical": "color-mix(in srgb, #0c1d2b 5%, transparent)"
+      },
+      "magenta-night": {
+        "role": "primary",
+        "displayName": "Chart Magenta (night)",
+        "canonical": "#ff6db5",
+        "tonalRamp": [
+          "#1c000e",
+          "#470029",
+          "#750248",
+          "#a60d68",
+          "#d0418c",
+          "#fa69b1",
+          "#ffafd1",
+          "#ffe7f0"
+        ]
+      },
+      "magenta-fill-night": {
+        "role": "primary",
+        "displayName": "Chart Magenta Fill (night)",
+        "canonical": "#c2186f",
+        "tonalRamp": [
+          "#1d000b",
+          "#470024",
+          "#760240",
+          "#aa015f",
+          "#d83581",
+          "#fe67a6",
+          "#ffb0cb",
+          "#ffe7ee"
+        ]
+      },
+      "magenta-fill-hover-night": {
+        "role": "primary",
+        "displayName": "Magenta Fill Hover (night)",
+        "canonical": "color-mix(in srgb, #c2186f 86%, black)"
+      },
+      "line-night": {
+        "role": "secondary",
+        "displayName": "Line Blue (night)",
+        "canonical": "#5b9fd0",
+        "tonalRamp": [
+          "#000d19",
+          "#01273e",
+          "#014469",
+          "#1b6391",
+          "#4387b7",
+          "#68acde",
+          "#98d2fe",
+          "#e1f1fe"
+        ]
+      },
+      "chart-night": {
+        "role": "neutral",
+        "displayName": "Chart White (night)",
+        "canonical": "#08131d",
+        "tonalRamp": [
+          "#030c16",
+          "#1a2530",
+          "#35414d",
+          "#525f6c",
+          "#74828f",
+          "#98a7b5",
+          "#bdcddb",
+          "#e2f1fe"
+        ]
+      },
+      "ink-night": {
+        "role": "neutral",
+        "displayName": "Navy Ink (night)",
+        "canonical": "#dce9f2",
+        "tonalRamp": [
+          "#050c12",
+          "#1c252c",
+          "#374149",
+          "#545f67",
+          "#76828a",
+          "#9aa7af",
+          "#c0cdd5",
+          "#e4f1fa"
+        ]
+      },
+      "ink-2-night": {
+        "role": "neutral",
+        "displayName": "Second Ink (night)",
+        "canonical": "#9fb6c7",
+        "tonalRamp": [
+          "#000d18",
+          "#132633",
+          "#2f4251",
+          "#4c6170",
+          "#6e8393",
+          "#91a8b9",
+          "#b7cee0",
+          "#e0f1fe"
+        ]
+      },
+      "shallow-night": {
+        "role": "neutral",
+        "displayName": "Shallow Field (night)",
+        "canonical": "#0e2233",
+        "tonalRamp": [
+          "#000c1b",
+          "#122637",
+          "#2d4255",
+          "#4a6074",
+          "#6c8398",
+          "#90a8be",
+          "#b5cee5",
+          "#e2f1fe"
+        ]
+      },
+      "mid-night": {
+        "role": "neutral",
+        "displayName": "Mid Field (night)",
+        "canonical": "#143149",
+        "tonalRamp": [
+          "#000c1b",
+          "#08263d",
+          "#25425c",
+          "#43617c",
+          "#6584a0",
+          "#88a9c6",
+          "#adcfed",
+          "#e2f1fe"
+        ]
+      },
+      "deep-night": {
+        "role": "neutral",
+        "displayName": "The Deep (night)",
+        "canonical": "#040d15",
+        "tonalRamp": [
+          "#040c14",
+          "#1a252f",
+          "#35414b",
+          "#535f6a",
+          "#75828d",
+          "#99a7b2",
+          "#becdd9",
+          "#e2f1fd"
+        ]
+      },
+      "rule-night": {
+        "role": "neutral",
+        "displayName": "Rule (night)",
+        "canonical": "color-mix(in srgb, #dce9f2 18%, transparent)"
+      },
+      "row-band-night": {
+        "role": "neutral",
+        "displayName": "Row Band (night)",
+        "canonical": "color-mix(in srgb, #dce9f2 5%, transparent)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The one H1 of every page."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings, at most 24ch wide."
+      },
+      "close": {
+        "displayName": "Close",
+        "purpose": "The closing band's one line on the home page: Condensed 750, 3rem from 768 px and 2.25rem below, at most 22ch wide."
+      },
+      "names-in-a-row": {
+        "displayName": "Names in a row",
+        "purpose": "The three systems' names on the home page and each version on /changelog: Condensed 750 at 2rem, the headline's phone size, at every width."
+      },
+      "ledger-heading": {
+        "displayName": "Ledger heading",
+        "purpose": "The heading inside /pro's ledger plate: Condensed 750, 1.875rem."
+      },
+      "subhead": {
+        "displayName": "Subhead",
+        "purpose": "A heading inside a plate or on the key page, and the second level of rendered Markdown."
+      },
+      "read-aloud": {
+        "displayName": "Read aloud",
+        "purpose": "The one row of a window the home page reads aloud in its plate: Semi Condensed 600, 1.5rem, and 1.75rem from 768 px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "H3s: questions, per-system checks, changelog groups."
+      },
+      "answer": {
+        "displayName": "Answer",
+        "purpose": "The sentence under an H1 that answers it, in Second Ink."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "The paragraph that answers a section heading, in Navy Ink."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Reading text at the 52ch measure (66 to 72 characters)."
+      },
+      "table": {
+        "displayName": "Table",
+        "purpose": "Cells of a table of figures and every row head, on tabular figures."
+      },
+      "table-head": {
+        "displayName": "Table head",
+        "purpose": "Column heads, in Second Ink and normal case."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "What a figure shows, set in italic in Second Ink."
+      },
+      "plate-title": {
+        "displayName": "Plate title",
+        "purpose": "A plate's name at its head and the curve's notes, set in italic in Second Ink."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Button labels; navigation links at weight 600."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Code, commands, file names and network addresses, with ligatures off."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "draw",
+        "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The site's one authored motion: the home page's tide curve draws itself once on load, from a visible state. Reduced motion shows the finished drawing."
+      },
+      {
+        "name": "colour-change",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Hover colour changes on buttons, the primary fill darkening and the secondary tint."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0s",
+        "purpose": "Under prefers-reduced-motion every animation and transition duration is zero, so nothing moves."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one magenta action in a view; a download names the visitor's system.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\"><svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z\"/></svg>Download for macOS</a>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-chart, 2px); background: var(--magenta-fill, #a8005f); color: var(--on-magenta, #ffffff); font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 650; line-height: 1; white-space: nowrap; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary svg { width: 20px; height: 20px; flex: none; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--magenta-fill, #a8005f) 86%, black); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A 1 px outline in the current text colour, exactly as tall as the primary.",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">See what Pro adds</a>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border: 1px solid currentColor; border-radius: var(--radius-chart, 2px); background: transparent; color: var(--ink, #0c1d2b); font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 650; line-height: 1; white-space: nowrap; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-secondary:hover { background: color-mix(in srgb, currentColor 8%, transparent); } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Link",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "An underlined action beside the primary; the underline thickens on hover.",
+      "html": "<a class=\"ds-btn-text\" href=\"#\">Read the install guide</a>",
+      "css": ".ds-btn-text { display: inline-flex; align-items: center; gap: 8px; color: var(--ink, #0c1d2b); font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 650; line-height: 1; white-space: nowrap; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; } .ds-btn-text:hover { text-decoration-thickness: 2px; } .ds-btn-text:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Header",
+      "kind": "nav",
+      "refersTo": "header",
+      "description": "One line, 64 px tall: the mark and wordmark, four links, and GitHub.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-header-home\" href=\"#\" aria-label=\"QuotaDial, home\"><svg class=\"ds-mark\" viewBox=\"0 0 1024 1024\" aria-hidden=\"true\"><rect x=\"64\" y=\"64\" width=\"896\" height=\"896\" rx=\"200\" fill=\"#1c1c1e\"/><path d=\"M 252.19 710.00 A 300 300 0 1 1 771.81 710.00\" fill=\"none\" stroke=\"#3a3a3c\" stroke-width=\"84\" stroke-linecap=\"round\"/><path d=\"M 252.19 710.00 A 300 300 0 0 1 688.34 317.29\" fill=\"none\" stroke=\"#0a84ff\" stroke-width=\"84\" stroke-linecap=\"round\"/><line x1=\"512\" y1=\"560\" x2=\"512\" y2=\"330\" stroke=\"#ffffff\" stroke-width=\"44\" stroke-linecap=\"round\" transform=\"rotate(36.0 512 560)\"/><circle cx=\"512\" cy=\"560\" r=\"60\" fill=\"#ffffff\"/></svg><span class=\"ds-wordmark\">QuotaDial</span></a><div class=\"ds-header-end\"><nav aria-label=\"Main\"><ul class=\"ds-nav\"><li><a href=\"#\" aria-current=\"page\">Download</a></li><li><a href=\"#\">Pro</a></li><li><a href=\"#\">Privacy</a></li><li><a href=\"#\">Changelog</a></li></ul></nav><a class=\"ds-header-github\" href=\"#\" aria-label=\"QuotaDial on GitHub\"><svg class=\"ds-github\" viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z\"/></svg><span>GitHub</span></a></div></header>",
+      "css": ".ds-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; padding: 0 24px; background: var(--chart, #f6f9fb); color: var(--ink, #0c1d2b); border-bottom: 1px solid var(--rule, color-mix(in srgb, #0c1d2b 18%, transparent)); } .ds-header-home { display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; } .ds-mark { width: 30px; height: 30px; flex: none; } .ds-wordmark { font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.375rem; font-weight: 750; line-height: 1; letter-spacing: -0.01em; } .ds-header-end { display: flex; align-items: center; gap: 24px; } .ds-nav { display: flex; align-items: center; gap: 24px; margin: 0; padding: 0; list-style: none; } .ds-nav a { display: block; padding: 8px 0; color: inherit; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 600; text-decoration: none; text-decoration-thickness: 2px; text-underline-offset: 0.3em; } .ds-nav a:hover, .ds-nav a[aria-current=\"page\"] { text-decoration-line: underline; } .ds-header-github { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 600; } .ds-header-github:hover { text-decoration: underline; } .ds-github { width: 24px; height: 24px; flex: none; } .ds-header a:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Plate",
+      "kind": "card",
+      "refersTo": "plate",
+      "description": "The container in place of cards: a figure on a field, framed by a neatline with a graduated scale, titled at its head and captioned beneath.",
+      "html": "<figure class=\"ds-plate\"><span class=\"ds-neatline\" aria-hidden=\"true\"></span><svg class=\"ds-scale ds-scale-top\" aria-hidden=\"true\" shape-rendering=\"crispEdges\"><line class=\"ds-tick\" x1=\"0\" y1=\"7\" x2=\"100%\" y2=\"7\"/><line class=\"ds-tick-long\" x1=\"0\" y1=\"5\" x2=\"100%\" y2=\"5\"/></svg><svg class=\"ds-scale ds-scale-bottom\" aria-hidden=\"true\" shape-rendering=\"crispEdges\"><line class=\"ds-tick\" x1=\"0\" y1=\"7\" x2=\"100%\" y2=\"7\"/><line class=\"ds-tick-long\" x1=\"0\" y1=\"5\" x2=\"100%\" y2=\"5\"/></svg><svg class=\"ds-scale ds-scale-left\" aria-hidden=\"true\" shape-rendering=\"crispEdges\"><line class=\"ds-tick\" x1=\"7\" y1=\"0\" x2=\"7\" y2=\"100%\"/><line class=\"ds-tick-long\" x1=\"5\" y1=\"0\" x2=\"5\" y2=\"100%\"/></svg><svg class=\"ds-scale ds-scale-right\" aria-hidden=\"true\" shape-rendering=\"crispEdges\"><line class=\"ds-tick\" x1=\"7\" y1=\"0\" x2=\"7\" y2=\"100%\"/><line class=\"ds-tick-long\" x1=\"5\" y1=\"0\" x2=\"5\" y2=\"100%\"/></svg><div class=\"ds-plate-body\"><p class=\"ds-plate-title\">One row of the window, read aloud</p><p class=\"ds-plate-figure\">Weekly 91%, resets in <span class=\"ds-whole\">1 d 15 h</span>, from the API <span class=\"ds-whole\">3 min ago</span>; <span class=\"ds-plate-caution\">at 2.0%/h, runs out in <span class=\"ds-whole\">4 h 30 min</span></span></p><figcaption class=\"ds-caption\">Example accounts. One row from Claude Work's weekly window, Tuesday 14:10.</figcaption></div></figure>",
+      "css": ".ds-plate { position: relative; margin: 0; padding: 28px; border-radius: var(--radius-chart, 2px); background: var(--shallow, #dcedf6); color: var(--ink, #0c1d2b); } .ds-neatline { position: absolute; inset: 8px; border: 1px solid color-mix(in srgb, var(--line, #2f74a6) 55%, transparent); pointer-events: none; } .ds-scale { position: absolute; pointer-events: none; } .ds-scale-top { top: 0; left: 8px; width: calc(100% - 16px); height: 8px; } .ds-scale-bottom { bottom: 0; left: 8px; width: calc(100% - 16px); height: 8px; transform: rotate(180deg); } .ds-scale-left { left: 0; top: 8px; width: 8px; height: calc(100% - 16px); } .ds-scale-right { right: 0; top: 8px; width: 8px; height: calc(100% - 16px); transform: rotate(180deg); } .ds-tick { stroke: var(--line, #2f74a6); stroke-opacity: 0.45; stroke-width: 3; stroke-dasharray: 1 11; } .ds-tick-long { stroke: var(--line, #2f74a6); stroke-opacity: 0.6; stroke-width: 6; stroke-dasharray: 1 59; } .ds-plate-body { position: relative; } .ds-plate-title { margin: 0 0 16px; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1rem; font-style: italic; font-weight: 650; line-height: 1.3; color: var(--ink-2, #3b5466); } .ds-plate-figure { margin: 0; font-family: \"Sofia Sans Semi Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.5rem; font-weight: 600; line-height: 1.25; } .ds-plate-caution { color: var(--magenta, #a8005f); } .ds-whole { white-space: nowrap; } .ds-caption { margin-top: 16px; font-family: \"Sofia Sans Semi Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 0.9375rem; font-style: italic; color: var(--ink-2, #3b5466); }"
+    },
+    {
+      "name": "Tide Table",
+      "kind": "custom",
+      "refersTo": "tide-table",
+      "description": "Predictions set like a tide table: words left, figures and times right, rows banded by what they belong to, a runs-out-first cell in magenta and in words.",
+      "html": "<table class=\"ds-tide-table\"><caption>Each example window, with its share used, its reset and what its pace says</caption><thead><tr><th scope=\"col\">Window</th><th scope=\"col\">Used</th><th scope=\"col\">Resets</th><th scope=\"col\">At this pace</th></tr></thead><tbody><tr><th scope=\"row\">Claude Weekly</th><td>91%</td><td>Thu 06:00</td><td class=\"ds-caution\">Runs out Tue 18:40</td></tr><tr><th scope=\"row\">Claude Session</th><td>38%</td><td>Today 16:20</td><td>Lasts to the reset</td></tr></tbody><tbody class=\"ds-band\"><tr><th scope=\"row\">Codex Weekly</th><td>46%</td><td>Sun 17:10</td><td>Lasts to the reset</td></tr></tbody></table>",
+      "css": ".ds-tide-table { width: 100%; border-collapse: collapse; font-family: \"Sofia Sans Semi Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1rem; line-height: 1.35; font-variant-numeric: tabular-nums; color: var(--ink, #0c1d2b); } .ds-tide-table caption { margin-bottom: 8px; text-align: left; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.125rem; font-weight: 700; } .ds-tide-table th, .ds-tide-table td { text-align: right; white-space: nowrap; } .ds-tide-table th:first-child, .ds-tide-table td:first-child { text-align: left; } .ds-tide-table thead th { padding: 0 12px 8px; font-size: 0.875rem; font-weight: 600; color: var(--ink-2, #3b5466); } .ds-tide-table tbody th, .ds-tide-table tbody td { padding: 8px 12px; vertical-align: top; } .ds-tide-table tbody th { font-weight: 600; } .ds-tide-table .ds-band { background: color-mix(in srgb, var(--ink, #0c1d2b) 5%, transparent); } .ds-tide-table .ds-caution { font-weight: 650; color: var(--magenta, #a8005f); }"
+    },
+    {
+      "name": "Tide Curve",
+      "kind": "custom",
+      "description": "The signature drawing: a window's share used climbing to the dashed high-water line, its magenta prediction meeting 100% before the reset mark. It draws once on load; reduced motion shows the finished drawing.",
+      "html": "<svg class=\"ds-tide-curve\" viewBox=\"0 0 640 314\" role=\"img\" aria-label=\"Claude's weekly window, example accounts: 91% used on Tuesday at 14:10, filling at 2.0% an hour, so it reaches 100% on Tuesday at 18:40, long before it resets on Thursday at 06:00\"><line class=\"ds-grid\" x1=\"104.9\" x2=\"104.9\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"186.0\" x2=\"186.0\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"267.1\" x2=\"267.1\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"348.3\" x2=\"348.3\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"429.4\" x2=\"429.4\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"510.6\" x2=\"510.6\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"591.7\" x2=\"591.7\" y1=\"44\" y2=\"252\"/><line class=\"ds-grid\" x1=\"44\" x2=\"612\" y1=\"200.0\" y2=\"200.0\"/><line class=\"ds-grid\" x1=\"44\" x2=\"612\" y1=\"148.0\" y2=\"148.0\"/><line class=\"ds-grid\" x1=\"44\" x2=\"612\" y1=\"96.0\" y2=\"96.0\"/><line class=\"ds-axis\" x1=\"44\" x2=\"612\" y1=\"252\" y2=\"252\"/><line class=\"ds-high-water\" x1=\"44\" x2=\"612\" y1=\"44.0\" y2=\"44.0\"/><text class=\"ds-note ds-note-ink\" x=\"44\" y=\"30.0\">High water: 100%</text><line class=\"ds-reset\" x1=\"612.0\" x2=\"612.0\" y1=\"38.0\" y2=\"256\"/><text class=\"ds-note ds-note-reset\" x=\"612.0\" y=\"294\" text-anchor=\"end\">Resets Thu 06:00</text><polygon class=\"ds-water\" points=\"44.0,252 44.0,252.0 77.8,239.5 104.9,233.3 145.4,210.4 186.0,202.1 267.1,187.5 314.5,160.5 348.3,154.2 395.6,127.2 429.4,114.7 449.7,96.0 463.2,79.4 476.8,62.7 476.8,252\"/><polyline class=\"ds-share\" points=\"44.0,252.0 77.8,239.5 104.9,233.3 145.4,210.4 186.0,202.1 267.1,187.5 314.5,160.5 348.3,154.2 395.6,127.2 429.4,114.7 449.7,96.0 463.2,79.4 476.8,62.7\" pathLength=\"1\"/><line class=\"ds-prediction\" x1=\"476.8\" y1=\"62.7\" x2=\"492.0\" y2=\"44.0\"/><circle class=\"ds-prediction-dot\" cx=\"492.0\" cy=\"44.0\" r=\"5\"/><text class=\"ds-note ds-note-magenta\" x=\"612\" y=\"30.0\" text-anchor=\"end\">Runs out Tue 18:40</text><text class=\"ds-axis-label\" x=\"109.9\" y=\"271\">Fri</text><text class=\"ds-axis-label\" x=\"191.0\" y=\"271\">Sat</text><text class=\"ds-axis-label\" x=\"272.1\" y=\"271\">Sun</text><text class=\"ds-axis-label\" x=\"353.3\" y=\"271\">Mon</text><text class=\"ds-axis-label\" x=\"434.4\" y=\"271\">Tue</text><text class=\"ds-axis-label\" x=\"515.6\" y=\"271\">Wed</text><text class=\"ds-axis-label\" x=\"596.7\" y=\"271\">Thu</text><text class=\"ds-axis-label\" x=\"37\" y=\"256.0\" text-anchor=\"end\">0%</text><text class=\"ds-axis-label\" x=\"37\" y=\"152.0\" text-anchor=\"end\">50%</text><text class=\"ds-axis-label\" x=\"37\" y=\"48.0\" text-anchor=\"end\">100%</text></svg>",
+      "css": ".ds-tide-curve { display: block; width: 100%; height: auto; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; } .ds-grid { stroke: var(--rule, color-mix(in srgb, #0c1d2b 18%, transparent)); stroke-width: 1; } .ds-axis { stroke: var(--ink-2, #3b5466); stroke-width: 1; } .ds-high-water { stroke: var(--ink, #0c1d2b); stroke-width: 1.5; stroke-dasharray: 6 5; } .ds-reset { stroke: var(--ink-2, #3b5466); stroke-width: 1.5; } .ds-water { fill: var(--mid, #b3d7ec); opacity: 0.7; } .ds-share { fill: none; stroke: var(--line, #2f74a6); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; } .ds-prediction { stroke: var(--magenta, #a8005f); stroke-width: 2.5; stroke-dasharray: 5 5; stroke-linecap: round; } .ds-prediction-dot { fill: var(--magenta, #a8005f); } .ds-note { font-size: 15px; font-style: italic; } .ds-note-ink { fill: var(--ink, #0c1d2b); font-weight: 600; } .ds-note-reset { fill: var(--ink-2, #3b5466); } .ds-note-magenta { fill: var(--magenta, #a8005f); font-weight: 650; } .ds-axis-label { fill: var(--ink-2, #3b5466); font-family: \"Sofia Sans Semi Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 13px; } @media (prefers-reduced-motion: no-preference) { .ds-share { animation: ds-draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; } } @keyframes ds-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }"
+    },
+    {
+      "name": "Code Block",
+      "kind": "custom",
+      "refersTo": "code-block",
+      "description": "Commands on the mid field in JetBrains Mono with ligatures off, wrapping on a phone, with a copy button under the code.",
+      "html": "<div class=\"ds-code-block\"><pre><code>claude mcp add quotadial -- quotadial mcp\ncodex mcp add quotadial -- quotadial mcp</code></pre><button type=\"button\" class=\"ds-btn-copy\"><svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z\"/></svg>Copy the commands</button></div>",
+      "css": ".ds-code-block { padding: 16px; border-radius: var(--radius-chart, 2px); background: var(--mid, #b3d7ec); color: var(--ink, #0c1d2b); } .ds-code-block pre { margin: 0; font-family: \"JetBrains Mono Variable\", ui-monospace, Menlo, Consolas, monospace; font-size: 0.9375rem; line-height: 1.6; font-variant-ligatures: none; white-space: pre-wrap; overflow-wrap: anywhere; } .ds-btn-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 16px; border: 1px solid currentColor; border-radius: var(--radius-chart, 2px); background: transparent; color: inherit; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.0625rem; font-weight: 650; cursor: pointer; } .ds-btn-copy svg { width: 18px; height: 18px; flex: none; } .ds-btn-copy:focus-visible { outline: 2px solid var(--magenta, #a8005f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "A box for steps that carry a caution: a hairline all round, never a side rail, its one caution sentence in magenta.",
+      "html": "<aside class=\"ds-notice\" aria-label=\"Today's builds are not signed\"><p class=\"ds-notice-title\">Today's builds are not signed</p><p class=\"ds-notice-caution\">Follow the steps for your system, and only for a build from QuotaDial's GitHub.</p></aside>",
+      "css": ".ds-notice { padding: 24px; border: 1px solid var(--rule, color-mix(in srgb, #0c1d2b 18%, transparent)); border-radius: var(--radius-chart, 2px); color: var(--ink, #0c1d2b); } .ds-notice-title { margin: 0 0 8px; font-family: \"Sofia Sans Condensed Variable\", \"Arial Narrow\", sans-serif; font-size: 1.25rem; font-weight: 700; } .ds-notice-caution { margin: 0; font-family: \"Sofia Sans Variable\", \"Helvetica Neue\", Arial, sans-serif; font-size: 1.0625rem; line-height: 1.55; color: var(--magenta, #a8005f); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Tide Almanac",
+    "overview": "The site reads every plan limit the way an almanac reads the tide: as a predicted time. When a window resets, and when it would run out at the pace it is going, are set in tables of tabular figures and on curves that climb towards a dashed high-water line at 100%. The look is the nautical chart's own. Flat fields of chart blue, fine vector line work and navy ink carry everything, and one chart magenta is held back for the action and for cautions, much as a chart keeps magenta for its lights and warnings.\n\nEach page descends as it scrolls, from chart white through the shallow and mid blue fields to the navy deep of the closing band and footer, one tone to a band. Sofia Sans carries every word in three widths: condensed for headings, actions and chart labels, regular for reading, semi-condensed with tabular figures for tables and captions. Density is moderate: tables carry real numbers, reading blocks stay short, and generous space separates the bands. The only pictures are captures of the real QuotaDial window with example accounts. Light and dark follow the visitor's system as the day chart and the night chart, and every colour token has its night pair.\n\nThe system rejects the usage-tracker category's centred app hero with a floating popover, the dark documentation template with icon cards, the cream almanac with a serif display and hairlines, and nautical ornament of every kind.",
+    "keyCharacteristics": [
+      "Predicted times in tables and curves, read against a dashed high-water line at 100%.",
+      "Depth bands that descend each page from chart white to the navy deep.",
+      "One reserved accent, chart magenta, in four places and nowhere else.",
+      "Sofia Sans in three widths for every word; JetBrains Mono only for code, commands, file names and addresses.",
+      "Flat fields and hairline line work: no shadows, and a 2 px corner on every box.",
+      "Plates framed with a neatline and a graduated scale, in place of cards."
+    ],
+    "rules": [
+      {
+        "name": "The Four Places Rule",
+        "body": "Magenta appears in exactly four places: the primary action's fill, a runs-out-first prediction, the focus ring and the unsigned-build caution. Never on a heading, a name, a link in running text or decoration, and never as text on the Row Band over Mid Field, where it falls to 4.47:1.",
+        "section": "colors"
+      },
+      {
+        "name": "The Words First Rule",
+        "body": "Magenta never carries a meaning alone. A runs-out-first cell says \"Runs out Tue 18:40\" in words, and the curve's magenta prediction ends in its label.",
+        "section": "colors"
+      },
+      {
+        "name": "The Line Blue Rule",
+        "body": "Line blue draws and never writes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Widths Rule",
+        "body": "Condensed speaks, regular reads, semi-condensed counts. Headings, actions, labels and chart notes are condensed; paragraphs and the sentences in a table of words are regular; figures, times, table heads, row heads and captions are semi-condensed. A width never takes another width's job.",
+        "section": "typography"
+      },
+      {
+        "name": "The True Italic Rule",
+        "body": "A width that slopes loads its own italic file beside its upright, from the same package. The browser never invents a slope, and code, which has no italic, never slopes.",
+        "section": "typography"
+      },
+      {
+        "name": "The Unbroken Time Rule",
+        "body": "A time, a duration or a file name in a table never breaks across two lines (\"Tue 18:40\", \"1 d 15 h\", \"QuotaDial_<version>_universal.dmg\"). When a column cannot hold them whole, the layout changes and the time does not: on a phone the home table sets each row as two lines, and the files table stacks each file under its system. In running text a long file name may break only after an underscore or a hyphen.",
+        "section": "typography"
+      },
+      {
+        "name": "The Reading Measure Rule",
+        "body": "Reading text holds 66 to 72 characters a line: the measure token, 52ch (`--container-measure`). A ch is the width of a zero, wider than Sofia Sans' average letter, which is why 52ch gives 66 to 72 characters.",
+        "section": "typography"
+      },
+      {
+        "name": "The Descent Rule",
+        "body": "Bands descend: chart white first, then shallow, then mid, then the deep for the close and the footer. One tone to a band, and no page climbs back towards white.",
+        "section": "layout"
+      },
+      {
+        "name": "The Unequal Columns Rule",
+        "body": "Things that come in threes sit in columns of unequal width (5:4:6 on the home page, 4:3:5 on the download page), never in three equal cards.",
+        "section": "layout"
+      },
+      {
+        "name": "The Changing Family Rule",
+        "body": "Down the home page no two sections in a row share a layout family; a new long page keeps the same habit, so it never reads as a template.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Chart Rule",
+        "body": "Depth comes from field tone and line work, never from shadow. A surface that needs to stand forward takes a different field or a neatline.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Pixel Rule",
+        "body": "Every box (a button, a plate, a code block, a notice) takes a 2 px corner. No pills and no soft rounded cards; the only round forms are the curve's prediction dot and the mark.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Neatline Rule",
+        "body": "Every plate is framed as a chart plate is: a hairline neatline 8 px in, with a graduated scale in the margin, drawn as line work and never as texture or a bevel.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do keep magenta to its four places: the primary fill, a runs-out-first prediction, the focus ring and the unsigned-build caution.",
+      "Do band table rows by what they belong to (a provider, a system, an account), alternating the Row Band tint group by group.",
+      "Do align words left and figures and times right in every table, on tabular figures.",
+      "Do frame every plate with its neatline and graduated scale, and name a titled plate at its head in condensed italic.",
+      "Do descend the bands down the page: chart white, shallow, mid, then the deep for the close and the footer.",
+      "Do say every caution in words as well as in magenta.",
+      "Do keep a time on one line, and change the layout when a column cannot hold it.",
+      "Do keep reading text at the reading measure, 52ch (66 to 72 characters).",
+      "Do show the app only as a real capture matched to the theme, captioned as example accounts.",
+      "Do keep motion to one authored moment, the home curve drawing once in 900 ms, with reduced motion showing the end state."
+    ],
+    "donts": [
+      "Don't stripe rows by position or rule a line under every row.",
+      "Don't set a label, a kicker or a plate title above a heading; a heading carries itself.",
+      "Don't use magenta on a heading, a name, a link in running text or decoration.",
+      "Don't set Line Blue as text.",
+      "Don't cast a shadow, blur a surface or use glass.",
+      "Don't round a box past 2 px: no pill buttons and no soft cards.",
+      "Don't use a cream, parchment or warm paper ground; the ground is a cool chart white.",
+      "Don't draw nautical ornament (anchors, rope, ship's wheels, waves as decoration); a curve on this site always plots real numbers.",
+      "Don't centre the first screen, or lay content out as three equal cards or icon-in-a-square grids.",
+      "Don't use gradient text, neon on black, or monospace outside code, commands, file names and addresses.",
+      "Don't draw an interface out of boxes to look like the app.",
+      "Don't reveal sections on scroll or add a second moving moment.",
+      "Don't fold answers into an accordion.",
+      "Don't recolour or redraw the mark."
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "home",
+  "branch": "site/home",
+  "ownedPaths": [
+    "site/app/page.tsx",
+    "site/components/home",
+    "site/test/home.test.ts"
+  ],
+  "routes": [
+    "/"
+  ],
+  "requiredSkills": []
+}
