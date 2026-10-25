@@ -3,6 +3,7 @@ import "@fontsource-variable/sofia-sans/wght-italic.css";
 import "@fontsource-variable/sofia-sans-condensed";
 import "@fontsource-variable/sofia-sans-condensed/wght-italic.css";
 import "@fontsource-variable/sofia-sans-semi-condensed";
+import "@fontsource-variable/sofia-sans-semi-condensed/wght-italic.css";
 import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
