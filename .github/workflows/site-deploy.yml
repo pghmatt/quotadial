@@ -10,6 +10,9 @@ name: Site deploy
 # the Pro page says buying opens soon.
 
 on:
+  # Publishing the release the site waits for publishes the site, through the same gate.
+  release:
+    types: [published]
   push:
     branches: [main]
     paths:
@@ -61,7 +64,10 @@ jobs:
       run:
         working-directory: site
     steps:
+      # main's site, whatever started the run: a release's tag can be older than main.
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - uses: actions/setup-node@v7
         with:
           node-version: 22
