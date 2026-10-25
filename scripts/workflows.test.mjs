@@ -1,13 +1,15 @@
 // Runs workflow steps' own shell on this machine, as GitHub runs it, with CI's other script tests:
 // the Release workflow's step that writes latest.json, the copies without the version and the
-// checksums, on a release laid out as its publish job downloads it; and the site deploy gate,
-// against GitHub's answers given by a fake `gh`. Nothing here uses the network.
+// checksums, on a release laid out as its publish job downloads it, with archives its Package step
+// made; docs/INSTALL.md's lines for the command alone, against that release; and the site deploy
+// gate, against GitHub's answers given by a fake `gh`. Nothing here uses the network.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -19,7 +21,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { NAMES, latestNames } from "./latest-names.mjs";
 
@@ -81,12 +83,15 @@ function checks(cwd, ...args) {
 
 const ok = (name) => new RegExp(`^${name.replaceAll(".", "\\.")}: OK$`, "m");
 
-test("the release's SHA256SUMS.txt lists both names of each download, and latest.json the versioned one", () => {
-  // The step runs in a checkout, with the release in dist/ as the download step leaves it: the
-  // command's archives and the msi at the top, and the dmg, the deb, the AppImage and the update for
-  // macOS in their bundle's folder, the update still named as `tauri build` names it. The scripts
-  // are copied in, as a checkout has them.
-  const work = folder();
+/**
+ * Publishes v0.2.0 from `work`, a checkout: lays the release out in dist/ as the download step
+ * leaves it, keeping any file already there (an archive the Package step made), and runs the step
+ * that writes latest.json, the copies without the version and SHA256SUMS.txt. The command's archives
+ * and the msi are at the top, and the dmg, the deb, the AppImage and the update for macOS in their
+ * bundle's folder, the update still named as `tauri build` names it. The scripts are copied in, as a
+ * checkout has them. Gives each file the release carries, by name.
+ */
+function publish(work) {
   cpSync(join(ROOT, "scripts"), join(work, "scripts"), { recursive: true });
   copyFileSync(join(ROOT, "CHANGELOG.md"), join(work, "CHANGELOG.md"));
   const signed = [
@@ -106,7 +111,9 @@ test("the release's SHA256SUMS.txt lists both names of each download, and latest
   ];
   for (const path of [...signed, ...unsigned]) {
     mkdirSync(join(work, "dist", dirname(path)), { recursive: true });
-    writeFileSync(join(work, "dist", path), `the bytes of ${path}`);
+    if (!existsSync(join(work, "dist", path))) {
+      writeFileSync(join(work, "dist", path), `the bytes of ${path}`);
+    }
   }
   for (const path of signed) {
     writeFileSync(join(work, "dist", `${path}.sig`), signature(basename(path), "0.2.0"));
@@ -117,11 +124,16 @@ test("the release's SHA256SUMS.txt lists both names of each download, and latest
   assert.equal(ran.status, 0, ran.stderr);
   assert.match(ran.stdout, /Wrote dist\/latest\.json for 0\.2\.0/);
 
-  const released = new Map(
+  return new Map(
     readdirSync(join(work, "dist"), { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => [entry.name, join(entry.parentPath, entry.name)]),
   );
+}
+
+test("the release's SHA256SUMS.txt lists both names of each download, and latest.json the versioned one", () => {
+  const work = folder();
+  const released = publish(work);
   const sums = new Map(
     readFileSync(released.get("SHA256SUMS.txt"), "utf8")
       .trimEnd()
@@ -170,6 +182,189 @@ test("the release's SHA256SUMS.txt lists both names of each download, and latest
   assert.equal(copy.status, 0, copy.stdout + copy.stderr);
   assert.equal(copy.stdout.trim(), "QuotaDial_universal.dmg: OK");
 });
+
+/**
+ * Makes the command's archive for `target` in `work` with the Release workflow's own Package step,
+ * from stand-ins for the two programs that print their name: `dist/quotadial-v0.2.0-<target>.tar.gz`,
+ * holding `quotadial-v0.2.0-<target>/` as a release's archive does. Gives what each program says.
+ */
+function packaged(work, target) {
+  const built = join(work, "target", target, "release");
+  mkdirSync(built, { recursive: true });
+  for (const program of ["quotadial", "qd"]) {
+    writeFileSync(join(built, program), `#!/bin/sh\necho "${program} 0.2.0 for ${target}"\n`, { mode: 0o755 });
+  }
+  for (const file of ["README.md", "LICENSE", "NOTICE"]) {
+    copyFileSync(join(ROOT, file), join(work, file));
+  }
+  cpSync(join(ROOT, "packaging"), join(work, "packaging"), { recursive: true });
+  const ran = bash(shell("release.yml", "Package"), work, { TARGET: target, GITHUB_REF_TYPE: "tag", GITHUB_REF_NAME: "v0.2.0" });
+  assert.equal(ran.status, 0, ran.stderr);
+  return { quotadial: `quotadial 0.2.0 for ${target}`, qd: `qd 0.2.0 for ${target}` };
+}
+
+const LATEST = "https://github.com/pghmatt/quotadial/releases/latest/download/";
+const GUIDE = readFileSync(join(ROOT, "docs/INSTALL.md"), "utf8");
+
+/** docs/INSTALL.md's lines for the command alone: the first `sh` block of that section. */
+function installLines() {
+  const section = GUIDE.split("\n### The command alone\n")[1]?.split(/\n#{1,3} /)[0];
+  assert.ok(section, "docs/INSTALL.md has no section The command alone");
+  const lines = section.match(/^```sh\n([\s\S]*?)\n```$/m)?.[1];
+  assert.ok(lines, "The command alone has no sh block");
+  return lines;
+}
+
+/** The command docs/INSTALL.md's check table gives `system`. */
+function checkLine(system) {
+  const command = GUIDE.match(new RegExp(`^\\| ${system} \\| \`([^\`]+)\` \\|$`, "m"))?.[1];
+  assert.ok(command, `docs/INSTALL.md's check table has no line for ${system}`);
+  return command;
+}
+
+/** The shells a reader may paste the lines into that this machine has: zsh is macOS's own. */
+const SHELLS = ["sh", "bash", "zsh"].filter((name) => spawnSync(name, ["-c", "exit 0"]).status === 0);
+
+/**
+ * Runs `lines` in `shell` as a reader pastes them, with three changes only: the release in `dist`
+ * in place of GitHub's newest full release, `bin` in place of /usr/local/bin, and no sudo. `bin`
+ * does not exist until the lines make it, as /usr/local/bin does not on a new Apple silicon Mac.
+ * Gives the run, the folder the lines worked in, and what they installed.
+ */
+function paste(lines, shell, dist) {
+  const bin = join(folder(), "bin");
+  const local = lines
+    .replaceAll(LATEST, `${pathToFileURL(dist).href}/`)
+    .replaceAll("sudo mkdir -p /usr/local/bin ", `mkdir -p ${bin} `)
+    .replaceAll("sudo install ", "install ")
+    .replaceAll(" /usr/local/bin/", ` ${bin}/`);
+  assert.doesNotMatch(local, /https?:|sudo|\/usr\/local/, "the lines would reach the network, run as root or install outside the test");
+  const start = folder();
+  // GNU's mktemp makes its folder in TMPDIR; macOS's in the system's temporary folder, as tmpdir().
+  const temporary = folder();
+  const temporaries = [realpathSync(tmpdir()), temporary];
+  // After the lines, where they left the shell; `ran`, since zsh keeps `status` for itself.
+  const run = spawnSync(shell, ["-c", `${local}\nran=$?\npwd\nexit $ran\n`], {
+    cwd: start,
+    env: { ...process.env, TMPDIR: temporary },
+    encoding: "utf8",
+  });
+  const last = run.stdout.trimEnd().split("\n").at(-1) ?? "";
+  const where = last.startsWith("/") && existsSync(last) ? realpathSync(last) : "";
+  // Removed with the test's other folders before anything is asserted, so a failure leaves nothing.
+  if (temporaries.includes(dirname(where))) {
+    made.push(where);
+  }
+  assert.ok(where, `${shell}: the lines did not say where they left the shell: ${run.stdout}${run.stderr}`);
+  assert.notEqual(where, start, `${shell}: the lines work in a folder of their own`);
+  assert.ok(temporaries.includes(dirname(where)), `${shell}: their folder, ${where}, is a new temporary one`);
+  const installed = existsSync(bin) ? readdirSync(bin).sort() : [];
+  return { ...run, output: run.stdout + run.stderr, where: readdirSync(where).sort(), installed, bin };
+}
+
+/** A copy of the release in `dist`, as a folder of its own, changed by `change`. */
+function changed(dist, change) {
+  const copy = join(folder(), "dist");
+  cpSync(dist, copy, { recursive: true });
+  change(copy);
+  return copy;
+}
+
+test("docs/INSTALL.md's lines for the command alone fetch, check, unpack and install a release's archive", () => {
+  const work = folder();
+  const says = packaged(work, "aarch64-apple-darwin");
+  publish(work);
+  assert.ok(SHELLS.includes("sh") && SHELLS.includes("bash"));
+  for (const shell of SHELLS) {
+    const run = paste(installLines(), shell, join(work, "dist"));
+    assert.equal(run.status, 0, `${shell}: ${run.output}`);
+    assert.match(run.stdout, ok("quotadial-aarch64-apple-darwin.tar.gz"), shell);
+    assert.deepEqual(run.where, ["SHA256SUMS.txt", "quotadial-aarch64-apple-darwin.tar.gz", "quotadial-v0.2.0-aarch64-apple-darwin"], shell);
+    assert.deepEqual(run.installed, ["qd", "quotadial"], shell);
+    for (const program of ["quotadial", "qd"]) {
+      assert.equal(spawnSync(join(run.bin, program), { encoding: "utf8" }).stdout.trim(), says[program], `${shell}: ${program}`);
+    }
+  }
+});
+
+test("a changed byte in the archive stops the lines at the check, before anything is unpacked or installed", () => {
+  const work = folder();
+  packaged(work, "aarch64-apple-darwin");
+  publish(work);
+  // The gzip header's time: the archive still unpacks, so only the check can stop it.
+  const dist = changed(join(work, "dist"), (copy) => {
+    const archive = join(copy, "quotadial-aarch64-apple-darwin.tar.gz");
+    const bytes = readFileSync(archive);
+    bytes[4] ^= 0xff;
+    writeFileSync(archive, bytes);
+  });
+  const listed = spawnSync("tar", ["-tzf", join(dist, "quotadial-aarch64-apple-darwin.tar.gz")], { encoding: "utf8" });
+  assert.equal(listed.status, 0, listed.stderr);
+  assert.match(listed.stdout, /^quotadial-v0\.2\.0-aarch64-apple-darwin\/quotadial$/m);
+  for (const shell of SHELLS) {
+    const run = paste(installLines(), shell, dist);
+    assert.notEqual(run.status, 0, `${shell}: ${run.output}`);
+    assert.match(run.stdout, /^quotadial-aarch64-apple-darwin\.tar\.gz: FAILED$/m, shell);
+    assert.deepEqual(run.where, ["SHA256SUMS.txt", "quotadial-aarch64-apple-darwin.tar.gz"], `${shell}: nothing unpacked`);
+    assert.deepEqual(run.installed, [], `${shell}: nothing installed`);
+  }
+});
+
+test("an archive SHA256SUMS.txt does not list stops the lines at the check, as one that fails does", () => {
+  const work = folder();
+  packaged(work, "aarch64-apple-darwin");
+  publish(work);
+  // Only the versioned names, as v0.2.0's own checksums were.
+  const dist = changed(join(work, "dist"), (copy) => {
+    const sums = join(copy, "SHA256SUMS.txt");
+    const kept = readFileSync(sums, "utf8")
+      .split("\n")
+      .filter((line) => !NAMES.includes(line.split("  ")[1]));
+    writeFileSync(sums, kept.join("\n"));
+  });
+  for (const shell of SHELLS) {
+    const run = paste(installLines(), shell, dist);
+    assert.notEqual(run.status, 0, `${shell}: ${run.output}`);
+    assert.match(run.output, /no file was verified/, shell);
+    assert.deepEqual(run.where, ["SHA256SUMS.txt", "quotadial-aarch64-apple-darwin.tar.gz"], `${shell}: nothing unpacked`);
+    assert.deepEqual(run.installed, [], `${shell}: nothing installed`);
+  }
+});
+
+const GNU = /GNU coreutils/.test(spawnSync("sha256sum", ["--version"], { encoding: "utf8" }).stdout ?? "");
+
+test(
+  "on Linux, with the archive's name and sha256sum put in as docs/INSTALL.md says, the lines check and install the same way",
+  { skip: GNU ? false : "needs GNU sha256sum, which the Linux line runs" },
+  () => {
+    const work = folder();
+    const says = packaged(work, "x86_64-unknown-linux-gnu");
+    publish(work);
+    const lines = installLines()
+      .replace("/quotadial-aarch64-apple-darwin.tar.gz ", "/quotadial-x86_64-unknown-linux-gnu.tar.gz ")
+      .replace("shasum -a 256 ", "sha256sum ");
+    assert.ok(lines.includes(`\n${checkLine("Linux")} &&\n`), "the check is the table's line for Linux");
+    assert.ok(lines.includes(`${LATEST}quotadial-x86_64-unknown-linux-gnu.tar.gz `));
+    const dist = join(work, "dist");
+    const bad = changed(dist, (copy) => {
+      const archive = join(copy, "quotadial-x86_64-unknown-linux-gnu.tar.gz");
+      const bytes = readFileSync(archive);
+      bytes[4] ^= 0xff;
+      writeFileSync(archive, bytes);
+    });
+    for (const shell of SHELLS) {
+      const run = paste(lines, shell, dist);
+      assert.equal(run.status, 0, `${shell}: ${run.output}`);
+      assert.match(run.stdout, ok("quotadial-x86_64-unknown-linux-gnu.tar.gz"), shell);
+      assert.deepEqual(run.installed, ["qd", "quotadial"], shell);
+      assert.equal(spawnSync(join(run.bin, "qd"), { encoding: "utf8" }).stdout.trim(), says.qd, shell);
+      const stopped = paste(lines, shell, bad);
+      assert.notEqual(stopped.status, 0, `${shell}: ${stopped.output}`);
+      assert.deepEqual(stopped.where, ["SHA256SUMS.txt", "quotadial-x86_64-unknown-linux-gnu.tar.gz"], `${shell}: nothing unpacked`);
+      assert.deepEqual(stopped.installed, [], `${shell}: nothing installed`);
+    }
+  },
+);
 
 /**
  * gh, faked for the gate: it notes what it was asked and answers `gh api <path> --jq <filter>` from

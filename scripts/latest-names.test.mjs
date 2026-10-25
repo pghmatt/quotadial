@@ -137,13 +137,16 @@ test("it runs when its path passes through a link, rather than doing nothing and
   assert.equal(run.stdout, `${NAMES.join("\n")}\n`);
 });
 
-test("docs/INSTALL.md links each of the eight copies of v0.2.0's downloads, and nothing else", () => {
+test("docs/INSTALL.md links each of the eight copies of v0.2.0's downloads, the checksums, and nothing else", () => {
   const linked = [...readFileSync(INSTALL, "utf8").matchAll(/releases\/latest\/download\/([^\s)`'"<>]+)/g)].map(
     (found) => found[1],
   );
   const copies = V0_2_0.map((file) => latestNames("0.2.0").get(file));
+  // Every release carries SHA256SUMS.txt by that name, with no version to leave out, and the install
+  // lines fetch it beside the archive they check.
+  const carried = [...copies, "SHA256SUMS.txt"];
   for (const name of linked) {
-    assert.ok(copies.includes(name), `INSTALL.md links releases/latest/download/${name}, which no release carries`);
+    assert.ok(carried.includes(name), `INSTALL.md links releases/latest/download/${name}, which no release carries`);
   }
   for (const name of copies) {
     assert.ok(linked.includes(name), `INSTALL.md has no link to releases/latest/download/${name}`);

@@ -39,6 +39,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 ### Fixed
 
 - On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.
+- The install guide's command for the CLI now fetches `SHA256SUMS.txt` and checks the archive against it before anything is unpacked or installed, and makes `/usr/local/bin` on a Mac that has none.
 - A clock set back no longer holds up a webhook's next try.
 - A log line with an impossible token count no longer makes the week's cost wrong.
 - Grey text on tags, warnings, the chosen period in History and the edges of text fields now have enough contrast to read, in both themes.

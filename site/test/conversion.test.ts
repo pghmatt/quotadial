@@ -200,11 +200,32 @@ test("a version-less link that is not under releases/latest/download fails the b
   assert.throws(() => installGuide(file.replace("### The command alone", "### Elsewhere")), /no section "The command alone"/);
 });
 
-test("the install line is the first fenced block of INSTALL.md's command section, and names an archive the table lists", () => {
+test("the install lines are the first fenced block of INSTALL.md's command section, and fetch, check, unpack and install in that order", () => {
   const guide = installGuide();
-  assert.equal(guide.install.split("\n").length, 2, "a fetch and an install");
-  assert.ok(guide.install.includes(`${LATEST}quotadial-aarch64-apple-darwin.tar.gz`), "the page says the first line names Apple silicon");
-  assert.ok(listedNames().some((name) => guide.install.includes(`/${name} `)), "an archive the table links");
+  const lines = guide.install.split("\n");
+  /** Where the one line that starts with `start` is. */
+  const at = (start: string) => {
+    const found = lines.filter((line) => line.startsWith(start));
+    assert.equal(found.length, 1, `one line starts with ${start}`);
+    return lines.indexOf(found[0]);
+  };
+  // A new folder first, so the check and the install see only what these lines fetch.
+  assert.equal(at('cd "$(mktemp -d)"'), 0, "the lines start by going into a new folder");
+  const archive = at(`curl -fsSLO ${LATEST}quotadial-aarch64-apple-darwin.tar.gz `);
+  assert.ok(listedNames().some((name) => lines[archive].includes(`/${name} `)), "an archive the table links");
+  const sums = at(`curl -fsSLO ${LATEST}SHA256SUMS.txt `);
+  const check = lines.indexOf(`${guide.checks.find((row) => row.system === "macOS")?.command} &&`);
+  assert.notEqual(check, -1, "the check is the table's own command for macOS");
+  const unpack = at("tar -xzf ");
+  // A new Apple silicon Mac has no /usr/local/bin, and `install` will not make the folder it names.
+  const folder = at("sudo mkdir -p /usr/local/bin ");
+  const install = at("sudo install ");
+  assert.ok(archive < check && sums < check, "the archive is checked after both files are fetched");
+  assert.ok(check < unpack && unpack < folder && folder < install, "and only then unpacked and installed");
+  assert.equal(install, lines.length - 1);
+  lines.slice(0, -1).forEach((line, index) => {
+    assert.ok(line.endsWith(" &&"), `line ${index + 1} ends with &&, so a step that fails stops the ones after it`);
+  });
   assert.equal(fenced("text\n\n```sh\none\ntwo\n```\n\n```\nthree\n```\n"), "one\ntwo");
   assert.throws(() => fenced("no code here"), /no fenced code block/);
 });
@@ -331,6 +352,8 @@ function words(text: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ");
 }
@@ -385,7 +408,9 @@ test("the built page's first action is for the visitor's system once known, and 
     assert.match(built, new RegExp(`id="${id}"`));
   }
   assert.ok(anchors(built).some((link) => link.href === "/install" && link.words === "Read the install guide"));
-  assert.ok(text.includes(installGuide().install.split("\n")[0]), "the install line is on the page");
+  for (const line of installGuide().install.split("\n")) {
+    assert.ok(text.includes(line), `the install lines are on the page: ${line}`);
+  }
 });
 
 test("the built page's files plate names what each button saves, with its versioned name under it", { skip }, () => {
@@ -404,8 +429,9 @@ test("the built page's files plate names what each button saves, with its versio
   }
 });
 
-test("the built page's install line breaks after a slash, an underscore or a hyphen, never inside a word", { skip }, () => {
-  const line = installGuide().install.split("\n")[0];
+test("the built page's install lines break after a slash, an underscore or a hyphen, never inside a word", { skip }, () => {
+  const line = installGuide().install.split("\n").find((found) => found.includes(LATEST)) ?? "";
+  assert.ok(line.includes(`${LATEST}quotadial-aarch64-apple-darwin.tar.gz`), "the line that fetches the archive");
   const shown = built
     .replace(/<wbr\/?>/g, "\u0001")
     .replace(/<[^>]+>/g, "")
