@@ -46,7 +46,7 @@ export default function Changelog() {
         <h2 id="changelog-next" className="m-0 text-[2rem] leading-[1.05] font-[750] md:text-[2.75rem]">
           If you already have QuotaDial
         </h2>
-        <p className="mt-4 mb-0 max-w-[52ch] text-[1.1875rem]">
+        <p className="mt-4 mb-0 max-w-measure text-[1.1875rem]">
           Every version after 0.2.0 asks GitHub once a day for a newer full release, offers it in the popover and in
           Help, and installs it only when you choose Update. Versions 0.1.0 and 0.2.0 do not check, so download the
           newer version here.
