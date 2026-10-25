@@ -48,22 +48,22 @@ export default function Privacy() {
               </ButtonLink>
             </PageIntro>
           </div>
-          <div className="lg:col-span-5 lg:col-start-8">
-            <WebsiteNote />
+          <Prose
+            html={text.html}
+            className="lg:col-span-7 lg:mt-6 [&>p:first-child]:mt-0 [&>p:first-child]:text-[1.25rem] [&_code.address]:font-[600]"
+          />
+          {/* After the policy in the page's order, so the policy sits under its own heading; beside it from 1024 px, and still in view as it is read. */}
+          <div className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1">
+            <WebsiteNote className="lg:sticky lg:top-8" />
           </div>
         </div>
-        <Prose
-          html={text.html}
-          className="mt-16 max-w-none! md:mt-20 lg:columns-2 lg:gap-x-12 [&>p:first-child]:mt-0 [&>p:first-child]:max-w-[62ch] [&>p:first-child]:text-[1.25rem] [&>p:first-child]:[column-span:all] [&_code.address]:font-[600] [&_li]:break-inside-avoid [&_p]:break-inside-avoid [&_ul]:break-inside-avoid [&_p:has(+ul)]:break-after-avoid"
-        />
       </Section>
       <Section tone="shallow" labelledBy="privacy-next">
         <h2 id="privacy-next" className="m-0 text-[2rem] leading-[1.05] font-[750] md:text-[2.75rem]">
           When you have read it
         </h2>
         <p className="mt-4 mb-0 max-w-[48ch] text-[1.1875rem]">
-          QuotaDial Free needs no account and no key, no strings attached. If a line above is unclear, ask support
-          before you install.
+          QuotaDial Free needs no account and no key. If a line above is unclear, ask support before you install.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
           <DownloadButton primary={false} />

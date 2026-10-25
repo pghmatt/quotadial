@@ -62,8 +62,8 @@ const MONTHS = [
   "December",
 ];
 
-/** "2026-10-24" as "24 October 2026". */
-export function sayDate(iso: string): string {
+/** "2026-10-24" as "24 October 2026", or with `short` as "24 Oct 2026", for a narrow table. */
+export function sayDate(iso: string, short = false): string {
   const found = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!found) {
     throw new Error(`Not a date: ${iso}`);
@@ -72,7 +72,7 @@ export function sayDate(iso: string): string {
   if (!month) {
     throw new Error(`Not a month: ${iso}`);
   }
-  return `${Number(found[3])} ${month} ${found[1]}`;
+  return `${Number(found[3])} ${short ? month.slice(0, 3) : month} ${found[1]}`;
 }
 
 /** A version's anchor on the changelog page. */

@@ -17,8 +17,7 @@ function Version({ version }: { version: ChangelogVersion }) {
         </h2>
         {unreleased ? (
           <p className="mt-2 mb-0 text-ink-2">
-            Not yet released. These changes are in QuotaDial&rsquo;s code and not yet in a version you can
-            download.
+            These changes are in QuotaDial&rsquo;s code and not yet in a version you can download.
           </p>
         ) : (
           <>
@@ -49,7 +48,7 @@ export function Versions({ versions }: { versions: ChangelogVersion[] }) {
     <div className="grid gap-16 md:gap-20">
       {versions.map((version) =>
         version.date === null ? (
-          <Plate key={version.version} tone="shallow">
+          <Plate key={version.version} tone="shallow" title="Not yet released">
             <Version version={version} />
           </Plate>
         ) : (
