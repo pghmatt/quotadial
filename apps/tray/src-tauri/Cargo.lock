@@ -3463,6 +3463,9 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "dispatch2",
+ "objc2",
+ "objc2-app-kit",
  "proptest",
  "quotadial-api",
  "quotadial-core",

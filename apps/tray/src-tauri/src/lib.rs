@@ -10,6 +10,9 @@ mod feed;
 mod help;
 mod history;
 mod icon;
+#[cfg(target_os = "macos")]
+#[expect(unsafe_code, reason = "AppKit target and action for VoiceOver (#64)")]
+pub mod icon_press;
 mod meter;
 mod settings;
 mod updates;
@@ -1028,6 +1031,17 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
+    // VoiceOver and Full Keyboard Access press the icon rather than click it; a press opens the
+    // popover as a click does (#64).
+    #[cfg(target_os = "macos")]
+    {
+        let handle = app.clone();
+        tray.with_inner_tray_icon(move |inner| {
+            if let Some(item) = inner.ns_status_item() {
+                icon_press::answer_presses(&item, move || toggle_popover(&handle));
+            }
+        })?;
+    }
     show(app, &tray, &meter);
     Ok(())
 }
