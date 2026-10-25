@@ -111,7 +111,7 @@ export function KeyFlow({ heading }: { heading: ReactNode }) {
 /** Where the key page's visitors can go next, whatever happened. */
 function Onward({ pro = true }: { pro?: boolean }) {
   return (
-    <p className="m-0 mt-6 max-w-[52ch] text-ink-2">
+    <p className="m-0 mt-6 max-w-measure text-ink-2">
       <a href="/download" className={`${LINK} text-ink`}>
         Download QuotaDial
       </a>
@@ -163,12 +163,12 @@ function NoLink() {
         </div>
       </Plate>
       <noscript>
-        <p className="m-0 mt-6 max-w-[52ch] font-[650]">
+        <p className="m-0 mt-6 max-w-measure font-[650]">
           This page needs JavaScript to turn the receipt's key into your QuotaDial key. Write to support with your
           order number instead.
         </p>
       </noscript>
-      <p className="m-0 mt-6 max-w-[52ch]">
+      <p className="m-0 mt-6 max-w-measure">
         Can't find the receipt? Write to support with your order number, and we'll send your key.
       </p>
       <div className="mt-5">
@@ -223,19 +223,19 @@ function Ready({ keyText, licence }: { keyText: string; licence: Licence }) {
 
       <h2 className={`${H2} mt-10`}>Add it to QuotaDial</h2>
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-5">
-        <p className="m-0 max-w-[56ch]">
+        <p className="m-0 max-w-measure">
           In the app, open <strong>Settings</strong>, find <strong>Licence</strong>, paste the key into the field and
           choose <strong>Add</strong>.
         </p>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <p className="m-0 max-w-[56ch]">In a terminal, run this and paste the key when it asks:</p>
+          <p className="m-0 max-w-measure">In a terminal, run this and paste the key when it asks:</p>
           <CodeBlock code="quotadial licence add" label="Copy the command" />
         </div>
-        <p className="m-0 max-w-[56ch]">
+        <p className="m-0 max-w-measure">
           Then forget about it. QuotaDial checks the key on your machine with no network call.
         </p>
       </div>
-      <p className="m-0 mt-6 max-w-[52ch] text-ink-2">
+      <p className="m-0 mt-6 max-w-measure text-ink-2">
         To see this key again, open the receipt's link again: the same receipt always gives the same key.
       </p>
       <Onward pro={false} />
@@ -258,7 +258,7 @@ function Refused({
   return (
     <div>
       <Notice title={retry ? "The key could not be checked just now" : "The key was not accepted"}>
-        <p role="alert" className="m-0 max-w-[56ch] text-[1.125rem] leading-[1.45]">
+        <p role="alert" className="m-0 max-w-measure text-[1.125rem] leading-[1.45]">
           {message}
         </p>
       </Notice>

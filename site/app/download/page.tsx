@@ -78,7 +78,7 @@ export default function Download() {
 
           <div id="linux" className="md:col-span-5">
             <SectionHeading id="linux-heading">Linux</SectionHeading>
-            <p className="mt-4 mb-0 max-w-[44ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               Take the <InlineCode on="shallow">.deb</InlineCode> for Debian or Ubuntu, and the{" "}
               <InlineCode on="shallow">.AppImage</InlineCode> for any other distribution. The commands that install and
               run them are in{" "}
@@ -94,12 +94,12 @@ export default function Download() {
         <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 border-t border-rule pt-16 md:grid-cols-12">
           <div className="md:col-span-5">
             <SectionHeading id="command-heading">The command on its own</SectionHeading>
-            <p className="mt-4 mb-0 max-w-[44ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               If a terminal is all you want, take <InlineCode on="shallow">{COMMAND_ONLY.file}</InlineCode> (a{" "}
               <InlineCode on="shallow">.zip</InlineCode> on Windows). Each archive holds{" "}
               <InlineCode on="shallow">quotadial</InlineCode> and its short alias <InlineCode on="shallow">qd</InlineCode>.
             </p>
-            <p className="mt-4 mb-0 max-w-[44ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               The app carries the same command inside it, and{" "}
               <a href={SITE.installGuide} className={LINK}>
                 the install guide
@@ -113,8 +113,8 @@ export default function Download() {
 
           <div className="md:col-span-7">
             <SectionHeading id="check-heading">Check a download</SectionHeading>
-            <p className="mt-4 mb-0 max-w-[56ch]">
-              <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> lists every file's SHA-256. In the folder you
+            <p className="mt-4 mb-0 max-w-measure">
+              <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> lists every file's SHA-256, in each release after 0.2.0. In the folder you
               downloaded to, paste the line for your system. It prints OK beside each file that matches, and FAILED
               beside any that does not.
             </p>
@@ -123,7 +123,7 @@ export default function Download() {
                 <div key={check.system} className="grid grid-cols-[minmax(0,1fr)] gap-2">
                   <h3 className={H3}>On {check.system}</h3>
                   {check.system === "Windows" && (
-                    <p className="m-0 max-w-[56ch]">
+                    <p className="m-0 max-w-measure">
                       PowerShell prints the hash. Compare it with the line for that file in{" "}
                       <InlineCode on="shallow">SHA256SUMS.txt</InlineCode>.
                     </p>
@@ -147,7 +147,7 @@ export default function Download() {
                 </p>
               </Notice>
             </div>
-            <p className="mt-6 mb-0 max-w-[44ch]">
+            <p className="mt-6 mb-0 max-w-measure">
               A warning that is not described here?{" "}
               <a href="/support" className={LINK}>
                 Write to support
