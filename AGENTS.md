@@ -132,7 +132,8 @@ The tray app, from `apps/tray` (its Rust side is a separate workspace in `src-ta
 
 ```sh
 npm ci                                   # the window's dependencies
-npm run build                            # type-check, build the window, check its 150 KB budget
+npm run build                            # type-check, build the window, check its 150 KB budget and contrast
+npm run check:window                     # the built window in Chrome: keyboard, screen readers, zoom, motion (docs/ACCESSIBILITY.md)
 npm run cli                              # build the CLI the app bundles (Tauri needs it to compile)
 (cd src-tauri && cargo test)             # the app's tests; also cargo fmt and clippy, as CI runs them
 npx tauri dev                            # run the app from source

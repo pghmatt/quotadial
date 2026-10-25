@@ -150,7 +150,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
 | Free at once (#56's review) | Done (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
-| 8: security | In review (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
+| 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
+| 9: accessibility | In review (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -338,6 +339,62 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 9: accessibility (D-110)
+
+- **The window check** (`apps/tray/scripts/check-window.mjs`, `npm run check:window`, a step in
+  CI's `tray` job on macOS, Windows and Linux): serves `dist/` on 127.0.0.1 under the app's own
+  content security policy, starts Chrome headless with a profile of its own, and drives it over the
+  DevTools protocol with Node's WebSocket, so it needs no package. A stand-in for the app answers
+  the window's commands from `scripts/window-fixtures.mjs` (made-up accounts on example.com, one
+  with a 65-character address; a Pro copy and a Free one), which `tsc` checks against
+  `src/meter.ts`; a command the app does not have fails the check. Over the accounts, Settings,
+  History and Help, in both themes: Tab order equals the order shown, each control draws the
+  window's ring, Shift-Tab goes back; each control's role, name and state as Chrome's accessibility
+  tree gives them, failing a field named only by its hint; every chart, meter and picture named;
+  the heatmap's words a line per row and its grid hidden; each control, on a window opened
+  afresh, does something when pressed with Enter (Space for a box, typing and Enter for a field),
+  and the chosen period stays chosen; a panel takes the focus and Done gives it back to its
+  button; no text past the window's edge or cut off by a box, at 100% and at 200% (the page as
+  wide as the window at that zoom, with every disclosure open, and each field's hint measured
+  against its field); nothing animating or in transition with less motion asked for; no error,
+  rejected command or refused style on the page. 640 checks over 16 views, about 75 s.
+  `-- --screenshots <folder>` saves each view, `-- --only "pro, dark"` runs some.
+- **The controls:** a window with eleven faults put in on purpose (no ring on buttons, a field
+  named by its hint, History first in Tab order, Export CSV answering only the mouse, History not
+  taking the focus, Done not giving it back, buttons that move, the heatmap's words gone, a chart
+  with no name, an unknown command, an inline style) failed 154 of 509 checks, naming each fault;
+  the two hidden behind History's broken Tab order failed on their own. The first run of the check
+  on the real window found 24 failures, all text cut off: the Names fieldset as wide as its longest
+  word (a fieldset's minimum is its content's), the long address in History's heading and
+  Settings' Names, "Write to support@quotadial.com" at 200%, Remove and Add pushed off the side,
+  and the licence field's hint.
+- **Fixes:** `overflow-wrap: anywhere` on the body, `min-width: 0` on fieldsets, `max-width: 100%`
+  on buttons, and an alert's Remove and a field's Add wrap below when there is no room; tabular
+  figures on the root; in the light theme `--muted` `#67676c` and `--warning` `#a05600`, since
+  main's failed three pairs (a warning 4.49:1 on the background and 3.93:1 on a tag, grey 4.30:1 on
+  a tag); `--accent` and `--on-accent` (4.70:1) for the chosen period, which was white
+  on `#0a84ff` (3.65:1), bold as well; `--field` for text fields' edges (3.33:1 light, 3.24:1 dark;
+  they were 1.25:1), both pairs in `check-contrast.mjs`, whose control with the old colours fails
+  on three pairs; `usePanelFocus` (`src/focus.ts`) and the footer's `data-panel` buttons.
+- **Zoom:** `zoomHotkeysEnabled` and `core:webview:allow-set-webview-zoom`. On macOS and Linux
+  Tauri's script zooms in steps of 20% (Command or Control and = or -, and 0); on Windows it is
+  WebView2's own. `fit` now takes the page's width in CSS pixels, and `fitted_height` sizes the
+  window to the content at that zoom (a unit test). A probe confirmed on this Mac that WebKit's
+  page zoom narrows the page in CSS pixels (360 to 180 at 200%), which `fit` relies on.
+- **Live, on a test copy of the app** (its own identifier and binary name, a scratch data folder):
+  the macOS accessibility tree, which VoiceOver reads, names every control with its role and
+  state, gives each bar's words ("20% used, resets in 1 d 20 h"), the charts' descriptions and the
+  period buttons as toggles; History and Settings took the focus when opened and Done gave it back
+  to its button. Keys could not be sent to the popover from here (an accessory app does not become
+  frontmost by automation on this Mac), so zoom was checked by the probe above and the Chrome
+  check. The copy's fresh data folder had the default alert rules, and it fired one real
+  notification ("Codex Weekly passed 90%"). Opening the app again, as Spotlight does, showed the
+  popover.
+- **Found, not fixed here (#64):** on macOS, VoiceOver and Full Keyboard Access press the menu bar
+  icon through accessibility, and tray-icon answers only clicks, so nothing opens. The fix (the
+  button's own action) is ready but needs `unsafe`, which the crate forbids; #64 asks for the
+  decision. `docs/ACCESSIBILITY.md` gives Spotlight as the way in meanwhile.
 
 ### M5 queue item 8: security (D-109)
 

@@ -21,7 +21,8 @@
         "decorations": false,
         "skipTaskbar": true,
         "alwaysOnTop": true,
-        "shadow": true
+        "shadow": true,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

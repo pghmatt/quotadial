@@ -38,22 +38,29 @@ export function App() {
     };
   }, []);
 
-  // The window takes the height of what it shows.
+  // The window takes the height of what it shows, at the zoom it is shown at: zooming in (Cmd or
+  // Ctrl and +) narrows the page in CSS pixels, which tells the app how far it is zoomed.
   useEffect(() => {
     const element = main.current;
     if (!element) {
       return;
     }
-    let last = 0;
-    const observer = new ResizeObserver(() => {
+    let last = "";
+    const fit = () => {
       const height = Math.ceil(element.getBoundingClientRect().height);
-      if (height !== last) {
-        last = height;
-        void invoke("fit", { height });
+      const width = window.innerWidth;
+      if (`${height} ${width}` !== last) {
+        last = `${height} ${width}`;
+        void invoke("fit", { height, width });
       }
-    });
+    };
+    const observer = new ResizeObserver(fit);
     observer.observe(element);
-    return () => observer.disconnect();
+    window.addEventListener("resize", fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
   }, []);
 
   return (
@@ -69,6 +76,18 @@ type Panel = "accounts" | "settings" | "history" | "help";
 function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }) {
   const [panel, setPanel] = useState<Panel>("accounts");
   const accounts = panel === "accounts";
+  const footer = useRef<HTMLElement>(null);
+  const shown = useRef<Panel>("accounts");
+
+  // A panel's Done gives the focus back to the button that opened it, so the keyboard carries on
+  // from where it was (#52).
+  useEffect(() => {
+    const closed = shown.current;
+    shown.current = panel;
+    if (panel === "accounts" && closed !== "accounts") {
+      footer.current?.querySelector<HTMLElement>(`[data-panel="${closed}"]`)?.focus();
+    }
+  }, [panel]);
 
   // The tray menu's Help opens the popover at Help.
   useEffect(() => {
@@ -89,7 +108,8 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
   return (
     <>
       <header class="summary">
-        <p class={`percent ${meter.level}`}>
+        {/* With no number yet, the dash is only for the eye; the headline says why. */}
+        <p class={`percent ${meter.level}`} aria-hidden={meter.percent === null ? "true" : undefined}>
           {meter.percent === null ? "–" : `${meter.percent}%`}
         </p>
         <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
@@ -132,20 +152,20 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           <UpdateStatus update={update} offer />
         </section>
       )}
-      <footer>
+      <footer ref={footer}>
         <p class="origin">{meter.origin ?? ""}</p>
         {accounts && (
-          <button type="button" onClick={() => setPanel("history")}>
+          <button type="button" data-panel="history" onClick={() => setPanel("history")}>
             History
           </button>
         )}
         {accounts && (
-          <button type="button" onClick={() => setPanel("settings")}>
+          <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
             Settings
           </button>
         )}
         {accounts && (
-          <button type="button" onClick={() => setPanel("help")}>
+          <button type="button" data-panel="help" onClick={() => setPanel("help")}>
             Help
           </button>
         )}

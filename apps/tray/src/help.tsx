@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
+import { usePanelFocus } from "./focus";
 import type { HelpView, UpdateView } from "./meter";
 import { UpdateStatus } from "./update";
 
@@ -12,13 +13,14 @@ import { UpdateStatus } from "./update";
 export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDone: () => void }) {
   const [help, setHelp] = useState<HelpView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const panel = usePanelFocus();
 
   useEffect(() => {
     void invoke<HelpView>("help").then(setHelp);
   }, []);
 
   if (!help) {
-    return <section class="help" aria-label="Help" />;
+    return <section class="help" aria-label="Help" tabIndex={-1} ref={panel} />;
   }
 
   const run = (command: string, args?: Record<string, string>) => {
@@ -32,7 +34,7 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
       : `What's new in ${help.whats_new.version}`;
 
   return (
-    <section class="help" aria-label="Help">
+    <section class="help" aria-label="Help" tabIndex={-1} ref={panel}>
       <h2>Help</h2>
       <section class="whats-new" aria-label={heading}>
         <h3>{heading}</h3>

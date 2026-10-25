@@ -1,9 +1,11 @@
 :root {
   color-scheme: light dark;
   --text: #1d1d1f;
-  --muted: #6e6e73;
+  /* Each text colour has 4.5:1 against the background and the tag's, checked by
+     scripts/check-contrast.mjs (#52). */
+  --muted: #67676c;
   --rule: rgb(0 0 0 / 10%);
-  --warning: #b25f00;
+  --warning: #a05600;
   --high: #c41e13;
   --bar: rgb(0 0 0 / 10%);
   --bar-normal: #0a84ff;
@@ -12,9 +14,16 @@
   --tag: rgb(0 0 0 / 6%);
   --background: #fbfbfd;
   --focus: #0a84ff;
+  /* The chosen period in History, and its text. */
+  --accent: #0071e3;
+  --on-accent: #ffffff;
+  /* The edge of a text field, 3:1 against the background. */
+  --field: #8a8a8e;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.35;
+  /* Every figure is the same width, so a number that changes moves nothing beside it (#52). */
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,6 +36,7 @@
     --bar: rgb(255 255 255 / 14%);
     --tag: rgb(255 255 255 / 10%);
     --background: #1f1f21;
+    --field: #6e6e73;
   }
 }
 
@@ -37,6 +47,8 @@
 body {
   margin: 0;
   color: var(--text);
+  /* A long account name or address breaks where it must rather than being cut off (#52). */
+  overflow-wrap: anywhere;
   /* With many accounts the popover reaches its tallest and scrolls. */
   overflow-x: hidden;
   overflow-y: auto;
@@ -66,7 +78,6 @@ html.solid .popover {
   font-size: 34px;
   font-weight: 600;
   line-height: 1.1;
-  font-variant-numeric: tabular-nums;
 }
 
 .percent.unknown {
@@ -108,7 +119,6 @@ h2 {
 .name {
   font-weight: 400;
   color: var(--muted);
-  overflow-wrap: anywhere;
 }
 
 .tag {
@@ -147,7 +157,6 @@ ul {
 
 .used {
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .used.warning {
@@ -248,6 +257,7 @@ footer {
 
 button {
   flex: none;
+  max-width: 100%;
   padding: 3px 10px;
   border: 0;
   border-radius: 6px;
@@ -262,9 +272,16 @@ button:disabled {
 }
 
 button:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+input:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* A panel takes the focus when it opens, so the keyboard and a screen reader start in it; it is
+   not a control, so it draws no ring of its own. */
+section[tabindex="-1"]:focus {
+  outline: none;
 }
 
 .settings {
@@ -273,7 +290,9 @@ summary:focus-visible {
   border-top: 1px solid var(--rule);
 }
 
+/* A fieldset is otherwise as wide as its widest word, however narrow the window. */
 fieldset {
+  min-width: 0;
   margin: 10px 0 0;
   padding: 0;
   border: 0;
@@ -321,7 +340,7 @@ footer button + button {
 .add-alert input,
 .add-licence input {
   padding: 3px 6px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--field);
   border-radius: 5px;
   background: transparent;
   color: var(--text);
@@ -330,11 +349,16 @@ footer button + button {
   user-select: text;
 }
 
+/* Remove sits beside its rule, or under it when the window is too narrow, as at 200%. */
 .alert-choice {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   column-gap: 8px;
+}
+
+.alert-choice .choice {
+  flex: 1 1 10em;
 }
 
 .alert-choice + .alert-choice {
@@ -342,28 +366,30 @@ footer button + button {
 }
 
 .alert-choice .read-as {
-  grid-column: 1 / -1;
-  margin: 0 0 0 22px;
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 22px;
   color: var(--muted);
   font-size: 12px;
 }
 
+/* Add sits beside its field, or under it when the field would be too narrow for its hint. */
 .add-alert,
 .add-licence {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   margin-top: 8px;
 }
 
 .add-alert input,
 .add-licence input {
-  flex: 1;
+  flex: 1 1 12em;
   min-width: 0;
 }
 
 .licence-text {
   margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .licence-adds {
@@ -389,7 +415,6 @@ footer button + button {
 
 .left-out p {
   margin: 4px 0 0;
-  overflow-wrap: anywhere;
 }
 
 .remove-licence {
@@ -408,9 +433,11 @@ footer button + button {
   margin-bottom: 8px;
 }
 
+/* The chosen period is told by its weight as well as its colour. */
 .period button[aria-pressed="true"] {
-  background: var(--bar-normal);
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 
 .account-history + .account-history {
@@ -611,4 +638,15 @@ button.link {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Nothing moves for someone who asked the system for less motion (#52). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

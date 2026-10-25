@@ -25,12 +25,18 @@ app's Help shows the version it is, and a release's notes come from its section 
 - After the machine wakes from sleep, every account is asked again at once rather than at its next turn.
 - When a provider cannot be reached, QuotaDial asks again within a minute, so the numbers are current soon after the network is back.
 - Each release carries a software bill of materials for the app and the command, and `SECURITY.md` says how to report a vulnerability.
+- Command and = (Control and = on Windows and Linux) makes the app's window larger, and Command and 0 sets it back; the window grows with its text.
+- History, Settings and Help take the keyboard's focus when they open, and Done gives it back to the button that opened them.
+- A screen reader reads when an account was used as a line a day, in place of History's grid of squares.
+- `docs/ACCESSIBILITY.md` says how to use QuotaDial by keyboard and screen reader, and what is not there yet.
 
 ### Fixed
 
 - On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.
 - A clock set back no longer holds up a webhook's next try.
 - A log line with an impossible token count no longer makes the week's cost wrong.
+- Grey text on tags, warnings, the chosen period in History and the edges of text fields now have enough contrast to read, in both themes.
+- A long account name or address no longer runs off the side of Settings or History, and nothing in the window is cut off at 200%.
 
 ## [0.2.0] - 2026-10-24
 

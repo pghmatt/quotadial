@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
+import { usePanelFocus } from "./focus";
 import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
 
 /** How far back the view can go, in days. */
@@ -15,6 +16,7 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
   const [view, setView] = useState<HistoryView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const panel = usePanelFocus();
 
   useEffect(() => {
     // An answer for a period no longer chosen is dropped, however late it comes.
@@ -46,7 +48,7 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <section class="history" aria-label="History">
+    <section class="history" aria-label="History" tabIndex={-1} ref={panel}>
       <h2>History</h2>
       <div class="period" role="group" aria-label="How far back">
         {PERIODS.map((period) => (
@@ -132,8 +134,13 @@ function HeatmapGrid({ heatmap }: { heatmap: Heatmap }) {
   return (
     <figure class="heatmap" aria-label={`When it was used, by hour, from ${heatmap.window} readings`}>
       <figcaption class="detail">When it was used, by hour ({heatmap.window.toLowerCase()})</figcaption>
+      <ul class="visually-hidden">
+        {heatmap.said.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
       {heatmap.cells.map((hours, day) => (
-        <div class="heat-row" key={heatmap.days[day]}>
+        <div class="heat-row" key={heatmap.days[day]} aria-hidden="true">
           <span class="heat-day">{heatmap.days[day]}</span>
           {hours.map((used, hour) => (
             <span
