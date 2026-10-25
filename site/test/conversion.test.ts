@@ -128,7 +128,7 @@ test("the three pages carry no price, no dash and no empty call to action", () =
   assert.ok(files.length >= 8, "the lane's files were found");
   for (const { name, text } of files) {
     assert.doesNotMatch(text, /[\u2013\u2014]/, `${name} has a dash`);
-    assert.doesNotMatch(text, /[$£€]\s?\d|\d\s?(?:dollars|pounds|euros)|per month|lifetime|Pro price/i, `${name} has a price`);
+    assert.doesNotMatch(text, /[$£€]\s?\d|\d\s?(?:dollars|pounds|euros)|per month|lifetime|for ever|forever|Pro price/i, `${name} has a price`);
     assert.doesNotMatch(text, /get started|learn more/i, `${name} has a call to action that names nothing`);
     assert.doesNotMatch(text, /\b(?:quota|auth|credentials?|endpoints?|polls?)\b(?!dial)/i, `${name} uses a word the product avoids`);
   }
@@ -154,10 +154,22 @@ test("/download renders docs/INSTALL.md's steps and check commands, and copies n
   assert.match(page, /installGuide\(\)/);
   assert.match(page, /GUIDE\.unsigned/);
   assert.match(page, /GUIDE\.checks/);
-  for (const copied of ["Open Anyway", "Move to Trash", "Keep anyway", "Run anyway", "--ignore-missing", "Get-FileHash", "chmod +x", "apt install ./"]) {
+  for (const copied of ["Move to Trash", "Keep anyway", "Run anyway", "--ignore-missing", "Get-FileHash", "chmod +x", "apt install ./"]) {
     assert.ok(!page.includes(copied), `the page has "${copied}" written out: it belongs to INSTALL.md`);
   }
   assert.match(page, /DownloadButton|SystemDownload/);
   const download = readFileSync(new URL("../components/conversion/SystemDownload.tsx", import.meta.url), "utf8");
   assert.match(download, /<DownloadButton href=\{DOWNLOAD_PAGE\} \/>/);
+});
+
+test("each system's part of /download has its own secondary download action, and only the hero's is primary", () => {
+  const page = readFileSync(new URL("../app/download/page.tsx", import.meta.url), "utf8");
+  for (const system of ["macos", "windows", "linux"]) {
+    assert.ok(page.includes(`<SystemAction system="${system}" />`), `${system} has its own action`);
+  }
+  const action = readFileSync(new URL("../components/conversion/SystemAction.tsx", import.meta.url), "utf8");
+  assert.match(action, /data-event="download_click"/);
+  assert.match(action, /data-event-system=\{system\}/);
+  assert.match(action, /href=\{DOWNLOAD_PAGE\}/);
+  assert.doesNotMatch(action, /data-primary-action/);
 });

@@ -51,7 +51,7 @@ export default function Pro() {
             <SectionHeading id="free-heading">What stays free</SectionHeading>
             <p className="mt-4 mb-0 max-w-[40ch]">
               If you keep one Claude and one Codex sign-in, QuotaDial Free already covers both, because it reads one
-              account for each provider. It needs no key, with no strings attached.
+              account for each provider. It needs no key.
             </p>
             <ul className="m-0 mt-5 grid list-disc gap-2 pl-6 text-[1.0625rem] leading-[1.45]">
               {FREE_HAS.map((item) => (
