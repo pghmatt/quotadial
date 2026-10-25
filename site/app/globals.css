@@ -36,8 +36,9 @@
   --radius-chart: 2px;
 
   /* The reading measure, 65 to 72 characters a line (the contract's reading spec): `max-w-measure`.
-     A ch is the width of a zero, wider than Sofia Sans' average letter, so 57ch holds about 68. */
-  --container-measure: 57ch;
+     A ch is the width of a zero, wider than Sofia Sans' average letter: measured on the built
+     pages, 52ch keeps a full line at 66 to 72 characters, where 57ch let it run to 79. */
+  --container-measure: 52ch;
 
   /* The home page's one authored moment: the week's curve draws to its prediction while the dial's
      needle sweeps to the share used. Reduced motion shows the end state at once. */
