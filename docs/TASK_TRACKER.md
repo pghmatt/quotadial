@@ -81,14 +81,15 @@ queue, by its numbers:
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
   (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs, in
   three PRs: the fake provider and the example build (D-117), merged (PR #71); the release copies,
-  the site's downloads and guides and the README's pictures (D-116), in review (PR #72); and the
-  first-run recording with #52's figures, made with the example build, next;
+  the site's downloads and guides and the README's pictures (D-116), merged (PR #72); and the
+  first-run recording with #52's figures, made with the example build, being built (PR C), its
+  timings and recording waiting on Matt's go-ahead for the example in his menu bar;
 - then the M6 plan. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
   to build it with item 12 (D-117).
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (#71 merged; #72, then the recording), then M6.
+#64's fix (PR #69); from here: 12 (#71 and #72 merged; PR C, the recording), then M6.
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
 an undici override (notes below).
@@ -173,8 +174,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
 | 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
-| 12: docs | In review (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
+| 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
+| 12, PR C: the first-run recording and #52's figures | In progress | `docs/INSTALL.md`'s command alone now fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it (#72's review); QuotaDial Example built for the recording; the timings, the example's idle hour and the recording wait on Matt's go-ahead; no changelog line, as the manager said |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -361,6 +363,132 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 12, PR C: the first-run recording and #52's figures
+
+- **The rule:** the manager's rule 4 on #49 (14:25 UTC): "The recording and the timings come from
+  that build: first run to the number, popover open time, the two idle figures. Crop to QuotaDial's
+  icon and popover and label the account as an example in the picture itself, not only in the
+  caption. The idle figures of Matt's own copy may be read from its process figures as you said,
+  nothing more." No changelog line: the recording is a README change, not a note for users (the
+  manager). Running QuotaDial Example puts a second icon in Matt's menu bar, so its timings and the
+  recording wait on his go-ahead; everything else is here.
+- **#52's targets ("Fast and light"):** the daemon idle under 0.5% of one core averaged over an
+  hour and under 40 MB resident; the tray app idle under 80 MB resident with the popover closed; the
+  popover open and drawn in under 100 ms from a warm daemon, and the tray's number changed within
+  1 s of a poll; first run, a number in the tray within 60 s with no typing (the PRD), today 1 s,
+  kept under 5 s; the window bundle within the 150 KB budget `npm run build` enforces.
+- **The install line (#72's review, note 1):** `docs/INSTALL.md`'s "The command alone" piped `curl`
+  into `tar` and `sudo install` with no checksum step. Its lines now go into a new folder
+  (`cd "$(mktemp -d)"`), fetch the archive and `SHA256SUMS.txt` from the version-less addresses
+  (`curl -fsSLO`), run the check table's own macOS line, `shasum -a 256 -c SHA256SUMS.txt
+  --ignore-missing`, and only then `tar -xzf` and `sudo install`, every line but the last ending in
+  `&&`, so a step that fails stops the rest. The new folder means the check and the install see
+  only what the lines fetched: in a folder of earlier downloads, `--ignore-missing` would also check
+  an older file listed by the same name and fail on it, and `quotadial-v*/` could match an older
+  unpacked version. The text says what to change for another system and for Linux (`sha256sum` in
+  place of `shasum -a 256`, which keeps the line's `&&`), and /download's paragraph says the same.
+  `shasum` and GNU's `sha256sum` both exit 1 when no listed file was checked, so an archive
+  `SHA256SUMS.txt` does not list stops the lines as well.
+- **Its tests,** each seen failing on the old lines first: `site/test/conversion.test.ts` holds the
+  block's order (new folder, both fetches, the table's check, unpack, install) and its `&&`s, and
+  the built page's tests read every line, not only the first (React writes the first line's quotes
+  as `&quot;`). `scripts/workflows.test.mjs` makes a release with the Release workflow's own Package
+  and publish steps (the archive holding `quotadial-v0.2.0-aarch64-apple-darwin/`, both of its names
+  in `SHA256SUMS.txt`) and runs the lines as written, only the address (`file://`), `sudo` and
+  `/usr/local/bin` changed, in sh, bash and zsh: they install it; a byte changed in the gzip header,
+  which still unpacks, so only the check can stop it, stops them at the check with nothing unpacked
+  or installed; so does an archive `SHA256SUMS.txt` does not list; and Linux's lines, made as the
+  text says, do the same where `sha256sum` is GNU's (CI's Linux; skipped on macOS, and passed here
+  with GNU coreutils first on the `PATH`). The test notes the folder `mktemp -d` made before it
+  asserts anything, so a failure leaves nothing behind. `scripts/latest-names.test.mjs` lets
+  INSTALL.md link `releases/latest/download/SHA256SUMS.txt`, which every release carries by that
+  name, and still refuses any other name (a misspelt one failed it).
+- **The dry run,** against a stand-in release made in a scratch folder: in zsh, bash and sh, the
+  archive passes (`quotadial-aarch64-apple-darwin.tar.gz: OK`), is unpacked in the new folder, and
+  `quotadial` and `qd` are installed into a scratch prefix and run; with one byte changed, `shasum`
+  prints FAILED, the lines exit 1, the new folder holds only the two downloads and nothing is
+  installed; Linux's lines pass with GNU's `sha256sum`.
+- **The example build:** `npm ci`, then `npx tauri build --config src-tauri/tauri.example.conf.json
+  --bundles app` in `apps/tray` with `CARGO_BUILD_JOBS=4`, at a5cda9e:
+  `apps/tray/src-tauri/target/release/bundle/macos/QuotaDial Example.app`, 19,652,310 bytes
+  (18.74 MiB), arm64. Its Info.plist has `CFBundleIdentifier` `com.quotadial.example`,
+  `CFBundleName` QuotaDial Example and `LSUIElement`; it is signed ad hoc as
+  `com.quotadial.example`; the app's binary carries `com.quotadial.example`, `quotadial-fake`,
+  `QUOTADIAL_FAKE_DATA_DIR` and `QUOTADIAL_FAKE_ACCOUNTS` and not `com.quotadial.desktop`, and the
+  command it bundles carries `QUOTADIAL_FAKE_DATA_DIR`. Built, not run.
+- **The window bundle:** `npm run build` in `apps/tray`, the example build's first step: "The
+  window's JavaScript is 33.9 KB, within the 150 KB budget" (one file, 34.75 kB as vite counts,
+  13.01 kB gzipped; the stylesheet 7.14 kB).
+- **Matt's copy, idle (read only):** his app's process figures and nothing more, as the manager
+  allowed: one `ps -o time=,rss=` sample a minute from 13:38:51 to 14:38:52 UTC on 2026-10-25
+  (61 samples), his copy built from main at fd3ee4d and running since 2026-10-24 01:15 UTC;
+  recomputed from the samples for this note. Sizes are MiB, as `ps` counts KiB.
+
+  | Process | CPU over the hour | Share of one core | Resident, MiB: mean (min to max) |
+  | --- | --- | --- | --- |
+  | quotadial-tray (the tray and the daemon, one process) | 10.36 s | 0.288% | 78.5 (75.8 to 88.3) |
+  | WebKit Networking | 0.58 s | 0.016% | 9.6 (9.2 to 10.1) |
+  | WebKit WebContent | 1.63 s | 0.045% | 30.5 (28.6 to 35.1) |
+
+- **Against #52:** the daemon runs inside the tray's process, so the daemon's figure and the tray
+  app's are one process: 0.29% of one core over the hour (under 0.5%), and 78.5 MiB (82.3 MB)
+  resident, which is over 40 MB as a figure for the daemon and holds the tray and the window's host
+  too. For the tray app, 78.5 MiB is under 80 if #52's MB is Activity Monitor's (MiB) and 82.3 MB
+  is over it if it is a million bytes; the highest sample is 88.3 MiB; and whether the popover was
+  opened during the hour is not known, so this is not yet the popover-closed figure #52 names. The
+  example's hour, below, answers both.
+- **Found on the way:** Matt's copy has a third WebKit helper, GPU, running since 2026-10-24
+  14:10 UTC and so through the whole hour, which the hour did not sample: it took the two helpers
+  whose process ids followed the app's. Read once at 19:48 UTC, the GPU helper held 25.5 MiB, with
+  57.6 s of CPU over its 29 h 38 min (0.054% of one core on average). The window's helpers are
+  about 40 MiB as the hour has them, about 66 MiB with it. The example's idle script finds helpers
+  by the process macOS holds responsible for them (`responsibility_get_pid_responsible_for_pid`),
+  which finds all three for Matt's copy, and looks them up again at every sample.
+- **Measured with Matt's go-ahead (to fill):**
+  - First run to the number, the example build: measured with the owner's go-ahead.
+  - Popover open time, the median of five presses from a warm daemon: measured with the owner's
+    go-ahead.
+  - The example's idle hour: the daemon's share of one core and its resident size, the tray app's
+    resident size with the popover closed, and the helpers: measured with the owner's go-ahead.
+  - The README's first-run recording: measured with the owner's go-ahead.
+- **How they will be measured:** four scripts and a small Swift helper, kept outside the repository
+  with the builder's notes. Each finds QuotaDial Example by its bundle identifier, checked against
+  the app's signature too, and refuses every other app.
+  - First run: launches the app through Launch Services with `QUOTADIAL_FAKE_DATA_DIR` set to a new,
+    empty folder, after moving the example's own earlier folders aside (its cache, settings and
+    WebKit folders; never Matt's), and reads its menu bar item through accessibility every 10 ms
+    until the item shows a share. It then checks that the app has files open in the new folder and
+    none in the default `quotadial-fake`.
+  - Popover: presses the item through accessibility, as VoiceOver does, five times, and times from
+    the press to the popover's window listed on screen, its first pixels, and the popover drawn as
+    it settles (the first picture that matches it 1.5 s later), from ScreenCaptureKit watching the
+    example's windows alone; the medians.
+  - Idle: as Matt's hour, with the helpers found by responsibility and whether the popover was open
+    at each sample.
+  - Recording: ScreenCaptureKit with a filter that includes the example's windows and nothing else,
+    so the menu bar, other apps' items (Matt's QuotaDial among them), their windows and the desktop
+    are never captured, not even in the raw file; then a check that every frame is the plain
+    background outside the icon and the popover, a crop to the two, an MP4, a GIF and a poster. The
+    account is labelled in the picture itself: the example's accounts are called Example (D-117).
+  - Checked without the app: the helper's self-test (the share read from the title, the median,
+    lightness, and when the popover first showed and was drawn, on made-up pictures); bad arguments
+    refused; every command that needs the example refuses while it is not running; the build passes
+    the app check, and four wrong bundles are refused (the real identifier, unsigned, an edited
+    Info.plist, a signature naming the real identifier); in a made-up home only the example's
+    folders are moved; the crop and the plain check on two made-up recordings, the check catching a
+    stray window in one; and ScreenCaptureKit recording two seconds of a 16-point square with no app
+    in the filter, every pixel of it the background.
+  - Not checked until the app runs: the launch through Launch Services with the variable; the item's
+    title as accessibility gives it; the press; the popover's window and its pixels; the example's
+    helpers; the recording of the example's windows; the click; HEVC for a screen over 4096 pixels
+    wide.
+  - Matt's menu bar hides itself, so its icons sit above the screen until the pointer reaches the
+    top: the recording needs "Automatically hide and show the menu bar" set to Never while it runs,
+    or holds the pointer at the top of the screen (`--reveal`).
+- **Tests:** the release scripts 40 (36 before: 4 new, one changed); the site 90 (one rewritten,
+  two built-page tests changed); `npm ci`, `npm run check`, `npm run build` and `npm test` in
+  `site/` pass. The Rust workspaces are unchanged.
 
 ### M5: the manager's review of #68, the website
 
