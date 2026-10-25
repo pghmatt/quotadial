@@ -27,6 +27,10 @@
     "targets": [
       "app",
       "dmg"
-    ]
+    ],
+    "resources": {
+      "../../../packaging/man/": "man/",
+      "../../../packaging/completions/": "completions/"
+    }
   }
 }

@@ -1,0 +1,646 @@
+#compdef quotadial
+
+autoload -U is-at-least
+
+_quotadial() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
+":: :_quotadial_commands" \
+"*::: :->quotadial" \
+&& ret=0
+    case $state in
+    (quotadial)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+'--json[Print JSON instead of text]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(watch)
+_arguments "${_arguments_options[@]}" : \
+'--json[Print one line of JSON per refresh instead of text]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(daemon)
+_arguments "${_arguments_options[@]}" : \
+'--port=[The port for the local API, on 127.0.0.1. 0 lets the system choose a free one]:PORT:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(mcp)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(alerts)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_quotadial__subcmd__alerts_commands" \
+"*::: :->alerts" \
+&& ret=0
+
+    case $state in
+    (alerts)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-alerts-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--json[Print JSON instead of text]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::rule -- The rule'\''s words:_default' \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The rule'\''s number, as `quotadial alerts` lists it:_default' \
+&& ret=0
+;;
+(on)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The rule'\''s number, as `quotadial alerts` lists it:_default' \
+&& ret=0
+;;
+(off)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- The rule'\''s number, as `quotadial alerts` lists it:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_quotadial__subcmd__alerts__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-alerts-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(on)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(off)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(doctor)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(licence)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_quotadial__subcmd__licence_commands" \
+"*::: :->licence" \
+&& ret=0
+
+    case $state in
+    (licence)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-licence-command-$line[1]:"
+        case $line[1] in
+            (show)
+_arguments "${_arguments_options[@]}" : \
+'--json[Print JSON instead of text]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::key -- The key, which starts with QD1. Leave it out to paste it when asked, or to pipe it in:_default' \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_quotadial__subcmd__licence__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-licence-help-command-$line[1]:"
+        case $line[1] in
+            (show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(history)
+_arguments "${_arguments_options[@]}" : \
+'--since=[From how long ago\: such as 24h, 7d or 30d, or a time such as 2099-01-01T00\:00\:00Z]:SINCE:_default' \
+'--provider=[Only this provider\: claude or codex]:PROVIDER:_default' \
+'--account=[Only this account, by its email address or id]:ACCOUNT:_default' \
+'--window=[Only windows with this label, such as Session or Weekly]:WINDOW:_default' \
+'(--json)--csv[Print every reading as CSV, for a spreadsheet]' \
+'--json[Print JSON, the same as \`GET /v1/history\`]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_quotadial__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-help-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(watch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(daemon)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mcp)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(alerts)
+_arguments "${_arguments_options[@]}" : \
+":: :_quotadial__subcmd__help__subcmd__alerts_commands" \
+"*::: :->alerts" \
+&& ret=0
+
+    case $state in
+    (alerts)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-help-alerts-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(on)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(off)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(doctor)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(licence)
+_arguments "${_arguments_options[@]}" : \
+":: :_quotadial__subcmd__help__subcmd__licence_commands" \
+"*::: :->licence" \
+&& ret=0
+
+    case $state in
+    (licence)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:quotadial-help-licence-command-$line[1]:"
+        case $line[1] in
+            (show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(history)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_quotadial_commands] )) ||
+_quotadial_commands() {
+    local commands; commands=(
+'status:Show current usage for every account this machine is signed in to' \
+'watch:Keep showing usage, refreshing every minute. No provider is asked more often than its own limit, so most refreshes show cached numbers with their age' \
+'daemon:Run the daemon until Ctrl-C\: the one poller every consumer shares, with history and the local API. While it runs, \`status\` and \`watch\` ask it instead of polling' \
+'mcp:Run the MCP server named quotadial on standard input and output, for agents such as Claude Code and Codex. Like \`status\`, it asks the daemon while one runs' \
+'alerts:List the alert rules and what they told lately, or add, remove, or turn one on or off. Rules are written in plain words, such as \`quotadial alerts add "warn me at 80%"\`' \
+'doctor:Print what support asks for, with nothing secret in it\: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app'\''s Send feedback attaches the same' \
+'licence:Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call' \
+'history:Show how each window was used over time, from the daemon'\''s history' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts_commands] )) ||
+_quotadial__subcmd__alerts_commands() {
+    local commands; commands=(
+'list:List the rules and what they told in the last week. The default' \
+'add:Add a rule written in plain words, such as "warn me at 80%", "warn me when the weekly window will run out before it resets" or "tell me 30 minutes before the session resets if it is above 50%"' \
+'remove:Remove the rule with this number' \
+'on:Turn the rule with this number on' \
+'off:Turn the rule with this number off' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial alerts commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__add_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help_commands() {
+    local commands; commands=(
+'list:List the rules and what they told in the last week. The default' \
+'add:Add a rule written in plain words, such as "warn me at 80%", "warn me when the weekly window will run out before it resets" or "tell me 30 minutes before the session resets if it is above 50%"' \
+'remove:Remove the rule with this number' \
+'on:Turn the rule with this number on' \
+'off:Turn the rule with this number off' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial alerts help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__add_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__help_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__list_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help list commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__off_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__off_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help off commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__on_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__on_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help on commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__help__subcmd__remove_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__help__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts help remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__list_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts list commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__off_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__off_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts off commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__on_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__on_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts on commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__alerts__subcmd__remove_commands] )) ||
+_quotadial__subcmd__alerts__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial alerts remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__daemon_commands] )) ||
+_quotadial__subcmd__daemon_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial daemon commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__doctor_commands] )) ||
+_quotadial__subcmd__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial doctor commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help_commands] )) ||
+_quotadial__subcmd__help_commands() {
+    local commands; commands=(
+'status:Show current usage for every account this machine is signed in to' \
+'watch:Keep showing usage, refreshing every minute. No provider is asked more often than its own limit, so most refreshes show cached numbers with their age' \
+'daemon:Run the daemon until Ctrl-C\: the one poller every consumer shares, with history and the local API. While it runs, \`status\` and \`watch\` ask it instead of polling' \
+'mcp:Run the MCP server named quotadial on standard input and output, for agents such as Claude Code and Codex. Like \`status\`, it asks the daemon while one runs' \
+'alerts:List the alert rules and what they told lately, or add, remove, or turn one on or off. Rules are written in plain words, such as \`quotadial alerts add "warn me at 80%"\`' \
+'doctor:Print what support asks for, with nothing secret in it\: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app'\''s Send feedback attaches the same' \
+'licence:Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call' \
+'history:Show how each window was used over time, from the daemon'\''s history' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts_commands() {
+    local commands; commands=(
+'list:List the rules and what they told in the last week. The default' \
+'add:Add a rule written in plain words, such as "warn me at 80%", "warn me when the weekly window will run out before it resets" or "tell me 30 minutes before the session resets if it is above 50%"' \
+'remove:Remove the rule with this number' \
+'on:Turn the rule with this number on' \
+'off:Turn the rule with this number off' \
+    )
+    _describe -t commands 'quotadial help alerts commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts__subcmd__add_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help alerts add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts__subcmd__list_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help alerts list commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts__subcmd__off_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts__subcmd__off_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help alerts off commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts__subcmd__on_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts__subcmd__on_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help alerts on commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__alerts__subcmd__remove_commands] )) ||
+_quotadial__subcmd__help__subcmd__alerts__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help alerts remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__daemon_commands] )) ||
+_quotadial__subcmd__help__subcmd__daemon_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help daemon commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__doctor_commands] )) ||
+_quotadial__subcmd__help__subcmd__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help doctor commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__help_commands] )) ||
+_quotadial__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__history_commands] )) ||
+_quotadial__subcmd__help__subcmd__history_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help history commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__licence_commands] )) ||
+_quotadial__subcmd__help__subcmd__licence_commands() {
+    local commands; commands=(
+'show:Say which QuotaDial this copy is, and from which licence. The default' \
+'add:Add a licence key for QuotaDial Pro, which replaces any kept before' \
+'remove:Remove the licence key, which makes this copy QuotaDial Free' \
+    )
+    _describe -t commands 'quotadial help licence commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__licence__subcmd__add_commands] )) ||
+_quotadial__subcmd__help__subcmd__licence__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help licence add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__licence__subcmd__remove_commands] )) ||
+_quotadial__subcmd__help__subcmd__licence__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help licence remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__licence__subcmd__show_commands] )) ||
+_quotadial__subcmd__help__subcmd__licence__subcmd__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help licence show commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__mcp_commands] )) ||
+_quotadial__subcmd__help__subcmd__mcp_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help mcp commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__status_commands] )) ||
+_quotadial__subcmd__help__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help status commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__help__subcmd__watch_commands] )) ||
+_quotadial__subcmd__help__subcmd__watch_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial help watch commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__history_commands] )) ||
+_quotadial__subcmd__history_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial history commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence_commands] )) ||
+_quotadial__subcmd__licence_commands() {
+    local commands; commands=(
+'show:Say which QuotaDial this copy is, and from which licence. The default' \
+'add:Add a licence key for QuotaDial Pro, which replaces any kept before' \
+'remove:Remove the licence key, which makes this copy QuotaDial Free' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial licence commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__add_commands] )) ||
+_quotadial__subcmd__licence__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__help_commands] )) ||
+_quotadial__subcmd__licence__subcmd__help_commands() {
+    local commands; commands=(
+'show:Say which QuotaDial this copy is, and from which licence. The default' \
+'add:Add a licence key for QuotaDial Pro, which replaces any kept before' \
+'remove:Remove the licence key, which makes this copy QuotaDial Free' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'quotadial licence help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__help__subcmd__add_commands] )) ||
+_quotadial__subcmd__licence__subcmd__help__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence help add commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__help__subcmd__help_commands] )) ||
+_quotadial__subcmd__licence__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence help help commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__help__subcmd__remove_commands] )) ||
+_quotadial__subcmd__licence__subcmd__help__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence help remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__help__subcmd__show_commands] )) ||
+_quotadial__subcmd__licence__subcmd__help__subcmd__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence help show commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__remove_commands] )) ||
+_quotadial__subcmd__licence__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence remove commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__licence__subcmd__show_commands] )) ||
+_quotadial__subcmd__licence__subcmd__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial licence show commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__mcp_commands] )) ||
+_quotadial__subcmd__mcp_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial mcp commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__status_commands] )) ||
+_quotadial__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial status commands' commands "$@"
+}
+(( $+functions[_quotadial__subcmd__watch_commands] )) ||
+_quotadial__subcmd__watch_commands() {
+    local commands; commands=()
+    _describe -t commands 'quotadial watch commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_quotadial" ]; then
+    _quotadial "$@"
+else
+    compdef _quotadial quotadial
+fi

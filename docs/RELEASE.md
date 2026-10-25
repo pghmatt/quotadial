@@ -10,7 +10,9 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
 1. **The version bump**, in one small pull request: the version in `Cargo.toml`,
    `apps/tray/src-tauri/Cargo.toml`, `apps/tray/src-tauri/tauri.conf.json` and
    `apps/tray/package.json`; `CHANGELOG.md`'s Unreleased section renamed to the version and its
-   date; and `scripts/update-prices.sh` run and its diff reviewed. Merge it on green.
+   date; `scripts/update-prices.sh` run and its diff reviewed; and the manual pages written again,
+   since each names its version (`QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial packaging`;
+   CI fails until they are). Merge it on green.
 2. **The tag**, on `main` at that commit: `git tag v0.3.0 && git push origin v0.3.0`.
 3. **The Release workflow** builds the CLI for four platforms and the app as a universal dmg, an
    msi, a deb and an AppImage, signing what its secrets allow, and drafts a pre-release with:
@@ -25,6 +27,16 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
 4. **Publishing** is Matt's. Published as a pre-release, it can be downloaded. Published as a full
    release, which GitHub then marks Latest, it is also what every copy's updater offers, within a
    day.
+5. **The package managers** follow a full release, never a pre-release: the Packages workflow
+   (`.github/workflows/packages.yml`) runs when one is published. `scripts/packages.mjs` writes the
+   Homebrew formula (`quotadial`, the command for macOS and Linux) and cask (`quotadial-app`, the
+   app with the command it carries), the Scoop manifest (the command for Windows) and winget's
+   manifests (the app, as `QuotaDial.QuotaDial`), from the release's `SHA256SUMS.txt` and the msi's
+   product code. With `HOMEBREW_TAP_TOKEN` set it commits the first three to
+   `pghmatt/homebrew-quotadial`, which is both the tap and the Scoop bucket; with `WINGET_TOKEN`
+   set it opens the pull request to `microsoft/winget-pkgs`, which winget's maintainers merge
+   after their checks. Without them, the files are the run's `packages` artifact. Running the
+   workflow by hand with a version does the same for a release already out.
 
 ## The secrets and variables
 
@@ -101,6 +113,20 @@ printf '%s' "$(security find-generic-password -s 'QuotaDial updater signing key'
 
 Keep a copy of `updater.key` and its password in a password manager. Without them, no update can
 reach the copies already installed.
+
+### Package managers: the tap and winget
+
+- `HOMEBREW_TAP_TOKEN`: a fine-grained personal access token with **Contents: Read and write** on
+  `pghmatt/homebrew-quotadial` only. The repository is public and starts empty; the workflow
+  writes `Formula/`, `Casks/` and `bucket/` into it.
+- `WINGET_TOKEN`: a classic personal access token with the `public_repo` scope, which winget's tool
+  needs to fork `microsoft/winget-pkgs` and open the pull request. Its first pull request adds
+  QuotaDial to winget; later ones update it.
+
+```sh
+gh secret set HOMEBREW_TAP_TOKEN --repo pghmatt/quotadial   # asks for the value; nothing is shown
+gh secret set WINGET_TOKEN --repo pghmatt/quotadial
+```
 
 ## How the app updates
 

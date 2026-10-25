@@ -1,0 +1,28 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH quotadial-daemon 1  "QuotaDial 0.2.0" QuotaDial
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH NAME
+quotadial\-daemon \- Run the daemon until Ctrl\-C: the one poller every consumer shares, with history and the local API. While it runs, `status` and `watch` ask it instead of polling
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SYNOPSIS
+\fBquotadial daemon\fR [\fB\-\-port\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH DESCRIPTION
+Run the daemon until Ctrl\-C: the one poller every consumer shares, with history and the local API. While it runs, `status` and `watch` ask it instead of polling
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH OPTIONS
+.TP
+\fB\-\-port\fR \fI<PORT>\fR [default: 47115]
+The port for the local API, on 127.0.0.1. 0 lets the system choose a free one
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH "SEE ALSO"
+quotadial(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.

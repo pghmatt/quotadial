@@ -1,0 +1,37 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH quotadial-licence 1  "QuotaDial 0.2.0" QuotaDial
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH NAME
+quotadial\-licence \- Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SYNOPSIS
+\fBquotadial licence\fR [\fB\-h\fR|\fB\-\-help\fR] [\fIsubcommands\fR]
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH DESCRIPTION
+Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SUBCOMMANDS
+.TP
+quotadial\-licence\-show(1)
+Say which QuotaDial this copy is, and from which licence. The default
+.TP
+quotadial\-licence\-add(1)
+Add a licence key for QuotaDial Pro, which replaces any kept before
+.TP
+quotadial\-licence\-remove(1)
+Remove the licence key, which makes this copy QuotaDial Free
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH "SEE ALSO"
+quotadial(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.

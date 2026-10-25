@@ -58,6 +58,8 @@ jobs:
           cp "target/${TARGET}/release/quotadial${ext}" "package/${name}/"
           cp "target/${TARGET}/release/qd${ext}" "package/${name}/"
           cp README.md LICENSE NOTICE "package/${name}/"
+          # The shell completions and manual pages, written from the commands' definitions (D-112).
+          cp -R packaging/completions packaging/man "package/${name}/"
           if [[ -n "$ext" ]]; then
             (cd package && 7z a "../dist/${name}.zip" "${name}" > /dev/null)
           else
