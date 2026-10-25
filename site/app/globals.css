@@ -127,6 +127,15 @@
     text-wrap: balance;
   }
 
+  /* JetBrains Mono joins -- and -< into one long glyph, which reads as a dash in a command. */
+  code,
+  kbd,
+  pre,
+  samp,
+  .font-code {
+    font-variant-ligatures: none;
+  }
+
   :focus-visible {
     outline: 2px solid var(--magenta);
     outline-offset: 2px;
