@@ -12,7 +12,10 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      # The texts the site renders when it is built (#49: one source).
       - "docs/PRIVACY.md"
+      - "docs/INSTALL.md"
+      - "docs/CLI.md"
       - "CHANGELOG.md"
       - ".github/workflows/site-deploy.yml"
   workflow_dispatch:
