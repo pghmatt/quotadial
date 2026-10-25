@@ -37,7 +37,7 @@ export function Agents() {
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
           <figure className="m-0">
-            <CodeBlock code={STATUS_SAMPLE} copy={false} />
+            <CodeBlock code={STATUS_SAMPLE} copy={false} wrap={false} name="quotadial status output, example accounts" />
             <figcaption className={caption}>
               Example accounts. What <Code>quotadial status</Code> prints, for an agent or for you.
             </figcaption>

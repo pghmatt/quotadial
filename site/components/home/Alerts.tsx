@@ -4,7 +4,7 @@ import { SectionHeading } from "../Section.tsx";
 import { BandedTable } from "./BandedTable.tsx";
 import { ALERT_SAMPLES } from "./examples.ts";
 import { Part } from "./Part.tsx";
-import { Body, Lead } from "./Text.tsx";
+import { Body, Lead, Times } from "./Text.tsx";
 
 /** Alerts: two rules as typed, what each one tells you, and the real Settings window. */
 export function Alerts() {
@@ -28,7 +28,7 @@ export function Alerts() {
                   <>
                     <strong className="font-[650]">{sample.title}</strong>
                     <br />
-                    {sample.text}
+                    <Times>{sample.text}</Times>
                   </>,
                 ],
               }))}

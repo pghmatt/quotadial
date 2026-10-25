@@ -100,12 +100,12 @@ export function Questions() {
             <Question question={item.q}>{item.a}</Question>
           </div>
         ))}
+        <p className="m-0 break-inside-avoid">
+          <ButtonLink variant="text" href="/support">
+            Ask support something else
+          </ButtonLink>
+        </p>
       </div>
-      <p className="m-0 mt-2">
-        <ButtonLink variant="text" href="/support">
-          Ask support something else
-        </ButtonLink>
-      </p>
     </Part>
   );
 }

@@ -2,7 +2,7 @@ import { Plate } from "../Plate.tsx";
 import { SectionHeading } from "../Section.tsx";
 import { READ_ALOUD } from "./examples.ts";
 import { Part } from "./Part.tsx";
-import { Body, Lead } from "./Text.tsx";
+import { Body, Lead, Times } from "./Text.tsx";
 
 const PARTS = [
   { term: "Share used", says: "How much of the window is gone." },
@@ -50,7 +50,9 @@ export function Limits() {
                 className="grid gap-x-4 px-3 py-2.5 even:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] sm:grid-cols-[8rem_1fr]"
               >
                 <dt className="font-[650]">{part.term}</dt>
-                <dd className="m-0 text-ink-2">{part.says}</dd>
+                <dd className="m-0 text-ink-2">
+                  <Times>{part.says}</Times>
+                </dd>
               </div>
             ))}
           </dl>
