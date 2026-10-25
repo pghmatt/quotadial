@@ -50,6 +50,9 @@ proptest = "1.12.0"
 # SQLite compiled in, so no system library is needed on any platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "system-proxy"] }
+# JSON Schema from the API's types, for docs/openapi.json; only tests build it (the `schema`
+# features), and the API serves the committed file.
+schemars = { version = "1.2.3", default-features = false, features = ["derive", "std", "chrono04"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

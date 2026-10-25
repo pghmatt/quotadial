@@ -24,7 +24,9 @@ tokio = { workspace = true, features = ["io-util", "net", "rt", "sync", "macros"
 [dev-dependencies]
 async-trait.workspace = true
 proptest.workspace = true
-quotadial-core = { workspace = true, features = ["testing"] }
+quotadial-core = { workspace = true, features = ["schema", "testing"] }
+quotadial-daemon = { workspace = true, features = ["schema"] }
+schemars.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 

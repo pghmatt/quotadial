@@ -877,3 +877,82 @@ async fn on_free_headroom_and_the_alert_rules_answer_403_and_status_still_reads(
     );
     daemon.stop().await;
 }
+
+#[tokio::test]
+async fn the_api_answers_as_its_openapi_description_says() {
+    let spec: Value =
+        serde_json::from_str(include_str!("../../../docs/openapi.json")).expect("the spec is JSON");
+    for pro in [true, false] {
+        let daemon = daemon_with(pro).await;
+        let copy = if pro {
+            "QuotaDial Pro"
+        } else {
+            "QuotaDial Free"
+        };
+        for (path, operations) in spec["paths"].as_object().expect("paths") {
+            // Rule 1 is one of the rules a new history starts with.
+            let url = path.replace("{id}", "1");
+            for method in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
+                let method_name = method.to_lowercase();
+                let (status, _) = daemon
+                    .change(
+                        Method::from_bytes(method.as_bytes()).expect("a method"),
+                        &url,
+                        None,
+                    )
+                    .await;
+                match operations.get(&method_name) {
+                    Some(operation) => assert!(
+                        operation["responses"].get(status.as_str()).is_some(),
+                        "{copy}: {method} {path} answered {status}, which the spec does not list"
+                    ),
+                    None => assert_eq!(
+                        status,
+                        StatusCode::METHOD_NOT_ALLOWED,
+                        "{copy}: {method} {path} is not in the spec"
+                    ),
+                }
+            }
+        }
+        let (status, _) = daemon.change(Method::GET, "/v1/nothing", None).await;
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "{copy}: a path not in the spec"
+        );
+        daemon.stop().await;
+    }
+}
+
+#[tokio::test]
+async fn the_api_serves_its_openapi_description() {
+    let daemon = daemon_with(false).await;
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .expect("client")
+        .get(format!("http://127.0.0.1:{}/v1/openapi.json", daemon.port))
+        .header(AUTHORIZATION, format!("Bearer {}", daemon.token.expose()))
+        .send()
+        .await
+        .expect("the server answers");
+    assert_eq!(response.status(), StatusCode::OK, "on QuotaDial Free too");
+    assert_eq!(
+        response.headers()[CONTENT_TYPE],
+        "application/json",
+        "served as JSON"
+    );
+    assert_eq!(
+        response.text().await.expect("a body"),
+        include_str!("../../../docs/openapi.json")
+    );
+    let (status, _, _) = daemon
+        .send(Method::GET, "/v1/openapi.json", None, None)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "it needs the token, as everything does"
+    );
+    daemon.stop().await;
+}

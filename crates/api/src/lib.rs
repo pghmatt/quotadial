@@ -27,4 +27,6 @@ pub use server::{DEFAULT_PORT, bind, serve};
 pub use token::Token;
 
 #[cfg(test)]
+mod openapi;
+#[cfg(test)]
 mod tests;

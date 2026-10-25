@@ -1,0 +1,1624 @@
+{
+  "components": {
+    "responses": {
+      "Unauthorized": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The request carries no token, or another one.",
+        "headers": {
+          "WWW-Authenticate": {
+            "schema": {
+              "const": "Bearer",
+              "type": "string"
+            }
+          }
+        }
+      },
+      "WrongHost": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The request's `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+      }
+    },
+    "schemas": {
+      "Account": {
+        "description": "One signed-in account at one provider.\n\nAn account's identity is `provider` + `org` + `account_id`, so the same person in two organizations is two accounts and their usage never blends.",
+        "properties": {
+          "account_id": {
+            "description": "The provider's id for this account.",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "What to call the account, usually its email address.",
+            "type": "string"
+          },
+          "org": {
+            "description": "The organization or workspace the account belongs to, when known.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "description": "The subscription plan, as the provider names it, when known.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "description": "The provider's id, such as `\"claude\"`.",
+            "type": "string"
+          },
+          "sign_in": {
+            "description": "Where QuotaDial read this account's sign-in, written for people, with `~` for the home folder, such as `the macOS Keychain item \"Claude Code-credentials-a1b2c3d4\" (CLAUDE_CONFIG_DIR ~/.claude-work)`. Never a token. Left out when unknown.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "account_id",
+          "display_name"
+        ],
+        "type": "object"
+      },
+      "Alerts": {
+        "description": "The alert rules and what they told lately, as `GET /v1/alerts` and the MCP tool `list_alerts` give them.",
+        "properties": {
+          "firings": {
+            "description": "What the rules told in the last week, at most the newest `RECENT_FIRINGS`, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Firing"
+            },
+            "type": "array"
+          },
+          "rules": {
+            "description": "Every rule, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/StoredRule"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules",
+          "firings"
+        ],
+        "type": "object"
+      },
+      "Cost": {
+        "description": "What one provider's local use over a period would have cost on its API.",
+        "properties": {
+          "models": {
+            "description": "Each model, the costliest first.",
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "description": "What the cost leaves out, each a sentence.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prices_updated": {
+            "description": "When the price table was made, such as `2026-10-23`.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "The provider id, such as `claude`.",
+            "type": "string"
+          },
+          "requests": {
+            "description": "How many requests the logs hold for the period.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "since": {
+            "description": "The start of the period: a week before `until`.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/Tokens"
+          },
+          "until": {
+            "description": "The end of the period: when the logs were last read.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "usd": {
+            "description": "The period's requests at the API's prices, in US dollars. Models with no price are left out, and named in `notes`.",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "provider",
+          "since",
+          "until",
+          "usd",
+          "requests",
+          "tokens",
+          "models",
+          "prices_updated"
+        ],
+        "type": "object"
+      },
+      "Delivery": {
+        "description": "Where a firing was sent, or why not.",
+        "properties": {
+          "error": {
+            "description": "Why it was not sent, the last time it was tried.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sent": {
+            "description": "Whether the webhook took it.",
+            "type": "boolean"
+          },
+          "to": {
+            "description": "The webhook's host.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "sent"
+        ],
+        "type": "object"
+      },
+      "Error": {
+        "description": "What went wrong, in one sentence that says what to do about it.",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "pro_feature": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProFeature"
+              }
+            ],
+            "description": "On QuotaDial Free, the QuotaDial Pro feature the request needs."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ExtraUsage": {
+        "description": "Pay-as-you-go usage beyond a plan's limits, such as Claude's extra usage.",
+        "properties": {
+          "balance": {
+            "description": "Credits left to spend beyond the plan's limits, in the provider's own credit units rather than `currency`, when the provider reports a balance instead of a spending limit.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "currency": {
+            "description": "The ISO 4217 currency code of `used` and `limit`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "description": "Whether extra usage is turned on for the account.",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "The monthly spending limit, in `currency`.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "used": {
+            "description": "The amount spent this month, in `currency`.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "used_pct": {
+            "description": "How much of the monthly extra-usage limit is used, as a percentage.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "Firing": {
+        "description": "One time a rule's condition held, and what to tell.",
+        "properties": {
+          "account": {
+            "description": "The account's display name.",
+            "type": "string"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "body": {
+            "description": "What a notification's text says.",
+            "type": "string"
+          },
+          "deliveries": {
+            "description": "Where it was sent besides the app's notifications, or why not.",
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            },
+            "type": "array"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "org": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule": {
+            "description": "The rule's id.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "What a notification's title says.",
+            "type": "string"
+          },
+          "used_pct": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "window": {
+            "description": "The window's label; left out for an account's sign-in.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "rule",
+          "provider",
+          "account_id",
+          "account",
+          "title",
+          "body",
+          "fired_at"
+        ],
+        "type": "object"
+      },
+      "Headroom": {
+        "description": "One account's headroom.",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account",
+            "description": "The account."
+          },
+          "error": {
+            "description": "Why the status is not ok, naming the fix.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headroom_pct": {
+            "description": "100 minus the tightest window's share used, from 0 to 100. Left out when the account has no windows, or cannot be used now: its sign-in needs the user (`auth_required`) or its plan has no limits to read (`unsupported`).",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status",
+            "description": "Whether its numbers are current, and if not, why."
+          },
+          "tightest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Window"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The window closest to its limit, which sets the headroom: its reset, length and age. For an account that cannot be used now, the last one known."
+          }
+        },
+        "required": [
+          "account",
+          "status"
+        ],
+        "type": "object"
+      },
+      "HeadroomReport": {
+        "description": "Every account's headroom, the most first, then the accounts that have none to offer now.",
+        "properties": {
+          "accounts": {
+            "description": "Accounts with headroom, the most first; then accounts without numbers and accounts that cannot be used now.",
+            "items": {
+              "$ref": "#/components/schemas/Headroom"
+            },
+            "type": "array"
+          },
+          "costs": {
+            "description": "What the week's local use of each provider would have cost at API prices, while the daemon reads the logs.",
+            "items": {
+              "$ref": "#/components/schemas/Cost"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "description": "Providers or accounts that produced no snapshot.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderError"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "HistoryAnswer": {
+        "description": "What `GET /v1/history` answers.",
+        "properties": {
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/Series"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "type": "object"
+      },
+      "Indicator": {
+        "description": "How bad a status page says things are, least first, as Statuspage names it.",
+        "oneOf": [
+          {
+            "const": "none",
+            "description": "All is well.",
+            "type": "string"
+          },
+          {
+            "const": "maintenance",
+            "description": "Planned maintenance.",
+            "type": "string"
+          },
+          {
+            "const": "minor",
+            "description": "Some of the service is degraded.",
+            "type": "string"
+          },
+          {
+            "const": "major",
+            "description": "A large part of the service is down.",
+            "type": "string"
+          },
+          {
+            "const": "critical",
+            "description": "The service is down.",
+            "type": "string"
+          }
+        ]
+      },
+      "LeftOut": {
+        "description": "Something a QuotaDial Free copy leaves out of a report, such as more accounts on the machine or the week's cost, named in one line.",
+        "properties": {
+          "feature": {
+            "$ref": "#/components/schemas/ProFeature",
+            "description": "The Pro feature it would take."
+          },
+          "provider": {
+            "description": "The provider it is about, for its accounts.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "description": "What is left out, that it is part of QuotaDial Pro, and where Pro is.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature",
+          "text"
+        ],
+        "type": "object"
+      },
+      "ModelCost": {
+        "description": "One model's part of a `Cost`.",
+        "properties": {
+          "model": {
+            "description": "The model, as the logs name it.",
+            "type": "string"
+          },
+          "requests": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/Tokens"
+          },
+          "usd": {
+            "description": "Its requests at the API's prices, in US dollars. Left out when the price table has no price for it.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "model",
+          "requests",
+          "tokens"
+        ],
+        "type": "object"
+      },
+      "NewRule": {
+        "description": "What `POST /v1/alerts` takes.",
+        "properties": {
+          "rule": {
+            "description": "The rule in plain words, such as `warn me at 80%`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule"
+        ],
+        "type": "object"
+      },
+      "Pace": {
+        "description": "How fast a `Window` is filling: a straight line fitted through its readings since it last reset.",
+        "properties": {
+          "pct_per_hour": {
+            "description": "The share of the limit used per hour, in percentage points.",
+            "format": "double",
+            "type": "number"
+          },
+          "runs_out_at": {
+            "description": "When the window reaches 100% at this pace, if that comes before it resets. Left out when it does not, or when the window is not filling.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "pct_per_hour"
+        ],
+        "type": "object"
+      },
+      "Point": {
+        "description": "One reading of a window.",
+        "properties": {
+          "fetched_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "used_pct": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "fetched_at",
+          "used_pct",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ProFeature": {
+        "description": "A feature only QuotaDial Pro has.",
+        "oneOf": [
+          {
+            "const": "accounts",
+            "description": "More than one account per provider.",
+            "type": "string"
+          },
+          {
+            "const": "long_history",
+            "description": "History kept up to a year, rather than 30 days.",
+            "type": "string"
+          },
+          {
+            "const": "alert_rules",
+            "description": "Alert rules beyond a threshold and a reset: a window running out before it resets, a time before a reset, and provider incidents.",
+            "type": "string"
+          },
+          {
+            "const": "alert_delivery",
+            "description": "Alerts sent to webhooks and Slack as well as the system's notifications.",
+            "type": "string"
+          },
+          {
+            "const": "cost_scan",
+            "description": "The week's API-equivalent cost of local use, from the CLIs' logs.",
+            "type": "string"
+          },
+          {
+            "const": "headroom",
+            "description": "The accounts ranked by headroom, through the local API and MCP.",
+            "type": "string"
+          },
+          {
+            "const": "rules_api",
+            "description": "The alert rules through the local API and MCP.",
+            "type": "string"
+          }
+        ]
+      },
+      "ProviderError": {
+        "description": "A provider or account that produced no snapshot, for example because its sign-in could not be read, or what a provider could not look at while finding its accounts. The message names the fix.",
+        "properties": {
+          "message": {
+            "description": "What happened and what to do, with any token blanked out.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "The provider's id, such as `claude`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "message"
+        ],
+        "type": "object"
+      },
+      "RuleChange": {
+        "description": "What `PATCH /v1/alerts/{id}` takes.",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "Series": {
+        "description": "One window's readings over time.",
+        "properties": {
+          "account": {
+            "description": "The account's display name.",
+            "type": "string"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WindowKind"
+          },
+          "org": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "readings": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array"
+          },
+          "scope_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "window": {
+            "description": "The window's label, such as `Weekly`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "account_id",
+          "account",
+          "window",
+          "kind",
+          "readings"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "description": "Everything QuotaDial knows about one account's usage at one moment.",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account",
+            "description": "The account the snapshot describes."
+          },
+          "error": {
+            "description": "One sentence that explains a non-`ok` status and names the fix.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extra_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtraUsage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pay-as-you-go usage beyond the plan's limits, when the provider reports it."
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status",
+            "description": "Whether the numbers are current, and if not, why."
+          },
+          "windows": {
+            "description": "The account's limit windows. Empty when the status says why no numbers are available.",
+            "items": {
+              "$ref": "#/components/schemas/Window"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "account",
+          "windows",
+          "status"
+        ],
+        "type": "object"
+      },
+      "Source": {
+        "description": "Where a `Window`'s numbers came from.",
+        "oneOf": [
+          {
+            "const": "api",
+            "description": "The provider's usage endpoint.",
+            "type": "string"
+          },
+          {
+            "const": "local_log",
+            "description": "The official CLI's local session logs.",
+            "type": "string"
+          },
+          {
+            "const": "cache",
+            "description": "QuotaDial's own store, from an earlier fetch.",
+            "type": "string"
+          }
+        ]
+      },
+      "Status": {
+        "description": "How current a `Snapshot` is.",
+        "oneOf": [
+          {
+            "const": "ok",
+            "description": "Fresh numbers from the latest fetch.",
+            "type": "string"
+          },
+          {
+            "const": "stale",
+            "description": "Numbers from an earlier fetch, because the latest one did not succeed.",
+            "type": "string"
+          },
+          {
+            "const": "auth_required",
+            "description": "The stored login is missing or expired. The user has to sign in with the official CLI.",
+            "type": "string"
+          },
+          {
+            "const": "rate_limited",
+            "description": "The provider is rate-limiting requests. QuotaDial backs off and retries later.",
+            "type": "string"
+          },
+          {
+            "const": "unsupported",
+            "description": "The provider reports no usage for this account or plan.",
+            "type": "string"
+          }
+        ]
+      },
+      "StatusPage": {
+        "description": "What a provider's status page says: how bad things are, in the page's own words.",
+        "properties": {
+          "checked_at": {
+            "description": "When QuotaDial last read the page.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "The page's words, such as \"Partial System Degradation\".",
+            "type": "string"
+          },
+          "indicator": {
+            "$ref": "#/components/schemas/Indicator"
+          },
+          "provider": {
+            "description": "The provider id, such as `claude`.",
+            "type": "string"
+          },
+          "since": {
+            "description": "When QuotaDial first saw the page's current trouble. Left out when all is well.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "description": "The page, for people.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "indicator",
+          "description",
+          "url",
+          "checked_at"
+        ],
+        "type": "object"
+      },
+      "StatusReport": {
+        "description": "A snapshot per account, and every provider or account that produced none.",
+        "properties": {
+          "costs": {
+            "description": "What the week's local use of each provider would have cost on its API, while the daemon reads the logs. Left out of a direct fetch.",
+            "items": {
+              "$ref": "#/components/schemas/Cost"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "description": "Providers or accounts that produced no snapshot.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderError"
+            },
+            "type": "array"
+          },
+          "left_out": {
+            "description": "What this copy leaves out because it is QuotaDial Free, each in one line for where it would be. Left out on QuotaDial Pro.",
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array"
+          },
+          "problems": {
+            "description": "What is wrong with QuotaDial itself rather than a provider, each in one line that names the fix or says it is dealt with, such as a history it could not read or save. Left out when there is none, and of a direct fetch.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "snapshots": {
+            "description": "One per account, in provider order.",
+            "items": {
+              "$ref": "#/components/schemas/Snapshot"
+            },
+            "type": "array"
+          },
+          "status_pages": {
+            "description": "What the providers' status pages say, while the daemon reads them. Left out of a direct fetch.",
+            "items": {
+              "$ref": "#/components/schemas/StatusPage"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "snapshots",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "StoredRule": {
+        "description": "A rule as kept: the words it was written in, whether it is on, and what they say.",
+        "oneOf": [
+          {
+            "description": "A window reaches `pct`% used.",
+            "properties": {
+              "kind": {
+                "const": "threshold",
+                "type": "string"
+              },
+              "pct": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "pct"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A window resets.",
+            "properties": {
+              "kind": {
+                "const": "reset",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "At its pace, a window runs out before it resets.",
+            "properties": {
+              "kind": {
+                "const": "runs_out",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A window resets within `minutes`, while at least `above_pct`% of it is used.",
+            "properties": {
+              "above_pct": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "kind": {
+                "const": "before_reset",
+                "type": "string"
+              },
+              "minutes": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "minutes"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An account needs signing in again.",
+            "properties": {
+              "kind": {
+                "const": "sign_in",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A provider's status page reports an incident.",
+            "properties": {
+              "kind": {
+                "const": "incident",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Only this provider's accounts, such as `claude`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waits": {
+            "description": "Whether it waits for QuotaDial Pro: a kind of rule only Pro checks, kept on a Free copy and checked again once a key is added. Left out of JSON when false.",
+            "type": "boolean"
+          },
+          "window": {
+            "description": "Only these windows: `session`, `weekly` or `daily` for that kind of window; otherwise a model, such as `opus`, or a window's label, such as `Weekly (Cowork)`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "written": {
+            "description": "The words it was written in.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "written",
+          "enabled",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "Tokens": {
+        "description": "Tokens of one request, or summed over many, by kind.",
+        "properties": {
+          "cache_read": {
+            "description": "Input read from the prompt cache.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cache_write": {
+            "description": "Input written to the prompt cache.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cache_write_1h": {
+            "description": "The part of `cache_write` kept for an hour rather than five minutes, which costs more. Claude only; left out of JSON when 0.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "description": "Input read fresh, outside the prompt cache.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "output": {
+            "description": "Output, reasoning included.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input",
+          "output",
+          "cache_read",
+          "cache_write"
+        ],
+        "type": "object"
+      },
+      "Window": {
+        "description": "One usage limit with its own reset, such as a five-hour session or a weekly cap.",
+        "properties": {
+          "fetched_at": {
+            "description": "When the number was fetched. Every number QuotaDial shows carries its age.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WindowKind",
+            "description": "Which kind of limit this is."
+          },
+          "label": {
+            "description": "A short human-readable name, for example `\"Session\"` or `\"Weekly (Opus)\"`.",
+            "type": "string"
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pace"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How fast the window is filling, from the daemon's history of it. Only the daemon keeps that history, so a direct fetch leaves it out, as does the daemon for a window with too few readings since it last reset."
+          },
+          "resets_at": {
+            "description": "When the window resets, when the provider says.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope_model": {
+            "description": "The model this limit applies to, for per-model windows.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "Where the number came from."
+          },
+          "unconfirmed": {
+            "description": "The window reads 0% where it read more on the last fetch, before its reset, so QuotaDial holds the reading as unconfirmed until a second fetch agrees. Left out of JSON when false.",
+            "type": "boolean"
+          },
+          "used_pct": {
+            "description": "How much of the limit is used, as a percentage of the limit.",
+            "format": "double",
+            "type": "number"
+          },
+          "window_seconds": {
+            "description": "The length of the window in seconds, for example 18000 for five hours.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "used_pct",
+          "window_seconds",
+          "source",
+          "fetched_at"
+        ],
+        "type": "object"
+      },
+      "WindowKind": {
+        "description": "The kinds of limit windows providers report.",
+        "oneOf": [
+          {
+            "const": "session",
+            "description": "A short rolling session, such as Claude's five-hour window.",
+            "type": "string"
+          },
+          {
+            "const": "weekly",
+            "description": "A weekly limit across all models.",
+            "type": "string"
+          },
+          {
+            "const": "model_weekly",
+            "description": "A weekly limit for one model, named in the window's `scope_model`.",
+            "type": "string"
+          },
+          {
+            "const": "daily",
+            "description": "A daily limit.",
+            "type": "string"
+          },
+          {
+            "const": "credits",
+            "description": "A credit balance.",
+            "type": "string"
+          },
+          {
+            "const": "other",
+            "description": "A limit QuotaDial does not know yet, shown by the name its provider gives it. Its length is unknown, so the window's `window_seconds` is 0.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "token": {
+        "description": "The 64 hex characters in the `token` file in QuotaDial's data folder, which the daemon makes on its first start, readable only by you.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "The local API in QuotaDial's documentation, with examples",
+    "url": "https://github.com/pghmatt/quotadial/blob/main/docs/CLI.md#the-local-api"
+  },
+  "info": {
+    "description": "The QuotaDial daemon answers on `127.0.0.1` only, at the port in `daemon.json` in QuotaDial's data folder, 47115 unless something else had it. Every request needs the token from the `token` file in the same folder, as `Authorization: Bearer <token>`; without it, or with another, the answer is 401. A request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` gets 403, so a web page cannot reach the API through a name of its own. Any other path gets 404 and any other method 405, each with an `Error`. Status and history answer on every copy; headroom and the alert rules are part of QuotaDial Pro, and on QuotaDial Free they answer 403 naming the feature in `pro_feature`.",
+    "license": {
+      "identifier": "MIT",
+      "name": "MIT"
+    },
+    "summary": "How much of your Claude and ChatGPT/Codex plan limits you have used, from the QuotaDial daemon on this machine.",
+    "title": "QuotaDial local API",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/alerts": {
+      "get": {
+        "description": "QuotaDial Pro.",
+        "operationId": "listAlerts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alerts"
+                }
+              }
+            },
+            "description": "Every rule, oldest first, and at most the newest 100 firings of the last week, oldest first."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "On QuotaDial Free, the alert rules through the API is part of QuotaDial Pro, and `pro_feature` names it. Also any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial could not use its history, or stopped while answering."
+          }
+        },
+        "summary": "The alert rules, and what they told in the last week, as `quotadial alerts list --json` gives them"
+      },
+      "post": {
+        "description": "Such as `warn me at 80%` or `tell me 30 minutes before the weekly window runs out`. QuotaDial Pro.",
+        "operationId": "addAlert",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredRule"
+                }
+              }
+            },
+            "description": "The rule as kept."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is not `{\"rule\": \"...\"}`, or the rule's words could not be read; the error says which part."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "On QuotaDial Free, adding alert rules through the API, or this kind of rule, is part of QuotaDial Pro, and `pro_feature` names it. Also any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial could not use its history, or stopped while answering."
+          }
+        },
+        "summary": "Adds an alert rule written in plain words"
+      }
+    },
+    "/v1/alerts/{id}": {
+      "delete": {
+        "description": "QuotaDial Pro.",
+        "operationId": "removeAlert",
+        "parameters": [
+          {
+            "description": "The rule's id, as `GET /v1/alerts` lists it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The rule is removed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "On QuotaDial Free, removing alert rules through the API is part of QuotaDial Pro, and `pro_feature` names it. Also any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial has no rule with this id."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial could not use its history, or stopped while answering."
+          }
+        },
+        "summary": "Removes an alert rule"
+      },
+      "patch": {
+        "description": "QuotaDial Pro.",
+        "operationId": "setAlert",
+        "parameters": [
+          {
+            "description": "The rule's id, as `GET /v1/alerts` lists it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredRule"
+                }
+              }
+            },
+            "description": "The rule as kept now."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is not `{\"enabled\": true}` or `{\"enabled\": false}`."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "On QuotaDial Free, changing alert rules through the API is part of QuotaDial Pro, and `pro_feature` names it. Also any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial has no rule with this id."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial could not use its history, or stopped while answering."
+          }
+        },
+        "summary": "Turns an alert rule on or off"
+      }
+    },
+    "/v1/headroom": {
+      "get": {
+        "description": "The most headroom first; equal headroom goes to the account whose tightest window resets sooner, and accounts with no windows, or that cannot be used now, come last. Uses the numbers as last fetched. QuotaDial Pro.",
+        "operationId": "getHeadroom",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeadroomReport"
+                }
+              }
+            },
+            "description": "Every account, ranked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "On QuotaDial Free, headroom is part of QuotaDial Pro, and `pro_feature` names it. Also any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`."
+          }
+        },
+        "summary": "Every account ranked by the room left in its tightest window"
+      }
+    },
+    "/v1/history": {
+      "get": {
+        "operationId": "getHistory",
+        "parameters": [
+          {
+            "description": "From when, in RFC 3339, such as `2099-01-01T00:00:00Z`. 7 days ago when left out.",
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this provider's accounts, such as `claude`.",
+            "in": "query",
+            "name": "provider",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this account: its id or its display name, in any case.",
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only windows with this label, such as `Weekly`, in any case.",
+            "in": "query",
+            "name": "window",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryAnswer"
+                }
+              }
+            },
+            "description": "Each account's window, each provider's in order of account name, with its readings oldest first."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`since` is not a time in RFC 3339."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/WrongHost"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "QuotaDial could not use its history, or stopped while answering."
+          }
+        },
+        "summary": "Each window's readings since a time, as `quotadial history --json` gives them"
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "This document, the same as `docs/openapi.json` in QuotaDial's source."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/WrongHost"
+          }
+        },
+        "summary": "This description of the API"
+      }
+    },
+    "/v1/status": {
+      "get": {
+        "operationId": "getStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusReport"
+                }
+              }
+            },
+            "description": "Each account's snapshot, the providers that gave none, and, while the daemon reads them, the status pages, the week's cost and what is wrong with QuotaDial itself."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/WrongHost"
+          }
+        },
+        "summary": "Every account's limits, as `quotadial status --json` gives them"
+      }
+    }
+  },
+  "security": [
+    {
+      "token": []
+    }
+  ],
+  "servers": [
+    {
+      "description": "The daemon on this machine",
+      "url": "http://127.0.0.1:{port}",
+      "variables": {
+        "port": {
+          "default": "47115",
+          "description": "The port in `daemon.json` in QuotaDial's data folder."
+        }
+      }
+    }
+  ]
+}

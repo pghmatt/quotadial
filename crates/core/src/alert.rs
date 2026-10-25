@@ -26,6 +26,7 @@ const MAX_MINUTES: u32 = 7 * 24 * 60;
 
 /// What a rule watches for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Condition {
     /// A window reaches `pct`% used.
@@ -48,6 +49,7 @@ pub enum Condition {
 
 /// Which accounts and windows a rule covers: all of them, unless it names a provider or a window.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Scope {
     /// Only this provider's accounts, such as `claude`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -60,6 +62,7 @@ pub struct Scope {
 
 /// A rule: its condition and its scope.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Rule {
     #[serde(flatten)]
     pub condition: Condition,

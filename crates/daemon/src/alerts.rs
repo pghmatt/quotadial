@@ -33,6 +33,7 @@ const STARTING_RULES: [&str; 2] = [
 
 /// A rule as kept: the words it was written in, whether it is on, and what they say.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StoredRule {
     pub id: i64,
     /// The words it was written in.
@@ -42,14 +43,15 @@ pub struct StoredRule {
     pub rule: Rule,
     pub created_at: DateTime<Utc>,
     /// Whether it waits for QuotaDial Pro: a kind of rule only Pro checks, kept on a Free copy
-    /// and checked again once a key is added. [`History::alerts`] sets it from the copy's tier,
-    /// and JSON leaves it out when false.
+    /// and checked again once a key is added. Left out of JSON when false.
+    // `History::alerts` sets it from the copy's tier.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub waits: bool,
 }
 
 /// One time a rule's condition held, and what to tell.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Firing {
     pub id: i64,
     /// The rule's id.
@@ -80,6 +82,7 @@ pub struct Firing {
 /// The alert rules and what they told lately, as `GET /v1/alerts` and the MCP tool `list_alerts`
 /// give them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Alerts {
     /// Every rule, oldest first.
     pub rules: Vec<StoredRule>,

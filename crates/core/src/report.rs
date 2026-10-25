@@ -8,6 +8,7 @@ use crate::{Cost, Error, ProFeature, Provider, Snapshot, Status, redact_secrets}
 
 /// A snapshot per account, and every provider or account that produced none.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StatusReport {
     /// One per account, in provider order.
     pub snapshots: Vec<Snapshot>,
@@ -35,6 +36,7 @@ pub struct StatusReport {
 /// Something a QuotaDial Free copy leaves out of a report, such as more accounts on the machine or
 /// the week's cost, named in one line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LeftOut {
     /// The Pro feature it would take.
     pub feature: ProFeature,
@@ -80,6 +82,7 @@ impl LeftOut {
 
 /// What a provider's status page says: how bad things are, in the page's own words.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StatusPage {
     /// The provider id, such as `claude`.
     pub provider: String,
@@ -97,6 +100,7 @@ pub struct StatusPage {
 
 /// How bad a status page says things are, least first, as Statuspage names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Indicator {
     /// All is well.
@@ -119,12 +123,14 @@ impl Indicator {
     }
 }
 
-/// A provider or account that produced no snapshot, for example because its credentials were
-/// unreadable, or what a provider could not look at while finding its accounts. The message names
-/// the fix.
+/// A provider or account that produced no snapshot, for example because its sign-in could not be
+/// read, or what a provider could not look at while finding its accounts. The message names the
+/// fix.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderError {
-    /// The provider id, as in [`Provider::id`].
+    /// The provider's id, such as `claude`.
+    // As `Provider::id` gives it.
     pub provider: String,
     /// What happened and what to do, with any token blanked out.
     pub message: String,

@@ -20,6 +20,7 @@ pub const DELIVER_WITHIN: TimeDelta = TimeDelta::hours(1);
 
 /// Where a firing was sent, or why not.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Delivery {
     /// The webhook's host.
     pub to: String,

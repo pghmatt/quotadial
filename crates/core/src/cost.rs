@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Tokens of one request, or summed over many, by kind.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Tokens {
     /// Input read fresh, outside the prompt cache.
     pub input: u64,
@@ -58,6 +59,7 @@ impl std::ops::AddAssign for Tokens {
 
 /// What one provider's local use over a period would have cost on its API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Cost {
     /// The provider id, such as `claude`.
     pub provider: String,
@@ -82,6 +84,7 @@ pub struct Cost {
 
 /// One model's part of a [`Cost`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelCost {
     /// The model, as the logs name it.
     pub model: String,

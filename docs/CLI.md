@@ -429,6 +429,7 @@ The daemon answers these requests, on `127.0.0.1` only:
 | `POST /v1/alerts` | Adds a rule sent as `{ "rule": "warn me at 80%" }`. 201 with the rule, or 400 with what the grammar could not read |
 | `PATCH /v1/alerts/<id>` | Turns a rule on or off, sent as `{ "enabled": false }`. 200 with the rule, or 404 |
 | `DELETE /v1/alerts/<id>` | Removes a rule. 204, or 404 |
+| `GET /v1/openapi.json` | This API in OpenAPI 3.1: every request, its parameters, and the shape of each answer and error. The same as [`docs/openapi.json`](openapi.json), which tests keep the same as the code |
 
 Every request needs the token from the `token` file in the data directory, as
 `Authorization: Bearer <token>`. The daemon creates it on its first start, 64 hex characters that

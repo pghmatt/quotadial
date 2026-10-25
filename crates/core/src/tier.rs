@@ -21,8 +21,10 @@ pub enum Tier {
     Pro,
 }
 
-/// A feature only QuotaDial Pro has, from the PRD's "Pro features" as decided on #49 (D-098).
+/// A feature only QuotaDial Pro has.
+// From the PRD's "Pro features", as decided on #49 (D-098).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ProFeature {
     /// More than one account per provider.

@@ -12,6 +12,8 @@ publish.workspace = true
 [features]
 # Helpers for other crates' tests: arbitrary JSON for the property tests over parsers (#52).
 testing = ["dep:proptest"]
+# JSON Schema for the types the local API sends, from which a test writes docs/openapi.json.
+schema = ["dep:schemars"]
 
 [dependencies]
 async-trait.workspace = true
@@ -23,6 +25,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
 proptest = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest.workspace = true

@@ -113,6 +113,7 @@ cargo build --workspace                                 # build everything
 cargo test --workspace                                  # run every test
 cargo clippy --workspace --all-targets -- -D warnings   # lint, exactly as CI runs it
 cargo fmt --all                                         # format (CI runs it with -- --check)
+QUOTADIAL_WRITE_OPENAPI=1 cargo test -p quotadial-api openapi  # after changing the API or a type it sends: write docs/openapi.json again
 cargo run -p quotadial -- status                        # usage status as text
 cargo run -p quotadial -- status --json                 # the same as JSON
 cargo run -p quotadial --bin qd -- status               # via the qd alias
