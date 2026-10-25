@@ -1,21 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { usePanelFocus } from "./focus";
 import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
+import { ACCOUNT_HEADER, lookOf, shareImage } from "./share";
 
 /** How far back the view can go, in days. */
 const PERIODS = [7, 30];
 
 /**
  * The history view: each account's windows charted over the last 7 or 30 days, when it was used
- * by hour of the day, and an export of every reading as CSV.
+ * by hour of the day, an export of every reading as CSV, and on QuotaDial Pro a picture of each
+ * account's history to share, saved in the Downloads folder as the CSV is (D-115).
  */
 export function HistoryPanel({ onDone }: { onDone: () => void }) {
   const [days, setDays] = useState(PERIODS[0]);
   const [view, setView] = useState<HistoryView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  // A picture being drawn and saved; another press meanwhile is the same press.
+  const sharing = useRef(false);
   const panel = usePanelFocus();
 
   useEffect(() => {
@@ -38,8 +42,9 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
     };
   }, [days]);
 
-  const exportReadings = () => {
-    invoke<string>("export_history", { days })
+  /** Says where a file went, or what went wrong. */
+  const report = (saving: Promise<string>) => {
+    saving
       .then((where) => {
         setSaved(where);
         setProblem(null);
@@ -47,6 +52,29 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
       .catch((error: unknown) => setProblem(String(error)));
   };
 
+  const exportReadings = () => report(invoke<string>("export_history", { days }));
+
+  // The picture is drawn here from the view's own numbers, in the window's theme, and the app
+  // saves it; the account goes by its key, and the app chooses the file's name.
+  const share = (account: AccountHistory) => {
+    if (!view || sharing.current) {
+      return;
+    }
+    sharing.current = true;
+    report(
+      shareImage(view, account, lookOf(document.documentElement))
+        .then((png) =>
+          invoke<string>("save_share_image", png, {
+            headers: { [ACCOUNT_HEADER]: encodeURIComponent(account.key) },
+          }),
+        )
+        .finally(() => {
+          sharing.current = false;
+        }),
+    );
+  };
+
+  const shown = view !== null && view.accounts.length > 0;
   return (
     <section class="history" aria-label="History" tabIndex={-1} ref={panel}>
       <h2>History</h2>
@@ -62,18 +90,23 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
           </button>
         ))}
       </div>
-      {view && view.accounts.length > 0 && <p class="detail">{view.span}</p>}
+      {shown && <p class="detail">{view.span}</p>}
       {view && view.accounts.length === 0 && (
         <p class="detail">No readings in the last {days} days yet.</p>
       )}
       {view?.accounts.map((account) => (
-        <AccountCharts key={account.key} account={account} />
+        <AccountCharts
+          key={account.key}
+          account={account}
+          onShare={view.share_left_out === null ? () => share(account) : null}
+        />
       ))}
-      {saved && (
-        <p class="detail" role="status">
-          {saved}
-        </p>
-      )}
+      {/* On QuotaDial Free, one line where the buttons would be, as D-100 says elsewhere. */}
+      {shown && view.share_left_out !== null && <p class="left-out">{view.share_left_out}</p>}
+      {/* Always in the page, so a screen reader hears each new line in it. */}
+      <p class="detail" role="status">
+        {saved ?? ""}
+      </p>
       {problem && (
         <p class="note" role="alert">
           {problem}
@@ -91,7 +124,13 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
   );
 }
 
-function AccountCharts({ account }: { account: AccountHistory }) {
+function AccountCharts({
+  account,
+  onShare,
+}: {
+  account: AccountHistory;
+  onShare: (() => void) | null;
+}) {
   return (
     <section class="account-history" aria-label={`${account.provider} ${account.name}`}>
       <h3>
@@ -101,6 +140,16 @@ function AccountCharts({ account }: { account: AccountHistory }) {
         <Chart key={chart.label} chart={chart} />
       ))}
       <HeatmapGrid heatmap={account.heatmap} />
+      {onShare && (
+        <button
+          type="button"
+          class="share"
+          aria-label={`Share image of ${account.label}`}
+          onClick={onShare}
+        >
+          Share image
+        </button>
+      )}
     </section>
   );
 }

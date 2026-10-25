@@ -136,7 +136,12 @@ export interface HistoryView {
   days: number;
   /** What the charts span, such as "The last 7 days." */
   span: string;
+  /** The days it covers, such as "19 to 25 October 2026". */
+  dates: string;
   accounts: AccountHistory[];
+  /** On QuotaDial Free, the line saying a picture of an account's history to share is part of
+   * QuotaDial Pro, shown once where the Share image buttons would be; null on Pro. */
+  share_left_out: string | null;
 }
 
 export interface AccountHistory {
@@ -145,6 +150,9 @@ export interface AccountHistory {
   provider: string;
   /** The name the user gave the account, or its email address. */
   name: string;
+  /** What a picture of this account's history calls it, such as "Claude Work" or "Claude Max":
+   * its provider and the name given it, or its plan, and never its address. */
+  label: string;
   windows: WindowChart[];
   heatmap: Heatmap;
 }

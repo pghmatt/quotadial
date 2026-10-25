@@ -158,6 +158,17 @@ const SETTINGS = {
 const DAYS = ["Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27"];
 
 /**
+ * What a picture of the account's history calls it, as the app does (`share::label`): its provider
+ * and the name given it, or its plan, or the provider alone.
+ *
+ * @param {Meter["accounts"][number]} account
+ */
+function label(account) {
+  const named = account.alias ?? account.plan;
+  return named ? `${account.provider} ${named}` : account.provider;
+}
+
+/**
  * A week of one account's use: working days busy from 9:00 to 19:00, weekends quiet, the same on
  * every run.
  *
@@ -187,6 +198,7 @@ function accountHistory(account, days) {
     key: account.key,
     provider: account.provider,
     name: account.alias ?? account.name,
+    label: label(account),
     windows: account.windows.map((window) => {
       /** @type {[number, number][]} */
       const points = Array.from({ length: 28 }, (_, index) => [index / 27, (window.used_pct * index) / 27]);
@@ -210,7 +222,13 @@ function accountHistory(account, days) {
 
 /** @param {number} days @returns {HistoryView} */
 function history(days) {
-  return { days, span: `The last ${days} days.`, accounts: ACCOUNTS.map((account) => accountHistory(account, days)) };
+  return {
+    days,
+    span: `The last ${days} days.`,
+    dates: "21 to 27 October 2026",
+    accounts: ACCOUNTS.map((account) => accountHistory(account, days)),
+    share_left_out: null,
+  };
 }
 
 /** @type {HelpView} */

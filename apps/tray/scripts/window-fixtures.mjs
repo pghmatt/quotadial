@@ -1,9 +1,11 @@
 // @ts-check
 // What the window check (check-window.mjs) answers in place of the app: the shapes the app's
 // commands return, typed against src/meter.ts, so `tsc` fails here when a shape changes there. The
-// accounts are made up, on example.com, and one has a very long address, so the check proves long
-// text wraps rather than being cut off. Two copies of the app: Pro, with the week's cost and a key
-// kept, and Free, with what Pro adds and an update on offer.
+// accounts are made up, on example.com, and one has a very long address and a long name given it,
+// so the check proves long text wraps rather than being cut off, and that a picture to share cuts
+// a long name short and never shows an address. Two copies of the app: Pro, with the week's cost,
+// a key kept and a Share image button on each account in History, and Free, with what Pro adds,
+// the line said in the buttons' place, and an update on offer.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -29,8 +31,8 @@ const CODEX_SIGN_IN =
 const ACCOUNTS = [
   {
     key: "claude:dev@example.com",
-    alias: "Work",
-    summary: "Claude Work: Weekly 91%",
+    alias: "Work, the team account we share across two offices",
+    summary: "Claude Work, the team account we share across two offices: Weekly 91%",
     provider: "Claude",
     name: "dev@example.com",
     plan: "Max 5x",
@@ -171,6 +173,23 @@ const SETTINGS = {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/** The days each period covers, as the app writes them, from Monday 20 April 2026. */
+const DATES = { 7: "20 to 26 April 2026", 30: "20 April to 19 May 2026" };
+
+/** On QuotaDial Free, the line History shows where the Share image buttons would be. */
+const SHARE_LEFT_OUT = "A picture of an account's history to share is part of QuotaDial Pro: quotadial.com/pro";
+
+/**
+ * What a picture of the account's history calls it, as the app does (`share::label`): its provider
+ * and the name given it, or its plan, or the provider alone.
+ *
+ * @param {Meter["accounts"][number]} account
+ */
+function label(account) {
+  const named = account.alias ?? account.plan;
+  return named ? `${account.provider} ${named}` : account.provider;
+}
+
 /**
  * An account's history over `days` days: a working day's use, heavier mid-week, the same each
  * run so a failure can be reproduced.
@@ -205,6 +224,7 @@ function accountHistory(account, days) {
     key: account.key,
     provider: account.provider,
     name: account.alias ?? account.name,
+    label: label(account),
     windows: account.windows.map((window) => {
       /** @type {[number, number][]} */
       const points = Array.from({ length: days * 4 }, (_, index) => [
@@ -230,14 +250,20 @@ function accountHistory(account, days) {
   };
 }
 
-/** @param {number} days @returns {HistoryView} */
-function history(days) {
+/**
+ * @param {7 | 30} days
+ * @param {string | null} shareLeftOut
+ * @returns {HistoryView}
+ */
+function history(days, shareLeftOut) {
   return {
     days,
     span: `The last ${days} days.`,
+    dates: DATES[days],
     accounts: ACCOUNTS.filter((account) => account.windows.length > 0).map((account) =>
       accountHistory(account, days),
     ),
+    share_left_out: shareLeftOut,
   };
 }
 
@@ -298,7 +324,7 @@ export const pro = {
     ],
   },
   settings: SETTINGS,
-  history: { 7: history(7), 30: history(30) },
+  history: { 7: history(7, null), 30: history(30, null) },
   help: HELP,
   update: {
     text: "QuotaDial 0.3.0 is the newest version. Checked 5 min ago.",
@@ -338,7 +364,7 @@ export const free = {
       ],
     },
   },
-  history: { 7: history(7), 30: history(30) },
+  history: { 7: history(7, SHARE_LEFT_OUT), 30: history(30, SHARE_LEFT_OUT) },
   help: { ...HELP, licence: "QuotaDial Free, with no licence key." },
   update: {
     text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",
