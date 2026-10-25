@@ -97,6 +97,16 @@ The manager's review of #68, posted after it merged (point 1 repeated on #70 and
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
 an undici override (notes below).
 
+M6, the next providers: the manager approved the plan on #73 on 2026-10-25 with decisions (a) to
+(d): Gemini CLI detected and explained, never read (D-118); Antigravity through its CLI's status
+line only (D-119); no Cursor provider (D-120); and the order 1, 3, 2, each provider behind its own
+feature (D-121). PR 1, the groundwork, is built on `feat/m6-groundwork` (D-122): P-018's hook for a
+provider's own commands, Google's and GitHub's tokens redacted by their shape, and the Gemini
+provider behind a `gemini` feature. Gemini is held off by default, since the app cannot show its
+account correctly without a change for one provider (its name, and its sign-in panel's sentence);
+that is the manager's to decide. Next: PR 3, Antigravity, then PR 2, Copilot, its merge held on its
+live check (#51).
+
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
 - P-010 is decided (D-034).
@@ -107,6 +117,9 @@ Proposals:
 - P-016 (`Window.pace`) is accepted (#40) and in the code (D-092).
 - P-017 (`Window.source` `example`) is asked for by the manager's rule 1 on #49 and in the code
   (D-117); the PRD edit is the manager's.
+- P-018 (a provider's own commands) is accepted in principle on #73 and in the code (D-122).
+- P-019 (the deferred-provider rows) is asked for by the manager on #73; the PRD edit is the
+  manager's.
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -182,6 +195,15 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
 | 12, PR D: the first-run recording and the example's figures | Waiting on Matt (#51) | The README's recording, first run to the number, the popover's open time, the example's idle hour with the popover closed and the daemon alone, all from QuotaDial Example, which needs a few minutes in Matt's menu bar; the scripts are written and dry-run |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
+
+## M6
+
+| Step | Status | Notes |
+| --- | --- | --- |
+| 1: the groundwork, and Gemini CLI | Built on `feat/m6-groundwork`; Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
+| 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
+| 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
+| Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 
 ## Kickoff
 
@@ -367,6 +389,97 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M6 PR 1: the groundwork (P-018, P-019, D-118 to D-122)
+
+- **The decisions:** the manager's on #73 (2026-10-25, 20:29 UTC), taken as decided at 20:32 UTC:
+  (a) to (d) are D-118 to D-121, the deferred-provider rows are P-019, and P-018 is the one change
+  M6 makes in core. The branch is `feat/m6-groundwork`, from `main` at a5cda9e, committed and not
+  pushed.
+- **P-018** (`crates/core/src/provider.rs`, `crates/cli/src/lib.rs`): `ProviderCommand { name,
+  about, run }`, whose `run` takes an `Invocation { args, stdin, stdout, stderr }` and gives an
+  `ExitCode`, and `Provider::commands`, empty by default. The CLI's `command()` adds, after its own
+  commands, one subcommand per provider that has commands ("Commands the <id> provider adds"), each
+  taking any words after its name; `run_provider_command` finds the provider by its id and the
+  command by its name, and runs it with the process's streams. `own_commands` drops a provider whose
+  id is one of QuotaDial's own commands, so those always win. `run()` makes the provider list once
+  and hands it to `status`, `watch`, `mcp`, `doctor` and `daemon`. `packaging.rs` writes its files
+  from `crate::command` with the list a release ships (`with_config` with the default settings and
+  no licence, so no folder is read); none has a command, so `packaging/` is unchanged. A later
+  provider, such as Antigravity's `statusline`, returns its command from `commands`, its run
+  function capturing what the provider was set up with.
+- **Redaction** (`crates/core/src/redact.rs`): each rule is now a prefix, the bytes that may follow
+  it (`Word`, `Underscored`, `Dotted`, `Jwt`) and the fewest that make a token, and the four old
+  rules keep their exact behaviour. Google: `ya29.` (more dots allowed, a sentence's last dot kept)
+  and `1//`, with 16 or more characters after. GitHub: the six prefixes, with 30 or more of
+  `[A-Za-z0-9_]` after. The made-up tokens in the tests are written in pieces, so no secret scanner,
+  such as GitHub's push protection, takes a file for one holding a token, and Google's own sample
+  refresh token is described rather than quoted. `crates/core/tests/fixtures.rs` now fails on any
+  committed fixture that redaction would change.
+- **Gemini CLI** (`crates/providers/gemini`), from Gemini CLI's source at cd1b45c (a shallow clone
+  in the builder's scratch folder): `homedir()` in `packages/core/src/utils/paths.ts`
+  (`GEMINI_CLI_HOME` when it is set to anything, else the home folder); `Storage` in
+  `packages/core/src/config/storage.ts` (`.gemini/oauth_creds.json`, `.gemini/settings.json`);
+  `AuthType` in `packages/core/src/core/contentGenerator.ts` (`oauth-personal`, `gemini-api-key`,
+  `vertex-ai`, `cloud-shell`, `compute-default-credentials`, `gateway`); `settingsSchema.ts`
+  (`security.auth.selectedType`); `settings.ts` (comments stripped by `strip-json-comments`, a file
+  that is not an object taken as no settings); and the sign-in's other homes (`oauth2.ts`,
+  `oauth-credential-storage.ts`: with `GEMINI_FORCE_ENCRYPTED_FILE_STORAGE=true`, the keychain
+  service `gemini-cli-oauth` or `gemini-credentials.json`). `/auth signout` deletes the file and
+  clears the setting, and choosing another way deletes the file, so the file being there is a sound
+  sign of a Google sign-in. What it shows in each case is in D-122.
+- **`/stats model`:** it exists (`statsCommand.ts`, `docs/reference/commands.md`), and Gemini CLI's
+  docs name it under "Check usage and limits", but `ModelStatsDisplay.tsx` answers "No API calls
+  have been made in this session." until the session's first request, and shows the pooled daily
+  limit only while the model is auto. `/model` (`modelCommand.ts`) asks for the limits afresh and
+  opens the model dialog, whose `ModelQuotaDisplay` shows each model's share used and reset. The
+  line names `/model`.
+- **The app, checked without changing it,** by reading `apps/tray/src-tauri/src/meter.rs`
+  (`account_view`, `sign_in`) and `crates/core/src/text.rs` (`provider_name`); the app is not run
+  here, since it would read this Mac's sign-ins. It lacks two things: the provider's name (the
+  popover's heading, the tooltip and Settings' providers and accounts would say "gemini", since
+  `provider_name` knows only Claude and Codex), and a true sentence for the sign-in panel, which
+  would say "QuotaDial reads this account's sign-in from ~/.gemini/oauth_creds.json. It only reads
+  it and never changes it." of a file QuotaDial only sees is there. Each needs core or the app to
+  change for one provider, so Gemini is held off by default and the question goes to the manager
+  (D-122).
+- **For the turn-on, after the manager's answer:** `gemini` into `quotadial-providers`' default
+  features and the list tests' `cfg` swapped; the app's lockfile gains the crate then. The lines
+  people read wait for it: `docs/PRIVACY.md` and the README's copy, the README, `docs/CLI.md` and
+  `docs/INSTALL.md` where they name the providers, `skills/quotadial/SKILL.md`, the CLI's help and
+  `--provider`'s, its manual pages' ENVIRONMENT (`GEMINI_CLI_HOME`), the Release workflow's
+  `no-example-provider.sh` (unset `GEMINI_CLI_HOME`), and a changelog line. A third thing to settle:
+  a copy without a licence offers the week's cost for a machine with only a Gemini account, which
+  the cost scan cannot give, since it reads no Gemini logs.
+- **No changelog line:** a release behaves as before. P-018 adds no command yet, Gemini is off, and
+  no shipped provider can put a Google or GitHub token in any text.
+- **Tests:** in the workspace, 583 passed (1 ignored) before and 624 (1 ignored) after; the example
+  build 583 (2 ignored) before and 624 (2 ignored) after; with `gemini`, 625 (1 ignored). By crate,
+  before and after: core 98 to 104 (redaction 4, the hook 2); the CLI 44 to 51 (P-018's 7; 52 with
+  `gemini`, whose real-binary test shows a Gemini account in `status`, `status --json` and
+  `doctor`); `quotadial-provider-gemini` 28 (environment 1, the lines 2, the settings reader 11 with
+  its property test, the provider 14); `quotadial-providers` 1, a test for each build's list; the
+  rest unchanged (API 54, cost 30, daemon 100, issue 6, poll 37, Claude 134 and 1 ignored, Codex 61,
+  fake 18). Every new test failed first, against a stub or with its change left out, and each guard
+  that passed against a stub failed under a mutation instead, each restored after: the redaction
+  minimums, a fixture holding a made-up GitHub token, the CLI's empty and clash checks, a `codex`
+  alias on `doctor`, and thirteen in the Gemini crate. Two of those, each removing one of the size
+  cap's two checks, survived as they should, since the other check holds; removing both failed. A
+  panic at a file's end was caught only once the property test's strategy ended files mid-string and
+  mid-comment, and an explicit test of those ends was added.
+- **Checks run here:** `cargo fmt --all -- --check`; clippy with `-D warnings` on the workspace by
+  default, with `fake` and with `gemini`; the tests in each; CI's new Gemini steps; the packaging
+  check; actionlint on `ci.yml`; shellcheck, `scripts/public-prd.sh --check`, `scripts/privacy.sh
+  --check`, the release notes for 0.2.0 and the 36 script tests. **Not run:** the tray app's job,
+  which needs `npm ci`, a release build of the bundled CLI and a cold Tauri build (the app is
+  unchanged; its one `Provider` is a test's, which the defaulted hook leaves compiling; and `cargo
+  metadata --locked` holds its lockfile current); `cargo deny` and `cargo audit`, not installed here
+  (the lockfile gains only the new crate, no third-party one); and the site's job (no change).
+- **Safety on this Mac:** every cargo run had `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`,
+  `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad and no token in its
+  environment; the CLI's real-binary tests ran in empty homes, now with `GEMINI_CLI_HOME` pointed
+  there too; no vendor CLI was run, no `~/.gemini` file, keychain item or sign-in was read, and no
+  app or daemon ran against Matt's data. Gemini CLI's facts come from its public source and docs.
 
 ### M5 queue item 12, PR D: the first-run recording and the example's figures
 

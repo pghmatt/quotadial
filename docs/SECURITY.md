@@ -41,6 +41,13 @@ QuotaDial's example build (D-117), made with the `fake` feature for pictures of 
 released, polls no provider and reads no sign-in, so the 5-minute floor for Anthropic is untouched;
 its accounts are made up, and it keeps folders, a lock, a token and a port of its own.
 
+Its Gemini CLI provider (D-118, D-122), built with the `gemini` feature and not yet in a release,
+has no network client and sends nothing. It checks only that Gemini CLI's sign-in file is there,
+never opening it, and reads one field of Gemini CLI's `settings.json`, how it signs in; the rest of
+that file, which can hold other tools' secrets, is skipped without a copy, and the bytes read are
+wiped. Google's and GitHub's tokens are blanked out of any text QuotaDial shows or saves, by their
+shape, before any provider can read one (D-122).
+
 Updates are checked twice before they are installed: against the public key built into the app,
 and against the version that key's signature names, so neither a changed file nor an older release
 passed off as newer is installed (D-103). Nothing downloads until the user chooses Update.
