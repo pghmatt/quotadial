@@ -691,12 +691,48 @@ fn quit(app: AppHandle) {
     app.exit(0);
 }
 
+/// The example build's bundle identifier and name (D-117), from `tauri.example.conf.json`. Its own,
+/// so it never shares QuotaDial's settings, login item, single-instance lock or notifications.
+const EXAMPLE_IDENTIFIER: &str = "com.quotadial.example";
+const EXAMPLE_NAME: &str = "QuotaDial Example";
+
+/// Why the app cannot start as `identifier`, named `name`, if it cannot: the example build, with
+/// its fake provider (`example`), runs only under its own identifier and name, and QuotaDial itself
+/// never under either, whichever way it was built.
+fn identity_problem(identifier: &str, name: Option<&str>, example: bool) -> Option<String> {
+    let own = identifier == EXAMPLE_IDENTIFIER && name == Some(EXAMPLE_NAME);
+    let borrowed = identifier == EXAMPLE_IDENTIFIER || name == Some(EXAMPLE_NAME);
+    let build = "build it with `npx tauri build --config src-tauri/tauri.example.conf.json`";
+    if example && !own {
+        Some(format!(
+            "QuotaDial's example build runs only as {EXAMPLE_IDENTIFIER}, named {EXAMPLE_NAME}, so \
+             it shares nothing with QuotaDial itself; {build}"
+        ))
+    } else if !example && borrowed {
+        Some(format!(
+            "This app has the example build's name without its example accounts; {build}, which \
+             turns both on"
+        ))
+    } else {
+        None
+    }
+}
+
 /// Runs the app until it is quit.
 ///
 /// # Panics
 ///
-/// When the app cannot start at all, as when its window cannot be made.
+/// When the app cannot start at all, as when its window cannot be made, or when it was built with
+/// the example build's fake provider but not its name, or the other way round (D-117).
 pub fn run() {
+    let context = tauri::generate_context!();
+    if let Some(problem) = identity_problem(
+        &context.config().identifier,
+        context.config().product_name.as_deref(),
+        quotadial_core::copy::EXAMPLE,
+    ) {
+        panic!("{problem}");
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(
             |app, _arguments, _cwd| {
@@ -830,7 +866,7 @@ pub fn run() {
             tauri::async_runtime::spawn(updates::schedule(app.handle().clone()));
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("QuotaDial could not start its tray app");
     app.run(|app, event| match event {
         RunEvent::ExitRequested { api, .. } => {
@@ -1205,6 +1241,72 @@ fn place(window: &WebviewWindow) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn config(text: &str) -> serde_json::Value {
+        serde_json::from_str(text).expect("valid JSON")
+    }
+
+    #[test]
+    fn the_example_build_has_a_name_of_its_own_and_its_fake_provider() {
+        let base = config(include_str!("../tauri.conf.json"));
+        let example = config(include_str!("../tauri.example.conf.json"));
+        let named = |config: &serde_json::Value| {
+            (
+                config["identifier"]
+                    .as_str()
+                    .expect("an identifier")
+                    .to_owned(),
+                config["productName"].as_str().map(str::to_owned),
+            )
+        };
+        let (base_id, base_name) = named(&base);
+        let (example_id, example_name) = named(&example);
+
+        assert_eq!(example_id, EXAMPLE_IDENTIFIER);
+        assert_eq!(example_name.as_deref(), Some(EXAMPLE_NAME));
+        assert_eq!(example["build"]["features"], serde_json::json!(["fake"]));
+        for (command, run) in [
+            ("beforeBuildCommand", "npm run cli -- --release --fake"),
+            ("beforeDevCommand", "npm run cli -- --fake"),
+        ] {
+            let given = example["build"][command].as_str().expect("a command");
+            assert!(
+                given.contains(run),
+                "{command} bundles the example's CLI: {given}"
+            );
+        }
+        assert!(
+            base["build"].get("features").is_none(),
+            "QuotaDial itself is built without the fake provider"
+        );
+        assert_eq!(
+            identity_problem(&base_id, base_name.as_deref(), false),
+            None
+        );
+        assert_eq!(
+            identity_problem(&example_id, example_name.as_deref(), true),
+            None
+        );
+    }
+
+    #[test]
+    fn neither_build_starts_under_the_other_s_name() {
+        let example = identity_problem("com.quotadial.desktop", Some("QuotaDial"), true)
+            .expect("the example under QuotaDial's name");
+        assert_eq!(
+            example,
+            "QuotaDial's example build runs only as com.quotadial.example, named QuotaDial \
+             Example, so it shares nothing with QuotaDial itself; build it with `npx tauri build \
+             --config src-tauri/tauri.example.conf.json`"
+        );
+        assert!(identity_problem(EXAMPLE_IDENTIFIER, Some("QuotaDial"), true).is_some());
+        assert!(identity_problem("com.quotadial.desktop", Some(EXAMPLE_NAME), true).is_some());
+        let real = identity_problem(EXAMPLE_IDENTIFIER, Some(EXAMPLE_NAME), false)
+            .expect("QuotaDial under the example's name");
+        assert!(real.starts_with("This app has the example build's name without its example"));
+        assert!(identity_problem(EXAMPLE_IDENTIFIER, Some("QuotaDial"), false).is_some());
+        assert!(identity_problem("com.quotadial.desktop", Some(EXAMPLE_NAME), false).is_some());
+    }
 
     #[test]
     fn the_popover_fits_its_content_at_the_zoom_it_is_shown_at() {

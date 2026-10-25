@@ -8,7 +8,8 @@
 //! installer closes the app and opens the new one.
 //!
 //! `docs/PRIVACY.md` says what the check sends, and `docs/RELEASE.md` how a release is signed for
-//! it.
+//! it. The example build (D-117) never checks: an update would make it QuotaDial itself, which reads
+//! real sign-ins.
 
 use std::fs;
 use std::io;
@@ -113,6 +114,8 @@ pub enum Trigger {
 pub enum Stage {
     /// Nothing asked since the app started.
     Idle,
+    /// The example build, which never asks.
+    Never,
     Checking,
     /// This copy is the newest version.
     Current,
@@ -176,7 +179,11 @@ impl Updates {
     pub fn new(record: Record) -> Self {
         Self {
             record,
-            stage: Stage::Idle,
+            stage: if quotadial_core::copy::EXAMPLE {
+                Stage::Never
+            } else {
+                Stage::Idle
+            },
             offer: None,
         }
     }
@@ -246,6 +253,9 @@ impl Updates {
                     text::ago(at, now)
                 ),
             },
+            Stage::Never => {
+                format!("QuotaDial {running}, the example build, which never checks for updates.")
+            }
             Stage::Checking => "Checking for a newer QuotaDial…".to_owned(),
             Stage::Current => format!(
                 "QuotaDial {running} is the newest version. Checked {}.",
@@ -351,9 +361,9 @@ pub fn problem(error: &Error, version: &str, home: Option<&Path>) -> String {
 }
 
 /// Checks once a day while the setting is on, from a little after the app starts until it quits.
-/// A build from source never offers to replace itself.
+/// A build from source never offers to replace itself, nor does the example build.
 pub async fn schedule(app: AppHandle) {
-    if cfg!(debug_assertions) {
+    if cfg!(debug_assertions) || quotadial_core::copy::EXAMPLE {
         return;
     }
     tokio::time::sleep(FIRST_CHECK_AFTER).await;
@@ -381,7 +391,7 @@ pub async fn check(app: &AppHandle, trigger: Trigger) {
     {
         let state = app.state::<AppState>();
         let mut updates = lock(&state.updates);
-        if updates.busy() {
+        if updates.busy() || updates.stage == Stage::Never {
             return;
         }
         updates.stage = Stage::Checking;
@@ -743,9 +753,35 @@ mod tests {
     }
 
     #[test]
+    fn the_example_build_never_checks_for_updates_and_says_so() {
+        let now = at("2099-01-02T12:00:00Z");
+        let started = Updates::new(Record::default());
+        assert_eq!(
+            started.stage == Stage::Never,
+            quotadial_core::copy::EXAMPLE,
+            "only the example build starts never to check"
+        );
+
+        let never = Updates {
+            stage: Stage::Never,
+            ..Updates::new(Record::default())
+        };
+
+        assert_eq!(
+            never.view("0.2.0", true, now).text,
+            "QuotaDial 0.2.0, the example build, which never checks for updates."
+        );
+        assert!(!never.busy());
+        assert_eq!(never.view("0.2.0", true, now).available, None);
+    }
+
+    #[test]
     fn the_window_says_where_updates_stand() {
         let now = at("2099-01-02T12:00:00Z");
-        let mut updates = Updates::new(Record::default());
+        let mut updates = Updates {
+            stage: Stage::Idle,
+            ..Updates::new(Record::default())
+        };
         let text = |updates: &Updates, automatic: bool| updates.view("0.2.0", automatic, now).text;
 
         assert_eq!(

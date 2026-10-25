@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "QuotaDial Example",
+  "identifier": "com.quotadial.example",
+  "build": {
+    "features": ["fake"],
+    "beforeDevCommand": "npm run cli -- --fake && npm run dev",
+    "beforeBuildCommand": "npm run build && npm run cli -- --release --fake"
+  }
+}

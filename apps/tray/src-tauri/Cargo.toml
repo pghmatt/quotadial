@@ -13,6 +13,12 @@ publish = false
 # toolkit. It uses the core crates by path.
 [workspace]
 
+[features]
+# The example build (D-117): the fake provider's made-up accounts, for pictures of the app, with its
+# own folders and port. Never a default and never released: `npx tauri build --config
+# src-tauri/tauri.example.conf.json` turns it on with the example's own name and bundle identifier.
+fake = ["quotadial-providers/fake"]
+
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
 
