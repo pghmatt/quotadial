@@ -148,3 +148,16 @@ test("the key page is not indexed and /pro offers a checkout only through the ch
   assert.match(pro, /SITE\.checkout/);
   assert.doesNotMatch(pro, /process\.env/);
 });
+
+test("/download renders docs/INSTALL.md's steps and check commands, and copies none of them", () => {
+  const page = readFileSync(new URL("../app/download/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /installGuide\(\)/);
+  assert.match(page, /GUIDE\.unsigned/);
+  assert.match(page, /GUIDE\.checks/);
+  for (const copied of ["Open Anyway", "Move to Trash", "Keep anyway", "Run anyway", "--ignore-missing", "Get-FileHash", "chmod +x", "apt install ./"]) {
+    assert.ok(!page.includes(copied), `the page has "${copied}" written out: it belongs to INSTALL.md`);
+  }
+  assert.match(page, /DownloadButton|SystemDownload/);
+  const download = readFileSync(new URL("../components/conversion/SystemDownload.tsx", import.meta.url), "utf8");
+  assert.match(download, /<DownloadButton href=\{DOWNLOAD_PAGE\} \/>/);
+});
