@@ -148,8 +148,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 2: Free and Pro | Done (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
 | 3: help and feedback | Done (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
 | 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
+| Free at once (#56's review) | In review (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
-| 6: signing and updates | In review (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
+| 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
 
@@ -335,6 +336,26 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5: Free at once, from the review of PR #56
+
+- **The in-flight scan** (`crates/daemon/src/poller.rs`): `Latest` keeps the costs with a
+  generation, and clearing them, as a Free copy's round does every time, starts a new one under the
+  same lock. A scan takes the generation when it begins and keeps what it finds only if it is still
+  current, so a scan that began on Pro and ends on Free keeps nothing, with no window between the
+  check and the change.
+- **History:** a tier change sets `prune_at` to now beside `discover_at` and `costs_at`, so Free's
+  30 days hold from the moment a key goes rather than from the next hourly prune.
+- **The nits:** `licence::left_out` asks `Tier::allows` for each part rather than comparing the
+  tier; `History::alerts(now, tier)` marks each rule's `waits`, which JSON shows only when true, so
+  `quotadial alerts list --json` says what the text says and the CLI's text reads the same field;
+  `undelivered` says why a key added sends the last hour's Free alerts to webhooks.
+- **Tests:** a scan held in flight while the key is removed keeps nothing; a 60-day-old reading
+  goes in the round the key goes; a running poller wakes on a nudge within seconds rather than at
+  its next round a minute away; `alerts list --json` on a lapsed copy marks the waiting rule and no
+  other; the daemon's Free rule test checks `waits` in JSON both ways. Each of the three poller
+  tests fails with its fix taken out (the scan keeps its costs, the reading stays, the costs come
+  only after the 5 s limit).
 
 ### M5 queue item 6: signing and updates (D-103 to D-106)
 

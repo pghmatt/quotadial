@@ -232,8 +232,8 @@ struct RuleChange {
 }
 
 async fn alerts(State(state): State<AppState>) -> Response {
-    let history = Arc::clone(&state.history);
-    match tokio::task::spawn_blocking(move || history.alerts(Utc::now())).await {
+    let (history, tier) = (Arc::clone(&state.history), state.licensing.tier());
+    match tokio::task::spawn_blocking(move || history.alerts(Utc::now(), tier)).await {
         Ok(Ok(alerts)) => Json::<Alerts>(alerts).into_response(),
         Ok(Err(error)) => unreadable(&error),
         Err(_) => stopped(),

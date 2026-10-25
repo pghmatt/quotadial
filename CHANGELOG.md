@@ -19,6 +19,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - Each release lists every file's SHA-256 in `SHA256SUMS.txt`, and its notes say what is signed.
 - The website's key page: the "Get your QuotaDial key" link in a Lemon Squeezy receipt gives the QuotaDial licence key, the same each time it is opened.
 - Pasting the key from a Lemon Squeezy receipt into QuotaDial says where QuotaDial's own key is, and a licence that has ended says where to renew it.
+- `quotadial alerts list --json` marks a rule that waits for QuotaDial Pro with `"waits": true`, as the text says "(waits for Pro)".
 
 ## [0.2.0] - 2026-10-24
 

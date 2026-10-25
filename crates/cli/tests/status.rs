@@ -462,6 +462,48 @@ fn alert_rules_are_added_listed_turned_off_and_removed_in_plain_words() {
 }
 
 #[test]
+fn a_rule_that_waits_for_pro_says_so_in_json_too() {
+    let quotadial = env!("CARGO_BIN_EXE_quotadial");
+    let home = empty_home("alerts-waits");
+    add_pro_key(&home);
+    let added = run(
+        quotadial,
+        &["alerts", "add", "warn me about outages"],
+        &home,
+    );
+    assert!(added.status.success(), "{added:?}");
+    let removed = run(quotadial, &["licence", "remove"], &home);
+    assert!(removed.status.success(), "{removed:?}");
+
+    let text = stdout(&run(quotadial, &["alerts", "list"], &home));
+    assert!(
+        text.contains("warn me about outages (waits for Pro)"),
+        "{text}"
+    );
+    let json: Value = serde_json::from_str(&stdout(&run(
+        quotadial,
+        &["alerts", "list", "--json"],
+        &home,
+    )))
+    .expect("JSON");
+    let rules = json["rules"].as_array().expect("rules");
+    let (waiting, checked): (Vec<&Value>, Vec<&Value>) = rules
+        .iter()
+        .partition(|rule| rule["written"] == "warn me about outages");
+    assert_eq!(waiting.len(), 1);
+    assert_eq!(
+        waiting[0]["waits"], true,
+        "a script can tell, as the text does"
+    );
+    assert!(!checked.is_empty());
+    assert!(
+        checked.iter().all(|rule| rule.get("waits").is_none()),
+        "a rule Free checks has no marker: {checked:?}"
+    );
+    std::fs::remove_dir_all(&home).expect("cleans up");
+}
+
+#[test]
 fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
     let home = empty_home("doctor");
     let output = run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home);

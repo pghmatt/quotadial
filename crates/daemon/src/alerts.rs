@@ -39,6 +39,11 @@ pub struct StoredRule {
     #[serde(flatten)]
     pub rule: Rule,
     pub created_at: DateTime<Utc>,
+    /// Whether it waits for QuotaDial Pro: a kind of rule only Pro checks, kept on a Free copy
+    /// and checked again once a key is added. [`History::alerts`] sets it from the copy's tier,
+    /// and JSON leaves it out when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub waits: bool,
 }
 
 /// One time a rule's condition held, and what to tell.
@@ -137,18 +142,20 @@ pub(crate) fn upgrade(connection: &Connection, version: i32) -> Result<(), Histo
 }
 
 impl History {
-    /// The rules and what they told in the week before `now`.
+    /// The rules and what they told in the week before `now`, on a copy with `tier`, each rule
+    /// saying whether it waits for QuotaDial Pro.
     ///
     /// # Errors
     ///
     /// When the database cannot be read.
-    pub fn alerts(&self, now: DateTime<Utc>) -> Result<Alerts, HistoryError> {
+    pub fn alerts(&self, now: DateTime<Utc>, tier: Tier) -> Result<Alerts, HistoryError> {
         let mut firings = self.firings(0, now - TimeDelta::days(7))?;
         firings.drain(..firings.len().saturating_sub(RECENT_FIRINGS));
-        Ok(Alerts {
-            rules: self.rules()?,
-            firings,
-        })
+        let mut rules = self.rules()?;
+        for rule in &mut rules {
+            rule.waits = needs_pro(&rule.rule.condition) && !tier.allows(ProFeature::AlertRules);
+        }
+        Ok(Alerts { rules, firings })
     }
 
     /// Every rule, oldest first.
@@ -190,6 +197,7 @@ impl History {
             enabled: true,
             rule,
             created_at: now,
+            waits: false,
         })
     }
 
@@ -356,6 +364,7 @@ impl History {
                         enabled,
                         rule,
                         created_at: parse_time(&created_at).unwrap_or_default(),
+                        waits: false,
                     },
                     quiet,
                 ));
@@ -778,6 +787,16 @@ mod tests {
 
         let free = history.check(&degraded, at(0), Tier::Free).expect("checks");
         assert!(free.is_empty(), "a lapsed licence: the rule waits");
+        let listed = history.alerts(at(0), Tier::Free).expect("lists");
+        assert!(listed.rules[0].waits, "and says so");
+        let json = serde_json::to_value(&listed).expect("JSON");
+        assert_eq!(json["rules"][0]["waits"], true);
+        let on_pro =
+            serde_json::to_value(history.alerts(at(0), Tier::Pro).expect("lists")).expect("JSON");
+        assert!(
+            on_pro["rules"][0].get("waits").is_none(),
+            "left out when false: {on_pro}"
+        );
         assert!(needs_pro(&Condition::Incident));
         assert!(!needs_pro(&Condition::Reset));
         let pro = history.check(&degraded, at(5), Tier::Pro).expect("checks");

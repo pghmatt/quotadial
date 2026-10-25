@@ -14,7 +14,7 @@ use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{Indicator, ProFeature, Provider, StatusReport, Tier, collect, text};
 use quotadial_daemon::{
     AddError, Alerts, Config, DataDir, History, HistoryError, KEEP_DAYS, Licensing, Series,
-    SeriesQuery, Webhook, licence, needs_pro,
+    SeriesQuery, Webhook, licence,
 };
 
 /// Track Claude and ChatGPT/Codex usage limits.
@@ -286,10 +286,11 @@ fn mcp() -> ExitCode {
                 .map(|(report, _)| report)
         },
         async || {
+            let tier = Licensing::new(dir.as_ref()).tier();
             open_history()
                 .and_then(|history| {
                     history
-                        .alerts(Utc::now())
+                        .alerts(Utc::now(), tier)
                         .map_err(|error| error.to_string())
                 })
                 .map_err(|error| format!("QuotaDial could not read its alert rules: {error}"))
@@ -325,7 +326,7 @@ fn alerts(action: AlertsAction) -> ExitCode {
         ExitCode::FAILURE
     };
     let written = match action {
-        AlertsAction::List { json } => match history.alerts(now) {
+        AlertsAction::List { json } => match history.alerts(now, tier) {
             Ok(alerts) if json => write_json(&alerts, &mut stdout),
             Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &mut stdout),
             Err(error) => return history_failed(&error),
@@ -665,7 +666,7 @@ fn history_failed(error: &HistoryError) -> ExitCode {
 
 /// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
 /// what they told lately, with where each went. On QuotaDial Free a kind of rule only Pro checks is
-/// marked as waiting, and webhooks are named as Pro's.
+/// marked as waiting, as [`History::alerts`] says, and webhooks are named as Pro's.
 fn write_alerts(
     alerts: &Alerts,
     config: &Config,
@@ -673,9 +674,6 @@ fn write_alerts(
     now: DateTime<Utc>,
     out: &mut impl Write,
 ) -> io::Result<()> {
-    let waits = |rule: &quotadial_daemon::StoredRule| {
-        needs_pro(&rule.rule.condition) && !tier.allows(ProFeature::AlertRules)
-    };
     if alerts.rules.is_empty() {
         writeln!(
             out,
@@ -685,11 +683,11 @@ fn write_alerts(
         writeln!(out, "Alert rules:")?;
         for rule in &alerts.rules {
             let state = if rule.enabled { "on " } else { "off" };
-            let waiting = if waits(rule) { " (waits for Pro)" } else { "" };
+            let waiting = if rule.waits { " (waits for Pro)" } else { "" };
             writeln!(out, "  {:>3}  {state}  {}{waiting}", rule.id, rule.written)?;
             writeln!(out, "             read as: {}", rule.rule)?;
         }
-        if alerts.rules.iter().any(waits) {
+        if alerts.rules.iter().any(|rule| rule.waits) {
             writeln!(out, "{}", ProFeature::AlertRules.line())?;
         }
     }

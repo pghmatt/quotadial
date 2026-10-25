@@ -34,6 +34,11 @@ impl History {
     /// The told firings of the hour before `now` that a webhook in `webhooks` has not taken, and
     /// that are due another try, with that webhook's key.
     ///
+    /// A copy that was QuotaDial Free for part of that hour and is Pro now finds the firings it
+    /// told while Free here too, since nothing was sent for them, so adding a key sends the last
+    /// hour's alerts to the webhooks. That is meant: they are recent, each goes once, and nothing
+    /// older than the hour goes (#56).
+    ///
     /// # Errors
     ///
     /// When the database cannot be read.
