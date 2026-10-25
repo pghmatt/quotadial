@@ -162,6 +162,12 @@ function NoLink() {
           </Steps>
         </div>
       </Plate>
+      <noscript>
+        <p className="m-0 mt-6 max-w-[52ch] font-[650]">
+          This page needs JavaScript to turn the receipt's key into your QuotaDial key. Write to support with your
+          order number instead.
+        </p>
+      </noscript>
       <p className="m-0 mt-6 max-w-[52ch]">
         Can't find the receipt? Write to support with your order number, and we'll send your key.
       </p>

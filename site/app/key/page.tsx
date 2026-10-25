@@ -22,7 +22,7 @@ const HIDE_UNTIL_READ = "html[data-arriving] [data-none-state]{visibility:hidden
 
 export default function Key() {
   return (
-    <Section className="md:min-h-[40rem]">
+    <Section>
       <style dangerouslySetInnerHTML={{ __html: HIDE_UNTIL_READ }} />
       <script dangerouslySetInnerHTML={{ __html: ARRIVING }} />
       <KeyFlow heading={<h1 className="m-0 text-[2.75rem] leading-[1.02] font-[800] md:text-[4rem]">Your QuotaDial key</h1>} />

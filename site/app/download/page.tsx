@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 
 import { CodeBlock } from "../../components/CodeBlock.tsx";
 import { InlineCode } from "../../components/conversion/InlineCode.tsx";
-import { soft } from "../../components/conversion/soft.tsx";
+import { FilesTable } from "../../components/conversion/FilesTable.tsx";
 import { Steps } from "../../components/conversion/Steps.tsx";
 import { SystemDownload } from "../../components/conversion/SystemDownload.tsx";
 import { Notice } from "../../components/Notice.tsx";
 import { Plate } from "../../components/Plate.tsx";
 import { Section, SectionHeading } from "../../components/Section.tsx";
-import { TideTable } from "../../components/TideTable.tsx";
-import { COMMAND_ONLY, DOWNLOADS } from "../../lib/data/release.ts";
+import { COMMAND_ONLY } from "../../lib/data/release.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { jsonLd, pageMetadata, softwareJsonLd } from "../../lib/metadata.ts";
 
@@ -22,42 +21,6 @@ export const metadata: Metadata = pageMetadata({
 
 const H3 = "m-0 text-[1.375rem] leading-[1.15] font-[700]";
 const LINK = "underline underline-offset-[0.2em]";
-
-/** The files in each release, one row for each, with who each is for. */
-const FILE_ROWS = [
-  ...DOWNLOADS.flatMap((download) =>
-    download.files.map((file) => ({
-      key: file.name,
-      cells: [
-        download.label,
-        {
-          text: (
-            <>
-              {soft(file.name)}
-              <span className="block text-[0.9375rem] text-ink-2">{file.what}</span>
-            </>
-          ),
-        },
-      ],
-    })),
-  ),
-  {
-    key: COMMAND_ONLY.file,
-    cells: [
-      "The command alone",
-      {
-        text: (
-          <>
-            {soft(COMMAND_ONLY.file)}
-            <span className="block text-[0.9375rem] text-ink-2">
-              {COMMAND_ONLY.windows.slice(COMMAND_ONLY.windows.lastIndexOf("."))} on Windows
-            </span>
-          </>
-        ),
-      },
-    ],
-  },
-];
 
 export default function Download() {
   return (
@@ -72,18 +35,14 @@ export default function Download() {
           </div>
           <div className="md:col-span-6 lg:col-span-7">
             <Plate caption="The files a release holds. Replace <version> with the number in the release's name.">
-              <TideTable
-                caption={{ text: "Files in each release", visible: true }}
-                columns={["System", "File"]}
-                rows={FILE_ROWS}
-              />
+              <FilesTable />
             </Plate>
           </div>
         </div>
       </Section>
 
       <Section tone="shallow">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 grid-cols-[minmax(0,1fr)] md:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 md:grid-cols-12">
           <div id="macos" className="md:col-span-4">
             <SectionHeading id="macos-heading">macOS</SectionHeading>
             <p className="mt-4 mb-0 max-w-[38ch]">
@@ -144,7 +103,7 @@ export default function Download() {
           </div>
         </div>
 
-        <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 border-t border-rule pt-16 grid-cols-[minmax(0,1fr)] md:grid-cols-12">
+        <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 border-t border-rule pt-16 md:grid-cols-12">
           <div className="md:col-span-5">
             <SectionHeading id="command-heading">The command on its own</SectionHeading>
             <p className="mt-4 mb-0 max-w-[44ch]">
