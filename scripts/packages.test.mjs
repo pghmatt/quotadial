@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { NAMES, latestNames } from "./latest-names.mjs";
 import { cask, files, formula, readSums, scoop, winget, write } from "./packages.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
@@ -86,6 +87,27 @@ test("a release that lacks a file names every one it lacks", () => {
     () => formula("0.3.0", readSums(sumsFor("0.3.0", names))),
     /SHA256SUMS\.txt has no QuotaDial_0\.3\.0_universal\.dmg, QuotaDial_0\.3\.0_x64_en-US\.msi/,
   );
+});
+
+test("every package names the versioned files, never a copy without the version (D-116)", () => {
+  // A package manager pins a version, so even with both names in SHA256SUMS.txt, as each release
+  // after 0.2.0 has them, no package may name a copy or releases/latest.
+  const names = [...latestNames("0.3.0")].flat();
+  const out = mkdtempSync(join(tmpdir(), "quotadial-packages-"));
+  try {
+    write("0.3.0", readSums(sumsFor("0.3.0", [...names, "latest.json"])), out, "{01234567-89AB-CDEF-0123-456789ABCDEF}");
+    const written = readdirSync(out, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile());
+    assert.equal(written.length, 6);
+    for (const entry of written) {
+      const text = readFileSync(join(entry.parentPath, entry.name), "utf8");
+      assert.doesNotMatch(text, /releases\/latest/, entry.name);
+      for (const name of NAMES) {
+        assert.ok(!text.includes(name), `${entry.name} names ${name}`);
+      }
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
 });
 
 test("writes the tap's layout and winget's", () => {

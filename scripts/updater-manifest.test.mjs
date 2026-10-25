@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { NAMES, copyLatest } from "./latest-names.mjs";
 import { manifest, signedVersion } from "./updater-manifest.mjs";
 
 const NOW = new Date("2026-10-25T12:34:56.789Z");
@@ -68,6 +69,29 @@ test("each kind of install gets its own file, and older updaters the generic one
   assert.equal(url("linux-x86_64-deb"), `${base}QuotaDial_0.3.0_amd64.deb`);
   assert.equal(Object.keys(written.platforms).length, 9);
   assert.equal(signedVersion(written.platforms["linux-x86_64-deb"].signature), "0.3.0");
+});
+
+test("the copies without the version change nothing: latest.json names the versioned files (D-116)", () => {
+  const folder = release(EVERY);
+  for (const name of [
+    "QuotaDial_0.3.0_universal.dmg",
+    "quotadial-v0.3.0-aarch64-apple-darwin.tar.gz",
+    "quotadial-v0.3.0-x86_64-apple-darwin.tar.gz",
+    "quotadial-v0.3.0-x86_64-unknown-linux-gnu.tar.gz",
+    "quotadial-v0.3.0-x86_64-pc-windows-msvc.zip",
+  ]) {
+    writeFileSync(join(folder, name), "not an update");
+  }
+  copyLatest(folder, "0.3.0");
+
+  const files = Object.values(manifest(options(folder)).platforms).map(({ url }) => url.split("/").pop());
+  assert.deepEqual([...new Set(files)].sort(), [
+    "QuotaDial_0.3.0_amd64.AppImage",
+    "QuotaDial_0.3.0_amd64.deb",
+    "QuotaDial_0.3.0_universal.app.tar.gz",
+    "QuotaDial_0.3.0_x64_en-US.msi",
+  ]);
+  assert.equal(files.some((file) => NAMES.includes(file)), false);
 });
 
 test("a release built without the updater key offers no update", () => {
