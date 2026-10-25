@@ -6,16 +6,16 @@ import type { System } from "../../lib/data/release.ts";
 import { detectSystem } from "../DownloadButton.tsx";
 import { TideTable } from "../TideTable.tsx";
 import { type AppFile, systemOf } from "./download-links.ts";
+import { FileName } from "./FileName.tsx";
 
 const NOTE = "block text-[0.9375rem] font-[400] text-ink-2";
-const LINK = "underline underline-offset-[0.2em]";
 
 /**
- * The files in each release, as a release holds them with the version in the name, a band for each
- * system. Each name leads to the Releases page, where every version's files are, so a visitor whose
- * button found no full release yet is never at a dead end. From 768 px it is a table, system then
- * file; on a phone each file stands under its system, so no name is squeezed or broken. The rows
- * for the visitor's own system say so.
+ * The files in each release, a band for each system, set as the command's archives are: the name
+ * a button saves, which fetches it, and under it the name a release holds it by, which leads to the
+ * Releases page, where every version's files are, so a visitor whose button found no full release
+ * yet is never at a dead end. From 768 px it is a table, system then file; on a phone each file
+ * stands under its system. The rows for the visitor's own system say so.
  */
 export function FilesTable({ files, releases }: { files: AppFile[]; releases: string }) {
   const [system, setSystem] = useState<System | null>(null);
@@ -29,7 +29,6 @@ export function FilesTable({ files, releases }: { files: AppFile[]; releases: st
         className="max-md:hidden"
         caption={{ text: "Files in each release" }}
         columns={["System", "File"]}
-        whole={[false, true]}
         rows={rows.map((row) => ({
           key: row.versioned,
           group: row.group,
@@ -42,13 +41,7 @@ export function FilesTable({ files, releases }: { files: AppFile[]; releases: st
                 </>
               ),
             },
-            {
-              text: (
-                <a href={releases} className={LINK}>
-                  {row.versioned}
-                </a>
-              ),
-            },
+            { text: <FileName file={row} from="files" record={releases} /> },
           ],
         }))}
       />
@@ -68,9 +61,7 @@ export function FilesTable({ files, releases }: { files: AppFile[]; releases: st
                     {yours(row.group) && <span className={NOTE}>Your system</span>}
                   </p>
                   <p className="m-0 mt-1 font-table">
-                    <a href={releases} className={`whitespace-nowrap ${LINK}`}>
-                      {row.versioned}
-                    </a>
+                    <FileName file={row} from="files" record={releases} />
                   </p>
                 </div>
               ))}

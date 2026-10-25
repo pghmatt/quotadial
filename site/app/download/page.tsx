@@ -44,7 +44,7 @@ export default function Download() {
           <div className="md:col-span-6 lg:col-span-7">
             <Plate
               title="Files in each release"
-              caption="The files a release holds, with the version in their names. Replace <version> with the number in the release's name."
+              caption="Each name is the file a button saves. Under it is the name a release holds it by: replace <version> with the number in the release's name."
             >
               <FilesTable files={FILES} releases={SITE.releases} />
             </Plate>
