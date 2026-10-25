@@ -1,3 +1,4 @@
+import { Breakable } from "../Breakable.tsx";
 import { ButtonLink } from "../Button.tsx";
 import { SectionHeading } from "../Section.tsx";
 import { BandedTable } from "./BandedTable.tsx";
@@ -43,7 +44,12 @@ const ADDRESSES = [
   },
 ];
 
-/** Privacy: every address it connects to, and what it never reads. */
+/**
+ * Privacy: every address it connects to, and what it never reads. An address breaks only at a
+ * space or after a hyphen (`Breakable`), and from 1280 px, where the table is 752 px wide, the
+ * longest one is held to a line (no `<wbr>`: it breaks the line even under nowrap), as the Unbroken
+ * Time Rule holds a file name in a table.
+ */
 export function Addresses() {
   return (
     <Part id="addresses" headingId="addresses-title">
@@ -72,9 +78,11 @@ export function Addresses() {
             group: row.group,
             cells: [
               row.address.length ? (
-                <span className="grid justify-items-start gap-1 font-code text-[0.875rem] leading-[1.35] font-[500] [overflow-wrap:anywhere]">
+                <span className="grid justify-items-start gap-1 font-code text-[0.875rem] leading-[1.35] font-[500] [overflow-wrap:break-word]">
                   {row.address.map((address) => (
-                    <span key={address}>{address}</span>
+                    <span key={address} className="xl:whitespace-nowrap xl:[&_wbr]:hidden">
+                      <Breakable text={address} />
+                    </span>
                   ))}
                 </span>
               ) : (
