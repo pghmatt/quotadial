@@ -2,7 +2,17 @@
 // as the Release workflow's publish job downloads it, with the names of v0.2.0's real files.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { after, test } from "node:test";
@@ -117,6 +127,14 @@ test("--names prints the eight, one a line, for the site deploy gate", () => {
   assert.equal(run.status, 0);
   assert.equal(run.stdout, `${NAMES.join("\n")}\n`);
   assert.equal(spawnSync(process.execPath, [SCRIPT], { encoding: "utf8" }).status, 2);
+});
+
+test("it runs when its path passes through a link, rather than doing nothing and succeeding", () => {
+  const linked = mkdtempSync(join(tmpdir(), "quotadial-latest-"));
+  made.push(linked);
+  symlinkSync(SCRIPT, join(linked, "latest-names.mjs"));
+  const run = spawnSync(process.execPath, [join(linked, "latest-names.mjs"), "--names"], { encoding: "utf8" });
+  assert.equal(run.stdout, `${NAMES.join("\n")}\n`);
 });
 
 test("docs/INSTALL.md links each of the eight copies of v0.2.0's downloads, and nothing else", () => {

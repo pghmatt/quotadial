@@ -11,7 +11,7 @@
 // hold the same signed bytes and SHA256SUMS.txt lists both. A download that is not there fails the
 // run, naming it, so a release never goes out with a link that answers 404. Nothing else is copied:
 // not the .sig files, the updater's .app.tar.gz, latest.json or the bills of materials.
-import { copyFileSync, readdirSync } from "node:fs";
+import { copyFileSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -81,7 +81,9 @@ export function copyLatest(folder, version) {
   return copies.map(([, to]) => to);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import.meta.url is the module's real path, and the path it was run by may pass through a link (as
+// /var does on macOS): compared as given, the run would do nothing and succeed.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [first, version, extra] = process.argv.slice(2);
   if (first === "--names" && version === undefined) {
     console.log(NAMES.join("\n"));
