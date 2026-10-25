@@ -34,11 +34,11 @@ product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 QuotaDial Free needs no key: one account per provider, every window with its pace and reset, 30
 days of history, alerts for a share used, a reset and a sign-in, the providers' status pages, and
 read-only status for agents through the CLI, the local API and MCP. QuotaDial Pro adds every
-account on the machine, a year of history, alerts before a window runs out, before a reset and for
-incidents, alerts to webhooks and Slack, the week's cost at API prices, and headroom and alert
-rules through the API and MCP. A licence key is checked on your machine, with no call home, and a
-Free copy says in one line where each Pro feature would be. See
-[docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
+account on the machine, a year of history, a picture of an account's history to share, alerts
+before a window runs out, before a reset and for incidents, alerts to webhooks and Slack, the
+week's cost at API prices, and headroom and alert rules through the API and MCP. A licence key is
+checked on your machine, with no call home, and a Free copy says in one line where each Pro
+feature would be. See [docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
 
 ## Provider support
 
@@ -90,8 +90,9 @@ you send it.
 
 The local API answers only on this machine, at 127.0.0.1, and asks for QuotaDial's own token. The
 MCP server talks only to the agent that starts it. QuotaDial's history, settings and licence key
-stay on your machine, readable only by you. There are no analytics, no crash reports and no
-account to make.
+stay on your machine, readable only by you. A picture made with History's Share image is drawn on
+your machine and saved in your Downloads folder, and QuotaDial sends it nowhere. There are no
+analytics, no crash reports and no account to make.
 
 QuotaDial Pro is sold through Lemon Squeezy, which keeps the order. The link in your receipt opens
 quotadial.com/key, which asks Lemon Squeezy whether the receipt's key is valid and gives you a

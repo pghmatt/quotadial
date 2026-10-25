@@ -3,10 +3,14 @@
  * `ProFeature::what`, and README.md). No price: Lemon Squeezy's checkout shows it (D-098).
  */
 
-/** What QuotaDial Pro adds, one feature each, as Settings lists it on a Free copy. */
+/**
+ * What QuotaDial Pro adds, one feature each, as Settings lists it on a Free copy: `ProFeature::ALL`
+ * in `ProFeature::what`'s words, which test/pro.test.ts reads from tier.rs and holds this to.
+ */
 export const PRO_ADDS = [
   "every account on this machine, not one per provider",
   "a year of history, not 30 days",
+  "a picture of an account's history to share",
   "alerts before a window runs out, before a reset, and for provider incidents",
   "alerts sent to webhooks and Slack",
   "the week's cost at API prices",

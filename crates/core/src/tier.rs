@@ -31,6 +31,8 @@ pub enum ProFeature {
     Accounts,
     /// History kept up to a year, rather than 30 days.
     LongHistory,
+    /// A picture of one account's history, made by the app to post or send.
+    ShareImage,
     /// Alert rules beyond a threshold and a reset: a window running out before it resets, a time
     /// before a reset, and provider incidents.
     AlertRules,
@@ -46,9 +48,10 @@ pub enum ProFeature {
 
 impl ProFeature {
     /// Every Pro feature, in the order QuotaDial lists them.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Accounts,
         Self::LongHistory,
+        Self::ShareImage,
         Self::AlertRules,
         Self::AlertDelivery,
         Self::CostScan,
@@ -63,6 +66,7 @@ impl ProFeature {
         match self {
             Self::Accounts => "every account on this machine, not one per provider",
             Self::LongHistory => "a year of history, not 30 days",
+            Self::ShareImage => "a picture of an account's history to share",
             Self::AlertRules => {
                 "alerts before a window runs out, before a reset, and for provider incidents"
             }
@@ -80,6 +84,7 @@ impl ProFeature {
         let what = match self {
             Self::Accounts => "Showing every account is",
             Self::LongHistory => "Keeping a year of history, not 30 days, is",
+            Self::ShareImage => "A picture of an account's history to share is",
             Self::AlertRules => {
                 "Alerts before a window runs out, before a reset, and for provider incidents are"
             }
@@ -127,6 +132,43 @@ mod tests {
         for feature in ProFeature::ALL {
             assert!(feature.line().ends_with(PRO_URL), "{feature:?}");
             assert!(!feature.what().is_empty());
+        }
+    }
+
+    #[test]
+    fn the_shareable_image_is_listed_beside_the_history_it_pictures() {
+        assert_eq!(
+            ProFeature::ShareImage.what(),
+            "a picture of an account's history to share"
+        );
+        assert_eq!(
+            ProFeature::ShareImage.line(),
+            "A picture of an account's history to share is part of QuotaDial Pro: \
+             quotadial.com/pro"
+        );
+        assert_eq!(ProFeature::ALL.len(), 8);
+        assert_eq!(
+            ProFeature::ALL[..3],
+            [
+                ProFeature::Accounts,
+                ProFeature::LongHistory,
+                ProFeature::ShareImage
+            ],
+            "right after a year of history, the history it pictures"
+        );
+        assert_eq!(
+            serde_json::to_value(ProFeature::ShareImage).expect("serializes"),
+            "share_image"
+        );
+    }
+
+    #[test]
+    fn every_feature_is_listed_once() {
+        for (index, feature) in ProFeature::ALL.iter().enumerate() {
+            assert!(
+                !ProFeature::ALL[index + 1..].contains(feature),
+                "{feature:?} is listed twice"
+            );
         }
     }
 

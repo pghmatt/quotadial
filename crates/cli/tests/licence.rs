@@ -59,6 +59,7 @@ fn a_key_is_added_shown_and_removed() {
          QuotaDial Pro, at quotadial.com/pro, adds:\n  \
          every account on this machine, not one per provider\n  \
          a year of history, not 30 days\n  \
+         a picture of an account's history to share\n  \
          alerts before a window runs out, before a reset, and for provider incidents\n  \
          alerts sent to webhooks and Slack\n  \
          the week's cost at API prices\n  \

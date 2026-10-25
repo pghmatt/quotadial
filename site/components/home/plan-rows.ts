@@ -7,9 +7,9 @@
 export const PLAN_ROWS: { topic: string; free: number[]; pro: number[] }[] = [
   { topic: "Accounts", free: [0], pro: [0] },
   { topic: "Windows", free: [1], pro: [] },
-  { topic: "History", free: [2], pro: [1] },
-  { topic: "Alerts", free: [3], pro: [2, 3] },
+  { topic: "History", free: [2], pro: [1, 2] },
+  { topic: "Alerts", free: [3], pro: [3, 4] },
   { topic: "Status pages", free: [4], pro: [] },
-  { topic: "Agents", free: [5], pro: [5, 6] },
-  { topic: "Cost", free: [], pro: [4] },
+  { topic: "Agents", free: [5], pro: [6, 7] },
+  { topic: "Cost", free: [], pro: [5] },
 ];
