@@ -7,8 +7,8 @@ import type { System } from "../lib/data/release.ts";
 
 const NAMES: Record<System, string> = { macos: "macOS", windows: "Windows", linux: "Linux" };
 
-/** The visitor's system, as well as the browser says it. */
-function detect(): System | null {
+/** The visitor's system, as well as the browser says it; null on a phone or when it cannot tell. */
+export function detectSystem(): System | null {
   const agent = navigator.userAgent;
   if (/Mac OS X|Macintosh/.test(agent) && !/iPhone|iPad/.test(agent)) {
     return "macos";
@@ -24,14 +24,15 @@ function detect(): System | null {
 
 /**
  * The download action, named for the visitor's system once the page knows it ("Download QuotaDial"
- * before then, and on a phone), leading to that system's part of /download.
+ * before then, and on a phone), leading to that system's part of /download, or to `href` when given
+ * (on /download itself, the releases page).
  */
-export function DownloadButton({ primary = true }: { primary?: boolean }) {
+export function DownloadButton({ primary = true, href }: { primary?: boolean; href?: string }) {
   const [system, setSystem] = useState<System | null>(null);
-  useEffect(() => setSystem(detect()), []);
+  useEffect(() => setSystem(detectSystem()), []);
   return (
     <a
-      href={system ? `/download#${system}` : "/download"}
+      href={href ?? (system ? `/download#${system}` : "/download")}
       data-primary-action={primary ? "" : undefined}
       data-event="download_click"
       data-event-system={system ?? "unknown"}
