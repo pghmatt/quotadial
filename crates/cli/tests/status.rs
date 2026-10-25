@@ -18,6 +18,8 @@ const EXAMPLE: bool = cfg!(feature = "fake");
 /// How the daemon and `watch` say how often each provider is asked.
 const ASKS: &str = if EXAMPLE {
     "asks fake at most every 1 min"
+} else if cfg!(feature = "gemini") {
+    "asks claude at most every 5 min and codex at most every 2 min and gemini at most every 5 min"
 } else {
     "asks claude at most every 5 min and codex at most every 2 min"
 };
@@ -38,6 +40,7 @@ fn command(binary: &str, args: &[&str], home: &Path) -> Command {
         .env("USERPROFILE", home)
         .env("CLAUDE_CONFIG_DIR", home.join(".claude"))
         .env("CODEX_HOME", home.join(".codex"))
+        .env("GEMINI_CLI_HOME", home)
         .env(quotadial_core::copy::DATA_DIR_VARIABLE, home.join("data"))
         .env_remove("CLAUDE_CODE_OAUTH_TOKEN")
         .env_remove("ANTHROPIC_API_KEY")
@@ -144,6 +147,79 @@ fn status_says_no_accounts_found() {
 
     assert!(output.status.success(), "exit status {:?}", output.status);
     assert_eq!(stdout(&output), "no accounts found\n");
+}
+
+/// Gemini CLI signed in with Google in a made-up home: one account, which says why there are no
+/// numbers and where QuotaDial saw the sign-in, in `status`, `status --json` and `doctor` alike
+/// (D-118). Only a build with Gemini has it.
+#[cfg(all(feature = "gemini", not(feature = "fake")))]
+#[test]
+fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
+    let home = empty_home("gemini");
+    let gemini = home.join(".gemini");
+    std::fs::create_dir_all(&gemini).expect("makes .gemini");
+    std::fs::write(gemini.join("oauth_creds.json"), "{}").expect("signs in");
+    std::fs::write(
+        gemini.join("settings.json"),
+        r#"{ "security": { "auth": { "selectedType": "oauth-personal" } } }"#,
+    )
+    .expect("chooses Google");
+    let sign_in = format!(
+        "~/{}",
+        Path::new(".gemini").join("oauth_creds.json").display()
+    );
+    let why = "Google's terms do not let other tools use Gemini CLI's sign-in, so QuotaDial shows \
+               no numbers for it. In Gemini CLI, `/model` shows each model's share used and when \
+               it resets.";
+
+    let text = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
+    assert!(text.status.success(), "exit status {:?}", text.status);
+    // A copy with no licence also offers the week's cost, which takes only an account; the cost
+    // scan reads no Gemini CLI logs, so Pro would show none for it (D-122).
+    assert_eq!(
+        stdout(&text),
+        format!(
+            "gemini Google account: unsupported\n  {why}\nThe week's cost at API prices is part of \
+             QuotaDial Pro: quotadial.com/pro\n"
+        )
+    );
+
+    let json = run(
+        env!("CARGO_BIN_EXE_quotadial"),
+        &["status", "--json"],
+        &home,
+    );
+    let report: Value = serde_json::from_str(&stdout(&json)).expect("valid JSON");
+    assert_eq!(
+        report,
+        json!({
+            "snapshots": [{
+                "account": {
+                    "provider": "gemini",
+                    "account_id": "google",
+                    "display_name": "Google account",
+                    "sign_in": sign_in
+                },
+                "windows": [],
+                "status": "unsupported",
+                "error": why
+            }],
+            "errors": [],
+            "left_out": [{
+                "feature": "cost_scan",
+                "text": "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro"
+            }]
+        })
+    );
+
+    let doctor = stdout(&run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home));
+    assert!(
+        doctor.contains(&format!(
+            "Accounts (1):\n  gemini Google account: unsupported\n    sign-in: {sign_in}\n    \
+             {why}\n"
+        )),
+        "{doctor}"
+    );
 }
 
 /// The example build's accounts, by `status`: each called Example with its plan, every window

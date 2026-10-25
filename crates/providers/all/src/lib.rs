@@ -2,9 +2,11 @@
 //! licence. The CLI and the tray app both start from this list, so a new provider is added in one
 //! place.
 //!
-//! The example build (the `fake` feature, D-117) lists the fake provider alone, whose made-up
-//! accounts are for pictures of the app: no sign-in is read and no provider is asked. No release
-//! has the feature, and a test below holds a release's list to Claude and Codex.
+//! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini` adds
+//! Gemini CLI after them (D-118). The example build (the `fake` feature, D-117) lists the fake
+//! provider alone, whose made-up accounts are for pictures of the app: no sign-in is read and no
+//! provider is asked, whatever else is on. No release has `fake`, and the tests below hold each
+//! build's list.
 
 use std::sync::Arc;
 
@@ -41,6 +43,8 @@ pub fn with_config(config: &Config, licensing: &Licensing) -> Vec<Arc<dyn Provid
                 .with_max_accounts(licensing.account_limit(config.max_accounts)),
         ),
         Arc::new(CodexProvider::new()),
+        #[cfg(feature = "gemini")]
+        Arc::new(quotadial_provider_gemini::GeminiProvider::new()),
     ]
 }
 
@@ -66,10 +70,21 @@ mod tests {
             .collect()
     }
 
-    #[cfg(not(feature = "fake"))]
+    #[cfg(not(any(feature = "fake", feature = "gemini")))]
     #[test]
-    fn without_the_fake_feature_the_list_is_exactly_claude_then_codex() {
+    fn a_release_lists_exactly_claude_then_codex() {
         assert_eq!(listed(), ["claude", "codex"]);
+        assert_eq!(
+            quotadial_core::copy::FOLDER,
+            "quotadial",
+            "and the copy keeps QuotaDial's own folders"
+        );
+    }
+
+    #[cfg(all(feature = "gemini", not(feature = "fake")))]
+    #[test]
+    fn with_gemini_the_list_is_exactly_claude_codex_then_gemini() {
+        assert_eq!(listed(), ["claude", "codex", "gemini"]);
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial",

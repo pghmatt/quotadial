@@ -1,15 +1,19 @@
 //! `packaging/completions` and `packaging/man`: the shell completions and the manual pages, written
-//! from the commands' own definitions, so they cannot drift from what the CLI accepts. Every
-//! release archive carries them and the package managers install them. This test fails when a file
-//! and the code disagree, and `QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial packaging`
-//! writes them again.
+//! from the commands' own definitions, so they cannot drift from what the CLI accepts. That
+//! includes the commands a provider adds (P-018), since they come from the same `command` the CLI
+//! runs. Every release archive carries them and the package managers install them. This test fails
+//! when a file and the code disagree, and `QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial
+//! packaging` writes them again.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use clap::{Command, CommandFactory};
 use clap_complete::Shell;
 use clap_mangen::Man;
+use quotadial_core::Provider;
+use quotadial_daemon::{Config, Licensing};
 use roff::{Roff, bold, italic, roman};
 
 use crate::Cli;
@@ -19,17 +23,23 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packaging")
 }
 
+/// The providers this build ships, set up with the default settings and no licence, so no folder
+/// is read.
+fn shipped() -> Vec<Arc<dyn Provider>> {
+    quotadial_providers::with_config(&Config::default(), &Licensing::new(None))
+}
+
 /// The command as `quotadial` prints its help.
 fn command() -> Command {
-    let mut command = Cli::command();
+    let mut command = crate::command(&shipped());
     command.build();
     command
 }
 
-/// The command as the pages describe it: without clap's `help` subcommand, which `--help` and
-/// the pages themselves cover.
-fn documented_command() -> Command {
-    let mut command = Cli::command().disable_help_subcommand(true);
+/// `command` as the pages describe it: without clap's `help` subcommand, which `--help` and the
+/// pages themselves cover.
+fn for_pages(command: Command) -> Command {
+    let mut command = command.disable_help_subcommand(true);
     command.build();
     command
 }
@@ -37,6 +47,11 @@ fn documented_command() -> Command {
 /// Every file under `packaging/completions` and `packaging/man`, by its path there, with what it
 /// should hold.
 fn files() -> BTreeMap<String, Vec<u8>> {
+    files_of(&crate::command(&shipped()))
+}
+
+/// The completions and pages for `command`, by their paths under `packaging/`.
+fn files_of(command: &Command) -> BTreeMap<String, Vec<u8>> {
     let mut files = BTreeMap::new();
     for bin in ["quotadial", "qd"] {
         for (shell, name) in [
@@ -46,11 +61,11 @@ fn files() -> BTreeMap<String, Vec<u8>> {
             (Shell::PowerShell, format!("{bin}.ps1")),
         ] {
             let mut script = Vec::new();
-            clap_complete::generate(shell, &mut Cli::command(), bin, &mut script);
+            clap_complete::generate(shell, &mut command.clone(), bin, &mut script);
             files.insert(format!("completions/{name}"), script);
         }
     }
-    pages(&documented_command(), true, &mut files);
+    pages(&for_pages(command.clone()), true, &mut files);
     files
 }
 
@@ -253,7 +268,7 @@ fn every_command_and_argument_says_what_it_is_for() {
 fn there_is_a_manual_page_for_every_command() {
     let files = files();
     let mut missing = Vec::new();
-    for sub in documented_command().get_subcommands() {
+    for sub in for_pages(crate::command(&shipped())).get_subcommands() {
         let page = format!("man/quotadial-{}.1", sub.get_name());
         if !files.contains_key(&page) {
             missing.push(page);
@@ -274,4 +289,42 @@ fn there_is_a_manual_page_for_every_command() {
     ] {
         assert!(top.contains(section), "quotadial(1) has no {section}");
     }
+}
+
+#[test]
+fn a_providers_own_commands_get_completions_and_manual_pages() {
+    let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(crate::tests::ChattyProvider)];
+    let mut with_commands = crate::command(&providers);
+    with_commands.build();
+
+    let files = files_of(&with_commands);
+
+    assert!(files.contains_key("man/quotadial-chatty.1"));
+    let page = String::from_utf8(files["man/quotadial-chatty-echo.1"].clone()).expect("roff");
+    assert!(page.contains(crate::tests::ECHO_ABOUT), "{page}");
+    for (path, script) in files
+        .iter()
+        .filter(|(path, _)| path.starts_with("completions/"))
+    {
+        let script = String::from_utf8_lossy(script);
+        assert!(
+            script.contains("chatty") && script.contains("echo"),
+            "{path}"
+        );
+    }
+    let echo = with_commands
+        .find_subcommand("chatty")
+        .and_then(|group| group.find_subcommand("echo"))
+        .expect("the provider's command");
+    for arg in echo.get_arguments().filter(|arg| !arg.is_hide_set()) {
+        assert!(arg.get_help().is_some(), "{} has no help", arg.get_id());
+    }
+}
+
+#[test]
+fn a_provider_with_no_commands_of_its_own_changes_no_file() {
+    let providers: Vec<Arc<dyn Provider>> =
+        vec![Arc::new(crate::tests::CountingProvider::default())];
+
+    assert!(files_of(&crate::command(&providers)) == files_of(&Cli::command()));
 }
