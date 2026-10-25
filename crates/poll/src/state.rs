@@ -2,9 +2,10 @@
 //! hold across separate `quotadial` processes.
 //!
 //! Each account has a JSON file in the user's cache directory (`quotadial/<provider>/` under
-//! `~/Library/Caches`, `$XDG_CACHE_HOME` or `%LOCALAPPDATA%`), holding derived data only:
-//! snapshots, times and counters, never a token. A lock file beside it keeps two processes from
-//! both deciding to send a request. M2's SQLite store replaces this.
+//! `~/Library/Caches`, `$XDG_CACHE_HOME` or `%LOCALAPPDATA%`; `quotadial-fake/` in the example build,
+//! D-117), holding derived data only: snapshots, times and counters, never a token. A lock file
+//! beside it keeps two processes from both deciding to send a request. M2's SQLite store replaces
+//! this.
 
 use std::fmt;
 use std::fs::{self, File, OpenOptions, TryLockError};
@@ -122,10 +123,11 @@ pub struct StateLock {
 }
 
 impl StateStore {
-    /// `quotadial/<provider>` in the user's cache directory.
+    /// `quotadial/<provider>` in the user's cache directory, or `quotadial-fake/<provider>` in the
+    /// example build ([`quotadial_core::copy`]).
     #[must_use]
     pub fn default_dir(provider: &str) -> Option<PathBuf> {
-        dirs::cache_dir().map(|dir| dir.join("quotadial").join(provider))
+        dirs::cache_dir().map(|dir| dir.join(quotadial_core::copy::FOLDER).join(provider))
     }
 
     /// The store for `provider`'s accounts in `dir`.
@@ -320,6 +322,29 @@ mod tests {
         DateTime::parse_from_rfc3339(rfc3339)
             .expect("valid timestamp")
             .with_timezone(&Utc)
+    }
+
+    #[test]
+    fn each_provider_keeps_its_state_in_this_copy_s_own_cache_folder() {
+        let Some(dir) = StateStore::default_dir("claude") else {
+            // The operating system names no cache directory, so there is nothing to share.
+            return;
+        };
+        let folder = if quotadial_core::copy::EXAMPLE {
+            "quotadial-fake"
+        } else {
+            "quotadial"
+        };
+
+        assert!(
+            dir.ends_with(Path::new(folder).join("claude")),
+            "{}",
+            dir.display()
+        );
+        assert_eq!(
+            dir.parent().and_then(Path::parent),
+            dirs::cache_dir().as_deref()
+        );
     }
 
     #[test]

@@ -23,6 +23,13 @@ path = "src/main.rs"
 name = "qd"
 path = "src/bin/qd.rs"
 
+[features]
+# The example build (D-117): the fake provider in place of Claude and Codex, with this copy's own
+# folders and port. In no default and no release; `cargo test --workspace --features fake` turns it
+# on here, in the provider list and in core together, and so do the tray app's example build and
+# `npm run cli -- --fake`.
+fake = ["quotadial-providers/fake"]
+
 [dependencies]
 chrono.workspace = true
 clap.workspace = true

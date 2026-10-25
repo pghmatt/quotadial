@@ -31,8 +31,13 @@ use tokio::net::TcpListener;
 
 use crate::{HeadroomReport, Token, rank};
 
-/// The port the API listens on unless told otherwise.
-pub const DEFAULT_PORT: u16 = 47_115;
+/// The port the API listens on unless told otherwise: 47115, or 47116 in the example build
+/// ([`quotadial_core::copy`], D-117), so the example never takes a real copy's port.
+pub const DEFAULT_PORT: u16 = if quotadial_core::copy::EXAMPLE {
+    47_116
+} else {
+    47_115
+};
 
 #[derive(Clone)]
 struct AppState {

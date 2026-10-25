@@ -36,7 +36,12 @@ pub fn gather(
 ) -> Diagnostics {
     let licence = Licensing::new(dir).standing().without_id();
     let data_folder = dir.map_or_else(
-        || "none: the operating system names none, so set QUOTADIAL_DATA_DIR".to_owned(),
+        || {
+            format!(
+                "none: the operating system names none, so set {}",
+                quotadial_core::copy::DATA_DIR_VARIABLE
+            )
+        },
         |dir| dir.path().display().to_string(),
     );
     let daemon = match dir {
@@ -221,7 +226,13 @@ mod tests {
         let facts = gather(None, StatusReport::default(), "a direct fetch", Utc::now());
 
         assert_eq!(facts.licence, "QuotaDial Free, with no licence key.");
-        assert!(facts.data_folder.contains("QUOTADIAL_DATA_DIR"));
+        assert_eq!(
+            facts.data_folder,
+            format!(
+                "none: the operating system names none, so set {}",
+                quotadial_core::copy::DATA_DIR_VARIABLE
+            )
+        );
         assert_eq!(facts.daemon, "not running");
     }
 

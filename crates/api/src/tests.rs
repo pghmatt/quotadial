@@ -806,6 +806,19 @@ async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
     );
 }
 
+#[test]
+fn a_release_keeps_its_port_and_the_example_build_takes_another() {
+    if quotadial_core::copy::EXAMPLE {
+        assert_eq!(crate::DEFAULT_PORT, 47_116, "never a real copy's port");
+    } else {
+        assert_eq!(
+            crate::DEFAULT_PORT,
+            47_115,
+            "the port docs/CLI.md and the skill name"
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_second_host_and_a_taken_port_are_refused_with_the_reason() {
     let temp = tempfile::tempdir().expect("temp dir");

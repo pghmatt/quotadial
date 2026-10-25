@@ -5,6 +5,7 @@
 //! model" and "Provider trait" sections (`docs/PRD-public.md`) field for field.
 
 mod alert;
+pub mod copy;
 mod cost;
 mod diagnostics;
 mod error;

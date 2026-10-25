@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{Account, Snapshot, Status, StatusReport, Window, text};
+use quotadial_core::{Account, Snapshot, Source, Status, StatusReport, Window, text};
 use serde::Serialize;
 
 use crate::feed::Role;
@@ -326,7 +326,11 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         key: account_key(account),
         alias: None,
         summary,
-        sign_in: sign_in(account),
+        sign_in: if is_example(snapshot) {
+            EXAMPLE_SIGN_IN.to_owned()
+        } else {
+            sign_in(account)
+        },
         provider,
         name: account.display_name.clone(),
         plan: account.plan.clone(),
@@ -363,6 +367,21 @@ fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
             .as_ref()
             .is_some_and(|pace| pace.runs_out_at.is_some()),
     }
+}
+
+/// What the popover says of an account the example build made up (D-117), where it would say how
+/// the sign-in is read: there is none.
+const EXAMPLE_SIGN_IN: &str = "An example account, made up by QuotaDial's example build for \
+                               pictures of the app. It has no sign-in, and QuotaDial asks no one \
+                               for its numbers.";
+
+/// Whether every number of `snapshot` was made up by the example build.
+fn is_example(snapshot: &Snapshot) -> bool {
+    !snapshot.windows.is_empty()
+        && snapshot
+            .windows
+            .iter()
+            .all(|window| window.source == Source::Example)
 }
 
 /// Where QuotaDial reads the account's sign-in (P-015), or, if the provider did not say, where it
@@ -670,6 +689,49 @@ mod tests {
             ]
         );
         assert!(meter.accounts[1].sign_in.contains("auth.json"));
+    }
+
+    #[test]
+    fn an_example_account_says_its_numbers_are_examples_and_that_it_has_no_sign_in() {
+        let example = |source| Window {
+            source,
+            ..window("Session", 38.0, "2099-01-01T02:14:00Z")
+        };
+        let mut report = two_accounts();
+        report.snapshots[0] = Snapshot {
+            account: Account {
+                provider: "fake".into(),
+                account_id: "example-1".into(),
+                display_name: "Example".into(),
+                plan: Some("Claude Max 5x".into()),
+                org: None,
+                sign_in: None,
+            },
+            ..snapshot("fake", None, vec![example(Source::Example)])
+        };
+
+        let meter = Meter::new(Some(&report), None, None, now());
+        let shown = &meter.accounts[0];
+
+        assert_eq!(shown.provider, "fake");
+        assert_eq!(shown.name, "Example");
+        assert_eq!(shown.windows[0].fetched, "from the example build 4 min ago");
+        assert_eq!(
+            shown.sign_in,
+            "An example account, made up by QuotaDial's example build for pictures of the app. It \
+             has no sign-in, and QuotaDial asks no one for its numbers."
+        );
+        assert!(
+            meter.accounts[1].sign_in.contains("auth.json"),
+            "a real account still says where its sign-in is read"
+        );
+
+        report.snapshots[0].windows.push(example(Source::Api));
+        let mixed = Meter::new(Some(&report), None, None, now());
+        assert!(
+            mixed.accounts[0].sign_in.starts_with("QuotaDial reads"),
+            "an account is an example only when every number is"
+        );
     }
 
     #[test]

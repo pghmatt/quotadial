@@ -187,13 +187,15 @@ pub fn status_label(status: Status) -> &'static str {
     }
 }
 
-/// Where a number came from: `the API`, `local logs` or `cache`.
+/// Where a number came from: `the API`, `local logs`, `cache`, or `the example build` for a number
+/// made up for pictures of the app (D-117).
 #[must_use]
 pub fn source_label(source: Source) -> &'static str {
     match source {
         Source::Api => "the API",
         Source::LocalLog => "local logs",
         Source::Cache => "cache",
+        Source::Example => "the example build",
     }
 }
 
@@ -293,6 +295,18 @@ mod tests {
             "at 2.0%/h, runs out in 19 h"
         );
         assert_eq!(super::pace(&pace(0.0, None), None, now()), "at 0%/h");
+    }
+
+    #[test]
+    fn every_source_is_named_as_the_sentence_after_from_reads() {
+        assert_eq!(source_label(Source::Api), "the API");
+        assert_eq!(source_label(Source::LocalLog), "local logs");
+        assert_eq!(source_label(Source::Cache), "cache");
+        assert_eq!(
+            source_label(Source::Example),
+            "the example build",
+            "so an example is never taken for a real account's numbers"
+        );
     }
 
     #[test]

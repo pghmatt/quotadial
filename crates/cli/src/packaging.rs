@@ -179,6 +179,11 @@ fn about_the_command(roff: &mut Roff) {
 }
 
 #[test]
+#[cfg_attr(
+    feature = "fake",
+    ignore = "the files describe what a release ships; the example build's daemon has its own \
+              default port (D-117)"
+)]
 fn the_completions_and_manual_pages_are_the_commands() {
     let root = root();
     let files = files();
