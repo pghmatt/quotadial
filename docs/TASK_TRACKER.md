@@ -73,9 +73,9 @@ queue, by its numbers:
 - 4, the key page's function, decided on #54 (D-102), merged (PR #58): it signs with a second,
   online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
-- 5, the website in `site/`, built but not deployed (D-113), merged (PR #68); the shareable
-  image, the item's other half (decision f on #40), is a feature of the app's History and comes in
-  its own PR after #64's fix;
+- 5, in two pull requests: the website in `site/`, built but not deployed (D-113), merged
+  (PR #68); and the shareable image (decision f on #40), a feature of the app's History
+  (D-115), in review (PR #70);
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
@@ -83,8 +83,8 @@ queue, by its numbers:
 - then the M6 plan, starting with a fake provider while it waits.
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
-the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68); from
-here: #64's fix (PR #69), the shareable image, 12, M6.
+the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68) and
+#64's fix (PR #69); from here: the shareable image (PR #70), 12, M6.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -159,10 +159,11 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
 | 9: accessibility | Done (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
-| #64: the menu bar icon by keyboard and VoiceOver | In review (PR #69) | On macOS a press of the menu bar icon, as VoiceOver and Full Keyboard Access make it, opens the popover as a click does: the icon's button gets a target and action in `icon_press.rs`, the tray app's one `unsafe` exception; `tests/icon_press.rs` proves it on a real status item in CI (D-114) |
+| #64: the menu bar icon by keyboard and VoiceOver | Done (PR #69) | On macOS a press of the menu bar icon, as VoiceOver and Full Keyboard Access make it, opens the popover as a click does: the icon's button gets a target and action in `icon_press.rs`, the tray app's one `unsafe` exception; `tests/icon_press.rs` proves it on a real status item in CI (D-114) |
 | 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
-| 5: the website | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
+| 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
+| 5: the shareable image (second PR) | In review (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -349,6 +350,94 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 5, second PR: the shareable image (D-115)
+
+- **The Pro feature:** `ProFeature::ShareImage`, "a picture of an account's history to share",
+  right after a year of history in `ALL`, with its line "A picture of an account's history to
+  share is part of QuotaDial Pro: quotadial.com/pro". Everything that prints the list follows:
+  `quotadial licence` on Free (its test), Settings' list on Free (its test now finds the week's
+  cost at index 5), the OpenAPI document's `ProFeature` (written again), the Free and Pro table in
+  `docs/CLI.md`, and the README.
+- **The command** (`apps/tray/src-tauri/src/share.rs`, `save_share_image` in `lib.rs`): the PNG
+  arrives as the raw body of a `tauri::ipc::Request`. The tier is asked first, through the copy's
+  `Licensing`, and Free gets the feature's line whatever was sent. Then, read by hand: at most
+  4 MB, the eight-byte signature, a first chunk of 13 bytes typed `IHDR` whose CRC-32 matches
+  (worked bit by bit; tested against the CRC-32 check value and `IEND`'s), the `IEND` chunk last,
+  and exactly 2400 by 1350. A JSON body (Tauri's postMessage fallback would send one) is refused
+  as a form QuotaDial cannot read. The account is its settings key in the `quotadial-account`
+  header, percent-encoded by the window and decoded here; `history::label` finds it in the
+  history's newest snapshots, so the plan is the account's own, and an account the history does
+  not know is refused. The file name is Rust's: `QuotaDial <label> <local date>.png`, the label
+  kept to letters, figures, spaces and `- _ ( ) + & ' ,` (everything else a space, runs of spaces
+  one), at most 80 bytes, cut at a character's edge; files are created with `create_new`, so a
+  taken name moves on to ` 2`, ` 3` and so on to 999, and half-written files are removed. The
+  answer is "Saved to ~/Downloads/<name>." through `text::tilde`; each refusal is one sentence
+  that names what to do, and none carries a path. Property tests (#52) prove no bytes make the PNG
+  reader panic, no header makes the decoder panic, every label makes a safe name, and no label
+  shows an @ or a control character; each was seen to fail on a module broken on purpose (a dot
+  kept in names, an @ let through, the length guard gone, an escape read past its end).
+  `docs/SECURITY.md` now lists the Downloads folder and what a window can make the app save.
+- **The view:** `HistoryView` gains `dates` (from the period's first day, or the history's first
+  day when it began since, to today: "19 to 25 October 2026", "26 September to 25 October 2026")
+  and `share_left_out` (the line on Free, `null` on Pro); `AccountHistory` gains `label`, made by
+  `share::label`: the provider and the name given the account, or the provider and its plan with
+  a capital (`max` is Max), or the provider alone; a name or plan with an @ is passed over, a name
+  that starts with the provider is not given it twice, and control characters are spaces.
+- **The picture** (`apps/tray/src/share.ts`): QuotaDial and quotadial.com small at the top right;
+  the label at 46 px and the period with its dates beneath; a column per window with its name,
+  its latest share at up to 84 px (shrinking so "100%" fits any number of columns) in the text,
+  warning or high colour by its level, "highest" and its share, and its chart with the share
+  filled beneath the line and the dashed line at 90%; then the heatmap, every day named over a
+  week and every seventh over a month, with the hours 0, 6, 12 and 18. Colours come from
+  `--background`, `--text`, `--muted`, `--warning`, `--high`, `--bar`, `--bar-normal` and
+  `--bar-warning` as the window's theme has them; text uses only the four `check-contrast.mjs`
+  holds to 4.5:1. The font is the root's stack. A canvas takes no `font-variant-numeric`, so a
+  `Pen` lays each figure out in the room of the widest, centred, as tabular figures are; text too
+  wide for its room is cut short with "…". `shareStrings` lists everything drawn, from the same
+  words the drawing uses. A picture is about 220 to 270 KB; the window's JavaScript went from
+  28.8 KB to 33.7 KB of its 150 KB.
+- **The panel:** a Share image button after each account's heatmap, named "Share image of
+  <label>"; another press while a picture is being made is ignored. The status line is now always
+  in the page (empty until a file is saved), so a screen reader hears each new line in it; the
+  alert line shows a refusal. On Free, one `.left-out` line after the accounts, only when there
+  are accounts. A rule above Export CSV and Done keeps the last account's button with its
+  account.
+- **The window check:** the stand-in answers `save_share_image` as the app does (by the key in the
+  header, or refusing an account it does not know), records a raw body by its size, and records
+  every `fillText` and `fillRect` a canvas makes with its colour and font. `checkSharing` runs in
+  both themes: on Pro, each account's button is after the periods and before Export CSV in Tab
+  order and named by its label; Tab and Enter send the app a PNG for that account, read in Node
+  (signature, header and its CRC, end) and held to 2400 by 1350 as fixed numbers; History says
+  where it went; and every string drawn is in `shareStrings` (imported from `src/share.ts`, which
+  Node 22 runs with its types stripped), with no @, in one of the stylesheet's text colours, in
+  the window's font, figures one by one, on the window's background. It shares each account over
+  7 days and the first over 30 where a copy has a month. On Free: no button and the line once.
+  `--share-images <folder>` saves each picture. A key's drawing now counts as the key doing
+  something, since the save comes after the PNG is encoded. Seen to fail on 11 windows broken on
+  purpose: a button named by the address, no button on Pro, a button on Free, the line twice, a
+  picture at 1x (which first passed, as the check took the size from the module it checked; it
+  now holds 2400 by 1350 fixed), the address as the title, a colour not from the stylesheet,
+  figures drawn whole, the picture sent for another account, a ground not the background, and a
+  picture that never reaches the app.
+- **Fixtures:** both sets carry `label`, `dates` and `share_left_out`. In `window-fixtures.mjs`
+  the Claude account's given name is now long ("Work, the team account we share across two
+  offices"), so the picture cuts it short, and the Codex account has none, so History names it by
+  its very long address, which the @ check needs.
+- **The site:** `PRO_ADDS` and the home table's History row list the feature, /pro's ledger has
+  its row and counts eight additions, and `test/pro.test.ts` reads `tier.rs` (ALL's order, what's
+  words) and fails when `PRO_ADDS` differs, seen to fail before the site listed the feature, with
+  two entries swapped and with a word changed; its own control proves it follows ALL's order.
+  Captured with the Brain's `finish-shots.mjs` at 1440x900 and 390x844: the new row wraps cleanly.
+- **The website's example accounts' pictures**, from `check-window.mjs --fixtures
+  ./scripts/site-fixtures.mjs --share-images <folder>`, light and dark, Claude Work and Codex Pro,
+  are kept outside the repository for review; none is committed.
+- **Left for later:** the site's `public/images/app/history-*.png`, which no page uses, predate the
+  button; home's lead sentence and /pro's description summarise Pro without the picture; the
+  existing "QuotaDial could not open its history" and "could not read its history" errors do not
+  name a fix (#52).
+- **Tests:** 558 in the workspace (2 new) and 77 in the app (17 new, 4 of them property tests); the
+  window check passes 2602 checks over 16 views (640 before); the site 42 (2 new).
 
 ### M5: the menu bar icon by keyboard and VoiceOver (#64, D-114)
 

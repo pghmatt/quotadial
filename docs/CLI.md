@@ -337,7 +337,9 @@ claude user@example.com
 
 The app's **History** button shows each account's windows charted over the last 7 or 30 days, a
 heatmap of when it was used by hour of the day, and an **Export CSV** button that saves the
-readings to the Downloads folder.
+readings to the Downloads folder. On QuotaDial Pro, each account there also has **Share image**,
+which saves a picture of its history in the Downloads folder, 2400 by 1350 pixels for posting,
+showing the plan or the name you gave the account and never its email address.
 
 ## QuotaDial Free and Pro
 

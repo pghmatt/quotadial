@@ -26,8 +26,9 @@ you send it.
 
 The local API answers only on this machine, at 127.0.0.1, and asks for QuotaDial's own token. The
 MCP server talks only to the agent that starts it. QuotaDial's history, settings and licence key
-stay on your machine, readable only by you. There are no analytics, no crash reports and no
-account to make.
+stay on your machine, readable only by you. A picture made with History's Share image is drawn on
+your machine and saved in your Downloads folder, and QuotaDial sends it nowhere. There are no
+analytics, no crash reports and no account to make.
 
 QuotaDial Pro is sold through Lemon Squeezy, which keeps the order. The link in your receipt opens
 quotadial.com/key, which asks Lemon Squeezy whether the receipt's key is valid and gives you a
