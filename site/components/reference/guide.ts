@@ -11,15 +11,17 @@ import { posix } from "node:path";
 
 import { Marked, Parser, type Token, type Tokens } from "marked";
 
+import { breakPieces } from "../../lib/breaks.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { repositoryFile, withoutTitle } from "../../lib/markdown.ts";
+import { clickDetail, commandSystemOf, extensionOf, systemOf } from "../conversion/download-links.ts";
 
 export type GuideName = "install" | "cli";
 
 /** The guides' own files, and the page each has on this site. */
-export const GUIDES: Record<GuideName, { file: string; path: string }> = {
-  install: { file: "docs/INSTALL.md", path: "/install" },
-  cli: { file: "docs/CLI.md", path: "/cli" },
+export const GUIDES: Record<GuideName, { file: string; path: string; from: string }> = {
+  install: { file: "docs/INSTALL.md", path: "/install", from: "install-guide" },
+  cli: { file: "docs/CLI.md", path: "/cli", from: "command-guide" },
 };
 
 /** The pages other repository texts have on this site; every other file points at GitHub. */
@@ -86,6 +88,40 @@ export function guideLink(href: string, from = "docs"): string {
   return PAGES[target] ? `${PAGES[target]}${anchor}` : `${SITE.repository}/blob/main/${target}${anchor}`;
 }
 
+const FILE_LINK = /<a href="([^"]*\/releases\/latest\/download\/([^"/#?]+))"/g;
+const SHELL_TAG = /(<[^>]+>)/;
+
+/**
+ * A guide's inline HTML with what the page needs and the words do not say. A link that fetches a
+ * release's file reports a `download_click` with the file and where it was, as /download's do;
+ * and the words of a command or a link may break only at the marks `breakPieces` names (a
+ * `<wbr>` there), so a file name or an address never splits inside a word.
+ */
+export function finish(html: string, from: string): string {
+  const marked = html.replace(FILE_LINK, (_match, href: string, name: string) => {
+    const system = ["dmg", "msi", "deb", "AppImage"].includes(extensionOf(name)) ? systemOf(name) : commandSystemOf(name);
+    const attributes = Object.entries(clickDetail({ name }, from, system))
+      .map(([key, value]) => `${key}="${value}"`)
+      .join(" ");
+    return `<a href="${href}" ${attributes}`;
+  });
+  let inside = 0;
+  return marked
+    .split(SHELL_TAG)
+    .map((part) => {
+      if (part.startsWith("<")) {
+        if (/^<(code|a)[\s>]/i.test(part)) {
+          inside += 1;
+        } else if (/^<\/(code|a)>/i.test(part)) {
+          inside = Math.max(0, inside - 1);
+        }
+        return part;
+      }
+      return inside ? breakPieces(part).join("<wbr>") : part;
+    })
+    .join("");
+}
+
 /** The words of a heading's Markdown, without its code marks. */
 function plain(markdown: string): string {
   return markdown.replace(/`/g, "").trim();
@@ -116,7 +152,7 @@ function hasCode(tokens: Token[]): boolean {
 }
 
 /** Reads a guide's Markdown into its title, its opening paragraph and its sections. */
-export function readGuide(markdown: string): Guide {
+export function readGuide(markdown: string, from = "guide"): Guide {
   const marked = new Marked({ gfm: true, async: false });
   const { title, body } = withoutTitle(markdown);
   if (!title) {
@@ -131,7 +167,7 @@ export function readGuide(markdown: string): Guide {
       tighten(token as Tokens.List);
     }
   });
-  const inline = (parts: Token[]) => Parser.parseInline(parts);
+  const inline = (parts: Token[]) => finish(Parser.parseInline(parts), from);
   const used = new Map<string, number>();
   const headingOf = (token: Tokens.Heading): GuideHeading => {
     const base = slug(plain(token.text));
@@ -152,7 +188,7 @@ export function readGuide(markdown: string): Guide {
   let context = "";
 
   const html = (parts: Token[]) => {
-    const rendered = marked.parser(parts as Tokens.Generic[]).trim();
+    const rendered = finish(marked.parser(parts as Tokens.Generic[]).trim(), from);
     if (rendered) {
       blocks.push({ kind: "html", html: rendered });
     }
@@ -260,7 +296,7 @@ export function readGuide(markdown: string): Guide {
 
 /** A guide as the site shows it, read from the repository when the site is built. */
 export function guide(name: GuideName, markdown: string = repositoryFile(GUIDES[name].file)): Guide {
-  return readGuide(markdown);
+  return readGuide(markdown, GUIDES[name].from);
 }
 
 /** Every link in a guide that leads to a heading, as the page it is on and its anchor. */

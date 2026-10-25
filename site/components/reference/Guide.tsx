@@ -5,9 +5,17 @@ import { BandedTable } from "../home/BandedTable.tsx";
 import { Prose } from "../Prose.tsx";
 import type { Guide, GuideBlock, GuideSection } from "./guide.ts";
 
-/** Code, links and bold inside a table's cells, set as the reading text sets them; long words break rather than push the table wide. */
+/** Code, links and bold inside a table's cells, set as the reading text sets them; a long word breaks only after the marks `finish` puts in it, and only when the cell is narrower than the word. */
 const CELL =
-  "[&_a]:underline [&_a]:underline-offset-[0.2em] [&_code]:rounded-chart [&_code]:bg-shallow [&_code]:px-1 [&_code]:font-code [&_code]:text-[0.875em] [&_code]:[overflow-wrap:anywhere]";
+  "[&_a]:underline [&_a]:underline-offset-[0.2em] [&_code]:rounded-chart [&_code]:bg-shallow [&_code]:px-1 [&_code]:font-code [&_code]:text-[0.875em] [&_code]:[overflow-wrap:break-word]";
+
+/**
+ * From 768 px the cells give up 4 px of side padding each, so /install's archive table holds its two
+ * longest names (`quotadial-v<version>-x86_64-unknown-linux-gnu.tar.gz` and the copy without the
+ * version) whole in one row from a 1280 px window up, where they would otherwise break in two at
+ * 1440 and 1920 for want of 11 px.
+ */
+const TABLE = "md:[&_td]:px-2 md:[&_th]:px-2";
 
 /** The words of a table cell's HTML, to judge whether a first column is short enough to keep on one line. */
 const cellWords = (cell: string) => cell.replace(/<[^>]+>/g, "").replace(/&[a-z#0-9]+;/g, "x");
@@ -17,12 +25,13 @@ const SHORT = 36;
 /** One block of a guide's section, in the site's own components. */
 function Block({ block, id }: { block: GuideBlock; id: string }) {
   if (block.kind === "html") {
-    return <Prose html={block.html} className="[&>:first-child]:mt-0! [&>:last-child]:mb-0! [&_code]:[overflow-wrap:anywhere]" />;
+    return <Prose html={block.html} className="[&>:first-child]:mt-0! [&>:last-child]:mb-0! [&_code]:[overflow-wrap:break-word]" />;
   }
   if (block.kind === "table") {
     return (
       <BandedTable
         caption={block.caption}
+        className={TABLE}
         columns={block.columns}
         wholeFirst={block.rows.every((cells) => cellWords(cells[0]).length <= SHORT)}
         rows={block.rows.map((cells, row) => ({
