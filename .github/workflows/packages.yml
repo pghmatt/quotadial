@@ -92,16 +92,16 @@ jobs:
         with:
           name: packages
           path: packages
-      - uses: actions/checkout@v7
-        with:
-          repository: pghmatt/homebrew-quotadial
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: tap
+      # git, not actions/checkout, so the first run works on the empty repository #51 asks for.
       - name: Commit the formula, the cask and the Scoop manifest
         env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ needs.manifests.outputs.version }}
         run: |
           set -euo pipefail
+          gh auth setup-git
+          git clone --quiet https://github.com/pghmatt/homebrew-quotadial.git tap
+          git -C tap checkout --quiet -B main
           mkdir -p tap/Formula tap/Casks tap/bucket
           cp packages/Formula/quotadial.rb tap/Formula/
           cp packages/Casks/quotadial-app.rb tap/Casks/
@@ -115,7 +115,7 @@ jobs:
             exit 0
           fi
           git commit --message "QuotaDial $VERSION"
-          git push
+          git push --quiet origin main
 
   winget:
     needs: manifests
