@@ -14,6 +14,10 @@ publish.workspace = true
 # own data folder, cache folder and port (quotadial-core's `fake`). Off by default and in no binary's
 # defaults; the Release workflow checks that no CLI it ships ever names a provider `fake`.
 fake = ["dep:quotadial-provider-fake", "quotadial-core/fake"]
+# Gemini CLI, seen and explained, with no numbers and no request (D-118). Off by default until the
+# app can show an account whose sign-in QuotaDial does not read (D-122); `cargo test -p
+# quotadial-providers --features gemini` holds its list, as CI does.
+gemini = ["dep:quotadial-provider-gemini"]
 
 [dependencies]
 quotadial-core.workspace = true
@@ -21,6 +25,7 @@ quotadial-daemon.workspace = true
 quotadial-provider-claude.workspace = true
 quotadial-provider-codex.workspace = true
 quotadial-provider-fake = { workspace = true, optional = true }
+quotadial-provider-gemini = { workspace = true, optional = true }
 
 [lints]
 workspace = true

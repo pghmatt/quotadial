@@ -1607,6 +1607,7 @@ dependencies = [
  "quotadial-provider-claude",
  "quotadial-provider-codex",
  "quotadial-provider-fake",
+ "quotadial-provider-gemini",
 ]
 
 [[package]]

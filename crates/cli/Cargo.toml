@@ -29,6 +29,9 @@ path = "src/bin/qd.rs"
 # on here, in the provider list and in core together, and so do the tray app's example build and
 # `npm run cli -- --fake`.
 fake = ["quotadial-providers/fake"]
+# Gemini CLI, seen and explained (D-118), off by default until it is turned on for releases (D-122):
+# `cargo run -p quotadial --features gemini -- status` shows it, and the CLI's tests expect it.
+gemini = ["quotadial-providers/gemini"]
 
 [dependencies]
 chrono.workspace = true
