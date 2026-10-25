@@ -113,7 +113,7 @@ export default function Download() {
 
           <div className="md:col-span-7">
             <SectionHeading id="check-heading">Check a download</SectionHeading>
-            <p className="mt-4 mb-0 max-w-[52ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> lists every file's SHA-256, in each release after 0.2.0. In the folder you
               downloaded to, paste the line for your system. It prints OK beside each file that matches, and FAILED
               beside any that does not.
@@ -156,7 +156,7 @@ export default function Download() {
             </p>
           </div>
 
-          <Prose html={GUIDE.unsigned} className="md:col-span-7 [&_p]:max-w-[51ch]" />
+          <Prose html={GUIDE.unsigned} className="md:col-span-7" />
         </div>
       </Section>
     </>
