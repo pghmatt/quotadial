@@ -608,12 +608,27 @@ fn meter(state: tauri::State<'_, AppState>) -> Meter {
     state.meter()
 }
 
-/// The popover's height follows its content: it reports its height, and the window fits it and
-/// stays beside the tray.
+/// The popover's height follows its content: it reports its height and width in CSS pixels, and
+/// the window fits it and stays beside the tray.
 #[tauri::command]
-fn fit(window: WebviewWindow, height: f64) {
-    let _ = window.set_size(LogicalSize::new(POPOVER_WIDTH, height.clamp(120.0, 640.0)));
+fn fit(window: WebviewWindow, height: f64, width: f64) {
+    let _ = window.set_size(LogicalSize::new(
+        POPOVER_WIDTH,
+        fitted_height(height, width),
+    ));
     place(&window);
+}
+
+/// The window's height for `height` CSS pixels of content when the page is `width` CSS pixels
+/// across. Zooming in (Cmd or Ctrl and +, #52) makes each CSS pixel larger, so the window's fixed
+/// width holds fewer of them and the same content needs more of the screen.
+fn fitted_height(height: f64, width: f64) -> f64 {
+    let zoom = if width > 0.0 {
+        POPOVER_WIDTH / width
+    } else {
+        1.0
+    };
+    (height * zoom).clamp(120.0, 640.0)
 }
 
 /// Escape hides the popover.
@@ -1125,5 +1140,24 @@ fn toggle_popover(app: &AppHandle) {
 fn place(window: &WebviewWindow) {
     if window.move_window(Position::TrayCenter).is_err() {
         let _ = window.move_window(Position::Center);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_popover_fits_its_content_at_the_zoom_it_is_shown_at() {
+        assert_eq!(fitted_height(300.0, POPOVER_WIDTH), 300.0);
+        // At 200% the page is half as wide in CSS pixels, and its content twice as tall on screen.
+        assert_eq!(fitted_height(300.0, POPOVER_WIDTH / 2.0), 600.0);
+        // Zoomed out, it is shorter, down to the smallest popover.
+        assert_eq!(fitted_height(300.0, POPOVER_WIDTH * 2.0), 150.0);
+        assert_eq!(fitted_height(100.0, POPOVER_WIDTH * 2.0), 120.0);
+        // Past the tallest popover, the page scrolls.
+        assert_eq!(fitted_height(500.0, POPOVER_WIDTH / 2.0), 640.0);
+        // A page that reports no width is taken as unzoomed.
+        assert_eq!(fitted_height(300.0, 0.0), 300.0);
     }
 }

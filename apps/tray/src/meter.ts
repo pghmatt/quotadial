@@ -168,6 +168,8 @@ export interface Heatmap {
   cells: number[][];
   /** The largest cell, which the others are shaded against. */
   most: number;
+  /** The same facts in words, a line per day, which a screen reader reads in place of the grid. */
+  said: string[];
 }
 
 /** What the app's Help shows. */

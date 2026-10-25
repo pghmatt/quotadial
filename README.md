@@ -17,7 +17,8 @@ them how to use it, and `quotadial doctor` prints what support asks for. See
 [docs/CLI.md](docs/CLI.md) for the commands, output and exit codes, and
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version. The tray app
 ([apps/tray](apps/tray)) shows the tightest limit in the menu bar or tray and runs the daemon
-itself; see [docs/INSTALL.md](docs/INSTALL.md) to install or build it.
+itself; see [docs/INSTALL.md](docs/INSTALL.md) to install or build it, and
+[docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) to use it by keyboard or screen reader.
 Progress is tracked in the [milestones](https://github.com/pghmatt/quotadial/milestones), and the
 product spec is in [docs/PRD-public.md](docs/PRD-public.md).
 

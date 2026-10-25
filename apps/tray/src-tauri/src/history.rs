@@ -61,6 +61,9 @@ pub struct Heatmap {
     pub cells: Vec<[f64; 24]>,
     /// The largest cell, which the others are shaded against.
     pub most: f64,
+    /// The same facts in words, a line per day, for a screen reader (#52): such as "Mon 20: used
+    /// 9:00 to 12:00 and 14:00 to 15:00, most at 14:00 (12%)", or "Tue 21: not used".
+    pub said: Vec<String>,
 }
 
 /// The history view of the last `days` before `now`, with the days and hours of `zone`, under
@@ -239,16 +242,57 @@ fn heatmap<Tz: TimeZone>(group: &[&Series], days: u32, now: DateTime<Utc>, zone:
         }
     }
     let most = cells.iter().flatten().copied().fold(0.0, f64::max);
+    let days: Vec<String> = (0..days)
+        .map(|offset| day_label(first + TimeDelta::days(i64::from(offset))))
+        .collect();
     Heatmap {
         window: shortest
             .map(|series| series.window.clone())
             .unwrap_or_default(),
-        days: (0..days)
-            .map(|offset| day_label(first + TimeDelta::days(i64::from(offset))))
+        said: days
+            .iter()
+            .zip(&cells)
+            .map(|(day, hours)| said(day, hours))
             .collect(),
+        days,
         cells,
         most,
     }
+}
+
+/// One day of the heatmap in words: the hours it was used, run together, and its busiest hour.
+fn said(day: &str, hours: &[f64; 24]) -> String {
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    for (hour, used) in hours.iter().enumerate() {
+        if *used <= 0.0 {
+            continue;
+        }
+        match runs.last_mut() {
+            Some((_, end)) if *end == hour => *end = hour + 1,
+            _ => runs.push((hour, hour + 1)),
+        }
+    }
+    // `max_by` keeps the last of equals, so searching backwards names the earliest busiest hour.
+    let Some((busiest, most)) = hours
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, used)| **used > 0.0)
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+    else {
+        return format!("{day}: not used");
+    };
+    let mut spans: Vec<String> = runs
+        .iter()
+        .map(|(start, end)| format!("{start}:00 to {end}:00"))
+        .collect();
+    let last = spans.pop().unwrap_or_default();
+    let spans = if spans.is_empty() {
+        last
+    } else {
+        format!("{} and {last}", spans.join(", "))
+    };
+    format!("{day}: used {spans}, most at {busiest}:00 ({most:.0}%)")
 }
 
 /// Such as "Mon 20".
@@ -259,6 +303,33 @@ fn day_label(day: NaiveDate) -> String {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
+    #[test]
+    fn the_heatmap_is_said_in_words_a_day_a_line() {
+        let mut hours = [0.0; 24];
+        for hour in [9, 10, 11] {
+            hours[hour] = 2.0;
+        }
+        hours[14] = 12.4;
+        hours[16] = 1.0;
+        hours[17] = 1.0;
+
+        assert_eq!(
+            super::said("Mon 20", &hours),
+            "Mon 20: used 9:00 to 12:00, 14:00 to 15:00 and 16:00 to 18:00, most at 14:00 (12%)"
+        );
+        assert_eq!(super::said("Tue 21", &[0.0; 24]), "Tue 21: not used");
+        let mut late = [0.0; 24];
+        late[23] = 3.0;
+        assert_eq!(
+            super::said("Wed 22", &late),
+            "Wed 22: used 23:00 to 24:00, most at 23:00 (3%)"
+        );
+        assert_eq!(
+            super::said("Thu 23", &[1.0; 24]),
+            "Thu 23: used 0:00 to 24:00, most at 0:00 (1%)"
+        );
+    }
 
     use quotadial_core::{Account, Snapshot, Source, Status, Window};
 

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
+import { usePanelFocus } from "./focus";
 import type { Settings } from "./meter";
 
 /**
@@ -12,6 +13,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [key, setKey] = useState("");
+  const panel = usePanelFocus();
 
   useEffect(() => {
     void invoke<Settings>("settings").then(setSettings);
@@ -30,7 +32,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
   }, []);
 
   if (!settings) {
-    return <section class="settings" aria-label="Settings" />;
+    return <section class="settings" aria-label="Settings" tabIndex={-1} ref={panel} />;
   }
 
   // Each change applies at once; the app answers with the settings as they now are.
@@ -62,7 +64,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <section class="settings" aria-label="Settings">
+    <section class="settings" aria-label="Settings" tabIndex={-1} ref={panel}>
       <h2>Settings</h2>
       <label class="choice">
         <input
@@ -178,7 +180,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
               <input
                 type="text"
                 value={account.alias}
-                placeholder="A name for this account"
+                placeholder="such as Work"
                 onChange={(event) =>
                   change({
                     ...settings,
@@ -217,7 +219,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
           <input
             type="text"
             value={key}
-            placeholder="Paste a licence key"
+            placeholder="Paste your key"
             aria-label="A licence key for QuotaDial Pro"
             autocomplete="off"
             spellcheck={false}

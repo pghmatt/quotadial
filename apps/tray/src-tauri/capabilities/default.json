@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the QuotaDial window may do: read the meter and hear when it changes.",
+  "description": "What the QuotaDial window may do: read the meter, hear when it changes, and zoom with Cmd or Ctrl and + or -.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:webview:allow-set-webview-zoom"]
 }

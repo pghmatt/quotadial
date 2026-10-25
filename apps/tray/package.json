@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/check-size.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/check-size.mjs && node scripts/check-contrast.mjs",
+    "check:window": "node scripts/check-window.mjs",
     "cli": "node scripts/prepare-cli.mjs",
     "tauri": "tauri"
   },

@@ -77,10 +77,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
-      - name: Window (types, build, size budget)
+      - name: Window (types, build, size budget, contrast)
         run: |
           npm ci
           npm run build
+      # The built window in Chrome, which each runner has: keyboard, screen readers, zoom to 200%,
+      # long names and reduced motion (#52, D-110).
+      - name: Window (keyboard, screen readers, zoom, motion)
+        run: npm run check:window
       - name: The CLI the app bundles
         run: npm run cli
       - name: Format
