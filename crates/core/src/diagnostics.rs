@@ -92,10 +92,17 @@ impl Diagnostics {
             ),
             (
                 "Status pages",
+                // Named as the report's accounts name their provider (P-020).
                 report
                     .status_pages
                     .iter()
-                    .map(|page| format!("{}: {}", page.provider, page.description))
+                    .map(|page| {
+                        format!(
+                            "{}: {}",
+                            report.provider_name(&page.provider),
+                            page.description
+                        )
+                    })
                     .collect(),
             ),
             (
@@ -223,7 +230,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        Account, LeftOut, ProFeature, ProviderError, Snapshot, Source, Status, Window, WindowKind,
+        Account, Indicator, LeftOut, ProFeature, ProviderError, Snapshot, Source, Status,
+        StatusPage, Window, WindowKind,
     };
 
     fn at(text: &str) -> DateTime<Utc> {
@@ -315,6 +323,26 @@ mod tests {
              Settings in effect:\n  \
              history_days: 30\n  \
              alert webhooks: hooks.slack.com\n"
+        );
+    }
+
+    #[test]
+    fn a_status_page_is_named_as_its_provider_names_itself() {
+        let mut facts = diagnostics();
+        facts.report.status_pages.push(StatusPage {
+            provider: "claude".into(),
+            indicator: Indicator::Minor,
+            description: "Partially Degraded Service".into(),
+            url: "https://status.anthropic.com".into(),
+            since: None,
+            checked_at: at("2099-01-01T00:00:00Z"),
+        });
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains("Status pages:\n  Claude: Partially Degraded Service\n"),
+            "{text}"
         );
     }
 
