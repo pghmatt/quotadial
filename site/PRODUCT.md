@@ -64,8 +64,9 @@ per account and ChatGPT at most once every 2 minutes.
 ## Capabilities and Constraints
 
 - **Downloads** come from GitHub Releases: a universal macOS `.dmg`, a Windows `.msi`, a Debian
-  `.deb`, a Linux `.AppImage`, and the command alone for each system; each release lists every
-  file's SHA-256. Builds are not yet signed: until Matt's certificates exist, each system warns on
+  `.deb`, a Linux `.AppImage`, and the command alone for each system. From the release after 0.2.0,
+  each lists every file's SHA-256, and the site goes live only once that release is out (the
+  deploy checks). Builds are not yet signed: until Matt's certificates exist, each system warns on
   first open, and `docs/INSTALL.md` says how to open it anyway.
 - **QuotaDial Free** needs no key: one account per provider, every window with its pace and reset,
   30 days of history, alerts for a share used, a reset and a sign-in, the providers' status pages,

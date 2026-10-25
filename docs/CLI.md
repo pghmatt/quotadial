@@ -413,7 +413,7 @@ a new GitHub issue:
 
 ```text
 QuotaDial 0.3.0 on macOS 26.1 (aarch64)
-Licence: QuotaDial Pro, with a licence that does not end
+Licence: QuotaDial Free, with no licence key.
 Data folder: ~/Library/Application Support/quotadial
 Daemon: running, process 4242, API on 127.0.0.1:47115, started 2 h ago
 Numbers: from the daemon
@@ -423,6 +423,8 @@ Accounts (2):
     sign-in: the macOS Keychain item "Claude Code-credentials"
   codex u***@e***.com (pro): ok, fetched 1 min ago from the API
     sign-in: ~/.codex/auth.json
+Left out on QuotaDial Free:
+  The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro
 Settings in effect:
   extra_config_dirs: none
   max_accounts: every account
