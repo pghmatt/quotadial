@@ -342,6 +342,7 @@ mod tests {
         let settings = Settings {
             hidden_providers: vec!["codex".into()],
             aliases: BTreeMap::from([("claude user-1 -".into(), "Work".into())]),
+            ..Settings::default()
         };
 
         let view = view(&history, &settings, 7, at("2099-01-07T00:00:00Z"), &Utc).expect("reads");

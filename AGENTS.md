@@ -53,13 +53,13 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `crates/issue` (`quotadial-issue`) | The tool that makes QuotaDial's licence signing key and signs licence keys with it (`docs/LICENSING.md`). No release carries it |
-| `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon and draws the meter |
+| `apps/tray` | The Tauri 2 tray app: a Preact and TypeScript window (`src/`) and the Rust app in `src-tauri/`, its own Cargo workspace, which runs the daemon, draws the meter and updates itself from QuotaDial's GitHub releases (`docs/RELEASE.md`) |
 | `skills/quotadial/SKILL.md` | The agent skill: when and how agents check usage, and the HTTP API's shape |
 | `fixtures/<provider>/` | Redacted or synthetic provider responses used by tests |
-| `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, and `release-notes.sh`, which takes a release's notes from `CHANGELOG.md` |
+| `scripts/` | Repo tooling, such as `public-prd.sh`, `update-prices.sh`, which refreshes the price table from models.dev when a release is made, `release-notes.sh`, which takes a release's notes from `CHANGELOG.md`, `privacy.sh`, which copies `docs/PRIVACY.md` into the README, and the Release workflow's `release-signing.sh` and `updater-manifest.mjs` (`docs/RELEASE.md`) |
 | `CHANGELOG.md` | Every change people will notice, newest first, in Keep a Changelog form |
 | `site/` | The website's Cloudflare Pages project. For now its function, `POST /api/key`, which turns a paid Lemon Squeezy receipt's key into a QuotaDial licence key (`docs/LICENSING.md`), in TypeScript run by Node 22 |
-| `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, and the licence key format |
+| `docs/` | Public PRD, public-scope rule, decisions log, task tracker, the CLI and install guides, the licence key format, how releases are signed and found by the updater (`RELEASE.md`), and what QuotaDial reads and sends (`PRIVACY.md`) |
 
 ## Conventions
 
@@ -91,6 +91,10 @@ Nothing is named `usage`, the PRD's old working name.
   `QUOTADIAL_REAL_KEYCHAIN_TESTS=1`, which CI never sets.
 - `cargo fmt`, `cargo clippy -D warnings` and `cargo test` must pass on macOS, Windows and Linux
   before anything merges to `main`. CI enforces this and `main` is protected.
+- What QuotaDial reads and sends is one text, `docs/PRIVACY.md`, which the app's Help shows and
+  `scripts/privacy.sh` copies into the README (D-106). A new network destination goes into it and
+  into `quotadial_core::privacy::HOSTS` first; a test in the crate that makes the request holds its
+  address to that list.
 - Every pull request that changes what people see adds a line under `## [Unreleased]` in
   `CHANGELOG.md`, in plain words, one line per change. The version bump before a tag renames that
   section to the version and its date. The app's Help shows it and the Release workflow takes the
@@ -110,6 +114,8 @@ scripts/public-prd.sh                                   # regenerate docs/PRD-pu
 scripts/public-prd.sh --check                           # the public-copy check CI runs
 scripts/update-prices.sh                                # before tagging a release: refresh crates/cost/prices.json from models.dev, review the diff, commit
 scripts/release-notes.sh 0.3.0                          # the notes the Release workflow puts on v0.3.0, from CHANGELOG.md
+scripts/privacy.sh                                      # after editing docs/PRIVACY.md: copy it into the README (CI runs it with --check)
+node --test scripts/*.test.mjs                          # the release scripts' tests, as CI runs them
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
 (cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)

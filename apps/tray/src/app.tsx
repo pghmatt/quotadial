@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
-import type { Account, Cost, Meter, Window } from "./meter";
+import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
 import { SettingsPanel } from "./settings";
+import { UpdateStatus, useUpdate } from "./update";
 
 /** The popover: the tightest window's share used, every account's windows, and what is wrong. */
 export function App() {
   const [meter, setMeter] = useState<Meter | null>(null);
+  const update = useUpdate();
   const main = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function App() {
 
   return (
     <main class="popover" ref={main} aria-label="QuotaDial">
-      {meter && <Contents meter={meter} />}
+      {meter && <Contents meter={meter} update={update} />}
     </main>
   );
 }
@@ -64,7 +66,7 @@ export function App() {
 /** What the popover shows below its number: the accounts, the settings, the history, or Help. */
 type Panel = "accounts" | "settings" | "history" | "help";
 
-function Contents({ meter }: { meter: Meter }) {
+function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }) {
   const [panel, setPanel] = useState<Panel>("accounts");
   const accounts = panel === "accounts";
 
@@ -99,7 +101,7 @@ function Contents({ meter }: { meter: Meter }) {
       </header>
       {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
       {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}
-      {panel === "help" && <HelpPanel onDone={() => setPanel("accounts")} />}
+      {panel === "help" && <HelpPanel update={update} onDone={() => setPanel("accounts")} />}
       {accounts &&
         meter.accounts.map((account, index) => (
           <AccountSection
@@ -125,6 +127,11 @@ function Contents({ meter }: { meter: Meter }) {
         </section>
       )}
       {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
+      {accounts && update?.available && (
+        <section class="update-offer" aria-label="Update">
+          <UpdateStatus update={update} offer />
+        </section>
+      )}
       <footer>
         <p class="origin">{meter.origin ?? ""}</p>
         {accounts && (

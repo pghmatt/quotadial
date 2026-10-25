@@ -567,3 +567,48 @@ button.link {
   color: var(--text);
   text-decoration: underline;
 }
+
+.choice-detail {
+  margin: 0 0 4px 21px;
+}
+
+.update p {
+  margin: 0 0 6px;
+}
+
+.update progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin: 0 0 8px;
+  accent-color: var(--bar-normal);
+}
+
+.update-notes {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.update-notes summary {
+  color: var(--muted);
+}
+
+.update-notes ul {
+  margin-top: 4px;
+  padding-left: 18px;
+}
+
+.update-offer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

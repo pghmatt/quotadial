@@ -11,6 +11,7 @@ mod error;
 pub mod licence;
 mod model;
 mod pace;
+pub mod privacy;
 mod provider;
 mod redact;
 mod report;

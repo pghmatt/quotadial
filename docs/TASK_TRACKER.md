@@ -147,7 +147,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 1: licence keys | Done (PR #55) | `QD1` keys: a licence (`id`, `plan`, `issued`, `until`) signed with Ed25519 and checked on the machine against the public key core carries; `Standing`; `licence` in the data folder; `quotadial licence [show \| add \| remove]`; Settings' Licence field; `quotadial-issue` and QuotaDial's signing key; `docs/LICENSING.md`; `tier()` still Pro until the gates (D-099) |
 | 2: Free and Pro | Done (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
 | 3: help and feedback | Done (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
-| 4: the key page's function | In review (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
+| 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
+| 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
+| 6: signing and updates | In review | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
 
@@ -333,6 +335,71 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 6: signing and updates (D-103 to D-106)
+
+- **Updates** (`apps/tray/src-tauri/src/updates.rs`, `tauri-plugin-updater` 2.14): one endpoint,
+  the latest full release's `latest.json` on GitHub, with `requireSignedVersion` and the public key
+  in `tauri.conf.json`. `Record` (in `updates.json`: when last asked, whether it went unanswered,
+  what was offered and told) decides when the daily check is due: two minutes after a start, a day
+  after an answer, an hour after none, at once if the clock went back, and soon after a start when
+  an offer was not installed. `Updates::checked` keeps an answer and tells each newer version once
+  from the daily check; `view` writes the one sentence the window shows. `found` reads the
+  updater's answer (no `latest.json` is nothing newer; a manifest without this system is "download
+  it"); `problem` names the fix for each way an install fails, with `~` for the home folder.
+  `install` downloads with progress, lets the updater check the signature, installs, and restarts
+  through `stop_daemon` and `AfterStop` (the feed restarts the app once its daemon has stopped; on
+  Windows the daemon stops before the msi runs and the tray icon is taken down first).
+- **The app:** Settings' "Check for updates once a day" (`Settings.check_updates`, on for old
+  settings files); Help's About shows where updates stand with Check for updates or Update, and
+  What's new in the version on offer; the popover offers a newer version under the accounts, with
+  a progress bar while it downloads, and a screen reader hears each step rather than each percent;
+  the tray's Help menu gains Check for Updates. Help also shows what QuotaDial reads and sends.
+- **Privacy** (`docs/PRIVACY.md`, `quotadial_core::privacy`): one text in Help (`help::blocks`
+  turns it into paragraphs and a list) and the README (`scripts/privacy.sh`, checked by CI);
+  `HOSTS` holds every destination, a core test holds the text to it, and tests in the Claude and
+  Codex providers, the status pages and the app hold each address to it.
+- **Signing** (`scripts/release-signing.sh`, sourced by the Release workflow's app build): each
+  secret arrives as `QD_<name>` and is exported only when set, since Tauri reads a set but empty
+  variable as a setting; the updater key turns on `createUpdaterArtifacts`, the Apple certificate
+  the hardened runtime and the Developer ID, the Apple ID notarization, and Azure Artifact Signing
+  `artifact-signing-cli` as the `signCommand`. The publish job names the macOS update for its
+  version, writes `latest.json` with `scripts/updater-manifest.mjs` (which refuses a signature for
+  another version, a system with no signed file, a signed file of a kind the updater does not
+  install, and a signature without its file), adds `SHA256SUMS.txt`, and opens the notes with what
+  is signed. The CLI job's packaging reads the target from the environment, which actionlint asked
+  for. `docs/RELEASE.md` names every secret and variable, the keypair command and how to change a
+  key.
+- **The updater key:** made on Matt's Mac with `tauri signer generate`, in
+  `~/Library/Application Support/quotadial-issue/updater.key` (0600) with a random password in his
+  login Keychain; never printed. Its public half (key id `621DD8277B9290DA`) is in
+  `tauri.conf.json`. Adding the two secrets and the backup are on #51.
+- **Live check** (macOS 26.7.1): a test copy (`com.quotadial.updatetest`, its binary named
+  `qd-update-test` so it could be driven beside Matt's running copy) at 0.2.0 on a copy of the data
+  folder, updating from a local server. Building it with the public key in its config and no
+  private key proved the unsigned path. No `latest.json` (404) read as "QuotaDial 0.2.0 is the
+  newest version. Checked just now."; with the server stopped, "QuotaDial could not reach GitHub to
+  check for updates. Check the connection, then try again.", and `updates.json` marked it
+  unanswered. A manifest announcing 0.2.5 with the genuine 0.2.1 package and signature was offered,
+  downloaded and refused ("QuotaDial 0.2.5 did not match QuotaDial's signature, so it was not
+  installed."), as was 0.2.1 with a genuine signature of another file; the copy stayed 0.2.0 and
+  kept running. With the real manifest (written by `updater-manifest.mjs` from files signed with
+  the real key, which also refused 0.2.2 for those files), Update in the popover downloaded the
+  9.6 MB update, swapped the app, stopped the daemon and opened again as 0.2.1 within a couple of
+  seconds: a new process, a new binary, `Info.plist` at 0.2.1, its daemon on the same data copy,
+  and Help saying "QuotaDial 0.2.1. Last checked for updates just now." The copy's own daily check
+  had fired two minutes after it started and recorded 0.2.1 as told. Turning the setting off
+  saved at once and Help said "The daily check for updates is off." Matt's running copy and data
+  folder were untouched. The live check found one gap, fixed before this PR: after a failed
+  install Help offered only Update, so it now always offers Check for updates too. Windows and
+  Linux installs are the updater's own code, built and tested in CI on both but not yet run live;
+  the first release made with the updater key is their live check, and until then they are
+  experimental. Signing itself waits for the certificates on #51.
+- **Tests:** 501 in the workspace (6 new: the privacy text and its hosts, and each address held to
+  them), 52 in the app (13 new: when a check is due, the record, telling once, what each answer
+  and each failure says, the update endpoint's config, and Help's privacy text), and 6 for the
+  manifest script under `node --test`. The failing controls: an edited README fails
+  `scripts/privacy.sh --check`, and a host the text stops naming fails the core test.
 
 ### M5 PR 4: the key page's function (D-102)
 

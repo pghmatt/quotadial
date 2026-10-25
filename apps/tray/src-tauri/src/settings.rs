@@ -1,7 +1,7 @@
-//! The tray app's settings: which providers it shows and the names given to accounts. They are kept
-//! as JSON in the app's own config folder, readable only by the user. Whether QuotaDial opens at
-//! login is the operating system's to keep, and which alerts are on is the daemon's history's
-//! (D-093), so neither is stored here.
+//! The tray app's settings: which providers it shows, the names given to accounts, and whether it
+//! checks for updates. They are kept as JSON in the app's own config folder, readable only by the
+//! user. Whether QuotaDial opens at login is the operating system's to keep, and which alerts are
+//! on is the daemon's history's (D-093), so neither is stored here.
 
 use std::fs;
 use std::io;
@@ -14,8 +14,8 @@ use quotadial_core::{Account, Condition, ProFeature, Scope, Standing, StatusRepo
 use quotadial_daemon::{DataDir, History, licence, write_private};
 use serde::{Deserialize, Serialize};
 
-/// The settings, with every provider shown until changed.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// The settings, with every provider shown and the daily update check on until changed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// Providers left out of the tray, the popover and the notifications, by id.
@@ -23,6 +23,19 @@ pub struct Settings {
     /// A name the user gave an account, by [`account_key`], shown in place of its email address
     /// (#34).
     pub aliases: BTreeMap<String, String>,
+    /// Whether the app asks GitHub once a day for a newer version (D-103). Checking by hand works
+    /// either way.
+    pub check_updates: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            hidden_providers: Vec::new(),
+            aliases: BTreeMap::new(),
+            check_updates: true,
+        }
+    }
 }
 
 /// The licence, as Settings shows it (D-099, D-100).
@@ -235,9 +248,14 @@ mod tests {
         let path = temp.path().join("config/settings.json");
 
         assert_eq!(Settings::load(&path), Settings::default());
+        assert!(
+            Settings::default().check_updates,
+            "the daily check starts on (D-103)"
+        );
         let changed = Settings {
             hidden_providers: vec!["codex".into()],
             aliases: BTreeMap::from([("claude user-1 -".into(), "Work".into())]),
+            check_updates: false,
         };
         changed.save(&path).expect("saves");
 
@@ -270,6 +288,10 @@ mod tests {
                 ..Settings::default()
             },
             "a setting saved by an older version keeps the rest at their defaults"
+        );
+        assert!(
+            Settings::load(&path).check_updates,
+            "settings from before updates check for them"
         );
     }
 

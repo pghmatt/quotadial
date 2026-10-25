@@ -236,6 +236,11 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn the_usage_endpoint_is_named_in_what_quotadial_sends() {
+        assert!(quotadial_core::privacy::named(DEFAULT_BASE_URL));
+    }
+
+    #[test]
     fn statuses_are_classified() {
         let body = |text: &str| Ok(text.as_bytes().to_vec());
         assert!(matches!(
