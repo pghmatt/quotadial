@@ -9,7 +9,7 @@
 //
 // The download addresses are the release's own files on GitHub, in the repository GITHUB_REPOSITORY
 // names (pghmatt/quotadial by default).
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -99,7 +99,9 @@ export function manifest({ folder, version, notes, repository, now }) {
   };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+// import.meta.url is the module's real path, and the path it was run by may pass through a link (as
+// /var does on macOS): compared as given, the run would do nothing and succeed.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [folder, version, notesFile, output] = process.argv.slice(2);
   if (!folder || !version || !notesFile || !output) {
     console.error("usage: node scripts/updater-manifest.mjs <folder> <version> <notes file> <output>");

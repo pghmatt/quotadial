@@ -2,10 +2,12 @@
 // are shaped as `tauri signer` writes them; what they sign is not checked here, since the app's
 // updater checks that against its public key.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { NAMES, copyLatest } from "./latest-names.mjs";
 import { manifest, signedVersion } from "./updater-manifest.mjs";
@@ -132,4 +134,19 @@ test("each system has one signed file, and each signature its file", () => {
   const lonely = release(EVERY.slice(1));
   writeFileSync(join(lonely, "QuotaDial.app.tar.gz.sig"), signature("QuotaDial.app.tar.gz", "0.3.0"));
   assert.throws(() => manifest(options(lonely)), /QuotaDial\.app\.tar\.gz\.sig has no QuotaDial\.app\.tar\.gz beside it\./);
+});
+
+test("run through a link, it still writes latest.json rather than doing nothing and succeeding", () => {
+  const folder = release(EVERY);
+  const linked = mkdtempSync(join(tmpdir(), "quotadial-manifest-"));
+  symlinkSync(fileURLToPath(new URL("./updater-manifest.mjs", import.meta.url)), join(linked, "updater-manifest.mjs"));
+  writeFileSync(join(linked, "notes.md"), "### Added\n\n- Updates.\n");
+  const output = join(linked, "latest.json");
+  const run = spawnSync(
+    process.execPath,
+    [join(linked, "updater-manifest.mjs"), folder, "0.3.0", join(linked, "notes.md"), output],
+    { encoding: "utf8" },
+  );
+  assert.equal(run.stdout, `Wrote ${output} for 0.3.0, for 9 targets.\n`);
+  assert.equal(Object.keys(JSON.parse(readFileSync(output, "utf8")).platforms).length, 9);
 });

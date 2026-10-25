@@ -85,7 +85,7 @@ test("the release's SHA256SUMS.txt lists both names of each download, and latest
   // The step runs in a checkout, with the release in dist/ as the download step leaves it: the
   // command's archives and the msi at the top, and the dmg, the deb, the AppImage and the update for
   // macOS in their bundle's folder, the update still named as `tauri build` names it. The scripts
-  // are copied, not linked, since updater-manifest.mjs run through a link does nothing.
+  // are copied in, as a checkout has them.
   const work = folder();
   cpSync(join(ROOT, "scripts"), join(work, "scripts"), { recursive: true });
   copyFileSync(join(ROOT, "CHANGELOG.md"), join(work, "CHANGELOG.md"));
