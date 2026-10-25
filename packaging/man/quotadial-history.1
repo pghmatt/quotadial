@@ -1,0 +1,43 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH quotadial-history 1  "QuotaDial 0.2.0" QuotaDial
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH NAME
+quotadial\-history \- Show how each window was used over time, from the daemon\*(Aqs history
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SYNOPSIS
+\fBquotadial history\fR [\fB\-\-since\fR] [\fB\-\-provider\fR] [\fB\-\-account\fR] [\fB\-\-window\fR] [\fB\-\-csv\fR] [\fB\-\-json\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH DESCRIPTION
+Show how each window was used over time, from the daemon\*(Aqs history
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH OPTIONS
+.TP
+\fB\-\-since\fR \fI<SINCE>\fR [default: 7d]
+From how long ago: such as 24h, 7d or 30d, or a time such as 2099\-01\-01T00:00:00Z
+.TP
+\fB\-\-provider\fR \fI<PROVIDER>\fR
+Only this provider: claude or codex
+.TP
+\fB\-\-account\fR \fI<ACCOUNT>\fR
+Only this account, by its email address or id
+.TP
+\fB\-\-window\fR \fI<WINDOW>\fR
+Only windows with this label, such as Session or Weekly
+.TP
+\fB\-\-csv\fR
+Print every reading as CSV, for a spreadsheet
+.TP
+\fB\-\-json\fR
+Print JSON, the same as `GET /v1/history`
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH "SEE ALSO"
+quotadial(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.

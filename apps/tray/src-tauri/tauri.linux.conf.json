@@ -3,6 +3,16 @@
     "targets": [
       "deb",
       "appimage"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/man/man1": "../../../packaging/man/",
+          "/usr/share/bash-completion/completions/quotadial": "../../../packaging/completions/quotadial.bash",
+          "/usr/share/zsh/vendor-completions/_quotadial": "../../../packaging/completions/_quotadial",
+          "/usr/share/fish/vendor_completions.d/quotadial.fish": "../../../packaging/completions/quotadial.fish"
+        }
+      }
+    }
   }
 }

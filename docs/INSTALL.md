@@ -18,11 +18,28 @@ has these files:
 | Other Linux | `QuotaDial_<version>_amd64.AppImage` |
 
 The command alone, without the tray app, comes as `quotadial-<version>-<platform>.tar.gz` (or
-`.zip` on Windows). Each archive holds `quotadial` and its short alias `qd`.
+`.zip` on Windows). Each archive holds `quotadial` and its short alias `qd`, with their shell
+completions in `completions/` and manual pages in `man/` ([CLI.md](CLI.md) says how to turn them
+on).
 
 `SHA256SUMS.txt` lists every file's SHA-256, to check a download against. In the folder you
 downloaded to, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` checks it on macOS, and the same
 with `sha256sum` on Linux; on Windows, `Get-FileHash` prints the hash to compare.
+
+## Package managers
+
+From the first full release after QuotaDial's Homebrew tap is set up (#51), the package managers
+install it too. Pre-releases never reach them, as they never reach the app's updater.
+
+| System | The app, with the command | The command alone |
+| --- | --- | --- |
+| macOS | `brew install --cask pghmatt/quotadial/quotadial-app` | `brew install pghmatt/quotadial/quotadial` |
+| Linux | The deb or AppImage above | `brew install pghmatt/quotadial/quotadial` |
+| Windows | `winget install QuotaDial.QuotaDial` | `scoop bucket add quotadial https://github.com/pghmatt/homebrew-quotadial`, then `scoop install quotadial` |
+
+Homebrew also installs the manual pages and the completions for bash, zsh and fish. The cask
+links the command the app carries, so install the cask or the formula, not both. Until the builds
+are signed, macOS asks once before opening the app, as the next section describes.
 
 ## Open a build that is not signed yet
 
@@ -149,11 +166,14 @@ sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/
 sudo ln -sf /Applications/QuotaDial.app/Contents/MacOS/quotadial /usr/local/bin/qd
 ```
 
-The links keep working when the app updates itself or you replace it with a newer build.
+The links keep working when the app updates itself or you replace it with a newer build. Homebrew's
+cask makes them for you. The app also carries the command's manual pages and completions, in
+`Contents/Resources/man` and `Contents/Resources/completions`.
 
 On Windows, the installer puts `quotadial.exe` beside the app, in `C:\Program Files\QuotaDial`; add
 that folder to your `PATH` to type `quotadial`. On Linux, the deb installs `quotadial` in
-`/usr/bin`, so it is ready to use. See [CLI.md](CLI.md) for what the command does.
+`/usr/bin`, so it is ready to use, with its manual pages and its completions for bash, zsh and
+fish. See [CLI.md](CLI.md) for what the command does.
 
 ## Build it yourself
 

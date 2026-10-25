@@ -114,6 +114,7 @@ cargo test --workspace                                  # run every test
 cargo clippy --workspace --all-targets -- -D warnings   # lint, exactly as CI runs it
 cargo fmt --all                                         # format (CI runs it with -- --check)
 QUOTADIAL_WRITE_OPENAPI=1 cargo test -p quotadial-api openapi  # after changing the API or a type it sends: write docs/openapi.json again
+QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial packaging   # after changing a command, its help or the version: write packaging/completions and packaging/man again
 cargo run -p quotadial -- status                        # usage status as text
 cargo run -p quotadial -- status --json                 # the same as JSON
 cargo run -p quotadial --bin qd -- status               # via the qd alias
@@ -123,6 +124,7 @@ scripts/update-prices.sh                                # before tagging a relea
 scripts/release-notes.sh 0.3.0                          # the notes the Release workflow puts on v0.3.0, from CHANGELOG.md
 scripts/privacy.sh                                      # after editing docs/PRIVACY.md: copy it into the README (CI runs it with --check)
 node --test scripts/*.test.mjs                          # the release scripts' tests, as CI runs them
+node scripts/packages.mjs 0.3.0 SHA256SUMS.txt out      # the Homebrew formula and cask, Scoop and winget manifests for a release (the Packages workflow runs it)
 cargo deny check && cargo audit                         # the supply chain, as CI runs it (also in apps/tray/src-tauri)
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
 (cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them

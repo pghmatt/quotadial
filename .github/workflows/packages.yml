@@ -1,0 +1,142 @@
+name: Packages
+
+# Brings a release to the package managers once it is published as a full release; pre-releases
+# never reach them, as they never reach the updater (D-103). scripts/packages.mjs writes the
+# Homebrew formula and cask and the Scoop manifest, which go to pghmatt/homebrew-quotadial (a tap and
+# a bucket at once), and winget's manifests, which go to microsoft/winget-pkgs as a pull request
+# (D-112). Each turns on when Matt adds its token (#51):
+#   HOMEBREW_TAP_TOKEN  a fine-grained token that can write to pghmatt/homebrew-quotadial
+#   WINGET_TOKEN        a classic token with public_repo, for winget-pkgs' pull request
+# Without them the job still writes every file, as the artifact "packages". Run it by hand with a
+# version to do the same for a release that is already out.
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The release's version, such as 0.3.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tap: ${{ steps.tokens.outputs.tap }}
+      winget: ${{ steps.tokens.outputs.winget }}
+    steps:
+      - id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          INPUT: ${{ inputs.version }}
+        run: |
+          version="${INPUT:-${TAG#v}}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$version is not a version such as 0.3.0."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # A job's `if` cannot read secrets, so this step says which tokens are there.
+      - id: tokens
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          echo "tap=$([ -n "$HOMEBREW_TAP_TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "winget=$([ -n "$WINGET_TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      # The release's own sources, so the manual pages the cask links are the ones the app carries.
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ steps.version.outputs.version }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: The release's checksums and the msi's product code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          msi="QuotaDial_${VERSION}_x64_en-US.msi"
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --dir release \
+            --pattern SHA256SUMS.txt --pattern "$msi"
+          (cd release && sha256sum --check --ignore-missing SHA256SUMS.txt)
+          sudo apt-get install -y msitools > /dev/null
+          code=$(msiinfo export "release/$msi" Property | awk -F'\t' '$1 == "ProductCode" { print $2 }' | tr -d '\r')
+          if ! [[ "$code" =~ ^\{[0-9A-F-]{36}\}$ ]]; then
+            echo "::error::$msi has no product code that winget can use."
+            exit 1
+          fi
+          echo "PRODUCT_CODE=$code" >> "$GITHUB_ENV"
+      - name: Write the formula, the cask and the manifests
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: node scripts/packages.mjs "$VERSION" release/SHA256SUMS.txt packages --product-code "$PRODUCT_CODE"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: packages/
+          if-no-files-found: error
+
+  tap:
+    needs: manifests
+    if: needs.manifests.outputs.tap == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: packages
+          path: packages
+      - uses: actions/checkout@v7
+        with:
+          repository: pghmatt/homebrew-quotadial
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Commit the formula, the cask and the Scoop manifest
+        env:
+          VERSION: ${{ needs.manifests.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Formula tap/Casks tap/bucket
+          cp packages/Formula/quotadial.rb tap/Formula/
+          cp packages/Casks/quotadial-app.rb tap/Casks/
+          cp packages/bucket/quotadial.json tap/bucket/
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula Casks bucket
+          if git diff --cached --quiet; then
+            echo "The tap already has QuotaDial $VERSION."
+            exit 0
+          fi
+          git commit --message "QuotaDial $VERSION"
+          git push
+
+  winget:
+    needs: manifests
+    if: needs.manifests.outputs.winget == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: packages
+          path: packages
+      - name: Pull request to microsoft/winget-pkgs
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          VERSION: ${{ needs.manifests.outputs.version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Microsoft's own tool, pinned to a release and checked against its SHA-256.
+          Invoke-WebRequest "https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe" -OutFile wingetcreate.exe
+          if ((Get-FileHash wingetcreate.exe -Algorithm SHA256).Hash -ne "24042BD37915805615E6CF969AC57C6439124C3FE85823327F5F3FB24BD9FFEA") {
+            throw "wingetcreate.exe is not the release it should be."
+          }
+          .\wingetcreate.exe submit --no-open --prtitle "QuotaDial.QuotaDial version $env:VERSION" --token $env:WINGET_TOKEN "packages\winget\$env:VERSION"
+          if ($LASTEXITCODE -ne 0) { throw "wingetcreate could not open the pull request." }
