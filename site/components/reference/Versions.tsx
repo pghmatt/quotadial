@@ -48,7 +48,7 @@ export function Versions({ versions }: { versions: ChangelogVersion[] }) {
     <div className="grid gap-16 md:gap-20">
       {versions.map((version) =>
         version.date === null ? (
-          <Plate key={version.version} tone="shallow" title="Not yet released">
+          <Plate key={version.version} tone="shallow">
             <Version version={version} />
           </Plate>
         ) : (

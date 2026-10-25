@@ -50,14 +50,14 @@ export default function Support() {
             <h2 id="write" className={H2}>
               Write to support
             </h2>
-            <p className="mt-4 mb-0 max-w-[58ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               Say what you were doing and what you saw. Run this first and paste what it prints: it names your
               version, your system and each account (with its address cut short), and nothing secret.
             </p>
             <div className="mt-5 max-w-[34rem]">
               <CodeBlock code="quotadial doctor" label="Copy the command" />
             </div>
-            <p className="mt-5 mb-0 max-w-[58ch]">
+            <p className="mt-5 mb-0 max-w-measure">
               In the app, Help has Send feedback, which fills in the same details as a GitHub issue for you to read
               before you send it. Before you write, <InlineLink href="/changelog">the changelog</InlineLink> shows whether a newer
               version already fixes it, and <InlineLink href="/privacy">what QuotaDial reads and sends</InlineLink> says what leaves
@@ -69,7 +69,7 @@ export default function Support() {
 
       <Section tone="shallow" labelledBy="github">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-x-12">
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-4">
             <h2 id="github" className={H2}>
               Report a problem on GitHub
             </h2>
@@ -88,7 +88,7 @@ export default function Support() {
               ))}
             </dl>
           </div>
-          <div className="min-w-0 lg:col-span-7">
+          <div className="min-w-0 lg:col-span-8">
             <DoctorSample />
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function Support() {
             <h2 id="security" className={H2}>
               Report a security problem
             </h2>
-            <p className="mt-4 mb-0 max-w-[52ch]">
+            <p className="mt-4 mb-0 max-w-measure">
               Report it privately, and please do not open a public issue or pull request for it. Say what you found,
               how to make it happen and what it lets someone do. You will hear back within 3 working days;{" "}
               <InlineLink href={`${SITE.repository}/blob/main/SECURITY.md`}>SECURITY.md</InlineLink> has the policy in full.
