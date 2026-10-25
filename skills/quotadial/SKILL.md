@@ -56,6 +56,7 @@ lines naming what the copy leaves out, such as more accounts on the machine.
 
 The API can also add, change and remove alert rules (`POST /v1/alerts`, `PATCH` and `DELETE`
 `/v1/alerts/<id>`). They are the user's: change them only when the user asks you to.
+`GET /v1/openapi.json` describes every request and the shape of each answer in OpenAPI 3.1.
 
 Every request needs `Authorization: Bearer <token>`, with the token from the `token` file in
 QuotaDial's data folder:

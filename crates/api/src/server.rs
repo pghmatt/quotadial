@@ -79,9 +79,14 @@ pub async fn serve(
         .await
 }
 
+/// This API in OpenAPI 3.1: `docs/openapi.json`, which a test keeps the same as the types the API
+/// sends and takes, and the routes below.
+const OPENAPI: &str = include_str!("../../../docs/openapi.json");
+
 fn router(state: AppState) -> Router {
     let pro = |feature| middleware::from_fn_with_state((state.clone(), feature), pro_only);
     Router::new()
+        .route("/v1/openapi.json", get(openapi).fallback(only_reads))
         .route("/v1/status", get(status).fallback(only_reads))
         .route(
             "/v1/headroom",
@@ -168,6 +173,10 @@ async fn guard(State(state): State<AppState>, request: Request, next: Next) -> R
     next.run(request).await
 }
 
+async fn openapi() -> Response {
+    ([(header::CONTENT_TYPE, "application/json")], OPENAPI).into_response()
+}
+
 async fn status(State(state): State<AppState>) -> Json<StatusReport> {
     Json(state.latest.report())
 }
@@ -188,7 +197,8 @@ struct HistoryParams {
 
 /// What `GET /v1/history` answers.
 #[derive(serde::Serialize)]
-struct HistoryAnswer {
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub(crate) struct HistoryAnswer {
     series: Vec<Series>,
 }
 
@@ -220,14 +230,16 @@ async fn history(State(state): State<AppState>, query: Query<HistoryParams>) -> 
 
 /// What `POST /v1/alerts` takes.
 #[derive(Deserialize)]
-struct NewRule {
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub(crate) struct NewRule {
     /// The rule in plain words, such as `warn me at 80%`.
     rule: String,
 }
 
 /// What `PATCH /v1/alerts/{id}` takes.
 #[derive(Deserialize)]
-struct RuleChange {
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub(crate) struct RuleChange {
     enabled: bool,
 }
 
@@ -294,7 +306,8 @@ async fn not_found() -> Response {
     error(
         StatusCode::NOT_FOUND,
         "QuotaDial's API has GET /v1/status, GET /v1/headroom, GET /v1/history, GET and POST \
-         /v1/alerts, and PATCH and DELETE /v1/alerts/<id>.",
+         /v1/alerts, PATCH and DELETE /v1/alerts/<id>, and GET /v1/openapi.json, which describes \
+         them.",
     )
 }
 

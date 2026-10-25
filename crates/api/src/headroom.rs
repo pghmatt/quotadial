@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// Every account's headroom, the most first, then the accounts that have none to offer now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct HeadroomReport {
     /// Accounts with headroom, the most first; then accounts without numbers and accounts that
     /// cannot be used now.
@@ -25,6 +26,7 @@ pub struct HeadroomReport {
 
 /// One account's headroom.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Headroom {
     /// The account.
     pub account: Account,

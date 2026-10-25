@@ -16,6 +16,7 @@ use crate::history::{History, HistoryError, timestamp};
 
 /// One window's readings over time.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Series {
     pub provider: String,
     pub account_id: String,
@@ -34,6 +35,7 @@ pub struct Series {
 
 /// One reading of a window.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Point {
     pub fetched_at: DateTime<Utc>,
     pub used_pct: f64,

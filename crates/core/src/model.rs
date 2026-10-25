@@ -23,8 +23,10 @@ use serde::{Deserialize, Serialize};
 /// An account's identity is `provider` + `org` + `account_id`, so the same person in two
 /// organizations is two accounts and their usage never blends.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Account {
-    /// The provider id, as in [`Provider::id`](crate::Provider::id), for example `"claude"`.
+    /// The provider's id, such as `"claude"`.
+    // As `Provider::id` gives it.
     pub provider: String,
     /// The provider's id for this account.
     pub account_id: String,
@@ -56,6 +58,7 @@ impl Account {
 
 /// One usage limit with its own reset, such as a five-hour session or a weekly cap.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Window {
     /// Which kind of limit this is.
     pub kind: WindowKind,
@@ -76,13 +79,14 @@ pub struct Window {
     /// When the number was fetched. Every number QuotaDial shows carries its age.
     pub fetched_at: DateTime<Utc>,
     /// The window reads 0% where it read more on the last fetch, before its reset, so QuotaDial
-    /// holds the reading as unconfirmed until a second fetch agrees (the PRD's unconfirmed-0% rule,
-    /// P-005). Left out of JSON when false.
+    /// holds the reading as unconfirmed until a second fetch agrees. Left out of JSON when false.
+    // The PRD's unconfirmed-0% rule (P-005).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unconfirmed: bool,
     /// How fast the window is filling, from the daemon's history of it (P-016). Only the daemon
     /// keeps that history, so a direct fetch leaves it out, as does the daemon for a window with too
-    /// few readings since it last reset ([`Pace::of`] says which).
+    /// few readings since it last reset.
+    // `Pace::of` says when there are too few.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pace: Option<Pace>,
 }
@@ -90,6 +94,7 @@ pub struct Window {
 /// How fast a [`Window`] is filling: a straight line fitted through its readings since it last
 /// reset.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Pace {
     /// The share of the limit used per hour, in percentage points.
     pub pct_per_hour: f64,
@@ -101,25 +106,27 @@ pub struct Pace {
 
 /// The kinds of limit windows providers report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum WindowKind {
     /// A short rolling session, such as Claude's five-hour window.
     Session,
     /// A weekly limit across all models.
     Weekly,
-    /// A weekly limit for one model, named in [`Window::scope_model`].
+    /// A weekly limit for one model, named in the window's `scope_model`.
     ModelWeekly,
     /// A daily limit.
     Daily,
     /// A credit balance.
     Credits,
     /// A limit QuotaDial does not know yet, shown by the name its provider gives it. Its length is
-    /// unknown, so [`Window::window_seconds`] is 0.
+    /// unknown, so the window's `window_seconds` is 0.
     Other,
 }
 
 /// Where a [`Window`]'s numbers came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
     /// The provider's usage endpoint.
@@ -132,6 +139,7 @@ pub enum Source {
 
 /// Everything QuotaDial knows about one account's usage at one moment.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Snapshot {
     /// The account the snapshot describes.
     pub account: Account,
@@ -213,6 +221,7 @@ impl Snapshot {
 
 /// How current a [`Snapshot`] is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     /// Fresh numbers from the latest fetch.
@@ -228,9 +237,9 @@ pub enum Status {
 }
 
 /// Pay-as-you-go usage beyond a plan's limits, such as Claude's extra usage.
-///
-/// The PRD names this field without a shape; see `docs/DECISIONS.md`.
+// The PRD names this field without a shape; see `docs/DECISIONS.md`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ExtraUsage {
     /// Whether extra usage is turned on for the account.
     pub enabled: bool,

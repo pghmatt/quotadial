@@ -70,14 +70,16 @@ queue, by its numbers:
 - 1, licence keys (D-099), merged (PR #55);
 - 2, the Free and Pro gates (D-100), merged (PR #56);
 - 3, help and feedback, with `quotadial doctor` and `CHANGELOG.md` (D-101), merged (PR #57);
-- 4, the key page's function, decided on #54 (D-102), in review (PR #58): it signs with a second,
+- 4, the key page's function, decided on #54 (D-102), merged (PR #58): it signs with a second,
   online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
-- 5, the website in `site/`, built but not deployed, and the shareable image;
-- 6, signing and updates, each turning on when its secrets exist;
-- 7 to 12, hardening: resilience, security, accessibility, the OpenAPI spec, package managers, and
-  docs;
+- 5, the website in `site/`, built but not deployed, and the shareable image: started;
+- 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
+- 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
+  (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), in review
+  (PR #66); package managers; and docs;
 - then the M6 plan, starting with a fake provider while it waits.
+The manager's 02:30 UTC check on 2026-10-25 set the order from here: 5, 10, 11, 12, then M6.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -151,7 +153,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Free at once (#56's review) | Done (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
 | 7: resilience | Done (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
-| 9: accessibility | In review (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
+| 9: accessibility | Done (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
+| 10: the OpenAPI description | In review (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -339,6 +342,42 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 10: the OpenAPI description (D-111)
+
+- **What it is:** `docs/openapi.json`, the local API in OpenAPI 3.1: 6 paths, 8 operations and 29
+  schemas, with the bearer token as its security scheme, and the answers every request can get
+  whatever it asks (403 for a wrong `Host`, 401 for a missing or wrong token). The API serves the
+  same bytes at `GET /v1/openapi.json`, behind the token like everything else, on Free as on Pro;
+  `include_str!` puts the file in the binary, so the command and the app ship no schema code.
+- **Written from the code:** `crates/api/src/openapi.rs`, compiled only for tests, builds the
+  description from the types the routes really send and take (`StatusReport`, `HeadroomReport`,
+  the history's `Series`, the alert rules' `StoredRule`, `Alerts`, `NewRule`, `RuleChange` and the
+  rest), with schemars 1.2.3 behind a `schema` feature in core and the daemon that only the API's
+  dev-dependencies turn on (`#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]`). What
+  is sent is described by serde's serialising attributes (a field skipped when empty is not
+  required) and what is taken by its deserialising ones. The descriptions are the types' doc comments, cleaned for people who use the API: lines
+  joined, decision numbers dropped, Rust's link brackets taken off. Doc comments that spoke only to
+  the code became `//` comments, and a test fails on a description that still speaks of the code: a Rust
+  path, the PRD, an issue number, a link, or a line left unjoined.
+- **Kept honest by tests:** `the_committed_spec_is_the_api` fails when `docs/openapi.json` and the
+  code disagree (`QUOTADIAL_WRITE_OPENAPI=1 cargo test -p quotadial-api openapi` writes it again);
+  `every_route_is_described_and_every_reference_resolves` checks the file describes exactly the
+  API's eight operations and every `$ref` resolves; `the_api_answers_as_its_openapi_description_says`
+  sends every method to every path on a Pro and a Free copy and fails on any status the file does
+  not list for it, and on any method it does not describe that is not a 405;
+  `the_api_serves_its_openapi_description` checks the bytes, the type and the token;
+  `descriptions_use_quotadials_words` fails on "quota", "auth" or "credential" outside a name in
+  backticks or quotes (#52's plain words). Controls: taking the 400 out of `POST /v1/alerts`'
+  answers failed the third, a changed doc comment in `model.rs` failed the first, and the words
+  test failed on its first run on `ProviderError`'s "its credentials were unreadable", which now
+  says "its sign-in could not be read".
+- **Checked by two validators:** openapi-spec-validator and Redocly's linter (`@redocly/cli` 2,
+  its recommended rules) both report the file valid, with no warnings.
+- **Docs:** `docs/CLI.md`'s API table, the agent skill and AGENTS.md name the route and the
+  command that writes the file; a line in `CHANGELOG.md`.
+- **Not done here:** axum's router cannot list its routes, so a new route is added to the builder
+  and to the test's list of operations by hand; the 404's text names the routes as well.
 
 ### M5 queue item 9: accessibility (D-110)
 

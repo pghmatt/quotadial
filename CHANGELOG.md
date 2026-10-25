@@ -29,6 +29,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - History, Settings and Help take the keyboard's focus when they open, and Done gives it back to the button that opened them.
 - A screen reader reads when an account was used as a line a day, in place of History's grid of squares.
 - `docs/ACCESSIBILITY.md` says how to use QuotaDial by keyboard and screen reader, and what is not there yet.
+- `GET /v1/openapi.json` describes the local API in OpenAPI 3.1, the same as `docs/openapi.json`: every request, its parameters, and the shape of each answer and error.
 
 ### Fixed
 
