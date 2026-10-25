@@ -3,8 +3,18 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { GUIDES, guide, guideAnchors, guideLink, readGuide, slug, type Guide } from "../components/reference/guide.ts";
-import { countUnder, doctorSample, headingsUsed, sayDate, setAddresses, versionId, wordsOf } from "../components/reference/text.ts";
+import {
+  countUnder,
+  doctorSample,
+  headingsUsed,
+  sayDate,
+  setAddresses,
+  versionId,
+  versionsShown,
+  wordsOf,
+} from "../components/reference/text.ts";
 import { changelog, html, repositoryFile, withoutTitle } from "../lib/markdown.ts";
+import { changelogCases, type ChangelogCase } from "./changelogs.ts";
 
 const privacy = () => html(withoutTitle(repositoryFile("docs/PRIVACY.md")).body);
 
@@ -36,15 +46,54 @@ test("setAddresses leaves code that is already code, and other bold text, alone"
   assert.ok(set.endsWith('<code class="address">github.com</code></p>'));
 });
 
-test("the changelog page's counts, dates and anchors come from CHANGELOG.md", () => {
-  const { versions } = changelog(repositoryFile("CHANGELOG.md"));
-  const names = versions.map((version) => version.version);
-  assert.deepEqual(names.slice(0, 3), ["Unreleased", "0.2.0", "0.1.0"]);
-  const [unreleased, second] = versions;
-  assert.ok(countUnder(unreleased, "Added") > 10, "Unreleased lists many additions");
-  assert.equal(countUnder(second, "Added"), 6);
-  assert.equal(countUnder(second, "Fixed"), 0, "a version without the heading lists none");
-  assert.deepEqual(headingsUsed(versions).slice(0, 2), ["Added", "Fixed"]);
+/** The kinds of change Keep a Changelog names; the page's table counts each one used in a column. */
+const KINDS = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"];
+
+/**
+ * What the changelog page counts, dates and links to, in a shape no release changes: 0.2.0, dated
+ * 24 October 2026, lists 6 additions and no fixes; every release has a date the page can say;
+ * every heading is one of Keep a Changelog's kinds; every version has an anchor of its own; and the
+ * page shows every release, in order, and an Unreleased entry only with a change in it.
+ */
+function assertPageFacts({ name, markdown }: ChangelogCase): void {
+  const { versions } = changelog(markdown);
+  const second = versions.find((version) => version.version === "0.2.0");
+  assert.ok(second, `${name}: lists 0.2.0`);
+  assert.equal(second.date, "2026-10-24", `${name}: 0.2.0's date`);
+  assert.equal(countUnder(second, "Added"), 6, `${name}: 0.2.0's additions`);
+  assert.equal(countUnder(second, "Fixed"), 0, `${name}: a version without the heading lists none`);
+  const releases = versions.filter((version) => version.date !== null);
+  for (const release of releases) {
+    assert.doesNotThrow(() => sayDate(release.date ?? ""), `${name}: ${release.version}'s date is one the page can say`);
+  }
+  for (const heading of headingsUsed(versions)) {
+    assert.ok(KINDS.includes(heading), `${name}: "${heading}" is one of Keep a Changelog's kinds of change`);
+  }
+  const anchors = versions.map((version) => versionId(version.version));
+  assert.equal(new Set(anchors).size, anchors.length, `${name}: every version has an anchor of its own`);
+  const shown = versionsShown(versions);
+  assert.deepEqual(
+    shown.filter((version) => version.date !== null),
+    releases,
+    `${name}: the page shows every release, in order`,
+  );
+  for (const version of shown.filter((one) => one.date === null)) {
+    assert.ok(
+      version.sections.some((part) => countUnder(version, part.heading) > 0),
+      `${name}: the page shows ${version.version} only with a change in it`,
+    );
+  }
+}
+
+test("the changelog page's counts, dates and anchors come from CHANGELOG.md, today, on the version bump and after it", () => {
+  for (const shape of changelogCases()) {
+    assertPageFacts(shape);
+  }
+  assert.deepEqual(
+    headingsUsed(changelog("## [0.3.0] - 2026-10-26\n\n### Fixed\n\n- A.\n\n## [0.2.0] - 2026-10-24\n\n### Added\n\n- B.\n\n### Fixed\n\n- C.\n").versions),
+    ["Fixed", "Added"],
+    "the table's columns are the headings in the order they first appear",
+  );
   assert.equal(sayDate("2026-10-24"), "24 October 2026");
   assert.equal(sayDate("2026-01-05"), "5 January 2026");
   assert.equal(sayDate("2026-10-24", true), "24 Oct 2026");
@@ -52,6 +101,22 @@ test("the changelog page's counts, dates and anchors come from CHANGELOG.md", ()
   assert.throws(() => sayDate("2026-13-01"));
   assert.equal(versionId("Unreleased"), "v-unreleased");
   assert.equal(versionId("0.2.0"), "v-0-2-0");
+});
+
+test("the changelog page has an Unreleased plate only while Unreleased lists a change", () => {
+  const shown = (markdown: string) => versionsShown(changelog(markdown).versions).map((version) => version.version);
+  const release = "## [0.2.0] - 2026-10-24\n\n### Added\n\n- A change.\n";
+  assert.deepEqual(shown(`# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- A fix.\n\n${release}`), ["Unreleased", "0.2.0"]);
+  assert.deepEqual(shown(`# Changelog\n\n${release}`), ["0.2.0"], "no Unreleased entry, as the version bump leaves it: no plate");
+  assert.deepEqual(shown(`# Changelog\n\n## [Unreleased]\n\n${release}`), ["0.2.0"], "an empty Unreleased heading: no plate");
+  assert.deepEqual(shown(`# Changelog\n\n## [Unreleased]\n\n### Added\n\n${release}`), ["0.2.0"], "a kind of change with none under it: no plate");
+  const page = readFileSync(new URL("../app/changelog/page.tsx", import.meta.url), "utf8");
+  assert.match(
+    page,
+    /const versions = versionsShown\(changelog\(repositoryFile\("CHANGELOG\.md"\)\)\.versions\);/,
+    "the page's table and its versions are both what versionsShown keeps",
+  );
+  assert.equal([...page.matchAll(/versions=\{versions\}/g)].length, 2, "the table and the versions are both given them");
 });
 
 test("the doctor example is the command guide's, and a guide without one is an error", () => {

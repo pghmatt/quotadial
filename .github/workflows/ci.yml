@@ -113,6 +113,14 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - run: npm ci
+      # The deploy publishes with this wrangler (site-deploy.yml), under the undici override in
+      # site/package.json: a wrangler that no longer starts fails here, long before a deploy.
+      - name: The deploy's wrangler starts
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          npx --no -- wrangler --version
+          npx --no -- wrangler pages deploy --help > /dev/null
       - name: Types
         run: npm run check
       # The website itself (M5 item 5): every page exported as static files, as Pages serves them.

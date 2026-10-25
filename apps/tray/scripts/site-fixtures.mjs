@@ -155,29 +155,84 @@ const SETTINGS = {
   check_updates: true,
 };
 
-const DAYS = ["Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27"];
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Today, Tuesday 27 October 2026, the last day of every period History shows. */
+const TODAY = Date.UTC(2026, 9, 27);
+
+/** Wednesday 21 October 2026, the first day of the example week, which every period repeats. */
+const WEEK_BEGINS = Date.UTC(2026, 9, 21);
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/**
+ * The days of the last `days` days, oldest first, each at midnight UTC.
+ *
+ * @param {number} days
+ * @returns {Date[]}
+ */
+function period(days) {
+  return Array.from({ length: days }, (_, day) => new Date(TODAY - (days - 1 - day) * DAY));
+}
+
+/**
+ * The days a period covers, as the app writes them within a year (`dates` in history.rs): "21 to
+ * 27 October 2026", or "28 September to 27 October 2026".
+ *
+ * @param {Date[]} days
+ */
+function dates(days) {
+  const [first, last] = [days[0], days[days.length - 1]];
+  const month = (/** @type {Date} */ day) => MONTHS[day.getUTCMonth()];
+  const from = month(first) === month(last) ? `${first.getUTCDate()}` : `${first.getUTCDate()} ${month(first)}`;
+  return `${from} to ${last.getUTCDate()} ${month(last)} ${last.getUTCFullYear()}`;
+}
 
 /** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
 const SESSIONS = ["Session", "5-hour"];
 
-/** The most a session window reached on each day of the week, from Wednesday 21. */
-const SESSION_PEAKS = [52, 64, 47, 6, 0, 58];
+/**
+ * The most a session window reaches on each day of the example week. Tuesday, today, fills to the
+ * share now, and so does every Tuesday before it.
+ *
+ * @type {Record<string, number>}
+ */
+const SESSION_PEAKS = { Wed: 52, Thu: 64, Fri: 47, Sat: 6, Sun: 0, Mon: 58 };
 
 /**
- * A window's week of readings, four a day: a weekly window climbs to its share now, and a session
+ * A window's readings over the days of a period, four a day, the example week over again: a weekly
+ * window climbs through each week to its share now and resets as the next begins, and a session
  * window fills during each working day and resets, so its highest is above its latest.
  *
  * @param {Meter["accounts"][number]["windows"][number]} window
+ * @param {Date[]} days
  * @returns {[number, number][]}
  */
-function readings(window) {
-  return Array.from({ length: 28 }, (_, index) => {
+function readings(window, days) {
+  const count = days.length * 4;
+  return Array.from({ length: count }, (_, index) => {
+    const along = index / (count - 1);
     if (!SESSIONS.includes(window.label)) {
-      return [index / 27, (window.used_pct * index) / 27];
+      // Each week's 28 readings, counted back from now: the last is the share now.
+      const step = 27 - ((count - 1 - index) % 28);
+      return [along, (window.used_pct * step) / 27];
     }
-    // Tuesday, the last day, fills to the share now.
-    const peak = index >= 24 ? window.used_pct : SESSION_PEAKS[Math.floor(index / 4)];
-    return [index / 27, Math.round((peak * ((index % 4) + 1)) / 0.4) / 10];
+    const peak = SESSION_PEAKS[WEEKDAYS[days[Math.floor(index / 4)].getUTCDay()]] ?? window.used_pct;
+    return [along, Math.round((peak * ((index % 4) + 1)) / 0.4) / 10];
   });
 }
 
@@ -193,11 +248,11 @@ function label(account) {
 }
 
 /**
- * A week of one account's use: working days busy from 9:00 to 19:00, weekends quiet, the same on
- * every run.
+ * One account's use over the days of a period: working days busy from 9:00 to 19:00, weekends
+ * quiet, each day the same in every period that shows it and on every run.
  *
  * @param {Meter["accounts"][number]} account
- * @param {number} days
+ * @param {Date[]} days
  * @returns {AccountHistory}
  */
 function accountHistory(account, days) {
@@ -207,11 +262,13 @@ function accountHistory(account, days) {
   const said = [];
   /** @type {string[]} */
   const labels = [];
-  for (let day = 0; day < days; day += 1) {
-    const label = DAYS[day % 7];
+  for (const date of days) {
+    // As the app labels a day (`day_label`): "Wed 21".
+    const label = `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()}`;
     const weekend = label.startsWith("Sat") || label.startsWith("Sun");
+    const day = (date.getTime() - WEEK_BEGINS) / DAY;
     const hours = Array.from({ length: 24 }, (_, hour) =>
-      !weekend && hour >= 9 && hour < 19 ? 2 + ((day * 5 + hour * 3) % 7) : 0,
+      !weekend && hour >= 9 && hour < 19 ? 2 + ((((day * 5 + hour * 3) % 7) + 7) % 7) : 0,
     );
     const most = hours.indexOf(Math.max(...hours));
     labels.push(label);
@@ -224,14 +281,14 @@ function accountHistory(account, days) {
     name: account.alias ?? account.name,
     label: label(account),
     windows: account.windows.map((window) => {
-      const points = readings(window);
+      const points = readings(window, days);
       const highest = Math.max(window.used_pct, ...points.map(([, used]) => used));
       return {
         label: window.label,
         points,
         latest: window.used_pct,
         highest,
-        summary: `${window.label}: latest ${window.used_pct}%, highest ${highest}% in the last ${days} days`,
+        summary: `${window.label}: latest ${window.used_pct}%, highest ${highest}% in the last ${days.length} days`,
       };
     }),
     heatmap: {
@@ -246,11 +303,12 @@ function accountHistory(account, days) {
 
 /** @param {number} days @returns {HistoryView} */
 function history(days) {
+  const covered = period(days);
   return {
     days,
     span: `The last ${days} days.`,
-    dates: "21 to 27 October 2026",
-    accounts: ACCOUNTS.map((account) => accountHistory(account, days)),
+    dates: dates(covered),
+    accounts: ACCOUNTS.map((account) => accountHistory(account, covered)),
     share_left_out: null,
   };
 }
@@ -291,7 +349,7 @@ const HELP = {
 export const site = {
   meter: METER,
   settings: SETTINGS,
-  history: { 7: history(7), 30: history(7) },
+  history: { 7: history(7), 30: history(30) },
   help: HELP,
   update: {
     text: "QuotaDial 0.3.0 is the newest version. Checked 5 min ago.",
