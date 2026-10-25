@@ -125,7 +125,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `windows[].kind` | `session` (5 hours), `weekly`, `model_weekly` (one model's weekly limit, named in `scope_model`), `daily`, `credits`, or `other` for a limit QuotaDial does not know yet |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again) or `local_log` (the Codex CLI's own logs) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the Codex CLI's own logs), or `example` (made up for pictures of the app by QuotaDial's example build; a release never sends it) |
 | `windows[].fetched_at` | When the number was fetched, in UTC |
 | `windows[].unconfirmed` | `true` on a sudden 0% that a second fetch has not confirmed yet. Do not trust that 0% |
 | `windows[].pace` | How fast the window is filling, only while the daemon runs: `pct_per_hour`, the share used per hour since the window last reset, and `runs_out_at`, when it reaches 100% at that pace, given only if that comes before it resets. Left out until the daemon has half an hour of readings since the reset, and for a snapshot whose status is not `ok` |
