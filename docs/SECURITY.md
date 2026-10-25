@@ -37,6 +37,10 @@ Only what [`PRIVACY.md`](PRIVACY.md) lists, each over TLS: the two providers' us
 public status pages, GitHub for updates, and the webhooks the user adds, which must be `https`,
 or `http` to the machine itself. Tests hold every address in the code to that list (D-106).
 
+QuotaDial's example build (D-117), made with the `fake` feature for pictures of the app and never
+released, polls no provider and reads no sign-in, so the 5-minute floor for Anthropic is untouched;
+its accounts are made up, and it keeps folders, a lock, a token and a port of its own.
+
 Updates are checked twice before they are installed: against the public key built into the app,
 and against the version that key's signature names, so neither a changed file nor an older release
 passed off as newer is installed (D-103). Nothing downloads until the user chooses Update.

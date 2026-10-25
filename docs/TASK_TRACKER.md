@@ -79,12 +79,16 @@ queue, by its numbers:
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
-  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs;
-- then the M6 plan, starting with a fake provider while it waits.
+  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs,
+  whose PR A is the fake provider and the example build its pictures are made with (D-117), in
+  review (PR #?);
+- then the M6 plan. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
+  to build it with item 12 (D-117).
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68) and
-#64's fix (PR #69); from here: the shareable image (PR #70), 12, M6.
+#64's fix (PR #69); from here: the shareable image (PR #70), 12, M6. Item 12 begins with PR A,
+the fake provider (D-117); the recording made with it is a later PR.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -94,6 +98,8 @@ Proposals:
 - P-013 is the manager's PRD edit.
 - P-015 (`Account.sign_in`) is accepted (#29, #34) and in the code (D-079).
 - P-016 (`Window.pace`) is accepted (#40) and in the code (D-092).
+- P-017 (`Window.source` `example`) is asked for by the manager's rule 1 on #49 and in the code
+  (D-117); the PRD edit is the manager's.
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -164,6 +170,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
 | 5: the shareable image (second PR) | In review (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
+| 12, PR A: the fake provider | In review (PR #?) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -350,6 +357,102 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 12, PR A: the fake provider (D-117)
+
+- **The decision:** the manager's on #49 (2026-10-25, 14:25 UTC): build #52's fake provider with
+  item 12, since the README's recording (rule 4, a later PR) is the first thing that needs it. This
+  PR is rules 1 to 3 and 5; nothing on the site.
+- **The provider** (`crates/providers/fake`, `quotadial-provider-fake`, id `fake`): implements
+  `quotadial_core::Provider` like the other two and reads no sign-in, no Keychain and no network.
+  `discover_accounts` gives each example as an account called `Example`, with its plan, id
+  `example-1`, `example-2` and so on, and no org or sign-in; `fetch` reads each window at the time
+  its clock gives; `fallback` is none, `log_folders` none, the floor a minute. Its accounts all
+  show on Free and Pro alike: they stand for what a first run finds, one account per provider.
+- **The examples** (`fixtures/fake/example.json`, built in with `include_str!`): Claude Max 5x
+  with Weekly 91% (2%/h, resets in 1 d 15 h), Weekly (Opus) 74% (1.2%/h) and Session 38% (8.5%/h,
+  resets in 2 h 10 min); ChatGPT Pro with Weekly 46% (0.4%/h, resets in 5 d 3 h) and Session 12%
+  (3%/h, resets in 3 h 41 min): the site's pictures' numbers (D-113). `QUOTADIAL_FAKE_ACCOUNTS`
+  names a file of the same form in their place, read once when the provider is made, at most
+  64 KB, every field checked before anything shows: unknown fields, a share or a pace outside 0 to
+  100, a window under a minute or over a year and a day, a reset further off than the window, an
+  empty name, and an @ in a plan, label or model are refused, with one sentence naming the account,
+  the window and the field, and how to fix it. A file that cannot be used shows as one error for
+  `fake` and no account.
+- **The clock:** examples start at the first whole minute after the provider is made, so the first
+  reading says "resets in 2 h 10 min" as the file gives it, not "2 h 9 min". Each window fills at
+  its pace from its share then, stops at 100%, and from its first reset starts each window at 0%.
+  A reading is never back-dated: `fetched_at` is when it was read, and before the start (a clock
+  set back) the numbers are the start's. So the daemon's readings give each window its pace after
+  half an hour, as a real account's do; a test fits one from four readings.
+- **The source** (P-017): `Source::Example`, `example` in JSON, "the example build" in words
+  ("from the example build just now"); `served_from_cache` keeps it. `docs/openapi.json` is
+  written again, and `docs/CLI.md` and the skill name it.
+- **The feature:** `fake` on `quotadial-providers` (with `dep:quotadial-provider-fake` and
+  `quotadial-core/fake`), off by default; `with_config` is two functions, one per build, so a
+  release's list is untouched. The CLI and the tray app have a `fake` feature that turns it on,
+  and `cargo test --workspace --features fake` turns on core's, the list's and the CLI's together;
+  a CLI test fails, naming the command to use, when the list's is on without the CLI's.
+- **Nothing shared** (rule 3): `quotadial_core::copy` holds what differs: `EXAMPLE`, `FOLDER`
+  (`quotadial-fake` for the data folder and the cache folder) and `DATA_DIR_VARIABLE`
+  (`QUOTADIAL_FAKE_DATA_DIR`, so a real copy's `QUOTADIAL_DATA_DIR` cannot point the example at its
+  data); the API's `DEFAULT_PORT` is 47116 in the example. `daemon.lock`, `token`, `daemon.json`,
+  `history.db`, `costs.db`, `config.json` and the licence all live in the data folder, so all
+  follow. The messages that name the variable name the copy's own. Status pages are read only for
+  providers with accounts (`claude`, `codex`) and the cost scan reads only theirs, so the example
+  build asks no one.
+- **The example app:** `apps/tray/src-tauri/tauri.example.conf.json`, merged by
+  `npx tauri build --config src-tauri/tauri.example.conf.json` from `apps/tray`: productName
+  QuotaDial Example, identifier `com.quotadial.example` (its own settings folder, launch-at-login
+  item `QuotaDial Example`, single-instance socket and notifications), `build.features ["fake"]`,
+  and before-commands that bundle the example's CLI (`npm run cli -- --fake`, which
+  `prepare-cli.mjs` builds with `--features fake`). `run()` refuses to start when the fake
+  provider and the example's name do not go together, either way round. The example never checks
+  for updates (`Stage::Never`, "QuotaDial 0.2.0, the example build, which never checks for
+  updates."), since an update would make it QuotaDial itself. An account whose every number is an
+  example says it has no sign-in, in place of where its sign-in is read. Not run here: the
+  recording is the next PR's.
+- **Proof** (rule 2): the list's tests (exactly `claude` then `codex`; exactly `fake`); a `fake`
+  CI job on three systems (clippy and tests, both workspaces), in `ci-success`'s needs; and
+  `scripts/no-example-provider.sh`, which the Release workflow runs on the CLI each `cli` leg
+  builds (Rosetta first on the Intel leg) and on the CLI each app leg bundles. It runs `status
+  --json` and `doctor` in a scratch home and data folder with no token in the environment, stops
+  each after 60 seconds, ignores their exit status (no sign-in is fine), needs each to print
+  something, and fails if either names `fake`. Run here: on the example build it failed, naming
+  both lines; on a default build it passed; on a stand-in that printed nothing and one that hung,
+  it failed (the hanging one stopped after 60 seconds, by its own PID). actionlint is clean.
+- **Safety on this Mac:** every test run had both data-folder variables in the scratchpad; the
+  default build ran only in empty homes (the CLI's own tests and the release check), where the
+  Keychain's user search list is empty, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are empty folders and
+  no token is set. The example CLI ran with its own default folders: under `sandbox-exec` with a
+  profile that denies every read and write in Matt's data, cache and app folders, every
+  `~/.claude*` and `~/.codex*` path and `~/Library/Keychains`, running `/usr/bin/security`, and all
+  network but this machine's own. `status`, `status --json` and `doctor` showed the two examples,
+  `doctor` with `~/Library/Application Support/quotadial-fake` as the data folder; its daemon
+  listened on 127.0.0.1:47116 with only that folder's files open (`lsof`), while Matt's
+  `daemon.lock` stayed held by his app's process alone, before, during and after; his folders had
+  the same 36 entries before and after; the example's cache folder was never made. Its data folder,
+  with the example's own history and token, is left for the recording.
+- **The CLI's tests** now hold each build to what an empty home shows (nothing, or the two
+  examples), with `ASKS` for how often each provider is asked; a test's daemon is stopped if the
+  test fails, where before a failed daemon test left the daemon running, holding the run's output
+  open (a control here waited 13 minutes on one). The packaging test is ignored in the example
+  build, whose daemon's default port differs from the pages'.
+- **Tests:** 583 in the workspace in either build (25 new; the example build runs 14 CLI tests where
+  a release runs 13, and ignores the packaging test), 18 of them the fake provider's (2 property
+  tests), and 81 in the app in either build (4 new). Each new test was seen to fail on code broken
+  on purpose, 43 controls in all, each restored after: the source's name, label and replay; the
+  copy's folders, variable and port in each build; every refusal, the clock, the pace, the reset and
+  the 100% stop in the provider (its property test first passed with the stop removed, as random
+  files were rarely readable, so its strategy now makes mostly readable ones, and then failed); each
+  list; the CLI's tests on a renamed example, a wrong label, a slower floor and a release's folder,
+  and the build check with only the list's feature on; the app's name, its refusal, the update stage
+  and its words, and the sign-in line.
+- **No changelog line:** a release behaves as before; only the API's description and the docs
+  name the `example` source, which a release never sends.
+- **Left for later:** rule 4, the recording and timings made with the example app. On Windows the
+  data folder comes from the system, not the home folder, so the test of the example's default
+  folder runs on macOS and Linux. The Release workflow's new steps run first with the next tag.
 
 ### M5 queue item 5, second PR: the shareable image (D-115)
 
