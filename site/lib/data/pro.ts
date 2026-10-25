@@ -14,6 +14,12 @@ export const PRO_ADDS = [
   "alert rules through the local API and MCP",
 ] as const;
 
+/**
+ * Each Pro feature alone, without what Free has instead: "every account on this machine". For a
+ * page that shows FREE_HAS beside it, where "not one per provider" would say the same thing twice.
+ */
+export const PRO_FEATURES = PRO_ADDS.map((what) => what.split(", not ")[0]);
+
 /** What QuotaDial Free has, with no key. */
 export const FREE_HAS = [
   "one account per provider",
