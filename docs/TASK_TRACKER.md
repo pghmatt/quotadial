@@ -453,11 +453,11 @@ so they became #10.
   the cost scan cannot give, since it reads no Gemini logs.
 - **No changelog line:** a release behaves as before. P-018 adds no command yet, Gemini is off, and
   no shipped provider can put a Google or GitHub token in any text.
-- **Tests:** in the workspace, 583 passed (1 ignored) before and 624 (1 ignored) after; the example
-  build 583 (2 ignored) before and 624 (2 ignored) after; with `gemini`, 625 (1 ignored). By crate,
+- **Tests:** in the workspace, 583 passed (1 ignored) before and 625 (1 ignored) after; the example
+  build 583 (2 ignored) before and 625 (2 ignored) after; with `gemini`, 626 (1 ignored). By crate,
   before and after: core 98 to 104 (redaction 4, the hook 2); the CLI 44 to 51 (P-018's 7; 52 with
   `gemini`, whose real-binary test shows a Gemini account in `status`, `status --json` and
-  `doctor`); `quotadial-provider-gemini` 28 (environment 1, the lines 2, the settings reader 11 with
+  `doctor`); `quotadial-provider-gemini` 29 (environment 1, the lines 2, the settings reader 12 with
   its property test, the provider 14); `quotadial-providers` 1, a test for each build's list; the
   rest unchanged (API 54, cost 30, daemon 100, issue 6, poll 37, Claude 134 and 1 ignored, Codex 61,
   fake 18). Every new test failed first, against a stub or with its change left out, and each guard
@@ -467,6 +467,10 @@ so they became #10.
   cap's two checks, survived as they should, since the other check holds; removing both failed. A
   panic at a file's end was caught only once the property test's strategy ended files mid-string and
   mid-comment, and an explicit test of those ends was added.
+- **A pipe in place of the settings:** opening it would wait for a writer for good, holding up
+  discovery and `quotadial status`; the reader now opens only a plain file, as the sign-in file's
+  check already looks only for one, and a test fails if reading a pipe takes over five seconds (it
+  did, before).
 - **Checks run here:** `cargo fmt --all -- --check`; clippy with `-D warnings` on the workspace by
   default, with `fake` and with `gemini`; the tests in each; CI's new Gemini steps; the packaging
   check; actionlint on `ci.yml`; shellcheck, `scripts/public-prd.sh --check`, `scripts/privacy.sh
