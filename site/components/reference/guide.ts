@@ -11,7 +11,7 @@ import { posix } from "node:path";
 
 import { Marked, Parser, type Token, type Tokens } from "marked";
 
-import { breakPieces } from "../../lib/breaks.ts";
+import { breakTokens } from "../../lib/breaks.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { repositoryFile, withoutTitle } from "../../lib/markdown.ts";
 import { clickDetail, commandSystemOf, extensionOf, systemOf } from "../conversion/download-links.ts";
@@ -92,10 +92,21 @@ const FILE_LINK = /<a href="([^"]*\/releases\/latest\/download\/([^"/#?]+))"/g;
 const SHELL_TAG = /(<[^>]+>)/;
 
 /**
+ * `text` set as components/Breakable.tsx sets it, in HTML: spaces as they are, each word's pieces
+ * unbreakable and joined by `<wbr>`, so the browser breaks only at a space or a mark and never
+ * after a hyphen of its own choosing (a flag such as `--json` stays whole).
+ */
+function breakable(text: string): string {
+  return breakTokens(text)
+    .map((token) => ("space" in token ? token.space : token.pieces.map((piece) => `<span class="whitespace-nowrap">${piece}</span>`).join("<wbr>")))
+    .join("");
+}
+
+/**
  * A guide's inline HTML with what the page needs and the words do not say. A link that fetches a
  * release's file reports a `download_click` with the file and where it was, as /download's do;
- * and the words of a command or a link may break only at the marks `breakPieces` names (a
- * `<wbr>` there), so a file name or an address never splits inside a word.
+ * and the words of a command or a link may break only at a space or at the marks `breakTokens`
+ * names, so a file name, an address or a flag never splits inside a word.
  */
 export function finish(html: string, from: string): string {
   const marked = html.replace(FILE_LINK, (_match, href: string, name: string) => {
@@ -117,7 +128,7 @@ export function finish(html: string, from: string): string {
         }
         return part;
       }
-      return inside ? breakPieces(part).join("<wbr>") : part;
+      return inside ? breakable(part) : part;
     })
     .join("");
 }
