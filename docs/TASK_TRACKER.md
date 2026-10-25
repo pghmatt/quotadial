@@ -86,6 +86,9 @@ The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
 #64's fix (PR #69); from here: 12 (PR #71), then M6.
+The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
+the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point but wrangler,
+whose advisories wait on a decision (notes below).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -352,6 +355,78 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5: the manager's review of #68, the website
+
+The review came after #68 merged: one point blocking (the changelog tests), one already closed by
+#70 (`site/test/pro.test.ts`), and four smaller ones. Each is a commit on `docs/review-fixes`.
+
+- **The changelog tests and the version bump:** `reference.test.ts` and `markdown.test.ts` pinned
+  today's order and size (Unreleased first with more than ten additions, then 0.2.0 and 0.1.0), so
+  the bump, which renames Unreleased, would have turned CI's site job red and failed the first
+  deploy the gate let through. They now assert the shape: versions newest first by number and date;
+  Unreleased, when there is one, first with no date; 0.2.0 dated 2026-10-24 with 6 Added and 0
+  Fixed; every release dated with a date `sayDate` accepts; Keep a Changelog's kinds only; an
+  anchor per version. Each assertion takes the changelog's text, and `test/changelogs.ts` builds
+  the shapes they run over from the real file: as it is, as the bump leaves it (Unreleased renamed
+  to the next release, dated the day after the newest), and that with an empty Unreleased above.
+  The old assertions fail on both (2 of 19 each); the new pass on both, and so does the whole
+  suite against the review's own copy, `## [0.3.0] - 2026-10-26`, with and without an empty
+  Unreleased above it. Nine broken changelogs and pages each fail them (Unreleased below 0.2.0,
+  a release with no date, an impossible date, versions out of order, a number below the last,
+  0.2.0 with 5 additions, "### Fixes", the page not using `versionsShown`, `versionsShown`
+  keeping an empty Unreleased).
+- **Found on the way:** an empty Unreleased heading gave /changelog a plate saying changes are not
+  yet in a version, with none under it, and a table row of noughts (seen in a build). The page now
+  shows Unreleased only while it lists a change (`versionsShown` in
+  `components/reference/text.ts`); with no Unreleased entry it shows no plate, as before, and
+  today's page is the same markup.
+- **The 30-day History picture:** `site-fixtures.mjs` answered 30 days with the 7-day view, so the
+  window check skipped the 30-day picture to share (it does so for a copy with no month of its
+  own). It is now `history(30)`, and `history()` takes its days from the period: a row a day
+  labelled as the app labels them, the dates as the app writes them (28 September to 27 October
+  2026), four readings a day, weekly windows climbing and resetting each week, each day the same in
+  either period. The 7-day view is the same, value for value, and every capture is the same pixels;
+  the window check with the site fixtures passes 3048 checks over 8 views (2176 before), now
+  pressing Share image over 30 days in both themes. `test/examples.test.ts` holds each period to
+  the days it is named for; it fails on the old line, and on `history(30)` with the old
+  `history()`.
+- **The pictures:** no committed picture changes. The accounts and settings pictures in
+  `site/public/images/app/` match today's captures byte for byte; the history pictures, which no
+  page uses, still predate #70's Share image button and session readings, as noted under item 5's
+  second PR, and are left for a regeneration with `node scripts/app-pictures.mjs`.
+- **No third parties, held on every push:** `test/hosts.test.ts` reads every built page and the
+  stylesheet in out/ (skipping before a build, with the message the other built-page tests use,
+  now shared from `test/built.ts`). Every address written in them must be the site's or on its
+  allowlist, each host with why: github.com only as `pghmatt/quotadial` and
+  `pghmatt/homebrew-quotadial`, www.w3.org (the SVG namespace), schema.org, the two status pages
+  and rustup.rs (links in the guides), and 127.0.0.1, example.com and hooks.slack.com (examples on
+  /cli); an entry no page uses fails. Nothing in an element's attributes, but a link's href, or in
+  a style sheet may be fetched from anywhere but the site. The Buy button's Lemon Squeezy link is
+  allowed as that one link when the tests run with the build's `QUOTADIAL_CHECKOUT_URL`; a build
+  with one showed the page's script data writes `&` as `&`, which cut the address short until
+  the test read those escapes. Planted in a built page, a Google Fonts stylesheet, an analytics
+  script, a picture from the repository, a link to another repository, and /cli without its Slack
+  example each fail; a third test plants them in memory on every run.
+- **wrangler, not done:** with `wrangler@4.152.0` as an exact devDependency, `npm audit
+  --audit-level=low` fails: miniflare 5.20261019.2-beta, which wrangler needs, pins undici 7.29.1,
+  under GHSA-4qv8-2p9j-2685 (moderate), GHSA-f72v-6w45-q472 (moderate) and GHSA-xjj6-f33q-929c
+  (high), fixed in undici 7.30.1. 4.152.0 is the newest wrangler, and the deploy's
+  `npx --yes wrangler@4.152.0` fetches the same tree today, outside the audit. Nothing was
+  committed; it waits on a decision (a wrangler release that takes undici 7.30.1, an override, or
+  an exception with why). With wrangler installed, `npm ci` and the build work and out/ is the same
+  but for the build's random id. When it lands, the step should be
+  `npx --no -- wrangler pages deploy out ...`: in CI npx assumes `--yes` and would fetch the
+  newest wrangler if the locked one were missing, and without `--` npx reads `wrangler` as the
+  value of `--no`.
+- **The home description** may be 120 to 160 characters, with why in the message; it failed at
+  119 and 161 and passed at 120, 140 and 160.
+- **D-113** now says what holds /pro's list to `ProFeature::what` (`site/test/pro.test.ts`, since
+  #70) and names `test/hosts.test.ts`.
+- **Tests:** the site 72 (65 before: 7 new, the two changelog tests rewritten and the home test's
+  length check changed); the release scripts 34; the window check with the site fixtures 3048
+  checks over 8 views. `npm run check`, the site's build, the tray's build and actionlint 1.7.12
+  (with shellcheck 0.11.0) on every workflow pass.
 
 ### M5 queue item 12: docs (D-116)
 
