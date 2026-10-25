@@ -73,8 +73,9 @@ queue, by its numbers:
 - 4, the key page's function, decided on #54 (D-102), merged (PR #58): it signs with a second,
   online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
-- 5, the website in `site/`, built but not deployed, and the shareable image (D-113), in review
-  (PR #68);
+- 5, the website in `site/`, built but not deployed (D-113), in review (PR #68); the shareable
+  image, the item's other half (decision f on #40), is a feature of the app's History and comes in
+  its own PR after #64's fix;
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
@@ -349,6 +350,10 @@ so they became #10.
 
 ### M5 queue item 5: the website (D-113)
 
+Item 5 is the website and the shareable image (decision f on #40). This PR is the website; the
+shareable image, a picture of an account's history made in the app, is a Pro feature of History
+and comes in its own PR.
+
 - **How it was made** (the brain-site-build pipeline): product truth (`site/PRODUCT.md`); a dated
   search study (DataForSEO, Google US desktop; the study and its captures are private, the route
   map and blueprints are in `site/docs/seo/`); seven grounded candidate worlds and a seeded roll,
@@ -381,7 +386,9 @@ so they became #10.
   `CLOUDFLARE_API_TOKEN` is set and the newest published release carries `SHA256SUMS.txt` (the
   site describes the checksums, `quotadial doctor`, licence keys and updates that arrive after
   0.2.0; today's newest, v0.2.0, has none, so the gate holds). Downloads go to `releases/latest`,
-  which GitHub sends to the release list while every release is a pre-release.
+  which GitHub sends to the release list while every release is a pre-release. Buttons that start
+  the download itself come with item 12, from version-less copies of each release file (the
+  manager's check on #49, 05:30 UTC on 2026-10-25).
 - **Found and fixed on the way:** commands cut off on a phone (CodeBlock now wraps, and scrolls
   only for aligned output, as a labelled region); JetBrains Mono drawing `--` as one long dash
   (ligatures off in code); a strip under the footer on short pages; the curve's labels touching,
@@ -396,7 +403,13 @@ so they became #10.
   described features only the next release has (the deploy gate and the corrected claims), the
   download buttons landed below the download, /key's "works offline for ever" stated a plan term,
   and home promised every Claude account on Free. Each finding went to the lane that owned it, or
-  to the foundation.
+  to the foundation. After the second pass, every running paragraph takes one reading measure,
+  52ch, measured on the built pages at 66 to 72 characters a line; the reviewers' last verdicts are
+  in PR #68's description.
+- **The design system as built:** `site/DESIGN.md`, written from the merged code (with
+  `.impeccable/design.json` for design tools). Writing it found the Semi Condensed captions set in a
+  slope the browser invents, since only that width's upright face was loaded; its italic is now
+  loaded, and `test/fonts.test.ts` fails when a width the site sets lacks its italic file.
 
 ### M5 queue item 11: package managers, completions and manual pages (D-112)
 
