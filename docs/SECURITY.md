@@ -113,7 +113,9 @@ holds.
 `cargo deny` (licences, advisories, sources) and `cargo audit` run in CI on both Rust workspaces.
 Each advisory either fails the build or is excepted in `deny.toml` with why it cannot reach a user.
 Releases are built only by the Release workflow, and each carries `SHA256SUMS.txt` and a software
-bill of materials for the command and the app ([`RELEASE.md`](RELEASE.md)).
+bill of materials for the command and the app ([`RELEASE.md`](RELEASE.md)). Each download's copy
+named without the version is the same signed file under a second name, listed in `SHA256SUMS.txt`
+under both; the updater and the package managers name only the versioned file (D-116).
 
 ## The one `unsafe` exception
 

@@ -2,11 +2,14 @@
 // are shaped as `tauri signer` writes them; what they sign is not checked here, since the app's
 // updater checks that against its public key.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { NAMES, copyLatest } from "./latest-names.mjs";
 import { manifest, signedVersion } from "./updater-manifest.mjs";
 
 const NOW = new Date("2026-10-25T12:34:56.789Z");
@@ -70,6 +73,29 @@ test("each kind of install gets its own file, and older updaters the generic one
   assert.equal(signedVersion(written.platforms["linux-x86_64-deb"].signature), "0.3.0");
 });
 
+test("the copies without the version change nothing: latest.json names the versioned files (D-116)", () => {
+  const folder = release(EVERY);
+  for (const name of [
+    "QuotaDial_0.3.0_universal.dmg",
+    "quotadial-v0.3.0-aarch64-apple-darwin.tar.gz",
+    "quotadial-v0.3.0-x86_64-apple-darwin.tar.gz",
+    "quotadial-v0.3.0-x86_64-unknown-linux-gnu.tar.gz",
+    "quotadial-v0.3.0-x86_64-pc-windows-msvc.zip",
+  ]) {
+    writeFileSync(join(folder, name), "not an update");
+  }
+  copyLatest(folder, "0.3.0");
+
+  const files = Object.values(manifest(options(folder)).platforms).map(({ url }) => url.split("/").pop());
+  assert.deepEqual([...new Set(files)].sort(), [
+    "QuotaDial_0.3.0_amd64.AppImage",
+    "QuotaDial_0.3.0_amd64.deb",
+    "QuotaDial_0.3.0_universal.app.tar.gz",
+    "QuotaDial_0.3.0_x64_en-US.msi",
+  ]);
+  assert.equal(files.some((file) => NAMES.includes(file)), false);
+});
+
 test("a release built without the updater key offers no update", () => {
   const folder = mkdtempSync(join(tmpdir(), "quotadial-manifest-"));
   writeFileSync(join(folder, "QuotaDial_0.3.0_universal.dmg"), "unsigned");
@@ -108,4 +134,19 @@ test("each system has one signed file, and each signature its file", () => {
   const lonely = release(EVERY.slice(1));
   writeFileSync(join(lonely, "QuotaDial.app.tar.gz.sig"), signature("QuotaDial.app.tar.gz", "0.3.0"));
   assert.throws(() => manifest(options(lonely)), /QuotaDial\.app\.tar\.gz\.sig has no QuotaDial\.app\.tar\.gz beside it\./);
+});
+
+test("run through a link, it still writes latest.json rather than doing nothing and succeeding", () => {
+  const folder = release(EVERY);
+  const linked = mkdtempSync(join(tmpdir(), "quotadial-manifest-"));
+  symlinkSync(fileURLToPath(new URL("./updater-manifest.mjs", import.meta.url)), join(linked, "updater-manifest.mjs"));
+  writeFileSync(join(linked, "notes.md"), "### Added\n\n- Updates.\n");
+  const output = join(linked, "latest.json");
+  const run = spawnSync(
+    process.execPath,
+    [join(linked, "updater-manifest.mjs"), folder, "0.3.0", join(linked, "notes.md"), output],
+    { encoding: "utf8" },
+  );
+  assert.equal(run.stdout, `Wrote ${output} for 0.3.0, for 9 targets.\n`);
+  assert.equal(Object.keys(JSON.parse(readFileSync(output, "utf8")).platforms).length, 9);
 });

@@ -6,6 +6,7 @@ import { Section } from "../../components/Section.tsx";
 import { PageIntro } from "../../components/reference/PageIntro.tsx";
 import { ReleaseTable } from "../../components/reference/ReleaseTable.tsx";
 import { Versions } from "../../components/reference/Versions.tsx";
+import { versionsShown } from "../../components/reference/text.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { changelog, repositoryFile } from "../../lib/markdown.ts";
 import { pageMetadata } from "../../lib/metadata.ts";
@@ -18,7 +19,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default function Changelog() {
-  const { versions } = changelog(repositoryFile("CHANGELOG.md"));
+  const versions = versionsShown(changelog(repositoryFile("CHANGELOG.md")).versions);
   return (
     <>
       <Section>

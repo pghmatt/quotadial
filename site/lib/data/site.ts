@@ -23,8 +23,6 @@ export const SITE = {
   releases: "https://github.com/pghmatt/quotadial/releases",
   newIssue: "https://github.com/pghmatt/quotadial/issues/new/choose",
   securityReport: "https://github.com/pghmatt/quotadial/security/advisories/new",
-  installGuide: "https://github.com/pghmatt/quotadial/blob/main/docs/INSTALL.md",
-  cliGuide: "https://github.com/pghmatt/quotadial/blob/main/docs/CLI.md",
   licence: "https://github.com/pghmatt/quotadial/blob/main/LICENSE",
   support: "support@quotadial.com",
   /**

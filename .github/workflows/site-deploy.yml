@@ -1,10 +1,10 @@
 name: Site deploy
 
 # Publishes the website (site/) to Cloudflare Pages, with the key page's function beside it. Nothing
-# is published until Matt adds the secret CLOUDFLARE_API_TOKEN (#51, #49), and not before a published
-# release carries what the site describes (checksums, quotadial doctor, licence keys, updates): the
-# gate job says which is missing and the deploy job is skipped. CI still builds every page on every
-# pull request.
+# is published until Matt adds the secret CLOUDFLARE_API_TOKEN (#51, #49), and not before the newest
+# full release carries what the site describes (checksums, quotadial doctor, licence keys, updates)
+# and every file its download buttons fetch (D-116): the gate job says which is missing and the
+# deploy job is skipped. CI still builds every page on every pull request.
 # CLOUDFLARE_ACCOUNT_ID, a secret, names the account the Pages project "quotadial" is in.
 # QUOTADIAL_CHECKOUT_URL, a repository variable, is the Buy button's Lemon Squeezy link; without it
 # the Pro page says buying opens soon.
@@ -39,19 +39,53 @@ jobs:
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
+      # main's, as the deploy job builds main's site: scripts/latest-names.mjs names the files its
+      # download buttons fetch.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
       - id: check
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo "CLOUDFLARE_API_TOKEN is not set (#51), so the site is not published." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          # The site describes what the release after 0.2.0 brings; SHA256SUMS.txt is the sign of it.
-          latest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')
-          if [ -z "$latest" ] || ! gh release view "$latest" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'SHA256SUMS.txt'; then
-            echo "The newest release (${latest:-none}) carries no SHA256SUMS.txt: publish the release after 0.2.0 before the site goes live (#51)." | tee -a "$GITHUB_STEP_SUMMARY"
+          # The download buttons link to releases/latest/download/<name>, which GitHub answers from
+          # the release that releases/latest names: the newest full release, never a draft or a
+          # pre-release. So the gate asks for that same release, and the site goes out only when it
+          # carries SHA256SUMS.txt, the sign of the release after 0.2.0 that the site describes, and
+          # all eight copies without the version, so that no button answers 404 (D-116). While every
+          # release is a pre-release GitHub answers 404 and the site waits; any other error, from
+          # GitHub or in reading the names, fails this job. Either way the deploy is skipped.
+          error=$(mktemp)
+          if ! answer=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name, .assets[].name' 2> "$error"); then
+            if grep -q '(HTTP 404)' "$error"; then
+              echo "No release is published as a full release yet, so the site's download buttons would answer 404: it waits for the first full release after 0.2.0 (#51)." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::GitHub could not say which release is the newest full release: $(head -n 1 "$error")"
+            exit 1
+          fi
+          tag=$(head -n 1 <<< "$answer")
+          assets=$(tail -n +2 <<< "$answer")
+          names=$(node scripts/latest-names.mjs --names)
+          if [ -z "$names" ]; then
+            echo "::error::scripts/latest-names.mjs named no files, so the gate cannot tell what the buttons fetch."
+            exit 1
+          fi
+          missing=""
+          for name in SHA256SUMS.txt $names; do
+            grep -qxF "$name" <<< "$assets" || missing="${missing:+$missing, }$name"
+          done
+          if [ -n "$missing" ]; then
+            echo "The newest full release, $tag, has no $missing: the site waits for a full release that has them (#51)." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -63,6 +97,10 @@ jobs:
     defaults:
       run:
         working-directory: site
+    # The Buy button's link, for the build and for the tests that read it, which allow it only as
+    # this one link (site/test/hosts.test.ts).
+    env:
+      QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}
     steps:
       # main's site, whatever started the run: a release's tag can be older than main.
       - uses: actions/checkout@v7
@@ -75,18 +113,22 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm run check
-      - run: npm test
+      # Built before the tests, because some read the built pages (out/) and skip without them.
       - name: Build
-        env:
-          QUOTADIAL_CHECKOUT_URL: ${{ vars.QUOTADIAL_CHECKOUT_URL }}
         run: npm run build
+      - run: npm test
       - name: Publish to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Wrangler reports its own usage to Cloudflare unless told not to; the site sends nothing.
+          WRANGLER_SEND_METRICS: "false"
         run: |
           if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "::error::CLOUDFLARE_API_TOKEN is set, but CLOUDFLARE_ACCOUNT_ID is missing (#51)."
             exit 1
           fi
-          npx --yes wrangler@4.152.0 pages deploy out --project-name quotadial --branch main
+          # The wrangler npm ci installed from site/package-lock.json. In CI npx would fetch the newest
+          # wrangler if it were missing; --no makes it fail instead, and -- keeps npx from reading
+          # wrangler as the value of --no.
+          npx --no -- wrangler pages deploy out --project-name quotadial --branch main

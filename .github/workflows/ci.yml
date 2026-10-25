@@ -160,13 +160,22 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - run: npm ci
+      # The deploy publishes with this wrangler (site-deploy.yml), under the undici override in
+      # site/package.json: a wrangler that no longer starts fails here, long before a deploy.
+      - name: The deploy's wrangler starts
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          npx --no -- wrangler --version
+          npx --no -- wrangler pages deploy --help > /dev/null
       - name: Types
         run: npm run check
-      - name: Test
-        run: npm test
       # The website itself (M5 item 5): every page exported as static files, as Pages serves them.
+      # Built before the tests, because some read the built pages (out/) and skip without them.
       - name: Build
         run: npm run build
+      - name: Test
+        run: npm test
 
   # docs/PUBLIC_SCOPE.md: the full PRD stays private; only the generated public copy is committed.
   public-scope:

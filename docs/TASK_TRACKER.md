@@ -75,20 +75,23 @@ queue, by its numbers:
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
 - 5, in two pull requests: the website in `site/`, built but not deployed (D-113), merged
   (PR #68); and the shareable image (decision f on #40), a feature of the app's History
-  (D-115), in review (PR #70);
+  (D-115), merged (PR #70);
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
-  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs,
-  whose PR A is the fake provider and the example build its pictures are made with (D-117), in
-  review (PR #71);
+  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs, in
+  three PRs: the fake provider and the example build (D-117), merged (PR #71); the release copies,
+  the site's downloads and guides and the README's pictures (D-116), in review (PR #72); and the
+  first-run recording with #52's figures, made with the example build, next;
 - then the M6 plan. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
   to build it with item 12 (D-117).
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
-the builder last read #49; said so on #49 at 04:45 UTC). Item 5's website merged (PR #68) and
-#64's fix (PR #69); from here: the shareable image (PR #70), 12, M6. Item 12 begins with PR A,
-the fake provider (D-117); the recording made with it is a later PR.
+the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
+#64's fix (PR #69); from here: 12 (#71 merged; #72, then the recording), then M6.
+The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
+the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
+an undici override (notes below).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -169,8 +172,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
 | 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
 | 5: the website (first PR) | Done (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
-| 5: the shareable image (second PR) | In review (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
-| 12, PR A: the fake provider | In review (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
+| 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
+| 12: docs | In review (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
+| 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -357,6 +361,171 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5: the manager's review of #68, the website
+
+The review came after #68 merged: one point blocking (the changelog tests), one already closed by
+#70 (`site/test/pro.test.ts`), and four smaller ones. Each is a commit on `docs/review-fixes`.
+
+- **The changelog tests and the version bump:** `reference.test.ts` and `markdown.test.ts` pinned
+  today's order and size (Unreleased first with more than ten additions, then 0.2.0 and 0.1.0), so
+  the bump, which renames Unreleased, would have turned CI's site job red and failed the first
+  deploy the gate let through. They now assert the shape: versions newest first by number and date;
+  Unreleased, when there is one, first with no date; 0.2.0 dated 2026-10-24 with 6 Added and 0
+  Fixed; every release dated with a date `sayDate` accepts; Keep a Changelog's kinds only; an
+  anchor per version. Each assertion takes the changelog's text, and `test/changelogs.ts` builds
+  the shapes they run over from the real file: as it is, as the bump leaves it (Unreleased renamed
+  to the next release, dated the day after the newest), and that with an empty Unreleased above.
+  The old assertions fail on both (2 of 19 each); the new pass on both, and so does the whole
+  suite against the review's own copy, `## [0.3.0] - 2026-10-26`, with and without an empty
+  Unreleased above it. Nine broken changelogs and pages each fail them (Unreleased below 0.2.0,
+  a release with no date, an impossible date, versions out of order, a number below the last,
+  0.2.0 with 5 additions, "### Fixes", the page not using `versionsShown`, `versionsShown`
+  keeping an empty Unreleased).
+- **Found on the way:** an empty Unreleased heading gave /changelog a plate saying changes are not
+  yet in a version, with none under it, and a table row of noughts (seen in a build). The page now
+  shows Unreleased only while it lists a change (`versionsShown` in
+  `components/reference/text.ts`); with no Unreleased entry it shows no plate, as before, and
+  today's page is the same markup.
+- **The 30-day History picture:** `site-fixtures.mjs` answered 30 days with the 7-day view, so the
+  window check skipped the 30-day picture to share (it does so for a copy with no month of its
+  own). It is now `history(30)`, and `history()` takes its days from the period: a row a day
+  labelled as the app labels them, the dates as the app writes them (28 September to 27 October
+  2026), four readings a day, weekly windows climbing and resetting each week, each day the same in
+  either period. The 7-day view is the same, value for value, and every capture is the same pixels;
+  the window check with the site fixtures passes 3048 checks over 8 views (2176 before), now
+  pressing Share image over 30 days in both themes. `test/examples.test.ts` holds each period to
+  the days it is named for; it fails on the old line, and on `history(30)` with the old
+  `history()`.
+- **The pictures:** no committed picture changes. The accounts and settings pictures in
+  `site/public/images/app/` match today's captures byte for byte; the history pictures, which no
+  page uses, still predate #70's Share image button and session readings, as noted under item 5's
+  second PR, and are left for a regeneration with `node scripts/app-pictures.mjs`.
+- **No third parties, held on every push:** `test/hosts.test.ts` reads every built page and the
+  stylesheet in out/ (skipping before a build, with the message the other built-page tests use,
+  now shared from `test/built.ts`). Every address written in them must be the site's or on its
+  allowlist, each host with why: github.com only as `pghmatt/quotadial` and
+  `pghmatt/homebrew-quotadial`, www.w3.org (the SVG namespace), schema.org, the two status pages
+  and rustup.rs (links in the guides), and 127.0.0.1, example.com and hooks.slack.com (examples on
+  /cli); an entry no page uses fails. Nothing in an element's attributes, but a link's href, or in
+  a style sheet may be fetched from anywhere but the site. The Buy button's Lemon Squeezy link is
+  allowed as that one link when the tests run with the build's `QUOTADIAL_CHECKOUT_URL`; a build
+  with one showed the page's script data writes `&` as `&`, which cut the address short until
+  the test read those escapes. Planted in a built page, a Google Fonts stylesheet, an analytics
+  script, a picture from the repository, a link to another repository, and /cli without its Slack
+  example each fail; a third test plants them in memory on every run.
+- **wrangler, under the lockfile:** as an exact devDependency alone, `npm audit
+  --audit-level=low` failed: miniflare 5.20261019.2-beta, which wrangler 4.152.0 (the newest)
+  needs, pins undici 7.29.1, under GHSA-4qv8-2p9j-2685 (moderate), GHSA-f72v-6w45-q472 (moderate)
+  and GHSA-xjj6-f33q-929c (high), fixed in undici 7.30.1. The coordinator chose the fix: an
+  `overrides` entry pins undici to 7.30.1. The audit passes, `npm ls undici` shows only 7.30.1
+  under wrangler, `npm ci` and the build work with out/ the same but for the build id, and the
+  locked wrangler starts. What no override reaches: wrangler's own `cli.js` bundles undici 7.29.1
+  (110 modules, the three advisories' among them, the content-encodings fix missing), and the
+  deploy's calls to Cloudflare's API go through it; npm audit never saw that copy, before or after.
+  The override comes out once wrangler's own undici is 7.30.1 or later (D-113, item 12's notes).
+- **The deploy:** it publishes with `npx --no -- wrangler pages deploy out ...`, the wrangler
+  `npm ci` installed: in CI npx assumes `--yes` and would fetch the newest wrangler if the locked
+  one were missing, and without `--` npx reads `wrangler` as the value of `--no`. It builds before
+  it tests, so the tests of the built pages run on what it publishes, and `QUOTADIAL_CHECKOUT_URL`
+  is now the job's, since the host test allows the Buy link only when it sees the build's; with a
+  link set for both, the build and all 72 site tests pass. A workflow test runs the publish step's
+  own shell beside a stand-in wrangler, offline, and holds both workflows to npm ci, the build,
+  then the tests; it fails on the old publish line, a plain `npx wrangler`, wrangler missing from
+  or a range in `site/package.json`, the old order, and the link set on the Build step alone.
+- **The guard:** CI's site job runs `npx --no -- wrangler --version` and
+  `npx --no -- wrangler pages deploy --help` after `npm ci` (telemetry off), so a wrangler that no
+  longer starts fails CI before a deploy. Both commands load miniflare and its undici (a trace of
+  what wrangler loads showed it). The step's own shell passes as committed; fails with undici
+  overridden to a package that cannot load ("Cannot find module 'undici'") and with wrangler gone
+  from the lockfile; and passes once each is put back. An undici that loads but misbehaves (5.29.0
+  was tried) still passes: the step proves wrangler starts, not that its HTTP works.
+- **The home description** may be 120 to 160 characters, with why in the message; it failed at
+  119 and 161 and passed at 120, 140 and 160.
+- **D-113** now says what holds /pro's list to `ProFeature::what` (`site/test/pro.test.ts`, since
+  #70), names `test/hosts.test.ts`, and says why undici is pinned and when the override comes out.
+- **Tests:** the site 72 (65 before: 7 new, the two changelog tests rewritten and the home test's
+  length check changed); the release scripts 36 (2 new); the window check with the site fixtures
+  3048 checks over 8 views. `npm audit --audit-level=low` (0 found), `npm run check`, the site's
+  build, the tray's build and actionlint 1.7.12 (with shellcheck 0.11.0) on every workflow pass.
+
+### M5 queue item 12: docs (D-116)
+
+Item 12 is the docs. This part is the release side of the manager's decision on #49 (05:30 UTC):
+from the release after 0.2.0, each download is on the release a second time, under a name without
+the version, which the install guide and the site's buttons link to (D-116). `docs/INSTALL.md`'s
+tables, already on `feat/docs`, and the site's buttons are the item's other parts.
+
+- **The copies:** `scripts/latest-names.mjs <folder> <version>` copies each of the eight downloads
+  (`QuotaDial_universal.dmg`, `QuotaDial_x64_en-US.msi`, `QuotaDial_amd64.deb`,
+  `QuotaDial_amd64.AppImage`, and `quotadial-<target>.tar.gz` or `.zip` for the command's four
+  builds) beside its versioned file, in whichever folder the download step left it (`dmg/`, `deb/`,
+  `appimage/` or the top). It finds the eight by exact name, so a `.sig`, the macOS update,
+  `latest.json` or a bill of materials is never copied; it names every missing file before copying
+  anything, and refuses a name found twice. `--names` prints the eight for the deploy gate.
+- **The publish job** runs it after `latest.json` and before `SHA256SUMS.txt`, in the step now
+  called "The updater's latest.json, the copies without the version and every file's checksum".
+  `latest.json` cannot name a copy: it is written from the `.sig` files, and a copy has none.
+- **The site deploy gate** used to ask for the newest published release, pre-releases included,
+  and look only for `SHA256SUMS.txt`. It now checks out main and asks
+  `gh api repos/<repo>/releases/latest`, the release `releases/latest/download/` resolves to, and
+  sets `ready` only when that release has `SHA256SUMS.txt` and the eight names
+  `node scripts/latest-names.mjs --names` prints. GitHub's 404 (every release a pre-release, as
+  today) skips with a line in the summary; any other gh error, or a list of names that is missing
+  or empty, fails the gate. On an error `gh api --jq` prints GitHub's answer unfiltered and exits 1,
+  so the gate reads the answer only after gh succeeds.
+- **Found on the way:** Node gives `import.meta.url` as a module's real path and `process.argv[1]`
+  as typed, so a script that compares the two as given does nothing, and exits 0, when it is
+  started through a link, as macOS's `/var` is, even on input that should fail. `latest-names.mjs`
+  compared real paths from the start; `updater-manifest.mjs` and `packages.mjs` compared them as
+  given, which was safe on the runners' plain paths, and now compare real paths too, each change
+  kept to that check. A test starts each of the three through a link. Without the gate's
+  empty-list check, a list of names that came back empty would have let the site out having
+  checked no copy (its control showed it).
+- **Tests** (CI's `node --test scripts/*.test.mjs`, now 34): `latest-names.test.mjs` (8) holds the
+  eight to v0.2.0's real file names, copies each byte for byte into a file of its own beside it,
+  copies nothing else, names every missing file and copies nothing, refuses a name found twice,
+  prints `--names`, runs through a link, and holds `docs/INSTALL.md`'s `releases/latest/download/`
+  links to exactly the eight. `workflows.test.mjs` (8) runs the publish step's own shell, read from
+  `release.yml`, on a release laid out as the download step leaves it and signed for v0.2.0, then
+  checks every file with `sha256sum -c` (`shasum -a 256 -c` on macOS) and the copies alone with
+  `--ignore-missing`; and runs the gate's own shell against GitHub's answers from a fake `gh`:
+  ready with all eight, GitHub's real 404 for this repository, one copy missing, no checksums and
+  v0.2.0's files as a full release, gh unable to connect, no list of names or an empty one, and no
+  token. `updater-manifest.test.mjs` and `packages.test.mjs` gain two each: the copies leave
+  `latest.json` naming the versioned files, and no package names a copy or `releases/latest`; and
+  each script, started through a symlink in a temporary folder, writes what it writes when started
+  directly.
+- **Controls, each seen failing, then restored:** the version left in the command's names; a hard
+  link, and a rename, in place of the copy; the copy taking its `.sig` too (which also makes the
+  manifest refuse the release); no missing-file check, only the first missing file named, and the
+  copies made before the check; no twice check; `--names` on one line; the as-given main-module
+  check, in all three scripts (in `updater-manifest.mjs` and `packages.mjs` it was the code before
+  the fix, which printed nothing through a link); an INSTALL.md link changed, and one removed; the
+  publish step without the copy, and with it after the checksums; packages pointing at
+  `releases/latest`, or at the msi's copy; and in the gate: no `ready`, another endpoint, no 404
+  branch, the old condition (checksums only, which let a release missing a copy through), no
+  checksums in the list, a gh error that exits 0, no empty-list check (which let the site out),
+  and no token check.
+- **How it was checked:** the publish step's shell from `release.yml`, run on a scratch release of
+  v0.2.0's names, wrote `latest.json` for 9 targets, all versioned, made the 8 copies, and
+  `sha256sum -c` and `shasum -a 256 -c` printed OK for all 24 files, both names of each download
+  among them; with only two copies downloaded, `--ignore-missing` passed for both. actionlint
+  1.7.12 with shellcheck 0.11.0 passes on all four workflows, and reports an unquoted variable put
+  into the gate on purpose. `gh api repos/pghmatt/quotadial/releases/latest` answers 404 today, as
+  the gate expects. shellcheck on `scripts/*.sh`, `scripts/public-prd.sh --check`,
+  `scripts/privacy.sh --check` and the changelog check pass, and so do the site's type check, its
+  44 tests and its build, which read the changelog's new line.
+- **Docs:** `docs/RELEASE.md` (step 3's list, step 4, a step 6 for the website, "Names without the
+  version", and the checksums under both names); the supply chain in `docs/SECURITY.md`; a line in
+  `CHANGELOG.md`; the scripts row in `AGENTS.md`; D-116.
+- **Not done here:** no release has the copies until the next tag, so `releases/latest/download/`
+  answers 404 until the first full release after it; the Release workflow was not run here.
+- **Follow-up, the undici override:** `site/package.json` pins undici to 7.30.1 because the
+  miniflare that wrangler 4.152.0 needs pins 7.29.1 (GHSA-xjj6-f33q-929c, GHSA-4qv8-2p9j-2685,
+  GHSA-f72v-6w45-q472), and wrangler's own `cli.js` bundles a 7.29.1 that no override reaches.
+  Take the override out once wrangler's own undici, in its miniflare (`npm ls undici`) and in the
+  `undici@` paths of `node_modules/wrangler/wrangler-dist/cli.js`, is 7.30.1 or later (D-113).
 
 ### M5 queue item 12, PR A: the fake provider (D-117)
 

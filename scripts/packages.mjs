@@ -14,7 +14,7 @@
 //
 // QUOTADIAL_DOWNLOADS replaces the releases' address, so a formula can be tried against archives on
 // this machine (a file:// address); the manual pages the cask links are the ones in packaging/man.
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -233,7 +233,9 @@ export function write(version, sums, out, productCode) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import.meta.url is the module's real path, and the path it was run by may pass through a link (as
+// /var does on macOS): compared as given, the run would do nothing and succeed.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [version, sumsFile, out, flag, productCode] = process.argv.slice(2);
   if (!version || !sumsFile || !out || (flag && (flag !== "--product-code" || !productCode))) {
     console.error("Usage: node scripts/packages.mjs <version> <SHA256SUMS.txt> <output folder> [--product-code <guid>]");

@@ -1,11 +1,14 @@
 // node --test scripts/packages.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { NAMES, latestNames } from "./latest-names.mjs";
 import { cask, files, formula, readSums, scoop, winget, write } from "./packages.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
@@ -88,6 +91,27 @@ test("a release that lacks a file names every one it lacks", () => {
   );
 });
 
+test("every package names the versioned files, never a copy without the version (D-116)", () => {
+  // A package manager pins a version, so even with both names in SHA256SUMS.txt, as each release
+  // after 0.2.0 has them, no package may name a copy or releases/latest.
+  const names = [...latestNames("0.3.0")].flat();
+  const out = mkdtempSync(join(tmpdir(), "quotadial-packages-"));
+  try {
+    write("0.3.0", readSums(sumsFor("0.3.0", [...names, "latest.json"])), out, "{01234567-89AB-CDEF-0123-456789ABCDEF}");
+    const written = readdirSync(out, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile());
+    assert.equal(written.length, 6);
+    for (const entry of written) {
+      const text = readFileSync(join(entry.parentPath, entry.name), "utf8");
+      assert.doesNotMatch(text, /releases\/latest/, entry.name);
+      for (const name of NAMES) {
+        assert.ok(!text.includes(name), `${entry.name} names ${name}`);
+      }
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
 test("writes the tap's layout and winget's", () => {
   const out = mkdtempSync(join(tmpdir(), "quotadial-packages-"));
   try {
@@ -97,5 +121,26 @@ test("writes the tap's layout and winget's", () => {
     assert.equal(readdirSync(join(out, "winget/0.3.0")).length, 3);
   } finally {
     rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("run through a link, it still writes every package rather than doing nothing and succeeding", () => {
+  const linked = mkdtempSync(join(tmpdir(), "quotadial-packages-"));
+  try {
+    symlinkSync(fileURLToPath(new URL("./packages.mjs", import.meta.url)), join(linked, "packages.mjs"));
+    writeFileSync(join(linked, "SHA256SUMS.txt"), sumsFor("0.3.0"));
+    const out = join(linked, "out");
+    const run = spawnSync(
+      process.execPath,
+      [join(linked, "packages.mjs"), "0.3.0", join(linked, "SHA256SUMS.txt"), out],
+      { encoding: "utf8" },
+    );
+    assert.equal(
+      run.stdout,
+      `Wrote the Homebrew formula and cask, the Scoop manifest and the winget manifests for 0.3.0 to ${out}.\n`,
+    );
+    assert.deepEqual(readdirSync(out).sort(), ["Casks", "Formula", "bucket", "winget"]);
+  } finally {
+    rmSync(linked, { recursive: true, force: true });
   }
 });

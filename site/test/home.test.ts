@@ -87,7 +87,11 @@ test("the home page's title and description are the route map's", () => {
   const route = config.routes.find((candidate: { path: string }) => candidate.path === "/");
   assert.equal(`${HOME_META.title} | QuotaDial`, route.title);
   assert.equal(HOME_META.path, route.path);
-  assert.equal(HOME_META.description.length, 153, "the blueprint's meta description is 153 characters");
+  const { length } = HOME_META.description;
+  assert.ok(
+    length >= 120 && length <= 160,
+    `the description is ${length} characters: from 120 it says what QuotaDial does and for whom, and to 160 a search result shows it whole, so the words can change within that`,
+  );
 });
 
 test("the Free and Pro table holds every line of both lists in exactly one row", () => {

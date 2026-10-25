@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 
 import { CodeBlock } from "../../components/CodeBlock.tsx";
-import { InlineCode } from "../../components/conversion/InlineCode.tsx";
+import { CommandTable } from "../../components/conversion/CommandTable.tsx";
+import { appFiles, commandFiles } from "../../components/conversion/download-links.ts";
 import { FilesTable } from "../../components/conversion/FilesTable.tsx";
+import { InlineCode } from "../../components/conversion/InlineCode.tsx";
 import { SystemAction } from "../../components/conversion/SystemAction.tsx";
 import { SystemDownload } from "../../components/conversion/SystemDownload.tsx";
 import { Notice } from "../../components/Notice.tsx";
 import { Prose } from "../../components/Prose.tsx";
 import { Plate } from "../../components/Plate.tsx";
 import { Section, SectionHeading } from "../../components/Section.tsx";
-import { COMMAND_ONLY } from "../../lib/data/release.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { installGuide } from "../../lib/markdown.ts";
 import { jsonLd, pageMetadata, softwareJsonLd } from "../../lib/metadata.ts";
@@ -26,6 +27,8 @@ const LINK = "underline underline-offset-[0.2em]";
 
 /** What the page shows of docs/INSTALL.md, read when the site is built and never copied. */
 const GUIDE = installGuide();
+const FILES = appFiles(GUIDE.files);
+const COMMANDS = commandFiles(GUIDE.commands);
 
 export default function Download() {
   return (
@@ -36,21 +39,21 @@ export default function Download() {
         <div className="grid items-start gap-x-6 gap-y-10 grid-cols-[minmax(0,1fr)] md:grid-cols-12">
           <div className="md:col-span-6 lg:col-span-5">
             <h1 className="m-0 text-[2.75rem] leading-[1.02] font-[800] md:text-[4rem]">Download QuotaDial</h1>
-            <SystemDownload />
+            <SystemDownload files={FILES} />
           </div>
           <div className="md:col-span-6 lg:col-span-7">
             <Plate
               title="Files in each release"
-              caption="The files a release holds. Replace <version> with the number in the release's name."
+              caption="Each name is the file a button saves. Under it is the name a release holds it by: replace <version> with the number in the release's name."
             >
-              <FilesTable />
+              <FilesTable files={FILES} releases={SITE.releases} />
             </Plate>
           </div>
         </div>
       </Section>
 
       <Section tone="shallow">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 md:grid-cols-12">
+        <div id="systems" className="grid scroll-mt-8 grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 md:grid-cols-12">
           <div id="macos" className="md:col-span-4">
             <SectionHeading id="macos-heading">macOS</SectionHeading>
             <p className="mt-4 mb-0 max-w-[38ch]">
@@ -61,7 +64,7 @@ export default function Download() {
               </a>
               .
             </p>
-            <SystemAction system="macos" />
+            <SystemAction system="macos" files={FILES} />
           </div>
 
           <div id="windows" className="md:col-span-3">
@@ -73,7 +76,7 @@ export default function Download() {
               </a>
               .
             </p>
-            <SystemAction system="windows" />
+            <SystemAction system="windows" files={FILES} />
           </div>
 
           <div id="linux" className="md:col-span-5">
@@ -87,38 +90,51 @@ export default function Download() {
               </a>
               .
             </p>
-            <SystemAction system="linux" />
+            <SystemAction system="linux" files={FILES} />
           </div>
         </div>
 
-        <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-14 border-t border-rule pt-16 md:grid-cols-12">
+        <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-10 border-t border-rule pt-16 md:grid-cols-12">
           <div className="md:col-span-5">
             <SectionHeading id="command-heading">The command on its own</SectionHeading>
             <p className="mt-4 mb-0 max-w-measure">
-              If a terminal is all you want, take <InlineCode on="shallow">{COMMAND_ONLY.file}</InlineCode> (a{" "}
-              <InlineCode on="shallow">.zip</InlineCode> on Windows). Each archive holds{" "}
-              <InlineCode on="shallow">quotadial</InlineCode> and its short alias <InlineCode on="shallow">qd</InlineCode>.
+              If a terminal is all you want, take the archive for your system. Each holds{" "}
+              <InlineCode on="shallow">quotadial</InlineCode> and its short alias <InlineCode on="shallow">qd</InlineCode>,
+              with shell completions and manual pages.
             </p>
             <p className="mt-4 mb-0 max-w-measure">
-              The app carries the same command inside it, and{" "}
-              <a href={SITE.installGuide} className={LINK}>
-                the install guide
-              </a>{" "}
-              shows how to put it on your PATH.
+              On macOS or Linux, these lines fetch the newest full release's command and put it on your PATH. The first
+              names Apple silicon, so use your system's name from the table for any other.
             </p>
             <div className="mt-6">
-              <CodeBlock code="quotadial status" label="Copy the command" />
+              <CodeBlock code={GUIDE.install} label="Copy the commands" />
             </div>
+            <p className="mt-6 mb-0 max-w-measure">
+              The app carries the same command inside it.{" "}
+              <a href="/install" className={LINK}>
+                The install guide
+              </a>{" "}
+              covers package managers, QuotaDial's settings and its updates.
+            </p>
           </div>
 
           <div className="md:col-span-7">
+            <CommandTable commands={COMMANDS} />
+          </div>
+        </div>
+
+        <div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-10 border-t border-rule pt-16 md:grid-cols-12">
+          <div className="md:col-span-5">
             <SectionHeading id="check-heading">Check a download</SectionHeading>
             <p className="mt-4 mb-0 max-w-measure">
-              <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> lists every file's SHA-256, in each release after 0.2.0. In the folder you
-              downloaded to, paste the line for your system. It prints OK beside each file that matches, and FAILED
-              beside any that does not.
+              <InlineCode on="shallow">SHA256SUMS.txt</InlineCode> lists every file's SHA-256, in each release after
+              0.2.0, under both its names, so the check passes whichever you took. In the folder you downloaded to, paste
+              the line for your system. It prints OK beside each file that matches, and FAILED beside any that does not.
             </p>
-            <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-5">
+          </div>
+
+          <div className="md:col-span-7">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
               {GUIDE.checks.map((check) => (
                 <div key={check.system} className="grid grid-cols-[minmax(0,1fr)] gap-2">
                   <h3 className={H3}>On {check.system}</h3>

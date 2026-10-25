@@ -1,0 +1,65 @@
+{
+  "jargon": [
+    [
+      "quota",
+      "limit (a 'window' when it has its own reset)",
+      true
+    ],
+    [
+      "quotas",
+      "limits (or 'windows')",
+      true
+    ],
+    [
+      "OAuth",
+      "sign-in",
+      true
+    ],
+    [
+      "credential",
+      "sign-in",
+      false
+    ],
+    [
+      "auth",
+      "sign-in",
+      true
+    ],
+    [
+      "authenticat",
+      "sign-in, or signing in",
+      false
+    ]
+  ],
+  "coined": [],
+  "allowedAnywhere": [
+    "API",
+    "MCP",
+    "CLI",
+    "macOS",
+    "Windows",
+    "Linux",
+    "Claude Code",
+    "Codex",
+    "GitHub",
+    "JSON",
+    "SHA-256",
+    "webhook"
+  ],
+  "allowedLines": [],
+  "concrete": [
+    "\\d",
+    "%",
+    "\\b(QuotaDial|Claude|Codex|ChatGPT|Anthropic|OpenAI|Lemon Squeezy|Slack|GitHub)\\b",
+    "\\b(macOS|Windows|Linux|GNOME|Debian|Ubuntu)\\b",
+    "\\b(menu bar|tray|notification area|terminal|quotadial|qd)\\b",
+    "\\b(window|windows|reset|resets|pace|sign-in|licence|key)\\b",
+    "\\b(hour|hours|minute|minutes|day|days|week|weekly|month|year)\\b",
+    "\\b(MCP|API|MIT|SHA-256|SKILL\\.md|config\\.json|127\\.0\\.0\\.1)",
+    "\\.(dmg|msi|deb|AppImage|zip)\\b"
+  ],
+  "notes": {
+    "written": "2026-10-25 (UTC), for check-jargon.mjs on /install and /cli only (M5 queue item 12).",
+    "why": "Those two pages render docs/INSTALL.md and docs/CLI.md whole, word for word: reference guides for people running the command, where daemon, token, poll and endpoint are the precise terms. The guides are held to the words #52 bans in anything a user reads (quota, auth, credential and their relatives); the stricter list in jargon-terms.json still governs the site's own words, the pages' heads and closings included, which the docs-pages lane checks against it."
+  }
+}
