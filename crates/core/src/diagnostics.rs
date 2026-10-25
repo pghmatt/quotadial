@@ -104,6 +104,7 @@ impl Diagnostics {
                     .errors
                     .iter()
                     .map(|error| error.message.clone())
+                    .chain(report.problems.iter().cloned())
                     .collect(),
             ),
         ];
@@ -277,6 +278,7 @@ mod tests {
                 status_pages: Vec::new(),
                 costs: Vec::new(),
                 left_out: vec![LeftOut::feature(ProFeature::CostScan)],
+                problems: Vec::new(),
             },
             settings: vec![
                 ("history_days".into(), "30".into()),

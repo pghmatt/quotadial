@@ -25,6 +25,11 @@ pub struct StatusReport {
     /// be (D-100). Left out on QuotaDial Pro.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub left_out: Vec<LeftOut>,
+    /// What is wrong with QuotaDial itself rather than a provider, each in one line that names the
+    /// fix or says it is dealt with, such as a history it could not read or save (D-107). Left out
+    /// when there is none, and of a direct fetch.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub problems: Vec<String>,
 }
 
 /// Something a QuotaDial Free copy leaves out of a report, such as more accounts on the machine or
@@ -293,6 +298,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let merged = report.normalized();
@@ -333,6 +339,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let sorted = report.normalized();

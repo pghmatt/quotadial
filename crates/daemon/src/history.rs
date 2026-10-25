@@ -7,14 +7,18 @@
 //! in its newest fetch time, status or message, so a replay from the cache adds nothing. A window's
 //! reading is stored once per fetch time, in `readings`, which is what a window's pace is fitted to
 //! (P-016). The file is created readable only by the user, in a folder only the user can open.
+//!
+//! A history SQLite finds damaged, or that is not a database at all, is moved aside under a dated
+//! name by the daemon, which alone may move it, and a new one is started with the alert rules that
+//! could still be read ([`History::open_or_recover`], #52).
 
-use std::fs::OpenOptions;
-use std::path::Path;
+use std::fs::{self, OpenOptions};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use quotadial_core::{Account, Pace, Reading, Snapshot, Status, Window};
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use quotadial_core::{Account, Pace, Reading, Snapshot, Status, Window, text};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, TransactionBehavior, params};
 use serde::Serialize;
 
 /// How long history is kept unless `history_days` says otherwise.
@@ -33,33 +37,82 @@ pub struct History {
     connection: Mutex<Connection>,
     /// How many days of history are kept.
     keep_days: u32,
+    /// Where the database is, so damage seen while it runs can be noted beside it.
+    path: PathBuf,
 }
 
 /// Why history could not be read or written.
 #[derive(Debug)]
-pub struct HistoryError(String);
+pub struct HistoryError {
+    message: String,
+    /// Whether SQLite found the file damaged, or not a database at all.
+    damaged: bool,
+}
 
 impl HistoryError {
     pub(crate) fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
+        Self {
+            message: message.into(),
+            damaged: false,
+        }
+    }
+
+    /// Whether SQLite found the file damaged, or not a database at all, rather than busy, out of
+    /// reach or full. Only then is a new history the fix.
+    #[must_use]
+    pub fn is_damaged(&self) -> bool {
+        self.damaged
     }
 }
 
 impl std::fmt::Display for HistoryError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
+        formatter.write_str(&self.message)
     }
 }
 
 impl From<rusqlite::Error> for HistoryError {
     fn from(error: rusqlite::Error) -> Self {
-        Self(error.to_string())
+        Self {
+            damaged: matches!(
+                error.sqlite_error_code(),
+                Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase)
+            ),
+            message: error.to_string(),
+        }
     }
 }
 
 impl From<std::io::Error> for HistoryError {
     fn from(error: std::io::Error) -> Self {
-        Self(error.to_string())
+        Self::new(error.to_string())
+    }
+}
+
+/// What starting a new history in place of a damaged one did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Recovered {
+    /// Where the damaged file was moved, beside the new one.
+    pub moved_to: PathBuf,
+    /// How many alert rules could be read from it and were kept. With none, the new history has
+    /// the starting rules.
+    pub rules: usize,
+}
+
+impl Recovered {
+    /// The one line that tells the user, with `home` written `~`.
+    #[must_use]
+    pub fn line(&self, home: Option<&Path>) -> String {
+        let kept = match self.rules {
+            0 => "with the starting alert rules".to_owned(),
+            1 => "and kept your alert rule".to_owned(),
+            rules => format!("and kept your {rules} alert rules"),
+        };
+        format!(
+            "QuotaDial could not read its history, so it started a new one {kept}; the old file is \
+             {}.",
+            text::tilde(&self.moved_to, home)
+        )
     }
 }
 
@@ -82,7 +135,7 @@ impl History {
         let mode: String =
             connection.pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))?;
         if !mode.eq_ignore_ascii_case("wal") {
-            return Err(HistoryError(format!(
+            return Err(HistoryError::new(format!(
                 "SQLite would not use WAL mode for {} (it chose {mode})",
                 path.display()
             )));
@@ -94,7 +147,7 @@ impl History {
         let upgrade = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let version: i32 = upgrade.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version > SCHEMA_VERSION {
-            return Err(HistoryError(format!(
+            return Err(HistoryError::new(format!(
                 "{} was written by a newer QuotaDial (schema {version})",
                 path.display()
             )));
@@ -147,12 +200,95 @@ impl History {
             }
         }
         crate::alerts::upgrade(&upgrade, version)?;
-        upgrade.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        // Written only when it changes, so a history opens on a full disk.
+        if version != SCHEMA_VERSION {
+            upgrade.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        }
         upgrade.commit()?;
         Ok(Self {
             connection: Mutex::new(connection),
             keep_days: KEEP_DAYS,
+            path: path.to_owned(),
         })
+    }
+
+    /// Opens the history at `path` for the daemon, which alone may move it, since it holds the
+    /// lock. With `check`, as after a stop that was not clean or damage seen while a daemon ran,
+    /// every page is read first ([`History::check_pages`]). A file SQLite finds damaged, or that is not a
+    /// database, is moved aside under a dated name beside it, with its WAL and shared-memory files,
+    /// and a new history is started, keeping the alert rules the old one still gives (#52).
+    ///
+    /// # Errors
+    ///
+    /// When the history cannot be opened for another reason, as when it is out of reach or from
+    /// a newer QuotaDial, or the damaged one cannot be moved, or a new one cannot be made.
+    pub fn open_or_recover(
+        path: &Path,
+        check: bool,
+        now: DateTime<Utc>,
+    ) -> Result<(Self, Option<Recovered>), HistoryError> {
+        let opened = Self::open(path).and_then(|history| {
+            if check {
+                history.check_pages()?;
+            }
+            Ok(history)
+        });
+        match opened {
+            Ok(history) => {
+                history.clear_damage();
+                Ok((history, None))
+            }
+            Err(error) if error.is_damaged() => {
+                let moved_to = move_aside(path, now)?;
+                let history = Self::open(path)?;
+                let rules = crate::alerts::carry_rules(&history, &moved_to);
+                history.clear_damage();
+                Ok((history, Some(Recovered { moved_to, rules })))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Reads every page with SQLite's `quick_check`, which takes a moment on a year of history.
+    ///
+    /// # Errors
+    ///
+    /// A damaged history ([`HistoryError::is_damaged`]), or one that cannot be read.
+    pub fn check_pages(&self) -> Result<(), HistoryError> {
+        let found: String = self
+            .lock()
+            .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))?;
+        if found == "ok" {
+            Ok(())
+        } else {
+            Err(HistoryError {
+                message: format!("the history is damaged: {found}"),
+                damaged: true,
+            })
+        }
+    }
+
+    /// Notes that SQLite found the history damaged while it ran, beside the database, so the next
+    /// daemon to start checks every page and starts a new one. Best effort: with nowhere to write,
+    /// the next stop that is not clean does the same.
+    pub fn note_damage(&self) {
+        Self::note_damage_at(&self.path);
+    }
+
+    /// Notes damage beside the history at `path`, as [`History::note_damage`] does, for a reader
+    /// such as the CLI that found it and may not move it.
+    pub fn note_damage_at(path: &Path) {
+        let _ = fs::write(damage_note(path), b"");
+    }
+
+    /// Whether damage was noted beside the history at `path` and not yet dealt with.
+    #[must_use]
+    pub fn damage_noted(path: &Path) -> bool {
+        damage_note(path).exists()
+    }
+
+    fn clear_damage(&self) {
+        let _ = fs::remove_file(damage_note(&self.path));
     }
 
     /// The history, keeping `days` of it, from 1 to [`MAX_KEEP_DAYS`].
@@ -200,8 +336,9 @@ impl History {
             transaction.commit()?;
             return Ok(false);
         }
-        let json = serde_json::to_string(snapshot)
-            .map_err(|error| HistoryError(format!("the snapshot could not be saved: {error}")))?;
+        let json = serde_json::to_string(snapshot).map_err(|error| {
+            HistoryError::new(format!("the snapshot could not be saved: {error}"))
+        })?;
         transaction.execute(
             "INSERT INTO snapshots
                  (provider, org, account_id, polled_at, fetched_at, status, error, snapshot)
@@ -412,6 +549,52 @@ fn newest_fetch(snapshot: &Snapshot) -> Option<DateTime<Utc>> {
 /// A UTC time in a fixed format, so text order is time order.
 pub(crate) fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Micros, true)
+}
+
+/// Where damage seen while a daemon ran is noted: `history.db.damaged`, beside the database.
+fn damage_note(path: &Path) -> PathBuf {
+    let mut note = path.as_os_str().to_owned();
+    note.push(".damaged");
+    PathBuf::from(note)
+}
+
+/// Moves the database at `path` to a dated name beside it, such as
+/// `history-damaged-20261025T011200Z.db`, and returns where. Its `-wal` and `-shm` files go first,
+/// under the same name, since a WAL left beside a new database would be replayed into it.
+fn move_aside(path: &Path, now: DateTime<Utc>) -> Result<PathBuf, HistoryError> {
+    let stem = path
+        .file_stem()
+        .map_or_else(|| "history".into(), |stem| stem.to_string_lossy());
+    let extension = path.extension().map_or_else(String::new, |extension| {
+        format!(".{}", extension.to_string_lossy())
+    });
+    let stamp = now.format("%Y%m%dT%H%M%SZ");
+    let named = |count: u32| {
+        let suffix = if count > 1 {
+            format!("-{count}")
+        } else {
+            String::new()
+        };
+        path.with_file_name(format!("{stem}-damaged-{stamp}{suffix}{extension}"))
+    };
+    let mut count = 1;
+    let mut moved = named(count);
+    while moved.exists() {
+        count += 1;
+        moved = named(count);
+    }
+    for companion in ["-wal", "-shm"] {
+        let mut from = path.as_os_str().to_owned();
+        from.push(companion);
+        let from = PathBuf::from(from);
+        if from.exists() {
+            let mut to = moved.as_os_str().to_owned();
+            to.push(companion);
+            fs::rename(&from, PathBuf::from(to))?;
+        }
+    }
+    fs::rename(path, &moved)?;
+    Ok(moved)
 }
 
 #[cfg(test)]
@@ -802,5 +985,206 @@ mod tests {
                 .record(&first, ts("2099-01-01T00:02:00Z"))
                 .expect("records")
         );
+    }
+
+    /// Damage `path`'s page `page` of `size` bytes, counting from the end, as a disk or a sync
+    /// tool might.
+    fn damage(path: &Path, from_end: u64) {
+        use std::io::{Seek, SeekFrom, Write};
+        let size = 4096;
+        let mut file = OpenOptions::new().write(true).open(path).expect("opens");
+        let length = file.metadata().expect("metadata").len();
+        file.seek(SeekFrom::Start(length - from_end * size))
+            .expect("seeks");
+        file.write_all(&[0x5a; 4096]).expect("writes");
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_database_is_moved_aside_and_a_new_history_started() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("history.db");
+        std::fs::write(
+            &path,
+            b"not a database, and never was: a sync tool's conflict copy",
+        )
+        .expect("writes");
+        let now = ts("2099-10-25T01:12:00Z");
+
+        let (history, recovered) = History::open_or_recover(&path, false, now).expect("recovers");
+
+        let recovered = recovered.expect("moved aside");
+        let moved = dir.path().join("history-damaged-20991025T011200Z.db");
+        assert_eq!(
+            recovered,
+            Recovered {
+                moved_to: moved.clone(),
+                rules: 0
+            }
+        );
+        assert_eq!(
+            std::fs::read(&moved).expect("kept"),
+            b"not a database, and never was: a sync tool's conflict copy"
+        );
+        assert_eq!(
+            history.rules().expect("reads").len(),
+            2,
+            "the starting rules"
+        );
+        let first = snapshot("org-a", 10.0, "2099-10-25T01:12:00Z", Source::Api);
+        assert!(history.record(&first, now).expect("records"));
+        assert_eq!(
+            recovered.line(Some(dir.path())),
+            "QuotaDial could not read its history, so it started a new one with the starting \
+             alert rules; the old file is ~/history-damaged-20991025T011200Z.db."
+        );
+        let again = History::open_or_recover(&path, true, now).expect("opens");
+        assert_eq!(again.1, None, "a sound history stays where it is");
+    }
+
+    #[test]
+    fn a_damaged_page_found_by_the_check_keeps_the_alert_rules_it_can_read() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("history.db");
+        {
+            let history = History::open(&path).expect("opens");
+            history
+                .add_rule(
+                    "warn me at 50%",
+                    ts("2099-01-01T00:00:00Z"),
+                    quotadial_core::Tier::Pro,
+                )
+                .expect("adds");
+            history.set_rule_enabled(1, false).expect("turns off");
+            // Enough readings that the last pages are theirs, far from the rules'.
+            for minute in 0..2000 {
+                let at = ts("2099-01-01T00:00:00Z") + chrono::TimeDelta::minutes(minute);
+                let reading = snapshot(
+                    "org-a",
+                    f64::from(u32::try_from(minute % 100).expect("small")),
+                    &at.to_rfc3339(),
+                    Source::Api,
+                );
+                history.record(&reading, at).expect("records");
+            }
+            history
+                .lock()
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .expect("checkpoints");
+        }
+        damage(&path, 3);
+        let now = ts("2099-10-25T01:12:00Z");
+        assert!(
+            History::open(&path).is_ok(),
+            "the damage does not show on opening"
+        );
+
+        let (history, recovered) = History::open_or_recover(&path, true, now).expect("recovers");
+
+        assert_eq!(recovered.expect("moved aside").rules, 3);
+        let rules: Vec<(String, bool)> = history
+            .rules()
+            .expect("reads")
+            .into_iter()
+            .map(|rule| (rule.written, rule.enabled))
+            .collect();
+        assert_eq!(
+            rules,
+            [
+                ("warn me when a window passes 90%".to_owned(), false),
+                (
+                    "tell me when an account needs to sign in again".to_owned(),
+                    true
+                ),
+                ("warn me at 50%".to_owned(), true),
+            ],
+            "each as it was, the one turned off still off"
+        );
+        assert!(history.check_pages().is_ok());
+    }
+
+    #[test]
+    fn the_wal_and_shared_memory_go_aside_with_the_database() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("history.db");
+        std::fs::write(&path, b"garbage").expect("writes");
+        std::fs::write(dir.path().join("history.db-wal"), b"an old WAL").expect("writes");
+        std::fs::write(dir.path().join("history.db-shm"), b"old shared memory").expect("writes");
+
+        let moved = move_aside(&path, ts("2099-10-25T01:12:00Z")).expect("moves");
+
+        let named = |name: &str| dir.path().join(name);
+        assert_eq!(moved, named("history-damaged-20991025T011200Z.db"));
+        assert_eq!(std::fs::read(&moved).expect("moved"), b"garbage");
+        assert_eq!(
+            std::fs::read(named("history-damaged-20991025T011200Z.db-wal")).expect("moved"),
+            b"an old WAL"
+        );
+        assert_eq!(
+            std::fs::read(named("history-damaged-20991025T011200Z.db-shm")).expect("moved"),
+            b"old shared memory"
+        );
+        for gone in ["history.db", "history.db-wal", "history.db-shm"] {
+            assert!(!named(gone).exists(), "{gone}");
+        }
+    }
+
+    #[test]
+    fn damage_noted_while_a_daemon_ran_is_checked_for_and_dealt_with() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("history.db");
+        let history = History::open(&path).expect("opens");
+        history.note_damage();
+        drop(history);
+        assert!(History::damage_noted(&path));
+        std::fs::write(&path, b"garbage").expect("writes");
+
+        let (history, recovered) =
+            History::open_or_recover(&path, true, ts("2099-10-25T01:12:00Z")).expect("recovers");
+
+        assert!(recovered.is_some());
+        assert!(!History::damage_noted(&path), "dealt with");
+        assert_eq!(history.rules().expect("reads").len(), 2);
+    }
+
+    #[test]
+    fn a_second_recovery_in_the_same_second_gets_its_own_name() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("history.db");
+        let now = ts("2099-10-25T01:12:00Z");
+        std::fs::write(&path, b"garbage").expect("writes");
+        let (first, recovered) = History::open_or_recover(&path, false, now).expect("recovers");
+        drop(first);
+        std::fs::write(&path, b"garbage again").expect("writes");
+
+        let (_second, again) = History::open_or_recover(&path, false, now).expect("recovers");
+
+        assert_eq!(
+            recovered.expect("moved").moved_to,
+            dir.path().join("history-damaged-20991025T011200Z.db")
+        );
+        assert_eq!(
+            again.expect("moved").moved_to,
+            dir.path().join("history-damaged-20991025T011200Z-2.db")
+        );
+    }
+
+    #[test]
+    fn a_history_that_is_only_busy_or_out_of_reach_is_never_moved() {
+        let error = HistoryError::from(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+            None,
+        ));
+        assert!(!error.is_damaged());
+        let full = HistoryError::from(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_FULL),
+            None,
+        ));
+        assert!(!full.is_damaged());
+        let corrupt = HistoryError::from(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            None,
+        ));
+        assert!(corrupt.is_damaged());
+        assert!(!HistoryError::from(std::io::Error::other("denied")).is_damaged());
     }
 }

@@ -66,8 +66,10 @@ struct AppState {
     /// When the popover last opened, and how.
     opened: Mutex<Option<(Instant, Opened)>>,
     settings: Mutex<Settings>,
-    /// The daemon's history, which keeps the alert rules and their firings, when it can be opened.
-    history: Option<Arc<History>>,
+    /// The daemon's history, which keeps the alert rules and their firings: the daemon's own while
+    /// the app runs it, or one the app opens while it follows another. Read through
+    /// [`AppState::history`].
+    history: Mutex<Option<Arc<History>>>,
     /// The newest firing told as a notification.
     told: Mutex<Told>,
     /// Where the settings and the record of what was told are kept, if the system names a folder
@@ -123,6 +125,16 @@ struct Known {
 }
 
 impl AppState {
+    /// The daemon's history, opened now if it could not be before, as when the daemon that has
+    /// since started found it damaged and began a new one.
+    fn history(&self) -> Option<Arc<History>> {
+        let mut history = self.history.lock().unwrap_or_else(PoisonError::into_inner);
+        if history.is_none() {
+            *history = open_history();
+        }
+        history.clone()
+    }
+
     fn meter(&self) -> Meter {
         let settings = self
             .settings
@@ -224,7 +236,7 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .collect(),
         alert_problems,
         alerts: state
-            .history
+            .history()
             .iter()
             .flat_map(|history| history.rules().unwrap_or_default())
             .map(|rule| AlertChoice {
@@ -336,7 +348,7 @@ fn add_alert(
     state: tauri::State<'_, AppState>,
     rule: String,
 ) -> Result<SettingsView, String> {
-    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let history = state.history().ok_or_else(no_history)?;
     let tier = Licensing::new(DataDir::from_env().as_ref()).tier();
     history
         .add_rule(&rule, Utc::now(), tier)
@@ -360,7 +372,7 @@ fn set_alert(
     id: i64,
     enabled: bool,
 ) -> Result<SettingsView, String> {
-    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let history = state.history().ok_or_else(no_history)?;
     history
         .set_rule_enabled(id, enabled)
         .map_err(|error| format!("QuotaDial could not change the rule: {error}."))?;
@@ -378,7 +390,7 @@ fn remove_alert(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<SettingsView, String> {
-    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let history = state.history().ok_or_else(no_history)?;
     history
         .remove_rule(id)
         .map_err(|error| format!("QuotaDial could not remove the rule: {error}."))?;
@@ -536,14 +548,14 @@ fn open(app: &AppHandle, address: &str) -> Result<(), String> {
 /// When the history cannot be read, for the popover to show.
 #[tauri::command]
 fn history(state: tauri::State<'_, AppState>, days: u32) -> Result<history::HistoryView, String> {
-    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let history = state.history().ok_or_else(no_history)?;
     let settings = state
         .settings
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
     history::view(
-        history,
+        &history,
         &settings,
         days.clamp(1, 365),
         Utc::now(),
@@ -562,7 +574,7 @@ fn export_history(
     state: tauri::State<'_, AppState>,
     days: u32,
 ) -> Result<String, String> {
-    let history = state.history.as_ref().ok_or_else(no_history)?;
+    let history = state.history().ok_or_else(no_history)?;
     let folder = app
         .path()
         .download_dir()
@@ -572,7 +584,7 @@ fn export_history(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    let path = history::export(history, &settings, days.clamp(1, 365), Utc::now(), &folder)?;
+    let path = history::export(&history, &settings, days.clamp(1, 365), Utc::now(), &folder)?;
     Ok(format!(
         "Saved to {}.",
         text::tilde(&path, app.path().home_dir().ok().as_deref())
@@ -730,7 +742,7 @@ pub fn run() {
                 hidden_at: Mutex::default(),
                 opened: Mutex::default(),
                 settings: Mutex::new(settings),
-                history,
+                history: Mutex::new(history),
                 told: Mutex::new(told),
                 files,
                 licence_changed: Arc::clone(&licence_changed),
@@ -884,6 +896,12 @@ fn receive(app: &AppHandle, update: Update) {
                 tell(app);
                 return;
             }
+            Update::History(kept) => {
+                drop(known);
+                *state.history.lock().unwrap_or_else(PoisonError::into_inner) = Some(kept.0);
+                tell(app);
+                return;
+            }
         }
     }
     refresh(app);
@@ -893,10 +911,17 @@ fn receive(app: &AppHandle, update: Update) {
 /// the record of the newest one told.
 fn tell(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let Some(history) = &state.history else {
+    let Some(history) = state.history() else {
         return;
     };
     let mut told = state.told.lock().unwrap_or_else(PoisonError::into_inner);
+    // A history started again in place of a damaged one numbers its firings from 1, so what was
+    // told of the old one says nothing about it: what it holds already is not told.
+    if let Ok(newest) = history.last_firing()
+        && newest < told.last
+    {
+        told.last = newest;
+    }
     let Ok(firings) = history.firings(told.last, Utc::now() - TELL_WITHIN) else {
         return;
     };

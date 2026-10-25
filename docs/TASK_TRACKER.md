@@ -148,7 +148,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 2: Free and Pro | Done (PR #56) | `Licensing`, the one switch, read from the key at every ask; Free shows one account per provider, keeps 30 days, checks threshold, reset and sign-in rules, sends no webhooks and reads no logs; headroom and the alert rules through the API and MCP are Pro's; `left_out` and a line where each feature would be; a key counts without a restart (D-100) |
 | 3: help and feedback | Done (PR #57) | `quotadial doctor` and Send feedback from one text built in core, with emails cut to their first letters and nothing secret; Help in the popover and the tray's menu with What's new from the built-in `CHANGELOG.md`, support and About; release notes from the changelog (D-101) |
 | 4: the key page's function | Done (PR #58) | `POST /api/key` in `site/`: validates the receipt's key with Lemon Squeezy (valid, `inactive` or `active`, QuotaDial's store and product) and signs `ls-<id>` with the issuing key, deterministically; the issuing key `ISSUER` beside the root; `KeyError::OrderKey`; the ended-licence sentence names the renewal; a `site` CI job (D-102) |
-| Free at once (#56's review) | In review (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
+| Free at once (#56's review) | Done (PR #60) | A lapsed key now ends the week's cost and Pro-length history at once: scans keep their result only within the costs generation they began in, and a tier change prunes now; `left_out` asks `Tier::allows` per feature; `alerts --json` marks `waits`; the nudge's wake-up is tested through `run()` |
+| 7: resilience | In review (PR #61) | A damaged history is moved aside under a dated name and a new one started with the alert rules it still gives, checked page by page after an unclean stop; a full disk is said in the report until a save works, and webhook sends are not repeated; a wake from sleep or a clock jump ahead asks everything again at once; an unreachable provider is asked again within a minute; `problems` in the report (D-107, D-108) |
 | 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -336,6 +337,41 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 7: resilience (D-107, D-108)
+
+- **The report's `problems`** (`StatusReport.problems`, `Latest::set_problem`, `Problem`): one
+  line each, by kind, shown by `status`, the app (popover and tray menu), `doctor`, the API and
+  MCP; the agent skill says to pass them on.
+- **A damaged history** (`crates/daemon/src/history.rs`): `HistoryError::is_damaged` from SQLite's
+  codes; `History::open_or_recover(path, check, now)`, used by `Host::start` under the lock, with
+  `check` after an unclean stop or a noted damage; `check_pages` (`quick_check(1)`); `move_aside`
+  (WAL and shared memory first) to `history-damaged-<time>[-n].db`; `alerts::carry_rules`, quiet
+  at first; `Recovered::line`, also printed by `quotadial daemon`; `note_damage`, written by the
+  poller and the CLI's history commands, cleared once dealt with. `user_version` is written only
+  when it changes. `CostScan` deletes and remakes a damaged `costs.db`.
+- **The tray** reads the daemon's own `History` (`Update::History`) while it runs one, opens its
+  own lazily otherwise, and resets its told-firing record when the history's newest firing is
+  below it.
+- **Full disk** (`crates/daemon/src/poller.rs`): `not_saved` sets the saving problem from any
+  failed history write (a reading, a firing, a status page, a prune) and notes damage; a reading
+  saved clears it. `Deliverer` remembers webhook sends it could not record for the run.
+- **Sleep, clock and network:** `poll_due` compares the wall clock (`WallClock`, which tests move)
+  with its own; `WOKE_AFTER` (2 minutes) unseen makes everything due. `RETRY_UNREACHED` (a minute)
+  after `Error::Request` or a stale answer. `undelivered` takes a last try in the future as due
+  now. The known limit (a reset alert around a clock set back) is in D-108.
+- **Tests:** 524 in the workspace (19 new) and 52 in the app. History: a file that is not a
+  database, a damaged page found by the check with three rules carried (one still off), the WAL
+  and shared memory moved with it, a second recovery in the same second, noted damage dealt with,
+  busy and full errors never taken for damage. Alerts: carried rules quiet at first, nothing
+  readable leaves the starting rules. Cost: a damaged `costs.db` made again. Deliveries: a send
+  that cannot be recorded goes once; a clock set back does not hold up a retry. Poller: a wake
+  asks everything at once; a clock set back is not a wake; an unreachable account is asked within
+  a minute and back at its floor once answered; stale numbers within a minute; a history that
+  cannot be saved says so until a save works; damage seen while running is noted. API: a damaged
+  history moved aside at start with the line in the report; after an unclean stop the check finds
+  a damaged page. Each poller and delivery test, and the unclean-stop check, fails with its fix
+  taken out.
 
 ### M5: Free at once, from the review of PR #56
 

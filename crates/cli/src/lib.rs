@@ -653,15 +653,32 @@ fn open_history() -> Result<History, String> {
         .map_err(|error| format!("could not use {}: {error}", dir.path().display()))?;
     History::open(&dir.history()).map_err(|error| {
         format!(
-            "could not open the history at {}: {error}",
-            dir.history().display()
+            "could not open the history at {}: {error}{}",
+            dir.history().display(),
+            fix_for(&error)
         )
     })
 }
 
 fn history_failed(error: &HistoryError) -> ExitCode {
-    eprintln!("quotadial: could not use the history: {error}");
+    eprintln!(
+        "quotadial: could not use the history: {error}{}",
+        fix_for(error)
+    );
     ExitCode::FAILURE
+}
+
+/// What to do about `error`, from a history the CLI may read but not move: a damaged one is noted
+/// for the daemon, which starts a new one (#52).
+fn fix_for(error: &HistoryError) -> &'static str {
+    if !error.is_damaged() {
+        return "";
+    }
+    if let Some(dir) = DataDir::from_env() {
+        History::note_damage_at(&dir.history());
+    }
+    ". It is damaged: quit QuotaDial and open it again, or restart `quotadial daemon`, which \
+     moves it aside and starts a new one with your alert rules"
 }
 
 /// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
@@ -792,6 +809,12 @@ fn daemon(port: u16) -> ExitCode {
         }
         for warning in &config.warnings {
             eprintln!("quotadial: warning: {warning}");
+        }
+        if let Some(recovered) = host.recovered() {
+            eprintln!(
+                "quotadial: {}",
+                recovered.line(std::env::home_dir().as_deref())
+            );
         }
         match host.run(shutdown_signal()).await {
             Ok(()) => {
@@ -987,6 +1010,9 @@ fn write_text(
     }
     for error in &report.errors {
         writeln!(out, "error: {}", error.message)?;
+    }
+    for problem in &report.problems {
+        writeln!(out, "{problem}")?;
     }
     let windows = report
         .snapshots
@@ -1263,6 +1289,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         assert_eq!(
@@ -1285,6 +1312,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         assert_eq!(
@@ -1306,6 +1334,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1330,6 +1359,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1501,6 +1531,7 @@ mod tests {
                 ),
             ],
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let shown = render(&report, false);
@@ -1535,6 +1566,7 @@ mod tests {
             ],
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let shown = render(&report, false);
@@ -1559,6 +1591,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         assert_eq!(
@@ -1579,6 +1612,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         assert_eq!(
@@ -1607,6 +1641,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         assert_eq!(
@@ -1630,6 +1665,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1661,6 +1697,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");

@@ -691,6 +691,83 @@ async fn a_host_serves_until_stopped_then_leaves_nothing_behind() {
 }
 
 #[tokio::test]
+async fn a_damaged_history_is_moved_aside_as_the_daemon_starts_and_the_report_says_so() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = offline(&temp);
+    std::fs::write(dir.history(), b"a sync tool's conflict copy").expect("writes");
+
+    let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+
+    let recovered = host.recovered().expect("moved aside").clone();
+    assert!(recovered.moved_to.exists());
+    assert!(
+        recovered
+            .moved_to
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("history-damaged-")),
+        "{}",
+        recovered.moved_to.display()
+    );
+    let problems = host.latest().report().problems;
+    assert_eq!(problems.len(), 1);
+    assert!(
+        problems[0].starts_with(
+            "QuotaDial could not read its history, so it started a new one with the starting \
+             alert rules; the old file is "
+        ),
+        "{}",
+        problems[0]
+    );
+    assert_eq!(host.history().rules().expect("reads").len(), 2);
+}
+
+#[tokio::test]
+async fn after_a_stop_that_was_not_clean_every_page_is_checked() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let dir = offline(&temp);
+    // A daemon that crashed: its daemon.json is still there.
+    Runtime {
+        pid: 1,
+        port: 9,
+        started_at: chrono::Utc::now(),
+    }
+    .write(&dir)
+    .expect("writes");
+    {
+        let history = quotadial_daemon::History::open(&dir.history()).expect("opens");
+        history
+            .add_rule(
+                "warn me at 50%",
+                chrono::Utc::now(),
+                quotadial_core::Tier::Pro,
+            )
+            .expect("adds");
+    }
+    // Damage the last page, which opening the history does not read.
+    {
+        use std::io::{Seek, SeekFrom, Write};
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(dir.history())
+            .expect("opens");
+        let length = file.metadata().expect("metadata").len();
+        file.seek(SeekFrom::Start(length - 4096)).expect("seeks");
+        file.write_all(&[0x5a; 4096]).expect("writes");
+    }
+    assert!(
+        quotadial_daemon::History::open(&dir.history()).is_ok(),
+        "the damage does not show on opening"
+    );
+
+    let host = Host::start(dir.clone(), fixed(), 0).await.expect("starts");
+
+    let recovered = host.recovered().expect("found by the check");
+    assert_eq!(recovered.rules, 3, "the starting rules and the one added");
+    host.history().check_pages().expect("a sound history");
+}
+
+#[tokio::test]
 async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
     let temp = tempfile::tempdir().expect("temp dir");
     let dir = offline(&temp);

@@ -142,6 +142,31 @@ same daemon itself when none is running, so with the app open there is no need t
   daemon that stops while being asked, as when the tray app quits, hands over: once its lock is
   released, they fetch for themselves.
 
+### When something goes wrong
+
+The daemon keeps going, and says what is wrong in one line in the report's `problems`, which
+`status`, the app's popover, `doctor`, the API and MCP all show:
+
+- **A damaged history.** A history SQLite finds damaged, or that is not a database at all, as when
+  a sync tool replaces it, is moved aside under a dated name beside it, such as
+  `history-damaged-20261025T011200Z.db`, with its `-wal` and `-shm` files, and a new one is
+  started. The alert rules that can still be read from the old file are kept, each on or off as it
+  was, and what they told already is not told again. Every page is read for damage when the daemon
+  starts after a stop that was not clean, or after damage was seen while one ran; otherwise
+  opening the file is the check, which keeps starting quick. Only the daemon moves the history: a
+  command such as `quotadial history` that finds it damaged notes it and says to restart the daemon
+  or reopen the app. `costs.db` holds only what the logs say, so a damaged one is made again.
+- **A full disk.** Numbers keep updating while the history cannot be saved, and the report says so
+  until a save works again. An alert sent to a webhook that could not be recorded is not sent again
+  while the daemon runs.
+- **Sleep.** After the machine wakes, every account is asked again at once rather than at its next
+  turn, as each provider's floor allows, and numbers older than that show their age until then.
+- **The network.** An account whose provider could not be reached is asked again within a minute,
+  so its numbers are current soon after the network is back; until then it shows its last numbers,
+  marked stale, with their age.
+- **The clock.** A clock that jumps ahead is taken as a wake. One set back does not stop polling,
+  repeat alerts or hold up a webhook's next try.
+
 ## Alerts
 
 An alert rule says, in plain words, what to be told about. QuotaDial reads it with a small grammar
@@ -677,6 +702,7 @@ the last, without escape codes.
 | `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
 | `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
 | `left_out[]` | What this copy leaves out because it is QuotaDial Free (see QuotaDial Free and Pro): each with `feature` (`accounts` or `cost_scan`), `provider` for the accounts a provider held back, and `text`, the line that says so, such as `8 more Claude accounts are on this machine. Showing every account is part of QuotaDial Pro: quotadial.com/pro`. Left out on QuotaDial Pro |
+| `problems[]` | What is wrong with QuotaDial itself rather than a provider, each one line that names the fix or says it is dealt with, such as a history the daemon could not save (see When something goes wrong). Left out when there is none, and with no daemon running |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 

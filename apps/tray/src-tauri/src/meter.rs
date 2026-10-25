@@ -189,6 +189,8 @@ impl Meter {
         meter
             .problems
             .extend(report.errors.iter().map(|error| error.message.clone()));
+        // What is wrong with QuotaDial itself, such as a history it could not save (D-107).
+        meter.problems.extend(report.problems.iter().cloned());
         meter.incidents = report
             .status_pages
             .iter()
@@ -463,6 +465,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         }
     }
 
@@ -581,6 +584,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -681,6 +685,7 @@ mod tests {
                 status_pages: Vec::new(),
                 costs: Vec::new(),
                 left_out: Vec::new(),
+                problems: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -708,6 +713,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -750,6 +756,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());

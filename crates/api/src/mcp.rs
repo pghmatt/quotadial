@@ -317,7 +317,7 @@ impl Server<'_> {
 }
 
 /// `report` with only `provider`'s accounts, errors, status page, cost and what QuotaDial Free
-/// leaves out of it, or all of them.
+/// leaves out of it, or all of them. QuotaDial's own problems are every provider's.
 fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
     let Some(provider) = provider else {
         return report;
@@ -348,6 +348,7 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .into_iter()
             .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| of == provider))
             .collect(),
+        problems: report.problems,
     }
 }
 
@@ -472,6 +473,7 @@ mod tests {
             status_pages: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            problems: Vec::new(),
         }
     }
 
