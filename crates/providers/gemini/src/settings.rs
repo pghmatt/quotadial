@@ -57,6 +57,10 @@ impl Method {
 /// How Gemini CLI's settings at `path` say it signs in, or `None` when the file is missing, cannot
 /// be read, or names no way. The file's bytes are wiped from memory once read.
 pub(crate) fn read(path: &Path) -> Option<Method> {
+    // Only a plain file is opened: opening a pipe left in its place would wait for a writer forever.
+    if !std::fs::metadata(path).ok()?.is_file() {
+        return None;
+    }
     let file = File::open(path).ok()?;
     let length = file.metadata().ok()?.len();
     if length > MOST {
@@ -378,6 +382,28 @@ mod tests {
         std::fs::write(&file, naming("gemini-api-key")).expect("writes");
         assert_eq!(read(&file), Some(Method::ApiKey));
         assert_eq!(read(temp.path()), None, "a folder");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_pipe_in_place_of_the_file_is_never_opened() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let pipe = temp.path().join("settings.json");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&pipe)
+            .status()
+            .expect("runs mkfifo");
+        assert!(made.success(), "mkfifo {made}");
+        let (sent, read_back) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sent.send(read(&pipe));
+        });
+
+        assert_eq!(
+            read_back.recv_timeout(std::time::Duration::from_secs(5)),
+            Ok(None),
+            "reading waited on a pipe that nothing writes to"
+        );
     }
 
     #[test]
