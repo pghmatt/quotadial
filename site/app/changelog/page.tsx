@@ -47,8 +47,9 @@ export default function Changelog() {
           If you already have QuotaDial
         </h2>
         <p className="mt-4 mb-0 max-w-[52ch] text-[1.1875rem]">
-          Once a day the app asks GitHub for a newer version, offers it in the popover and in Help, and installs it
-          only when you choose Update. New to it, or setting up another machine, download it here.
+          Every version after 0.2.0 asks GitHub once a day for a newer full release, offers it in the popover and in
+          Help, and installs it only when you choose Update. Versions 0.1.0 and 0.2.0 do not check, so download the
+          newer version here.
         </p>
         <div className="mt-8">
           <DownloadButton primary={false} />

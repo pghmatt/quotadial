@@ -5,7 +5,6 @@ import { PageIntro } from "../components/reference/PageIntro.tsx";
 
 export const metadata: Metadata = {
   title: { absolute: "Page not found | QuotaDial" },
-  robots: { index: false, follow: true },
 };
 
 const WAYS = [
