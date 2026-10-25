@@ -3,15 +3,18 @@
 // Printing results is this crate's job.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-use std::io::{self, BufRead, IsTerminal, Write};
+use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::process::ExitCode;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
-use clap::{Parser, Subcommand};
+use clap::{Arg, ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
-use quotadial_core::{Indicator, ProFeature, Provider, StatusReport, Tier, collect, text};
+use quotadial_core::{
+    Indicator, Invocation, ProFeature, Provider, ProviderCommand, StatusReport, Tier, collect, text,
+};
 use quotadial_daemon::{
     AddError, Alerts, Config, DataDir, History, HistoryError, KEEP_DAYS, Licensing, Series,
     SeriesQuery, Webhook, licence,
@@ -159,13 +162,25 @@ const WATCH_EVERY: Duration = Duration::from_secs(60);
 /// Runs the CLI and returns the process exit code.
 #[must_use]
 pub fn run() -> ExitCode {
-    match Cli::parse().command {
-        Command::Status { json } => status(json),
-        Command::Watch { json } => watch(json),
-        Command::Daemon { port } => daemon(port),
-        Command::Mcp => mcp(),
+    let providers = quotadial_providers::all();
+    let matches = command(&providers).get_matches();
+    if let Some(code) = run_provider_command(
+        &providers,
+        &matches,
+        &mut io::stdin().lock(),
+        &mut io::stdout().lock(),
+        &mut io::stderr().lock(),
+    ) {
+        return code;
+    }
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    match cli.command {
+        Command::Status { json } => status(&providers, json),
+        Command::Watch { json } => watch(&providers, json),
+        Command::Daemon { port } => daemon(providers, port),
+        Command::Mcp => mcp(&providers),
         Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
-        Command::Doctor => doctor(),
+        Command::Doctor => doctor(&providers),
         Command::Licence { action } => {
             licence(action.unwrap_or(LicenceAction::Show { json: false }))
         }
@@ -178,6 +193,79 @@ pub fn run() -> ExitCode {
             json,
         } => history(&since, provider, account, window, csv, json),
     }
+}
+
+/// What a provider's command is given after its name, as typed.
+const WORDS: &str = "words";
+
+/// Everything the CLI accepts: its own commands, and `quotadial <provider id> <name>` for each
+/// command a provider adds (P-018), so its help, completions and manual pages list those too. A
+/// provider with no commands of its own adds nothing.
+fn command<P: AsRef<dyn Provider>>(providers: &[P]) -> clap::Command {
+    providers.iter().fold(Cli::command(), |cli, provider| {
+        let provider = provider.as_ref();
+        let commands = own_commands(provider);
+        if commands.is_empty() {
+            return cli;
+        }
+        cli.subcommand(
+            clap::Command::new(provider.id())
+                .about(format!("Commands the {} provider adds", provider.id()))
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommands(commands.iter().map(|own| {
+                    clap::Command::new(own.name).about(own.about).arg(
+                        Arg::new(WORDS)
+                            .help("Handed to the command as they are")
+                            .num_args(0..)
+                            .trailing_var_arg(true)
+                            .allow_hyphen_values(true),
+                    )
+                })),
+        )
+    })
+}
+
+/// A provider's own commands, or none when its id is the name of one of QuotaDial's own commands,
+/// which always win.
+fn own_commands(provider: &dyn Provider) -> Vec<ProviderCommand> {
+    if Cli::command().find_subcommand(provider.id()).is_some() {
+        return Vec::new();
+    }
+    provider.commands()
+}
+
+/// Runs the provider command that `matches` names, `quotadial <provider id> <name> [words...]`,
+/// with the streams given, and gives its exit status. `None` when `matches` names one of QuotaDial's
+/// own commands.
+fn run_provider_command<P: AsRef<dyn Provider>>(
+    providers: &[P],
+    matches: &ArgMatches,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> Option<ExitCode> {
+    let (id, group) = matches.subcommand()?;
+    let provider = providers
+        .iter()
+        .map(AsRef::as_ref)
+        .find(|provider| provider.id() == id)?;
+    let (name, own) = group.subcommand()?;
+    let command = own_commands(provider)
+        .into_iter()
+        .find(|command| command.name == name)?;
+    let args: Vec<String> = own
+        .get_many::<String>(WORDS)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect();
+    Some((command.run)(Invocation {
+        args: &args,
+        stdin,
+        stdout,
+        stderr,
+    }))
 }
 
 fn runtime() -> Option<tokio::runtime::Runtime> {
@@ -224,13 +312,11 @@ async fn report<P: AsRef<dyn Provider>>(
     Ok((report, Origin::Direct))
 }
 
-fn status(json: bool) -> ExitCode {
+fn status(providers: &[Arc<dyn Provider>], json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = quotadial_providers::all();
-    let (report, origin) = match runtime.block_on(report(&providers, DataDir::from_env().as_ref()))
-    {
+    let (report, origin) = match runtime.block_on(report(providers, DataDir::from_env().as_ref())) {
         Ok(shown) => shown,
         Err(error) => {
             eprintln!("quotadial: {error}");
@@ -252,18 +338,17 @@ fn status(json: bool) -> ExitCode {
 }
 
 /// Refreshes forever, until stopped with Ctrl-C or its reader goes away.
-fn watch(json: bool) -> ExitCode {
+fn watch(providers: &[Arc<dyn Provider>], json: bool) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = quotadial_providers::all();
     let dir = DataDir::from_env();
     // The Windows console shows escape codes as text unless a program turns them on, which needs
     // unsafe code, so on Windows each refresh simply follows the last.
     let redraw = !json && io::stdout().is_terminal() && !cfg!(windows);
     runtime.block_on(async {
         loop {
-            let report = report(&providers, dir.as_ref()).await;
+            let report = report(providers, dir.as_ref()).await;
             let mut stdout = io::stdout().lock();
             let written = match &report {
                 Ok((report, _)) if json => write_json_line(report, &mut stdout),
@@ -274,7 +359,7 @@ fn watch(json: bool) -> ExitCode {
                 }
                 _ => write_frame(
                     report.as_ref().map(|(report, origin)| (report, *origin)),
-                    &providers,
+                    providers,
                     Utc::now(),
                     redraw,
                     &mut stdout,
@@ -290,11 +375,10 @@ fn watch(json: bool) -> ExitCode {
 }
 
 /// Serves MCP on standard input and output until the agent closes them.
-fn mcp() -> ExitCode {
+fn mcp(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = quotadial_providers::all();
     let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
     let dir = DataDir::from_env();
     let served = runtime.block_on(quotadial_api::mcp::serve(
@@ -302,7 +386,7 @@ fn mcp() -> ExitCode {
         tokio::io::stdout(),
         &ids,
         async || {
-            report(&providers, dir.as_ref())
+            report(providers, dir.as_ref())
                 .await
                 .map(|(report, _)| report)
         },
@@ -391,13 +475,12 @@ fn alerts(action: AlertsAction) -> ExitCode {
 
 /// Prints what support asks for, from the daemon's numbers when one runs and a direct fetch when
 /// not, as `status` does. A daemon that does not answer is said rather than polled around.
-fn doctor() -> ExitCode {
+fn doctor(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = quotadial_providers::all();
     let dir = DataDir::from_env();
-    let (report, numbers_from) = match runtime.block_on(report(&providers, dir.as_ref())) {
+    let (report, numbers_from) = match runtime.block_on(report(providers, dir.as_ref())) {
         Ok((report, Origin::Daemon)) => (report, "the daemon".to_owned()),
         Ok((report, Origin::Direct)) => (report, "a direct fetch".to_owned()),
         Err(error) => (StatusReport::default(), format!("nowhere: {error}")),
@@ -777,7 +860,7 @@ fn capitalized(text: &str) -> String {
 }
 
 /// Runs the daemon until Ctrl-C, or on Unix until it is told to terminate.
-fn daemon(port: u16) -> ExitCode {
+fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
     let Some(dir) = DataDir::from_env() else {
         eprintln!("quotadial: {}", no_data_directory());
         return ExitCode::FAILURE;
@@ -785,7 +868,6 @@ fn daemon(port: u16) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let providers = quotadial_providers::all();
     runtime.block_on(async {
         let limits = limits(&providers);
         let host = match Host::start(dir, providers, port).await {
@@ -1130,7 +1212,7 @@ mod tests {
 
     /// A provider that counts its fetches, to show whether something polled.
     #[derive(Default)]
-    struct CountingProvider(AtomicUsize);
+    pub(crate) struct CountingProvider(AtomicUsize);
 
     impl CountingProvider {
         fn fetches(&self) -> usize {
@@ -1976,5 +2058,226 @@ mod tests {
                  asks scripted at most every 5 min. Press Ctrl-C to stop.\n"
             )
         );
+    }
+
+    /// A provider with one command of its own, `quotadial chatty echo`, which writes the words it
+    /// was given and what came in, says so on standard error, and exits with 3 (P-018).
+    pub(crate) struct ChattyProvider;
+
+    /// The one line `quotadial chatty --help` shows for `echo`.
+    pub(crate) const ECHO_ABOUT: &str = "Writes the words it is given and what comes in";
+
+    #[async_trait]
+    impl Provider for ChattyProvider {
+        fn id(&self) -> &'static str {
+            "chatty"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(Vec::new())
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(Snapshot::unsupported(account.clone(), "No usage."))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+
+        fn commands(&self) -> Vec<ProviderCommand> {
+            vec![ProviderCommand {
+                name: "echo",
+                about: ECHO_ABOUT,
+                run: Box::new(|invocation| {
+                    let mut input = String::new();
+                    let read = invocation.stdin.read_to_string(&mut input);
+                    let written =
+                        writeln!(invocation.stdout, "{} | {input}", invocation.args.join(" "))
+                            .and_then(|()| writeln!(invocation.stderr, "echoed"));
+                    if read.is_err() || written.is_err() {
+                        return ExitCode::FAILURE;
+                    }
+                    ExitCode::from(3)
+                }),
+            }]
+        }
+    }
+
+    /// A provider whose id is one of QuotaDial's own commands, with a command of the same name as
+    /// one of that command's.
+    struct ClashingProvider;
+
+    #[async_trait]
+    impl Provider for ClashingProvider {
+        fn id(&self) -> &'static str {
+            "alerts"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(Vec::new())
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(Snapshot::unsupported(account.clone(), "No usage."))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+
+        fn commands(&self) -> Vec<ProviderCommand> {
+            vec![ProviderCommand {
+                name: "add",
+                about: "Never run: QuotaDial's own alerts add wins",
+                run: Box::new(|_| ExitCode::from(9)),
+            }]
+        }
+    }
+
+    /// The names of `command`'s subcommands, in order.
+    fn subcommands(command: &clap::Command) -> Vec<String> {
+        command
+            .get_subcommands()
+            .map(|sub| sub.get_name().to_owned())
+            .collect()
+    }
+
+    /// What `quotadial <args>` does when a provider's command is named: its exit status, its
+    /// standard output and its standard error, given `input`; `None` for QuotaDial's own.
+    fn provider_run(
+        providers: &[Arc<dyn Provider>],
+        args: &[&str],
+        input: &str,
+    ) -> Option<(ExitCode, String, String)> {
+        let matches = command(providers)
+            .try_get_matches_from(args)
+            .expect("the words parse");
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let code = run_provider_command(
+            providers,
+            &matches,
+            &mut input.as_bytes(),
+            &mut out,
+            &mut err,
+        )?;
+        let text = |bytes: Vec<u8>| String::from_utf8(bytes).expect("UTF-8");
+        Some((code, text(out), text(err)))
+    }
+
+    #[test]
+    fn a_providers_own_command_is_found_and_run_with_its_words_and_streams() {
+        let providers: Vec<Arc<dyn Provider>> = vec![
+            Arc::new(CountingProvider::default()),
+            Arc::new(ChattyProvider),
+        ];
+
+        assert_eq!(
+            provider_run(
+                &providers,
+                &["quotadial", "chatty", "echo", "one", "--two", "-3"],
+                "piped in"
+            ),
+            Some((
+                ExitCode::from(3),
+                "one --two -3 | piped in\n".to_owned(),
+                "echoed\n".to_owned()
+            ))
+        );
+        assert_eq!(
+            provider_run(&providers, &["qd", "chatty", "echo"], ""),
+            Some((ExitCode::from(3), " | \n".to_owned(), "echoed\n".to_owned())),
+            "no words, through the alias"
+        );
+        assert_eq!(
+            subcommands(&command(&providers)).last().map(String::as_str),
+            Some("chatty"),
+            "after QuotaDial's own commands"
+        );
+        let mut group = command(&providers)
+            .find_subcommand("chatty")
+            .expect("the provider's commands")
+            .clone();
+        let help = group.render_long_help().to_string();
+        assert!(help.contains("echo") && help.contains(ECHO_ABOUT), "{help}");
+    }
+
+    #[test]
+    fn quotadials_own_commands_still_parse_beside_a_providers() {
+        let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(ChattyProvider)];
+
+        assert_eq!(
+            provider_run(&providers, &["quotadial", "status", "--json"], ""),
+            None
+        );
+        let matches = command(&providers)
+            .try_get_matches_from(["quotadial", "status", "--json"])
+            .expect("parses");
+        assert!(matches!(
+            Cli::from_arg_matches(&matches)
+                .expect("QuotaDial's own")
+                .command,
+            Command::Status { json: true }
+        ));
+        let error = command(&providers)
+            .try_get_matches_from(["quotadial", "chatty"])
+            .expect_err("a provider's commands need one named");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        );
+    }
+
+    #[test]
+    fn a_provider_with_no_commands_of_its_own_adds_nothing() {
+        let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(CountingProvider::default())];
+
+        assert_eq!(
+            subcommands(&command(&providers)),
+            subcommands(&Cli::command())
+        );
+        assert_eq!(
+            command(&providers).render_long_help().to_string(),
+            Cli::command().render_long_help().to_string()
+        );
+    }
+
+    #[test]
+    fn a_provider_named_like_one_of_quotadials_own_commands_adds_nothing() {
+        let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(ClashingProvider)];
+
+        assert_eq!(
+            subcommands(&command(&providers)),
+            subcommands(&Cli::command())
+        );
+        assert_eq!(
+            provider_run(
+                &providers,
+                &["quotadial", "alerts", "add", "warn", "me"],
+                ""
+            ),
+            None,
+            "QuotaDial's own alerts add runs"
+        );
+    }
+
+    #[test]
+    fn the_providers_quotadial_ships_add_no_command_named_like_one_of_its_own() {
+        let shipped = quotadial_providers::with_config(&Config::default(), &Licensing::new(None));
+        for provider in &shipped {
+            assert!(
+                Cli::command().find_subcommand(provider.id()).is_none(),
+                "{} is the name of one of QuotaDial's own commands",
+                provider.id()
+            );
+        }
     }
 }
