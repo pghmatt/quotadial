@@ -73,13 +73,16 @@ queue, by its numbers:
 - 4, the key page's function, decided on #54 (D-102), merged (PR #58): it signs with a second,
   online issuing key (`ISSUER`, beside the root `QUOTADIAL`, which stays on Matt's Mac), reached
   from the receipt's `#licence=` link; the Buy button and the page itself come with the site;
-- 5, the website in `site/`, built but not deployed, and the shareable image: started;
+- 5, the website in `site/`, built but not deployed, and the shareable image (D-113), in review
+  (PR #68);
 - 6, signing and updates, each turning on when its secrets exist (D-103 to D-106), merged (PR #59);
 - 7 to 12, hardening: resilience (D-107, D-108), merged (PR #61); security (D-109), merged
   (PR #63); accessibility (D-110), merged (PR #65); the OpenAPI description (D-111), merged
-  (PR #66); package managers, completions and manual pages (D-112), in review (PR #67); and docs;
+  (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs;
 - then the M6 plan, starting with a fake provider while it waits.
-The manager's 02:30 UTC check on 2026-10-25 set the order from here: 5, 10, 11, 12, then M6.
+The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
+Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
+the builder last read #49; said so on #49 at 04:45 UTC). From here: 5, #64's fix, 12, M6.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -155,8 +158,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 8: security | Done (PR #63) | `cargo deny` and `cargo audit` on both workspaces in CI, weekly too, with each exception's reason; `SECURITY.md` and the threat model in `docs/SECURITY.md`; property tests over every parser of outside text, which found a token-count overflow, now saturating; an SBOM for the command and the app on each release (D-109) |
 | 9: accessibility | Done (PR #65) | Every control reached by Tab in the order shown, with its ring, pressed by the keyboard, and named with its role and state; panels take the focus and Done gives it back; the heatmap read as a line a day; WCAG AA contrast in both themes, now including the chosen period and text fields' edges; Command or Control and = zooms, the window growing with it; nothing cut off at 200% or by a long name; nothing moves with less motion; `scripts/check-window.mjs` checks all of it in Chrome in CI on three systems; `docs/ACCESSIBILITY.md`. The menu bar icon on macOS waits on #64 (D-110) |
 | 10: the OpenAPI description | Done (PR #66) | `GET /v1/openapi.json` serves `docs/openapi.json`, OpenAPI 3.1, whose schemas are written from the types the API sends and takes, through schemars behind a `schema` feature that only tests turn on; a test fails when the file and the code disagree, another sends every method to every path on a Pro and a Free copy and fails on an answer the file does not list (D-111) |
-| 11: package managers, completions and manual pages | In review (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
-| 5: the website | Started | Built in `site/` with the design pipeline, not deployed until Matt says (#49) |
+| 11: package managers, completions and manual pages | Done (PR #67) | Completions for bash, zsh, fish and PowerShell and a manual page per command, written from the commands in a test and committed in `packaging/`; in every archive, the deb and the macOS app; `scripts/packages.mjs` writes the Homebrew formula `quotadial` and cask `quotadial-app`, the Scoop manifest and winget's manifests from a release's checksums; the Packages workflow publishes them on a full release once each token is set (D-112) |
+| 5: the website | In review (PR #68) | quotadial.com in `site/`: a static Next.js export for Cloudflare Pages with the key page's function; home, /download, /pro, /key, /privacy, /support, /changelog and a 404, the share card and brand files; the privacy, install, changelog and doctor texts rendered from the repository; no cookies, analytics or third-party requests; built by three lanes on a foundation and passed by two independent reviews; deploys only with `CLOUDFLARE_API_TOKEN` and after a release carrying `SHA256SUMS.txt` (D-113) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -343,6 +346,57 @@ so they became #10.
   0% rule (P-005) and Windows Credential Manager (P-008).
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
+
+### M5 queue item 5: the website (D-113)
+
+- **How it was made** (the brain-site-build pipeline): product truth (`site/PRODUCT.md`); a dated
+  search study (DataForSEO, Google US desktop; the study and its captures are private, the route
+  map and blueprints are in `site/docs/seo/`); seven grounded candidate worlds and a seeded roll,
+  which gave the tide table and the almanac (`site/docs/design/candidates.md`); the identity
+  (`site/docs/brand/identity.md`) and a Design Contract checked by codus-ui-proof
+  (`site/docs/design-contract.json`, `site/docs/DIRECTION.md`); the content bible and image
+  manifest; a copy library cast from 28 pre-2022 pages, with no third-party prose committed
+  (`site/docs/copy/`). Then the foundation (tokens with Tailwind's defaults cleared, the
+  primitives, the header and footer, fonts, the brand files, the app's pictures from typed example
+  accounts) and three lanes on worktrees: home; /download, /pro and /key; /privacy, /support,
+  /changelog and the 404. Each lane read its skills in its own context, reported the reads, and
+  wrote a report the merge train checked against its branch tip before merging.
+- **The pages:** home (the hero is a plate: the week's curve meeting the dashed high-water line,
+  a tide table of the three windows, and the real window, with example accounts); /download (the
+  visitor's file first, files banded by system, the check commands and the unsigned-build steps
+  read from `docs/INSTALL.md`); /pro (the seven Pro features in the app's words, what stays free,
+  how buying works; "Buying QuotaDial Pro opens soon" until `QUOTADIAL_CHECKOUT_URL` is set);
+  /key (reads `#licence=`, posts it to `/api/key`, shows each answer in the function's own
+  sentence, and takes the key out of the address); /privacy (`docs/PRIVACY.md` word for word);
+  /support (the doctor sample read from `docs/CLI.md`); /changelog (`CHANGELOG.md`, newest first).
+- **One source:** `lib/markdown.ts` renders the repository's texts at build time; `installGuide()`
+  reads INSTALL.md's file table, check commands and unsigned-build section, and a renamed section
+  or a lost table fails the build (a control did). INSTALL.md gained the check commands as a table.
+- **No third parties:** the fonts are self-hosted; events stay in `window.quotadialEvents`; the
+  Brain's browser check records every request each page makes, and every one is to the site.
+- **Supply chain:** `npm audit` for the site and the app's window in CI's supply-chain job, weekly
+  too; both lockfiles; the dependencies are next, react, react-dom, marked, four
+  `@fontsource-variable` fonts and `@phosphor-icons/react`, with Tailwind and TypeScript to build.
+- **Deploy:** `.github/workflows/site-deploy.yml` publishes to the Pages project `quotadial` when
+  `CLOUDFLARE_API_TOKEN` is set and the newest published release carries `SHA256SUMS.txt` (the
+  site describes the checksums, `quotadial doctor`, licence keys and updates that arrive after
+  0.2.0; today's newest, v0.2.0, has none, so the gate holds). Downloads go to `releases/latest`,
+  which GitHub sends to the release list while every release is a pre-release.
+- **Found and fixed on the way:** commands cut off on a phone (CodeBlock now wraps, and scrolls
+  only for aligned output, as a labelled region); JetBrains Mono drawing `--` as one long dash
+  (ligatures off in code); a strip under the footer on short pages; the curve's labels touching,
+  and unreadable at 390 (TideCurve draws a narrow version under `sm`); `next dev` rewriting
+  `site/AGENTS.md` (its block is committed); codus-site-seo's copy check looking for four stock
+  phrases (the config now carries the site's ban list), and missing a phrase that opens an element
+  (the Brain's own check reads each page's visible text; reported to codus).
+- **The reviews:** the first pass of both independent reviewers said "fix". Design: the tide table
+  wrapped every time in the hero, tables were striped by position rather than banded by meaning,
+  text was right-aligned, /privacy ran in two columns, /pro opened with two headlines, and plates
+  were bare rectangles (they now carry a chart plate's neatline). SEO and conversion: the site
+  described features only the next release has (the deploy gate and the corrected claims), the
+  download buttons landed below the download, /key's "works offline for ever" stated a plan term,
+  and home promised every Claude account on Free. Each finding went to the lane that owned it, or
+  to the foundation.
 
 ### M5 queue item 11: package managers, completions and manual pages (D-112)
 
