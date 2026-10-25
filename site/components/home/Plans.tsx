@@ -1,4 +1,4 @@
-import { FREE_HAS, PRO_ADDS } from "../../lib/data/pro.ts";
+import { FREE_HAS, PRO_FEATURES } from "../../lib/data/pro.ts";
 import { ButtonLink } from "../Button.tsx";
 import { Plate } from "../Plate.tsx";
 import { SectionHeading } from "../Section.tsx";
@@ -33,7 +33,7 @@ export function Plans() {
         <Plate tone="chart" className="md:p-8">
           <div className="grid gap-10 md:grid-cols-[5fr_6fr] md:gap-12">
             <List title="QuotaDial Free" items={FREE_HAS} />
-            <List title="QuotaDial Pro adds" items={PRO_ADDS} />
+            <List title="QuotaDial Pro adds" items={PRO_FEATURES} />
           </div>
         </Plate>
       </div>

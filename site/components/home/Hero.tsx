@@ -6,7 +6,6 @@ import { Plate } from "../Plate.tsx";
 import { Section } from "../Section.tsx";
 import { TideCurve } from "../TideCurve.tsx";
 import { TideTable } from "../TideTable.tsx";
-import { ChartScroll } from "./ChartScroll.tsx";
 
 const CURVE_TITLE =
   "Claude's weekly window, example accounts: 91% used on Tuesday at 14:10, filling at 2.0% an hour, so it reaches 100% on Tuesday at 18:40, long before it resets on Thursday at 06:00";
@@ -71,17 +70,15 @@ export function Hero() {
           }
         >
           <div className="mx-auto max-w-[46rem]">
-            <ChartScroll label="Claude's weekly window as a curve, example accounts. Scrolls sideways on a phone.">
-              <TideCurve
-                title={CURVE_TITLE}
-                hours={WEEKLY_CURVE.hours}
-                days={[...WEEKLY_CURVE.days]}
-                points={[...WEEKLY_CURVE.points]}
-                reset={WEEKLY_CURVE.reset}
-                runsOut={WEEKLY_CURVE.runsOut}
-                animate
-              />
-            </ChartScroll>
+            <TideCurve
+              title={CURVE_TITLE}
+              hours={WEEKLY_CURVE.hours}
+              days={WEEKLY_CURVE.days}
+              points={WEEKLY_CURVE.points}
+              reset={WEEKLY_CURVE.reset}
+              runsOut={WEEKLY_CURVE.runsOut}
+              animate
+            />
             <TideTable
               className="mt-5"
               caption={{ text: "Each example window, with its share used, its reset and what its pace says" }}
