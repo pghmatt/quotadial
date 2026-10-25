@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 
-import { Section } from "../../components/Section.tsx";
+import { AppShot } from "../../components/AppShot.tsx";
+import { CodeBlock } from "../../components/CodeBlock.tsx";
+import { ProActions } from "../../components/conversion/ProActions.tsx";
+import { ProLedger } from "../../components/conversion/ProLedger.tsx";
+import { Steps } from "../../components/conversion/Steps.tsx";
+import { Plate } from "../../components/Plate.tsx";
+import { Section, SectionHeading } from "../../components/Section.tsx";
+import { FREE_HAS } from "../../lib/data/pro.ts";
+import { SITE } from "../../lib/data/site.ts";
 import { pageMetadata } from "../../lib/metadata.ts";
 
-// The foundation's placeholder; its lane builds the page from docs/seo/blueprints/pro.md.
 export const metadata: Metadata = pageMetadata({
   title: "What Pro adds: every account and a year of history",
   description:
@@ -11,10 +18,121 @@ export const metadata: Metadata = pageMetadata({
   path: "/pro",
 });
 
+const LINK = "underline underline-offset-[0.2em]";
+const upper = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
 export default function Pro() {
   return (
-    <Section>
-      <h1 className="m-0 text-[2.5rem] leading-[1.05] font-[800]">QuotaDial Pro</h1>
-    </Section>
+    <>
+      <Section>
+        <div className="grid items-start gap-x-6 gap-y-12 grid-cols-[minmax(0,1fr)] md:grid-cols-12">
+          <div className="md:col-span-5">
+            <h1 className="m-0 text-[2.75rem] leading-[1.02] font-[800] md:text-[4rem]">QuotaDial Pro</h1>
+            <p className="m-0 mt-5 max-w-[34ch] text-[1.25rem] leading-[1.4] text-ink-2">
+              If you keep two Claude subscriptions, or want a warning before a weekly window runs out, QuotaDial Pro
+              covers both. QuotaDial Free stays free.
+            </p>
+            <ProActions checkout={SITE.checkout} />
+          </div>
+
+          <div className="md:col-span-7 md:row-span-2 md:row-start-1 md:col-start-6">
+            <SectionHeading id="adds-heading">What Pro adds</SectionHeading>
+            <div className="mt-6">
+              <Plate caption="The seven additions, in the words Settings uses. A Free copy says in one line where each would be.">
+                <ProLedger />
+              </Plate>
+            </div>
+          </div>
+
+          <div className="md:col-span-5">
+            <SectionHeading id="free-heading">What stays free</SectionHeading>
+            <p className="mt-4 mb-0 max-w-[40ch]">
+              If you keep one Claude and one Codex sign-in, QuotaDial Free already covers both, because it reads one
+              account for each provider. It needs no key, with no strings attached.
+            </p>
+            <ul className="m-0 mt-5 list-none p-0">
+              {FREE_HAS.map((item) => (
+                <li
+                  key={item}
+                  className="px-3 py-2 font-display text-[1.125rem] leading-[1.25] font-[650] even:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
+                >
+                  {upper(item)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-5 mb-0 max-w-[40ch]">
+              QuotaDial is open source under the MIT licence, and Pro is a key, checked on your machine, for features in
+              the same build.
+            </p>
+          </div>
+        </div>
+      </Section>
+
+      <Section tone="shallow">
+        <div className="grid items-start gap-x-6 gap-y-12 grid-cols-[minmax(0,1fr)] md:grid-cols-12">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-14 md:col-span-7">
+            <div id="how-buying-works">
+              <SectionHeading id="buying-heading">How buying works</SectionHeading>
+              <div className="mt-5">
+                <Steps>
+                  <li>
+                    Lemon Squeezy, the merchant of record, takes the payment and shows the price and the tax at its
+                    checkout.
+                  </li>
+                  <li>
+                    Its receipt has a button, <strong>Get your QuotaDial key</strong>. It opens the{" "}
+                    <a href="/key" className={LINK}>
+                      key page
+                    </a>{" "}
+                    on this site.
+                  </li>
+                  <li>
+                    The key page asks Lemon Squeezy whether the receipt's key is valid, then shows your QuotaDial key.
+                    It keeps and logs nothing.
+                  </li>
+                </Steps>
+              </div>
+              <p className="mt-4 mb-0 max-w-[56ch]">
+                Lost the page? Open the receipt's button again: the same receipt always gives the same key.
+              </p>
+            </div>
+
+            <div id="adding-your-key">
+              <SectionHeading id="key-heading">Adding your key</SectionHeading>
+              <p className="mt-5 mb-0 max-w-[56ch]">
+                In QuotaDial, open <strong>Settings</strong>, find <strong>Licence</strong>, paste the key into the
+                field and choose <strong>Add</strong>. It counts at once.
+              </p>
+              <p className="mt-4 mb-3 max-w-[56ch]">If you would rather use a terminal, run this and paste the key when it asks:</p>
+              <CodeBlock code="quotadial licence add" label="Copy the command" />
+              <p className="mt-4 mb-0 max-w-[56ch]">
+                QuotaDial checks the key on your machine with no network call, so it never phones home. Once the key is
+                in, the lines saying where Pro would be go away.{" "}
+                <a href="/support" className={LINK}>
+                  Write to support
+                </a>{" "}
+                if a key will not go in.
+              </p>
+            </div>
+          </div>
+
+          <div className="md:col-span-5">
+            <Plate
+              tone="mid"
+              caption="QuotaDial's Settings: three alert rules, and the Licence field where the key goes. Example accounts."
+            >
+              <div className="mx-auto max-w-[22.5rem]">
+                <AppShot
+                  name="settings"
+                  alt="QuotaDial's Settings with three alert rules and the Licence field"
+                  width={720}
+                  height={1826}
+                />
+              </div>
+            </Plate>
+          </div>
+        </div>
+      </Section>
+    </>
   );
 }
