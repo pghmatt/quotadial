@@ -23,12 +23,13 @@
 // each copy and theme, `-- --only "pro, dark"` checks only the views named so, and
 // `-- --fixtures <module>` answers from another set of copies (the website's pictures use
 // `site-fixtures.mjs`). Fails, naming the view and the control, when a check does not pass.
-import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { launch } from "./chrome.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
@@ -136,42 +137,6 @@ function serve() {
       .end(readFileSync(file));
   });
   return new Promise((done) => server.listen(0, "127.0.0.1", () => done(server)));
-}
-
-/** Starts Chrome headless with a profile of its own, and answers its DevTools address. */
-function launch(chrome, profile) {
-  const args = [
-    "--headless=new",
-    "--remote-debugging-port=0",
-    `--user-data-dir=${profile}`,
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-extensions",
-    "--disable-background-networking",
-    "--disable-component-update",
-    "--disable-sync",
-    "--force-color-profile=srgb",
-    "about:blank",
-  ];
-  // Linux runners refuse Chrome's sandbox; the page is only this build, served on this machine.
-  if (process.platform === "linux") {
-    args.push("--no-sandbox");
-  }
-  const browser = spawn(chrome, args, { stdio: ["ignore", "ignore", "pipe"] });
-  const address = new Promise((done, fail) => {
-    let said = "";
-    const timer = setTimeout(() => fail(new Error(`Chrome did not start: ${said}`)), 20_000);
-    browser.stderr.on("data", (chunk) => {
-      said += chunk;
-      const found = said.match(/DevTools listening on (ws:\/\/\S+)/);
-      if (found) {
-        clearTimeout(timer);
-        done(found[1]);
-      }
-    });
-    browser.on("exit", (code) => fail(new Error(`Chrome exited (${code}): ${said}`)));
-  });
-  return { browser, address };
 }
 
 /** The DevTools protocol over one WebSocket, a session per page. */

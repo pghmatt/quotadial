@@ -87,6 +87,9 @@ jobs:
         run: |
           npm ci
           npm run build
+      # The scripts that check the window, with a stand-in for Chrome.
+      - name: Window check's own tests
+        run: npm test
       # The built window in Chrome, which each runner has: keyboard, screen readers, zoom to 200%,
       # long names and reduced motion (#52, D-110).
       - name: Window (keyboard, screen readers, zoom, motion)
