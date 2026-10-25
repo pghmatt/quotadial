@@ -11,7 +11,7 @@ import { posix } from "node:path";
 
 import { Marked, Parser, type Token, type Tokens } from "marked";
 
-import { breakTokens } from "../../lib/breaks.ts";
+import { markBreaks } from "../../lib/break-html.ts";
 import { SITE } from "../../lib/data/site.ts";
 import { repositoryFile, withoutTitle } from "../../lib/markdown.ts";
 import { clickDetail, commandSystemOf, extensionOf, systemOf } from "../conversion/download-links.ts";
@@ -89,18 +89,6 @@ export function guideLink(href: string, from = "docs"): string {
 }
 
 const FILE_LINK = /<a href="([^"]*\/releases\/latest\/download\/([^"/#?]+))"/g;
-const SHELL_TAG = /(<[^>]+>)/;
-
-/**
- * `text` set as components/Breakable.tsx sets it, in HTML: spaces as they are, each word's pieces
- * unbreakable and joined by `<wbr>`, so the browser breaks only at a space or a mark and never
- * after a hyphen of its own choosing (a flag such as `--json` stays whole).
- */
-function breakable(text: string): string {
-  return breakTokens(text)
-    .map((token) => ("space" in token ? token.space : token.pieces.map((piece) => `<span class="whitespace-nowrap">${piece}</span>`).join("<wbr>")))
-    .join("");
-}
 
 /**
  * A guide's inline HTML with what the page needs and the words do not say. A link that fetches a
@@ -116,21 +104,7 @@ export function finish(html: string, from: string): string {
       .join(" ");
     return `<a href="${href}" ${attributes}`;
   });
-  let inside = 0;
-  return marked
-    .split(SHELL_TAG)
-    .map((part) => {
-      if (part.startsWith("<")) {
-        if (/^<(code|a)[\s>]/i.test(part)) {
-          inside += 1;
-        } else if (/^<\/(code|a)>/i.test(part)) {
-          inside = Math.max(0, inside - 1);
-        }
-        return part;
-      }
-      return inside ? breakable(part) : part;
-    })
-    .join("");
+  return markBreaks(marked);
 }
 
 /** The words of a heading's Markdown, without its code marks. */
