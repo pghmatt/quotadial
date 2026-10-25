@@ -362,6 +362,7 @@ The site's container, in place of cards: a figure, what goes with it, and a capt
 - **Background:** Shallow by default, Chart White or Mid as variants, chosen to differ from the band where it can.
 - **Shadow Strategy:** none; the neatline frames it (see Shapes and Elevation & Depth).
 - **Internal Padding:** 28 px, and 20 px on a phone; the neatline sits 8 px in, inside that padding.
+- **Width:** a plate closes on what it holds. A plate of reading text ends at the measure, so its frame never encloses empty space.
 - **Title and caption:** a title at the head in Plate title type names the plate ("Files in each release", "Versions"); a caption under the figure in Caption type says what it shows.
 - Plates are never nested, and a plate's title never sits above a heading.
 

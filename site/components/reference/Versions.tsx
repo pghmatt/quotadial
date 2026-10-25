@@ -5,13 +5,17 @@ import { SITE } from "../../lib/data/site.ts";
 import type { ChangelogVersion } from "../../lib/markdown.ts";
 import { sayDate, versionId } from "./text.ts";
 
-/** One version: its name and date beside its changes, grouped under Added, Changed and Fixed. */
+/**
+ * One version: its name and date beside its changes, grouped under Added, Changed and Fixed. The
+ * changes end at the reading measure, and so does the heading block under 1024 px, so a plate
+ * around a version can close on what it holds.
+ */
 function Version({ version }: { version: ChangelogVersion }) {
   const unreleased = version.date === null;
   const id = versionId(version.version);
   return (
-    <article aria-labelledby={id} className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-10">
-      <div className="lg:sticky lg:top-6 lg:self-start">
+    <article aria-labelledby={id} className="grid gap-6 lg:grid-cols-[14rem_minmax(0,var(--container-measure))] lg:gap-10">
+      <div className="max-w-measure lg:sticky lg:top-6 lg:self-start">
         <h2 id={id} className="m-0 scroll-mt-6 text-[2rem] leading-[1.05] font-[750]">
           {version.version}
         </h2>
@@ -42,13 +46,13 @@ function Version({ version }: { version: ChangelogVersion }) {
   );
 }
 
-/** The changelog's versions, newest first. A version not released yet sits on a plate of its own tint. */
+/** The changelog's versions, newest first. A version not released yet sits on a plate of its own tint, closed on its content (a plate ends where its text does). */
 export function Versions({ versions }: { versions: ChangelogVersion[] }) {
   return (
     <div className="grid gap-16 md:gap-20">
       {versions.map((version) =>
         version.date === null ? (
-          <Plate key={version.version} tone="shallow">
+          <Plate key={version.version} tone="shallow" className="w-fit">
             <Version version={version} />
           </Plate>
         ) : (

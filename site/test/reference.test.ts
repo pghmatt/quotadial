@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { countUnder, doctorSample, headingsUsed, sayDate, setAddresses, versionId, wordsOf } from "../components/reference/text.ts";
@@ -58,4 +59,13 @@ test("the doctor example is the command guide's, and a guide without one is an e
   assert.match(sample, /Accounts \(\d+\):/);
   assert.match(sample, /\w\*\*\*@\w\*\*\*\.\w+/, "addresses in it are cut short");
   assert.throws(() => doctorSample("# Guide\n\n## Doctor\n\nNo example here.\n"), /no example/);
+});
+
+test("the changelog's versions end at the reading measure, and the Unreleased plate closes on its text", () => {
+  const source = readFileSync(new URL("../components/reference/Versions.tsx", import.meta.url), "utf8");
+  assert.match(source, /lg:grid-cols-\[14rem_minmax\(0,var\(--container-measure\)\)\]/, "the changes column is one measure wide, from the token");
+  assert.doesNotMatch(source, /minmax\(0,1fr\)/, "no column stretches past the measure into an empty strip");
+  assert.doesNotMatch(source, /\b52ch\b/, "the measure is the token, never a literal width");
+  assert.match(source, /<Plate [^>]*tone="shallow"[^>]*className="w-fit"/, "the Unreleased plate is as wide as its content");
+  assert.match(source, /<div className="max-w-measure [^"]*">\s*<h2 /, "under 1024 px the heading block is held to the measure too");
 });
