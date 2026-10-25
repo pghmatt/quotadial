@@ -127,25 +127,62 @@ export function tables(markdown: string): string[][][] {
   return found;
 }
 
+/** A file's version-less copy: its name, and the address `releases/latest/download/` gives it. */
+export interface InstallLink {
+  name: string;
+  href: string;
+}
+
 export interface InstallGuide {
-  /** Each system's files, as INSTALL.md's Download table names them. */
-  files: { system: string; file: string }[];
+  /** Each system's files, as INSTALL.md's Download table names them, with the copy that links. */
+  files: { system: string; file: string; latest: InstallLink }[];
   /** The command that checks a download on each system. */
   checks: { system: string; command: string }[];
+  /** The archives of the command on its own, each with its version-less copy. */
+  commands: { system: string; archive: string; latest: InstallLink }[];
+  /** The shell lines under "The command alone", that fetch an archive and put it on the PATH. */
+  install: string;
   /** How to open a build that is not signed yet, each system's steps under its H3, as HTML. */
   unsigned: string;
+}
+
+/** Where INSTALL.md's version-less copies are: GitHub's address for a release's file, by name. */
+const LATEST = "https://github.com/pghmatt/quotadial/releases/latest/download/";
+
+/**
+ * A table cell that links a version-less copy, `[name](address)`. The address must be
+ * `releases/latest/download/` and the same name, so a typo in INSTALL.md fails the build instead of
+ * reaching a visitor. Nothing here fetches the address.
+ */
+function latest(cell: string): InstallLink {
+  const found = cell.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+  if (!found || found[2] !== `${LATEST}${found[1]}`) {
+    throw new Error(`docs/INSTALL.md's "${cell}" is not a link to a file under ${LATEST}.`);
+  }
+  return { name: found[1], href: found[2] };
+}
+
+/** The first fenced code block in `markdown`, without its fences. */
+export function fenced(markdown: string): string {
+  const found = markdown.match(/^\s*(```|~~~)[^\n]*\n([\s\S]*?)\n\s*\1\s*$/m);
+  if (!found) {
+    throw new Error("The text has no fenced code block.");
+  }
+  return found[2];
 }
 
 /** What /download shows from docs/INSTALL.md, read when the site is built. */
 export function installGuide(markdown: string = repositoryFile("docs/INSTALL.md")): InstallGuide {
   const download = section(markdown, "Download");
-  const [files, checks] = tables(download);
-  if (!files || !checks) {
-    throw new Error("docs/INSTALL.md's Download section has lost its files or its check commands.");
+  const [files, checks, commands] = tables(download);
+  if (!files || !checks || !commands) {
+    throw new Error("docs/INSTALL.md's Download section has lost its files, its check commands or its command archives.");
   }
   return {
-    files: files.map(([system, file]) => ({ system, file })),
+    files: files.map(([system, file, copy]) => ({ system, file, latest: latest(copy ?? "") })),
     checks: checks.map(([system, command]) => ({ system, command })),
+    commands: commands.map(([system, archive, copy]) => ({ system, archive, latest: latest(copy ?? "") })),
+    install: fenced(section(download, "The command alone")),
     unsigned: html(section(markdown, "Open a build that is not signed yet")),
   };
 }
