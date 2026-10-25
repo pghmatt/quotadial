@@ -50,6 +50,16 @@ fn committed_fixtures_hold_no_token_or_real_email_address() {
             "{name} holds an API-key-like string"
         );
         assert!(!lower.contains("bearer"), "{name} mentions a bearer token");
+        // Every shape QuotaDial blanks out, such as Google's and GitHub's tokens, before a
+        // provider that could read one has fixtures (D-036, D-044, D-122). Borrowed means nothing
+        // was blanked, and the fixture's text is never printed.
+        assert!(
+            matches!(
+                quotadial_core::redact_secrets(&text),
+                std::borrow::Cow::Borrowed(_)
+            ),
+            "{name} holds a token-like string"
+        );
         for domain in email_domains(&text) {
             assert!(
                 domain == "example.com" || domain.ends_with(".example.com"),
