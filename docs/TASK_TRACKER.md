@@ -84,12 +84,14 @@ queue, by its numbers:
   the site's downloads and guides and the README's pictures (D-116), merged (PR #72); and the
   first-run recording with #52's figures, made with the example build, being built (PR C), its
   timings and recording waiting on Matt's go-ahead for the example in his menu bar;
-- then the M6 plan. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
-  to build it with item 12 (D-117).
+- then M6. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
+  to build it with item 12 (D-117). The M6 plan is #73, approved by the manager at 20:29 UTC with
+  its decisions (Gemini CLI detected and explained, then Antigravity through its status line, then
+  Copilot; Cursor out of M6); its first PR is being built on `feat/m6-groundwork`.
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (#71 and #72 merged; PR C, the recording), then M6.
+#64's fix (PR #69); from here: 12 (#71 and #72 merged; PR C, the recording), then M6 (#73).
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
 an undici override (notes below).
@@ -176,7 +178,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 5: the shareable image (second PR) | Done (PR #70) | On QuotaDial Pro, each account in History has Share image: the window draws a 2400 by 1350 PNG of its history from the view's own numbers, in the window's theme, font and tabular figures, labelled by the name given the account or its plan and never its address; `save_share_image` checks the tier through `Licensing`, reads the PNG's signature, header and end by hand, and saves it in Downloads under a name Rust chooses, never overwriting; on Free one line says it is part of Pro; `ProFeature::ShareImage` everywhere Pro's list is printed; the site's `PRO_ADDS` held to `tier.rs` by a test (D-115) |
 | 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
-| 12, PR C: the first-run recording and #52's figures | In progress | `docs/INSTALL.md`'s command alone now fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it (#72's review); QuotaDial Example built for the recording; the timings, the example's idle hour and the recording wait on Matt's go-ahead; no changelog line, as the manager said |
+| 12, PR C: the first-run recording and #52's figures | In progress | `docs/INSTALL.md`'s command alone now fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it (#72's review), making `/usr/local/bin` first, which a new Apple silicon Mac does not have; Matt's copy's idle figures read from its processes over two hours, resident size and footprint (the tray process 0.295% of one core, 88.2 MiB resident, 37.8 MiB of footprint); QuotaDial Example built for the recording; the timings, the example's idle hour, the daemon alone and the recording wait on Matt's go-ahead; no changelog line, as the manager said |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## Kickoff
@@ -382,8 +384,11 @@ so they became #10.
   into `tar` and `sudo install` with no checksum step. Its lines now go into a new folder
   (`cd "$(mktemp -d)"`), fetch the archive and `SHA256SUMS.txt` from the version-less addresses
   (`curl -fsSLO`), run the check table's own macOS line, `shasum -a 256 -c SHA256SUMS.txt
-  --ignore-missing`, and only then `tar -xzf` and `sudo install`, every line but the last ending in
-  `&&`, so a step that fails stops the rest. The new folder means the check and the install see
+  --ignore-missing`, and only then `tar -xzf`, `sudo mkdir -p /usr/local/bin` and `sudo install`,
+  every line but the last ending in `&&`, so a step that fails stops the rest. A new Apple silicon
+  Mac has no `/usr/local/bin`, and `install` will not make the folder it is given ("target directory
+  ... does not exist", exit 64), so the old last line failed there; the guide's own lines for
+  linking the app's command already made the folder. The new folder means the check and the install see
   only what the lines fetched: in a folder of earlier downloads, `--ignore-missing` would also check
   an older file listed by the same name and fail on it, and `quotadial-v*/` could match an older
   unpacked version. The text says what to change for another system and for Linux (`sha256sum` in
@@ -391,12 +396,14 @@ so they became #10.
   `shasum` and GNU's `sha256sum` both exit 1 when no listed file was checked, so an archive
   `SHA256SUMS.txt` does not list stops the lines as well.
 - **Its tests,** each seen failing on the old lines first: `site/test/conversion.test.ts` holds the
-  block's order (new folder, both fetches, the table's check, unpack, install) and its `&&`s, and
+  block's order (new folder, both fetches, the table's check, unpack, the folder, install) and its
+  `&&`s, and
   the built page's tests read every line, not only the first (React writes the first line's quotes
   as `&quot;`). `scripts/workflows.test.mjs` makes a release with the Release workflow's own Package
   and publish steps (the archive holding `quotadial-v0.2.0-aarch64-apple-darwin/`, both of its names
   in `SHA256SUMS.txt`) and runs the lines as written, only the address (`file://`), `sudo` and
-  `/usr/local/bin` changed, in sh, bash and zsh: they install it; a byte changed in the gzip header,
+  `/usr/local/bin` changed, the last to a folder that does not exist until the lines make it, in sh,
+  bash and zsh: they install it (with the folder missing, the lines without `mkdir` failed); a byte changed in the gzip header,
   which still unpacks, so only the check can stop it, stops them at the check with nothing unpacked
   or installed; so does an archive `SHA256SUMS.txt` does not list; and Linux's lines, made as the
   text says, do the same where `sha256sum` is GNU's (CI's Linux; skipped on macOS, and passed here
@@ -421,36 +428,51 @@ so they became #10.
   window's JavaScript is 33.9 KB, within the 150 KB budget" (one file, 34.75 kB as vite counts,
   13.01 kB gzipped; the stylesheet 7.14 kB).
 - **Matt's copy, idle (read only):** his app's process figures and nothing more, as the manager
-  allowed: one `ps -o time=,rss=` sample a minute from 13:38:51 to 14:38:52 UTC on 2026-10-25
-  (61 samples), his copy built from main at fd3ee4d and running since 2026-10-24 01:15 UTC;
-  recomputed from the samples for this note. Sizes are MiB, as `ps` counts KiB.
+  allowed; his copy was built from main at fd3ee4d and has run since 2026-10-24 01:15 UTC. Two hours
+  on 2026-10-25, a sample a minute (61 each):
+  - 13:38:51 to 14:38:52 UTC, with `ps -o time=,rss=`. It took the two helpers whose process ids
+    followed the app's, and so missed the third, GPU.
+  - 20:05:02 to 21:05:02 UTC, with `ps` and each process's physical footprint from
+    `proc_pid_rusage`, a kernel query that neither pauses nor touches the process. It found every
+    helper by the process macOS holds responsible for it
+    (`responsibility_get_pid_responsible_for_pid`), looked up again at every sample.
 
-  | Process | CPU over the hour | Share of one core | Resident, MiB: mean (min to max) |
-  | --- | --- | --- | --- |
-  | quotadial-tray (the tray and the daemon, one process) | 10.36 s | 0.288% | 78.5 (75.8 to 88.3) |
-  | WebKit Networking | 0.58 s | 0.016% | 9.6 (9.2 to 10.1) |
-  | WebKit WebContent | 1.63 s | 0.045% | 30.5 (28.6 to 35.1) |
+  Sizes are MiB, as `ps` counts KiB. The second hour:
 
+  | Process | CPU over the hour | Share of one core | Resident, MiB: mean (min to max) | Footprint, MiB: mean (min to max) |
+  | --- | --- | --- | --- | --- |
+  | quotadial-tray (the tray and the daemon, one process) | 10.64 s | 0.295% | 88.2 (86.2 to 96.1) | 37.8 (35.8 to 39.7) |
+  | WebKit GPU | 2.66 s | 0.074% | 24.3 (19.6 to 26.9) | 15.1 (10.2 to 15.6) |
+  | WebKit WebContent | 1.70 s | 0.047% | 31.3 (28.2 to 39.1) | 37.6 (27.8 to 60.6) |
+  | WebKit Networking | 0.42 s | 0.012% | 9.8 (9.5 to 10.5) | 6.5 (6.4 to 6.5) |
+
+  All four together: 153.6 MiB resident and 97.0 MiB of footprint on average, 119.8 MiB of
+  footprint at most. The first hour had the tray at 10.36 s of CPU (0.288% of one core) and 78.5 MiB
+  resident (75.8 to 88.3), Networking at 0.58 s and 9.6 MiB, WebContent at 1.63 s and 30.5 MiB.
+- **Resident and footprint:** a process's resident size counts every page it has in memory, the
+  system's shared libraries and frameworks included; its physical footprint, the figure Activity
+  Monitor's Memory column shows, counts what the process itself costs the machine, its own memory
+  whether in RAM or compressed. That is why WebContent's footprint can sit above its resident size.
 - **Against #52:** the daemon runs inside the tray's process, so the daemon's figure and the tray
-  app's are one process: 0.29% of one core over the hour (under 0.5%), and 78.5 MiB (82.3 MB)
-  resident, which is over 40 MB as a figure for the daemon and holds the tray and the window's host
-  too. For the tray app, 78.5 MiB is under 80 if #52's MB is Activity Monitor's (MiB) and 82.3 MB
-  is over it if it is a million bytes; the highest sample is 88.3 MiB; and whether the popover was
-  opened during the hour is not known, so this is not yet the popover-closed figure #52 names. The
-  example's hour, below, answers both.
-- **Found on the way:** Matt's copy has a third WebKit helper, GPU, running since 2026-10-24
-  14:10 UTC and so through the whole hour, which the hour did not sample: it took the two helpers
-  whose process ids followed the app's. Read once at 19:48 UTC, the GPU helper held 25.5 MiB, with
-  57.6 s of CPU over its 29 h 38 min (0.054% of one core on average). The window's helpers are
-  about 40 MiB as the hour has them, about 66 MiB with it. The example's idle script finds helpers
-  by the process macOS holds responsible for them (`responsibility_get_pid_responsible_for_pid`),
-  which finds all three for Matt's copy, and looks them up again at every sample.
+  app's are one process.
+  - CPU: 0.295% of one core over the second hour and 0.288% over the first, under #52's 0.5%.
+  - Memory: 88.2 MiB (92.5 MB) resident, over both of #52's sizes (40 MB for the daemon, 80 MB for
+    the tray app); 37.8 MiB (39.7 MB) of footprint, under both. #52 says "resident": whether it
+    means the resident size or the footprint, and MiB or a million bytes, is asked on the PR.
+  - Only process figures were read, so the popover's state in either hour is not known, and
+    neither is yet the popover-closed figure #52 names. The example's hour answers that.
+  - The tray's resident size was 78.5 MiB on average in the first hour and 88.2 in the second; the
+    footprint was read only in the second. Whether that is growth over its 44 hours of running or
+    the popover having been opened is not known: the example's hour starts fresh, and readings of
+    Matt's copy's footprint over the next days show whether it grows.
 - **Measured with Matt's go-ahead (to fill):**
   - First run to the number, the example build: measured with the owner's go-ahead.
   - Popover open time, the median of five presses from a warm daemon: measured with the owner's
     go-ahead.
-  - The example's idle hour: the daemon's share of one core and its resident size, the tray app's
-    resident size with the popover closed, and the helpers: measured with the owner's go-ahead.
+  - The example's idle hour: the daemon's share of one core, and the tray app's resident size and
+    footprint with the popover closed, with its helpers: measured with the owner's go-ahead.
+  - The daemon alone, as the command-line install runs it: the example build's `quotadial daemon`
+    for an hour, its own data folder and port: measured with the owner's go-ahead.
   - The README's first-run recording: measured with the owner's go-ahead.
 - **How they will be measured:** four scripts and a small Swift helper, kept outside the repository
   with the builder's notes. Each finds QuotaDial Example by its bundle identifier, checked against
@@ -464,8 +486,8 @@ so they became #10.
     the press to the popover's window listed on screen, its first pixels, and the popover drawn as
     it settles (the first picture that matches it 1.5 s later), from ScreenCaptureKit watching the
     example's windows alone; the medians.
-  - Idle: as Matt's hour, with the helpers found by responsibility and whether the popover was open
-    at each sample.
+  - Idle: as Matt's second hour, footprint included, with the helpers found by responsibility and
+    whether the popover was open at each sample.
   - Recording: ScreenCaptureKit with a filter that includes the example's windows and nothing else,
     so the menu bar, other apps' items (Matt's QuotaDial among them), their windows and the desktop
     are never captured, not even in the raw file; then a check that every frame is the plain
