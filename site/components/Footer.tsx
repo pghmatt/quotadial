@@ -22,8 +22,8 @@ const COLUMNS = [
     title: "Project",
     links: [
       { href: SITE.repository, label: "Source on GitHub" },
-      { href: SITE.installGuide, label: "Install guide" },
-      { href: SITE.cliGuide, label: "Command guide" },
+      { href: "/install", label: "Install guide" },
+      { href: "/cli", label: "Command guide" },
     ],
   },
 ];

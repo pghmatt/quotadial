@@ -254,3 +254,13 @@ test("the support page sends the doctor to the command guide's own Doctor sectio
   assert.match(page, /href="\/cli#doctor"/);
   assert.ok(guide("cli").headings.some((heading) => heading.id === "doctor"), "CLI.md still has a Doctor heading");
 });
+
+test("the sitemap lists both guide pages and the footer leads to them rather than to GitHub", () => {
+  const sitemap = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const footer = readFileSync(new URL("../components/Footer.tsx", import.meta.url), "utf8");
+  for (const path of ["/install", "/cli"]) {
+    assert.ok(sitemap.includes(`"${path}"`), `${path} is in the sitemap`);
+    assert.ok(footer.includes(`href: "${path}"`), `the footer links to ${path}`);
+  }
+  assert.ok(!footer.includes("SITE.installGuide") && !footer.includes("SITE.cliGuide"));
+});

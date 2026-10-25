@@ -12,7 +12,7 @@ import { posix } from "node:path";
 import { Marked, Parser, type Token, type Tokens } from "marked";
 
 import { SITE } from "../../lib/data/site.ts";
-import { repositoryFile } from "../../lib/markdown.ts";
+import { repositoryFile, withoutTitle } from "../../lib/markdown.ts";
 
 export type GuideName = "install" | "cli";
 
@@ -118,7 +118,11 @@ function hasCode(tokens: Token[]): boolean {
 /** Reads a guide's Markdown into its title, its opening paragraph and its sections. */
 export function readGuide(markdown: string): Guide {
   const marked = new Marked({ gfm: true, async: false });
-  const tokens = marked.lexer(markdown);
+  const { title, body } = withoutTitle(markdown);
+  if (!title) {
+    throw new Error("The guide has no title.");
+  }
+  const tokens = marked.lexer(body);
   marked.walkTokens(tokens, (token) => {
     if (token.type === "link") {
       (token as Tokens.Link).href = guideLink((token as Tokens.Link).href);
@@ -141,7 +145,6 @@ export function readGuide(markdown: string): Guide {
     };
   };
 
-  let title = "";
   let intro = "";
   const sections: GuideSection[] = [];
   const headings: GuideHeading[] = [];
@@ -171,10 +174,6 @@ export function readGuide(markdown: string): Guide {
     }
     if (token.type === "heading") {
       const heading = token as Tokens.Heading;
-      if (heading.depth === 1 && !title) {
-        title = plain(heading.text);
-        continue;
-      }
       const found = headingOf(heading);
       headings.push(found);
       context = found.text;
@@ -255,9 +254,6 @@ export function readGuide(markdown: string): Guide {
     } else {
       html([token]);
     }
-  }
-  if (!title) {
-    throw new Error("The guide has no title.");
   }
   return { title, intro, sections, headings };
 }
