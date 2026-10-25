@@ -24,10 +24,13 @@ export interface OtherGuide {
 export function GuidePage({
   guide,
   file,
+  answer,
   other,
   closing,
 }: {
   guide: Guide;
+  /** What the page is for, in the site's own words (the guide's own opening follows, word for word, under the contents). */
+  answer: string;
   /** The file in the repository, such as "docs/INSTALL.md". */
   file: string;
   other: OtherGuide;
@@ -41,12 +44,7 @@ export function GuidePage({
           <div className="lg:col-span-5">
             <PageIntro
               title={guide.title}
-              answer={
-                <span
-                  className="[&_code]:rounded-chart [&_code]:bg-shallow [&_code]:px-1 [&_code]:font-code [&_code]:text-[0.875em]"
-                  dangerouslySetInnerHTML={{ __html: guide.intro }}
-                />
-              }
+              answer={answer}
             >
               <DownloadButton />
               <ButtonLink href={other.href} variant="text">
@@ -66,7 +64,14 @@ export function GuidePage({
             />
           </div>
         </div>
-        <div className="mt-16 md:mt-20">
+        <div className="mt-16 grid gap-14 md:mt-20 md:gap-16">
+          {/* The guide's own opening, in the column its sections' text uses. */}
+          <div className="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-10">
+            <p
+              className="m-0 max-w-measure text-[1.25rem] leading-[1.5] lg:col-start-2 [&_code]:rounded-chart [&_code]:bg-shallow [&_code]:px-1 [&_code]:font-code [&_code]:text-[0.875em]"
+              dangerouslySetInnerHTML={{ __html: guide.intro }}
+            />
+          </div>
           <GuideSections guide={guide} />
         </div>
       </Section>

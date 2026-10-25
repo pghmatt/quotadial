@@ -17,6 +17,7 @@ export default function Install() {
     <GuidePage
       guide={guide("install")}
       file={GUIDES.install.file}
+      answer="Every way to install QuotaDial on macOS, Windows and Linux, what its settings do and how it updates."
       other={{ href: "/cli", label: "Read the command guide" }}
       closing={{
         heading: "Download QuotaDial",

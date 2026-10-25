@@ -17,6 +17,7 @@ export default function Cli() {
     <GuidePage
       guide={guide("cli")}
       file={GUIDES.cli.file}
+      answer="Every quotadial command, what it prints, the local API and MCP server for agents, and the exit codes scripts can rely on."
       other={{ href: "/install", label: "Read the install guide" }}
       closing={{
         heading: "Download QuotaDial",
