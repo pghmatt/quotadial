@@ -6,6 +6,13 @@ already store, asks each provider for your current usage, and puts the answer in
 system tray, in your terminal, behind a local HTTP API, and in front of your agents through an MCP
 server and a SKILL.md. It runs on macOS, Windows and Linux.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/public/images/app/accounts-dark.png">
+    <img src="site/public/images/app/accounts-light.png" width="360" alt="QuotaDial's window with example accounts: Claude Work and Codex, each window with its share used, reset and pace">
+  </picture>
+</p>
+
 **Status: pre-alpha.** `quotadial status` and `quotadial watch` show Claude and ChatGPT/Codex
 usage. `quotadial daemon` polls for every consumer, keeps the history that gives each window its
 pace (how fast it fills, and whether it runs out before it resets), checks alert rules written in
