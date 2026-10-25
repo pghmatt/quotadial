@@ -18,12 +18,24 @@ use quotadial_daemon::{
 };
 
 /// Track Claude and ChatGPT/Codex usage limits.
+///
+/// QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets,
+/// and how old every number is. It reads the sign-ins Claude Code and the Codex CLI already store,
+/// and never writes them. `qd` is the same command, shorter.
 #[derive(Debug, Parser)]
-#[command(name = "quotadial", version)]
+#[command(name = "quotadial", version, after_long_help = EXAMPLES)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
 }
+
+/// What `quotadial --help` and quotadial(1) end with.
+const EXAMPLES: &str = "Examples:
+  quotadial status                        every account's windows now
+  quotadial status --json                 the same, for a script or an agent
+  quotadial alerts add \"warn me at 80%\"   an alert rule in plain words
+  quotadial history --since 30d --csv     every reading of the last 30 days
+  quotadial licence add                   paste a QuotaDial Pro key";
 
 #[derive(Debug, Subcommand)]
 enum Command {
@@ -107,11 +119,20 @@ enum AlertsAction {
         rule: Vec<String>,
     },
     /// Remove the rule with this number.
-    Remove { id: i64 },
+    Remove {
+        /// The rule's number, as `quotadial alerts` lists it.
+        id: i64,
+    },
     /// Turn the rule with this number on.
-    On { id: i64 },
+    On {
+        /// The rule's number, as `quotadial alerts` lists it.
+        id: i64,
+    },
     /// Turn the rule with this number off.
-    Off { id: i64 },
+    Off {
+        /// The rule's number, as `quotadial alerts` lists it.
+        id: i64,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -1040,6 +1061,9 @@ fn write_text(
 fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
+
+#[cfg(test)]
+mod packaging;
 
 #[cfg(test)]
 mod tests {

@@ -39,6 +39,8 @@ axum = { version = "0.8.9", default-features = false, features = ["http1", "json
 base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 clap = { version = "4.6.7", features = ["derive"] }
+clap_complete = "4.6.11"
+clap_mangen = "0.3.3"
 dirs = "7.0.0"
 # Licence keys are checked with Ed25519 signatures (D-099); only verifying and signing are needed.
 ed25519-dalek = { version = "3.0.0", default-features = false, features = ["zeroize"] }
@@ -50,6 +52,7 @@ proptest = "1.12.0"
 # SQLite compiled in, so no system library is needed on any platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "system-proxy"] }
+roff = "1.1.1"
 # JSON Schema from the API's types, for docs/openapi.json; only tests build it (the `schema`
 # features), and the API serves the committed file.
 schemars = { version = "1.2.3", default-features = false, features = ["derive", "std", "chrono04"] }

@@ -1,0 +1,102 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH quotadial 1  "QuotaDial 0.2.0" QuotaDial
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH NAME
+quotadial \- Track Claude and ChatGPT/Codex usage limits
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SYNOPSIS
+\fBquotadial\fR [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] <\fIsubcommands\fR>
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH DESCRIPTION
+Track Claude and ChatGPT/Codex usage limits.
+.PP
+QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. `qd` is the same command, shorter.
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH SUBCOMMANDS
+.TP
+quotadial\-status(1)
+Show current usage for every account this machine is signed in to
+.TP
+quotadial\-watch(1)
+Keep showing usage, refreshing every minute. No provider is asked more often than its own limit, so most refreshes show cached numbers with their age
+.TP
+quotadial\-daemon(1)
+Run the daemon until Ctrl\-C: the one poller every consumer shares, with history and the local API. While it runs, `status` and `watch` ask it instead of polling
+.TP
+quotadial\-mcp(1)
+Run the MCP server named quotadial on standard input and output, for agents such as Claude Code and Codex. Like `status`, it asks the daemon while one runs
+.TP
+quotadial\-alerts(1)
+List the alert rules and what they told lately, or add, remove, or turn one on or off. Rules are written in plain words, such as `quotadial alerts add "warn me at 80%"`
+.TP
+quotadial\-doctor(1)
+Print what support asks for, with nothing secret in it: the version, the system, the licence, the daemon, every account and where its sign\-in is, the problems and the settings. The app\*(Aqs Send feedback attaches the same
+.TP
+quotadial\-licence(1)
+Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call
+.TP
+quotadial\-history(1)
+Show how each window was used over time, from the daemon\*(Aqs history
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH EXAMPLES
+.nf
+quotadial status                        every account\*(Aqs windows now
+quotadial status \-\-json                 the same, for a script or an agent
+quotadial alerts add "warn me at 80%"   an alert rule in plain words
+quotadial history \-\-since 30d \-\-csv     every reading of the last 30 days
+quotadial licence add                   paste a QuotaDial Pro key
+.fi
+.SH "EXIT STATUS"
+.TP
+\fB0\fR
+It worked. For status, every account produced a snapshot, whatever its status: check each snapshot\*(Aqs status.
+.TP
+\fB1\fR
+Something failed: a provider or account produced no snapshot, a running daemon did not answer, or the output could not be written. What went wrong, and what to do, is on standard error.
+.TP
+\fB2\fR
+The arguments were not understood.
+.SH ENVIRONMENT
+.TP
+\fBQUOTADIAL_DATA_DIR\fR
+The folder QuotaDial keeps its history, settings, licence key and the local API\*(Aqs token in, in place of the system\*(Aqs own.
+.TP
+\fBCLAUDE_CODE_OAUTH_TOKEN\fR
+The Claude sign\-in to read first, as Claude Code does. QuotaDial only reads it.
+.TP
+\fBCLAUDE_CONFIG_DIR\fR
+The folder Claude Code keeps its sign\-in for, in place of ~/.claude. QuotaDial also finds every other Claude Code sign\-in on the machine.
+.TP
+\fBCODEX_HOME\fR
+The folder the Codex CLI keeps auth.json in, in place of ~/.codex.
+.SH FILES
+.TP
+\fI~/Library/Application Support/quotadial\fR
+On macOS: the history (history.db), config.json, the licence key, daemon.json while the daemon runs, and the local API\*(Aqs token.
+.TP
+\fI$XDG_DATA_HOME/quotadial or ~/.local/share/quotadial\fR
+The same, on Linux.
+.TP
+\fI%APPDATA%\\quotadial\fR
+The same, on Windows.
+.SH "SEE ALSO"
+quotadial\-status(1), quotadial\-watch(1), quotadial\-daemon(1), quotadial\-mcp(1), quotadial\-alerts(1), quotadial\-doctor(1), quotadial\-licence(1), quotadial\-history(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.SH VERSION
+v0.2.0
