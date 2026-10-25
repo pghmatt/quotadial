@@ -230,4 +230,39 @@ mod tests {
             "{line}"
         );
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_text_makes_redaction_panic(text in ".*", max in 0_usize..300) {
+            let _ = redact_secrets(&text);
+            if let Some(line) = outside_text(&text, max) {
+                proptest::prop_assert!(!line.contains('\n'));
+                proptest::prop_assert!(line.chars().count() <= max + 1);
+            }
+        }
+
+        #[test]
+        fn a_token_anywhere_in_text_never_survives(
+            before in ".{0,40}",
+            token in "(sk-ant-|SK-ANT-|sk-proj-|sk-svcacct-|sk-admin-)[A-Za-z0-9_-]{20,60}",
+            after in ".{0,40}",
+        ) {
+            let text = format!("{before} {token} {after}");
+            proptest::prop_assert!(!redact_secrets(&text).contains(&token));
+            proptest::prop_assert!(
+                outside_text(&text, 1_000).is_none_or(|line| !line.contains(&token))
+            );
+        }
+
+        #[test]
+        fn a_json_web_token_anywhere_in_text_never_survives(
+            before in ".{0,40}",
+            parts in proptest::collection::vec("[A-Za-z0-9_-]{4,40}", 3..5),
+            after in ".{0,40}",
+        ) {
+            let token = format!("eyJ{}", parts.join("."));
+            let text = format!("{before} {token} {after}");
+            proptest::prop_assert!(!redact_secrets(&text).contains(&token));
+        }
+    }
 }

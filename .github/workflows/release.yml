@@ -178,6 +178,18 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      # What each shipped program is made of, as CycloneDX JSON (#52): the CLI and the app, each with
+      # every crate it is built from, for every system.
+      - name: The software bills of materials
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          cargo install --locked cargo-cyclonedx --version 0.5.9
+          cargo cyclonedx --format json --spec-version 1.5 --target all --manifest-path crates/cli/Cargo.toml
+          cargo cyclonedx --format json --spec-version 1.5 --target all --manifest-path apps/tray/src-tauri/Cargo.toml
+          cp crates/cli/quotadial.cdx.json "dist/quotadial-v${version}-cli.cdx.json"
+          cp apps/tray/src-tauri/quotadial-tray.cdx.json "dist/QuotaDial_${version}_app.cdx.json"
       - name: The updater's latest.json and every file's checksum
         run: |
           set -euo pipefail

@@ -275,4 +275,34 @@ mod tests {
         assert_eq!(plain("[x](y"), "[x](y");
         assert_eq!(plain("`a` **b** [c](d) e"), "a b c e");
     }
+
+    use proptest::strategy::Strategy as _;
+
+    proptest::proptest! {
+        #[test]
+        fn no_text_makes_the_markdown_reader_panic(text in ".*") {
+            let _ = plain(&text);
+            let _ = blocks(&text);
+            let _ = whats_new(&text, "0.3.0");
+        }
+
+        #[test]
+        fn no_markdown_like_text_makes_it_panic(
+            pieces in proptest::collection::vec(
+                proptest::prop_oneof![
+                    proptest::sample::select(
+                        &["[", "]", "(", ")", "](", "**", "`", "- ", "  ", "\n", "# ", "### ",
+                          "## [0.3.0]", "## [Unreleased]", "é", "😀"][..]
+                    ).prop_map(str::to_owned),
+                    ".{0,6}",
+                ],
+                0..40,
+            ),
+        ) {
+            let text = pieces.concat();
+            let _ = plain(&text);
+            let _ = blocks(&text);
+            let _ = whats_new(&text, "0.3.0");
+        }
+    }
 }

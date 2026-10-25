@@ -16,6 +16,8 @@ mod provider;
 mod redact;
 mod report;
 mod secret;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod text;
 mod tier;
 

@@ -338,4 +338,19 @@ mod tests {
             "2 + 0.75 + 0.4 over 272k"
         );
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_price_table_makes_the_reader_panic(
+            text in ".*",
+            table in quotadial_core::testing::json(),
+        ) {
+            let _ = Prices::parse(&text);
+            let _ = Prices::parse(&table.to_string());
+            let shaped = serde_json::json!({ "updated": "2026-10-23", "anthropic": table });
+            if let Some(prices) = Prices::parse(&shaped.to_string()) {
+                let _ = prices;
+            }
+        }
+    }
 }

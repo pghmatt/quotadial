@@ -844,4 +844,22 @@ mod tests {
         assert!(!kept.contains("someone"), "{kept}");
         assert!(problem(&Error::TempDirNotOnSameMountPoint).contains("quotadial.com"));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_release_notes_make_the_reader_panic(notes in ".*") {
+            for line in lines(&notes) {
+                proptest::prop_assert!(!line.contains('\n'));
+            }
+        }
+
+        #[test]
+        fn no_record_file_makes_loading_panic(bytes in quotadial_core::testing::line()) {
+            let temp = tempfile::tempdir().expect("temp dir");
+            let path = temp.path().join("updates.json");
+            std::fs::write(&path, &bytes).expect("writes");
+            let record = Record::load(&path);
+            let _ = record.due(at("2026-10-25T01:12:00Z"));
+        }
+    }
 }

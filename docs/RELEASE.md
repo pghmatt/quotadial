@@ -15,6 +15,9 @@ them, some or none. Without them the builds are unsigned, as `docs/INSTALL.md` d
 3. **The Release workflow** builds the CLI for four platforms and the app as a universal dmg, an
    msi, a deb and an AppImage, signing what its secrets allow, and drafts a pre-release with:
    - every file, and `SHA256SUMS.txt`, their checksums;
+   - `quotadial-v<version>-cli.cdx.json` and `QuotaDial_<version>_app.cdx.json`, the software bills
+     of materials: every crate the command and the app are built from, for every system, as
+     CycloneDX JSON (`cargo cyclonedx`);
    - with the updater key set, `latest.json`, the macOS update
      (`QuotaDial_<version>_universal.app.tar.gz`) and a `.sig` beside each file the updater
      installs;

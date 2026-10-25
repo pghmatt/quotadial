@@ -896,4 +896,71 @@ mod tests {
         assert_eq!(replies[0]["id"], 1);
         assert_eq!(replies[1]["id"], 2);
     }
+
+    /// A line an agent might send: arbitrary bytes or JSON, or a JSON-RPC message with arbitrary
+    /// parts.
+    fn message() -> impl proptest::strategy::Strategy<Value = Vec<u8>> {
+        use proptest::prelude::*;
+        let method = prop_oneof![
+            prop::sample::select(
+                &[
+                    "initialize",
+                    "notifications/initialized",
+                    "ping",
+                    "tools/list",
+                    "tools/call",
+                ][..]
+            )
+            .prop_map(str::to_owned),
+            ".{0,20}",
+        ];
+        let tool = prop_oneof![
+            prop::sample::select(&["get_usage", "get_account_headroom", "list_alerts"][..])
+                .prop_map(str::to_owned),
+            ".{0,20}",
+        ];
+        let call = (
+            quotadial_core::testing::json(),
+            method,
+            tool,
+            quotadial_core::testing::json(),
+            quotadial_core::testing::json(),
+        )
+            .prop_map(|(id, method, tool, arguments, params)| {
+                let params = if method == "tools/call" {
+                    json!({ "name": tool, "arguments": arguments })
+                } else {
+                    params
+                };
+                json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
+                    .to_string()
+                    .into_bytes()
+            });
+        prop_oneof![quotadial_core::testing::line(), call]
+    }
+
+    #[test]
+    fn no_input_makes_the_server_panic_and_every_answer_is_json() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        proptest::proptest!(|(lines in proptest::collection::vec(message(), 0..6))| {
+            let input = lines.join(&b"\n"[..]);
+            let mut output = Vec::new();
+            runtime
+                .block_on(serve(
+                    input.as_slice(),
+                    &mut output,
+                    &["claude"],
+                    async || Ok(report()),
+                    async || Ok(alerts()),
+                    Licensing::default(),
+                ))
+                .expect("serves");
+            for line in String::from_utf8(output).expect("UTF-8").lines() {
+                proptest::prop_assert!(serde_json::from_str::<Value>(line).is_ok(), "{line}");
+            }
+        });
+    }
 }

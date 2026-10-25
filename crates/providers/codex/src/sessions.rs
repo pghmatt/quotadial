@@ -675,4 +675,31 @@ pub(crate) mod tests {
         assert_eq!(newest(dir.path(), OWNER, now()), None);
         assert_eq!(newest(&dir.path().join("missing"), OWNER, now()), None);
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_line_in_a_session_log_makes_the_reader_panic(
+            line in quotadial_core::testing::line(),
+            rate_limits in quotadial_core::testing::json(),
+            timestamp in proptest::prop_oneof![
+                proptest::strategy::Just("2026-10-25T01:12:00Z".to_owned()),
+                ".{0,30}",
+            ],
+        ) {
+            let now = DateTime::parse_from_rfc3339("2026-10-25T02:00:00Z")
+                .expect("a time")
+                .with_timezone(&Utc);
+            let _ = rate_limit_event(&line);
+            let shaped = json!({
+                "timestamp": timestamp,
+                "type": "event_msg",
+                "payload": { "type": "token_count", "rate_limits": rate_limits },
+            });
+            if let Some((at, limits)) = rate_limit_event(shaped.to_string().as_bytes()) {
+                for window in log_windows(&limits, at, now) {
+                    proptest::prop_assert!(window.used_pct.is_finite());
+                }
+            }
+        }
+    }
 }

@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Weekly too, so an advisory published about a dependency fails CI even when nothing changed.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -140,12 +143,34 @@ jobs:
       - name: The changelog has notes for this version
         run: scripts/release-notes.sh "$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)" > /dev/null
 
+  # The supply chain (#52, D-109): known vulnerabilities (cargo audit), and licences, advisories and
+  # where crates come from (cargo deny), for both Rust workspaces. Each exception is in deny.toml
+  # and .cargo/audit.toml with why it cannot reach a user.
+  supply-chain:
+    name: supply-chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2,cargo-audit@0.22.2
+      - name: cargo deny, the core workspace
+        run: cargo deny check
+      - name: cargo deny, the tray app
+        working-directory: apps/tray/src-tauri
+        run: cargo deny check
+      - name: cargo audit, the core workspace
+        run: cargo audit
+      - name: cargo audit, the tray app
+        working-directory: apps/tray/src-tauri
+        run: cargo audit
+
   # The single status check that branch protection on main requires, so the jobs above can change
   # without touching the protection rule.
   ci-success:
     name: ci-success
     if: always()
-    needs: [check, tray, site, public-scope]
+    needs: [check, tray, site, public-scope, supply-chain]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed
@@ -154,3 +179,4 @@ jobs:
           test "${{ needs.tray.result }}" = "success"
           test "${{ needs.site.result }}" = "success"
           test "${{ needs.public-scope.result }}" = "success"
+          test "${{ needs.supply-chain.result }}" = "success"

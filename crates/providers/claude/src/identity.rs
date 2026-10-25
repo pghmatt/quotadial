@@ -243,4 +243,12 @@ mod tests {
         );
         assert_eq!(from_profile(&json!({ "account": null })), None);
     }
+
+    proptest::proptest! {
+        #[test]
+        fn no_profile_makes_the_reader_panic(body in quotadial_core::testing::json()) {
+            let _ = from_profile(&body);
+            let _ = from_profile(&json!({ "account": body.clone(), "organization": body }));
+        }
+    }
 }

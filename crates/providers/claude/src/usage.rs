@@ -624,4 +624,49 @@ mod tests {
         assert_eq!(usage.limit, Some(20.0));
         assert_eq!(usage.currency.as_deref(), Some("USD"));
     }
+
+    /// Each window Anthropic answers with, holding anything.
+    fn answer() -> impl proptest::strategy::Strategy<Value = Value> {
+        use proptest::prelude::*;
+        prop::collection::vec(
+            (
+                prop::sample::select(
+                    &[
+                        "five_hour",
+                        "seven_day",
+                        "seven_day_opus",
+                        "seven_day_sonnet",
+                        "seven_day_oauth_apps",
+                        "extra_usage",
+                        "limits",
+                    ][..],
+                ),
+                quotadial_core::testing::json(),
+            ),
+            0..7,
+        )
+        .prop_map(|windows| {
+            Value::Object(
+                windows
+                    .into_iter()
+                    .map(|(name, value)| (name.to_owned(), value))
+                    .collect(),
+            )
+        })
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn no_answer_makes_the_reading_panic(
+            body in proptest::prop_oneof![quotadial_core::testing::json(), answer()],
+        ) {
+            let fetched_at = DateTime::parse_from_rfc3339("2026-10-25T01:12:00Z")
+                .expect("a time")
+                .with_timezone(&Utc);
+            let reading = read(&body, fetched_at);
+            for window in &reading.windows {
+                proptest::prop_assert!(window.used_pct.is_finite());
+            }
+        }
+    }
 }
