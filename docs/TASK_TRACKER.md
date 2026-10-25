@@ -387,7 +387,11 @@ so they became #10.
   scratch folder, linked the app's command, 17 pages and three completions. Both were uninstalled
   and the tap removed. The Scoop manifest and winget's three manifests pass their published JSON
   schemas, and a manifest broken on purpose fails each. Bash completion offered `alerts` for `al`
-  and `--since` for `history --s`. `actionlint` passes on both workflows.
+  and `--since` for `history --s`. `actionlint` passes on both workflows. A Release run by hand on
+  this branch (run 40161006745) built every file: its command archives hold `completions/` and
+  `man/`, and its deb installs `quotadial` in `/usr/bin`, the 17 pages in `/usr/share/man/man1`, and
+  the completions in `/usr/share/bash-completion/completions`, `/usr/share/zsh/vendor-completions`
+  and `/usr/share/fish/vendor_completions.d`.
 - **Not done here:** the tap repository and the two tokens are Matt's (#51); until then each full
   release's files are an artifact of the Packages workflow. The changelog gains its line about
   Homebrew, Scoop and winget when the tap is live.
