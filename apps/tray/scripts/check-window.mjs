@@ -236,9 +236,35 @@ function stand_in(copy) {
     const pictures = [];
     const drawn = [];
     const fillText = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
-      drawn.push({ text: String(text), fill: String(this.fillStyle), font: this.font });
-      return fillText.call(this, text, ...rest);
+    // What is behind each piece of text, in the canvas's own pixels, so its contrast can be
+    // measured against what is really there: across its middle just before it is written, and
+    // just above it once the picture is finished, in case something was drawn over it after.
+    const texts = new WeakMap();
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      const width = this.measureText(String(text)).width;
+      const size = Number(this.font.match(/([0-9.]+)px/)?.[1] ?? 10);
+      const place = this.getTransform();
+      const at = (along, up) => [
+        Math.round(place.a * (x + width * along) + place.e),
+        Math.round(place.d * (y - up) + place.f),
+      ];
+      const ground = [0.15, 0.5, 0.85].map((along) => [...this.getImageData(...at(along, size * 0.35), 1, 1).data]);
+      // Just over its figures and capitals, below the line above.
+      const above = [0.15, 0.5, 0.85].map((along) => at(along, size * 0.75 + 3));
+      const item = { text: String(text), fill: String(this.fillStyle), font: this.font, x, y, width, ground };
+      drawn.push(item);
+      texts.set(this.canvas, [...(texts.get(this.canvas) ?? []), { item, above }]);
+      return fillText.call(this, text, x, y, ...rest);
+    };
+    const toBlob = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (...args) {
+      const context = this.getContext("2d");
+      for (const { item, above } of texts.get(this) ?? []) {
+        for (const point of above) {
+          item.ground.push([...context.getImageData(...point, 1, 1).data]);
+        }
+      }
+      return toBlob.apply(this, args);
     };
     const fillRect = CanvasRenderingContext2D.prototype.fillRect;
     CanvasRenderingContext2D.prototype.fillRect = function (...box) {
@@ -901,6 +927,14 @@ async function checkSharing(view, name, copy, theme, folder) {
     for (const verdict of drawingVerdicts(drawn, shareStrings(copy.history[days], account), account, copy, look)) {
       check(label, verdict && `${what} ${verdict}`);
     }
+    const strings = writings(drawn);
+    for (const verdict of [
+      ...readingVerdicts(strings, account),
+      ...listingVerdicts(strings, shareStrings(copy.history[days], account)),
+      ...contrastVerdicts(drawn),
+    ]) {
+      check(label, verdict && `${what} ${verdict}`);
+    }
   }
 }
 
@@ -913,6 +947,123 @@ async function tabTo(view, index) {
     await view.press("Tab");
   }
   return false;
+}
+
+/**
+ * The strings a picture wrote, rebuilt from the canvas's record of each piece: a piece joins the
+ * one before when it is in the same font, colour and line and starts where that one ended, give or
+ * take the room a figure is centred in. Each string keeps its font size.
+ */
+function writings(drawn) {
+  const strings = [];
+  for (const item of drawn.filter((one) => "text" in one)) {
+    const size = Number(item.font.match(/([0-9.]+)px/)?.[1] ?? 0);
+    const last = strings.at(-1);
+    const joins =
+      last &&
+      last.font === item.font &&
+      last.fill === item.fill &&
+      Math.abs(last.y - item.y) < 0.01 &&
+      item.x >= last.end - 0.5 &&
+      item.x <= last.end + size * 0.3;
+    if (joins) {
+      last.text += item.text;
+      last.end = item.x + item.width;
+    } else {
+      strings.push({ text: item.text, font: item.font, fill: item.fill, y: item.y, size, end: item.x + item.width });
+    }
+  }
+  return strings;
+}
+
+/**
+ * Verdicts on what a picture says about each window, read away from the app with nothing around
+ * it: "highest N%" only for a window whose highest differs from its latest share, where it adds
+ * something, in the windows' order; and "90%" in small type beside every chart, so its dashed line
+ * is not taken for the limit itself.
+ */
+function readingVerdicts(strings, account) {
+  const differing = account.windows
+    .filter((window) => Math.floor(window.highest) !== Math.floor(window.latest))
+    .map((window) => `highest ${Math.floor(window.highest)}%`);
+  const highest = strings.filter((one) => one.text.startsWith("highest ")).map((one) => one.text);
+  const limits = strings.filter((one) => one.text === "90%");
+  return [
+    highest.join() !== differing.join() &&
+      `writes ${JSON.stringify(highest)} where only ${JSON.stringify(differing)} add something`,
+    limits.length !== account.windows.length &&
+      `labels the 90% line ${limits.length} times for ${account.windows.length} charts`,
+    limits.some((one) => one.size > 18) && "labels the 90% line in large type",
+  ];
+}
+
+/**
+ * Verdicts holding what a picture wrote, string by string, to what `shareStrings` lists: each
+ * written string is a listed one, or the start of one cut short with "…", and each listed string
+ * is written, so the list is the whole of the picture's words and nothing in it goes unseen.
+ */
+function listingVerdicts(strings, listed) {
+  const verdicts = [];
+  const isStart = (written, whole) =>
+    written === whole || (written.endsWith("…") && whole.startsWith(written.slice(0, -1)));
+  for (const written of strings) {
+    verdicts.push(
+      !listed.some((whole) => isStart(written.text, whole)) && `writes "${written.text}", which shareStrings does not list`,
+    );
+  }
+  for (const whole of listed) {
+    verdicts.push(!strings.some((written) => isStart(written.text, whole)) && `lists "${whole}" but never writes it`);
+  }
+  return verdicts;
+}
+
+/** `colour` as the canvas wrote it, `#rrggbb` or `rgba(r, g, b, a)`, laid over the opaque `under`. */
+function rgb(colour, under = [255, 255, 255]) {
+  const hex = colour.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const number = Number.parseInt(hex[1], 16);
+    return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
+  }
+  const parts = colour.match(/^rgba?\(([^)]+)\)$/)?.[1].split(",").map(Number) ?? [0, 0, 0, 1];
+  const alpha = parts[3] ?? 1;
+  return [0, 1, 2].map((index) => parts[index] * alpha + under[index] * (1 - alpha));
+}
+
+/** The contrast of two colours, as WCAG works it out (check-contrast.mjs does the same). */
+function contrast(a, b) {
+  const luminance = (colour) => {
+    const [r, g, b] = colour.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.039_28 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/**
+ * Verdicts on the contrast of every piece of text a picture wrote against what the canvas held
+ * behind it just before: 4.5:1, as check-contrast.mjs holds the window's text, whatever the theme.
+ */
+function contrastVerdicts(drawn) {
+  const said = new Set();
+  return drawn
+    .filter((item) => "text" in item && item.text.trim())
+    .map((item) => {
+      const lowest = Math.min(
+        ...item.ground.map(([r, g, b, a]) => {
+          const behind = rgb(`rgba(${r}, ${g}, ${b}, ${a / 255})`);
+          return contrast(rgb(item.fill, behind), behind);
+        }),
+      );
+      const problem = lowest < 4.5 && `writes "${item.text}" at ${lowest.toFixed(2)}:1 against what is behind it`;
+      if (!problem || said.has(problem)) {
+        return false;
+      }
+      said.add(problem);
+      return problem;
+    });
 }
 
 /**

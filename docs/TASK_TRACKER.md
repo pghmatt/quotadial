@@ -387,9 +387,13 @@ so they became #10.
 - **The picture** (`apps/tray/src/share.ts`): QuotaDial and quotadial.com small at the top right;
   the label at 46 px and the period with its dates beneath; a column per window with its name,
   its latest share at up to 84 px (shrinking so "100%" fits any number of columns) in the text,
-  warning or high colour by its level, "highest" and its share, and its chart with the share
-  filled beneath the line and the dashed line at 90%; then the heatmap, every day named over a
-  week and every seventh over a month, with the hours 0, 6, 12 and 18. Colours come from
+  warning or high colour by its level, its highest only when that differs from its latest (as for
+  a session that reset during the period; otherwise its room is left empty, so the charts in a
+  row stay level), and its chart with the share filled beneath the line and the dashed line at
+  90%, labelled "90%" in 16 px at its right end, on the picture's ground (the chart gives it the
+  room), since the picture is read with nothing around it to say what the line is; then the
+  heatmap, every day named over a week and every seventh over a month, with the hours 0, 6, 12
+  and 18. Colours come from
   `--background`, `--text`, `--muted`, `--warning`, `--high`, `--bar`, `--bar-normal` and
   `--bar-warning` as the window's theme has them; text uses only the four `check-contrast.mjs`
   holds to 4.5:1. The font is the root's stack. A canvas takes no `font-variant-numeric`, so a
@@ -411,8 +415,14 @@ so they became #10.
   (signature, header and its CRC, end) and held to 2400 by 1350 as fixed numbers; History says
   where it went; and every string drawn is in `shareStrings` (imported from `src/share.ts`, which
   Node 22 runs with its types stripped), with no @, in one of the stylesheet's text colours, in
-  the window's font, figures one by one, on the window's background. It shares each account over
-  7 days and the first over 30 where a copy has a month. On Free: no button and the line once.
+  the window's font, figures one by one, on the window's background. It rebuilds the strings the
+  canvas wrote (pieces in one font, colour and line that run on) and holds them to `shareStrings`
+  both ways, writes "highest" only for a window whose highest differs from its latest and "90%"
+  in small type beside every chart, and measures every piece of text at 4.5:1 against the
+  canvas's own pixels behind it, read just before it is written and again just above it when the
+  picture is encoded (the first reading alone missed a label drawn before the chart that then
+  covered it). It shares each account over 7 days and the first over 30 where a copy has a
+  month. On Free: no button and the line once.
   `--share-images <folder>` saves each picture. A key's drawing now counts as the key doing
   something, since the save comes after the PNG is encoded. Seen to fail on 11 windows broken on
   purpose: a button named by the address, no button on Pro, a button on Free, the line twice, a
@@ -420,7 +430,9 @@ so they became #10.
   now holds 2400 by 1350 fixed), the address as the title, a colour not from the stylesheet,
   figures drawn whole, the picture sent for another account, a ground not the background, and a
   picture that never reaches the app.
-- **Fixtures:** both sets carry `label`, `dates` and `share_left_out`. In `window-fixtures.mjs`
+- **Fixtures:** both sets carry `label`, `dates` and `share_left_out`, and a session or 5-hour
+  window in either fills during each working day and resets, so its highest is above its latest
+  while a weekly window's is not. In `window-fixtures.mjs`
   the Claude account's given name is now long ("Work, the team account we share across two
   offices"), so the picture cuts it short, and the Codex account has none, so History names it by
   its very long address, which the @ check needs.
@@ -436,8 +448,13 @@ so they became #10.
   button; home's lead sentence and /pro's description summarise Pro without the picture; the
   existing "QuotaDial could not open its history" and "could not read its history" errors do not
   name a fix (#52).
+- **Read alone** (the coordinator's review): "highest" repeated the latest share in every column
+  of the first pictures, and nothing said the dashed line was at 90%. Both fixed; the new checks
+  failed on the earlier `share.ts` (three "highest" lines where one adds something, no 90% label)
+  and on five more broken pictures: the label inside a chart's ground, in either theme; the label
+  in large type; `shareStrings` without it; and "highest" back under every window.
 - **Tests:** 558 in the workspace (2 new) and 77 in the app (17 new, 4 of them property tests); the
-  window check passes 2602 checks over 16 views (640 before); the site 42 (2 new).
+  window check passes 3350 checks over 16 views (640 before); the site 46 (2 new).
 
 ### M5: the menu bar icon by keyboard and VoiceOver (#64, D-114)
 

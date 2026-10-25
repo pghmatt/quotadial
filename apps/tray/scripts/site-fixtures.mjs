@@ -157,6 +157,30 @@ const SETTINGS = {
 
 const DAYS = ["Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27"];
 
+/** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
+const SESSIONS = ["Session", "5-hour"];
+
+/** The most a session window reached on each day of the week, from Wednesday 21. */
+const SESSION_PEAKS = [52, 64, 47, 6, 0, 58];
+
+/**
+ * A window's week of readings, four a day: a weekly window climbs to its share now, and a session
+ * window fills during each working day and resets, so its highest is above its latest.
+ *
+ * @param {Meter["accounts"][number]["windows"][number]} window
+ * @returns {[number, number][]}
+ */
+function readings(window) {
+  return Array.from({ length: 28 }, (_, index) => {
+    if (!SESSIONS.includes(window.label)) {
+      return [index / 27, (window.used_pct * index) / 27];
+    }
+    // Tuesday, the last day, fills to the share now.
+    const peak = index >= 24 ? window.used_pct : SESSION_PEAKS[Math.floor(index / 4)];
+    return [index / 27, Math.round((peak * ((index % 4) + 1)) / 0.4) / 10];
+  });
+}
+
 /**
  * What a picture of the account's history calls it, as the app does (`share::label`): its provider
  * and the name given it, or its plan, or the provider alone.
@@ -200,14 +224,14 @@ function accountHistory(account, days) {
     name: account.alias ?? account.name,
     label: label(account),
     windows: account.windows.map((window) => {
-      /** @type {[number, number][]} */
-      const points = Array.from({ length: 28 }, (_, index) => [index / 27, (window.used_pct * index) / 27]);
+      const points = readings(window);
+      const highest = Math.max(window.used_pct, ...points.map(([, used]) => used));
       return {
         label: window.label,
         points,
         latest: window.used_pct,
-        highest: window.used_pct,
-        summary: `${window.label}: latest ${window.used_pct}%, highest ${window.used_pct}% in the last ${days} days`,
+        highest,
+        summary: `${window.label}: latest ${window.used_pct}%, highest ${highest}% in the last ${days} days`,
       };
     }),
     heatmap: {

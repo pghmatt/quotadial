@@ -173,6 +173,33 @@ const SETTINGS = {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
+const SESSIONS = ["Session", "5-hour"];
+
+/** The most a session window reached on each day of the week, Monday first. */
+const SESSION_PEAKS = [56, 64, 71, 58, 49, 6, 0];
+
+/**
+ * A window's readings over `days` days, four a day: a weekly window climbs to its share now, and
+ * a session window fills during each day and resets, so its highest is above its latest.
+ *
+ * @param {Meter["accounts"][number]["windows"][number]} window
+ * @param {number} days
+ * @returns {[number, number][]}
+ */
+function readings(window, days) {
+  const count = days * 4;
+  return Array.from({ length: count }, (_, index) => {
+    const along = index / (count - 1);
+    if (!SESSIONS.includes(window.label)) {
+      return [along, Math.min(100, (index * window.used_pct) / (count - 1))];
+    }
+    // The last day fills to the share now.
+    const peak = index >= count - 4 ? window.used_pct : SESSION_PEAKS[Math.floor(index / 4) % 7];
+    return [along, Math.round((peak * ((index % 4) + 1)) / 0.4) / 10];
+  });
+}
+
 /** The days each period covers, as the app writes them, from Monday 20 April 2026. */
 const DATES = { 7: "20 to 26 April 2026", 30: "20 April to 19 May 2026" };
 
@@ -226,18 +253,15 @@ function accountHistory(account, days) {
     name: account.alias ?? account.name,
     label: label(account),
     windows: account.windows.map((window) => {
-      /** @type {[number, number][]} */
-      const points = Array.from({ length: days * 4 }, (_, index) => [
-        index / (days * 4 - 1),
-        Math.min(100, (index * window.used_pct) / (days * 4 - 1)),
-      ]);
+      const points = readings(window, days);
       const latest = window.used_pct;
+      const highest = Math.max(latest, ...points.map(([, used]) => used));
       return {
         label: window.label,
         points,
         latest,
-        highest: latest,
-        summary: `${window.label}: latest ${Math.floor(latest)}%, highest ${Math.floor(latest)}% in the last ${days} days`,
+        highest,
+        summary: `${window.label}: latest ${Math.floor(latest)}%, highest ${Math.floor(highest)}% in the last ${days} days`,
       };
     }),
     heatmap: {

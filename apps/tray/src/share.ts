@@ -6,7 +6,9 @@ import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter"
  * its latest and highest share, the heatmap of when it was used, and where it came from. It is
  * drawn at 1200 by 675 CSS pixels, twice over, as a 2400 by 1350 PNG: the 16:9 shape social feeds
  * show whole, with few words and large numbers so it reads when shown small. Its colours and font
- * are the window's own, read from the stylesheet, so it follows the window's theme.
+ * are the window's own, read from the stylesheet, so it follows the window's theme. It is read away
+ * from the app, with nothing around it to explain it, so a window's highest share is said only
+ * when it differs from its latest, and the dashed line says it is at 90%.
  *
  * Privacy: the picture draws only what `shareStrings` returns, and that holds the account's
  * `label` (its provider and the name given it, or its plan), never its `name`, which can be its
@@ -58,6 +60,9 @@ export function lookOf(root: Element): Look {
 /** A window past these shares is drawn in the warning and high colours, as the popover's meter. */
 const WARNING_PCT = 70;
 const HIGH_PCT = 90;
+/** Where each chart's dashed line is drawn, as History draws it, and the words beside it. */
+const LIMIT_PCT = 90;
+const LIMIT = `${LIMIT_PCT}%`;
 
 /** Where things go, in CSS pixels. */
 const EDGE = 64;
@@ -67,6 +72,9 @@ const ROOM = WIDTH - 2 * EDGE;
 const GUTTER = 36;
 /** The largest a window's latest share is drawn. */
 const NUMBER = 84;
+/** Where each chart begins, and how tall it is. */
+const CHART_TOP = 334;
+const CHART_HEIGHT = 82;
 /** The heatmap's room for a day's label, and where its rows begin and its hours are written. */
 const DAY_ROOM = 92;
 const HEAT_TOP = 474;
@@ -76,7 +84,8 @@ const HOURS_AT = 630;
 interface WindowWords {
   label: string;
   latest: string;
-  highest: string;
+  /** Its highest share, when it differs from its latest; otherwise nothing, its room left empty. */
+  highest: string | null;
   level: "normal" | "warning" | "high";
   chart: WindowChart;
 }
@@ -107,7 +116,11 @@ function words(view: HistoryView, account: AccountHistory): Words {
     windows: account.windows.map((chart) => ({
       label: chart.label,
       latest: `${Math.floor(chart.latest)}%`,
-      highest: `highest ${Math.floor(chart.highest)}%`,
+      // Said only when it adds something, as for a session that reset during the period.
+      highest:
+        Math.floor(chart.highest) === Math.floor(chart.latest)
+          ? null
+          : `highest ${Math.floor(chart.highest)}%`,
       level:
         chart.latest >= HIGH_PCT ? "high" : chart.latest >= WARNING_PCT ? "warning" : "normal",
       chart,
@@ -133,7 +146,12 @@ export function shareStrings(view: HistoryView, account: AccountHistory): string
     said.site,
     said.title,
     said.period,
-    ...said.windows.flatMap((column) => [column.label, column.latest, column.highest]),
+    ...said.windows.flatMap((column) => [
+      column.label,
+      column.latest,
+      ...(column.highest === null ? [] : [column.highest]),
+      LIMIT,
+    ]),
     said.heatmap,
     ...said.days.map((day) => day.text),
     ...said.hours,
@@ -165,20 +183,29 @@ export function drawShare(
   pen.use(400, 24, look.muted);
   pen.write(said.period, EDGE, 134, "left", beside);
 
-  // Each window: its name, its latest share, large, its highest, and its chart.
+  // Each window: its name, its latest share, large, its highest when that differs (its room is
+  // kept either way, so the charts in a row stay level), and its chart with the dashed line's
+  // label in small type at the line's right end, on the picture's ground.
   const columns = Math.max(1, said.windows.length);
   const width = (ROOM - GUTTER * (columns - 1)) / columns;
   pen.use(700, NUMBER, look.text);
   const number = Math.min(NUMBER, Math.floor((NUMBER * width) / pen.measure("100%")));
+  pen.use(400, 16, look.muted);
+  const beyond = pen.measure(LIMIT) + 8;
+  const limitAt = CHART_TOP + ((100 - LIMIT_PCT) / 100) * CHART_HEIGHT;
   said.windows.forEach((column, index) => {
     const x = EDGE + index * (width + GUTTER);
     pen.use(600, 26, look.text);
     pen.write(column.label, x, 202, "left", width);
     pen.use(700, number, column.level === "normal" ? look.text : look[column.level]);
     pen.write(column.latest, x, 282, "left", width);
-    pen.use(400, 22, look.muted);
-    pen.write(column.highest, x, 316, "left", width);
-    drawChart(context, column.chart, x, 334, width, 82, look);
+    if (column.highest !== null) {
+      pen.use(400, 22, look.muted);
+      pen.write(column.highest, x, 316, "left", width);
+    }
+    pen.use(400, 16, look.muted);
+    pen.write(LIMIT, x + width, limitAt + 6, "right");
+    drawChart(context, column.chart, x, CHART_TOP, width - beyond, CHART_HEIGHT, look);
   });
 
   // When it was used, by day and hour.
@@ -209,10 +236,11 @@ function drawChart(
   context.fillStyle = look.track;
   context.fill();
   context.clip();
+  const limit = y + ((100 - LIMIT_PCT) / 100) * height;
   context.beginPath();
   context.setLineDash([6, 6]);
-  context.moveTo(x, y + height * 0.1);
-  context.lineTo(x + width, y + height * 0.1);
+  context.moveTo(x, limit);
+  context.lineTo(x + width, limit);
   context.strokeStyle = look.limit;
   context.lineWidth = 2;
   context.stroke();
