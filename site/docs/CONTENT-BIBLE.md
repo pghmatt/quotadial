@@ -13,7 +13,7 @@ except the example accounts, which are labelled wherever they appear.
 | Systems | macOS (Apple silicon and Intel), Windows, Linux (Debian/Ubuntu `.deb`, other `.AppImage`) | `docs/INSTALL.md` | `lib/data/release.ts` |
 | Where downloads come from | QuotaDial's GitHub releases; every release so far is a pre-release, so links go to the releases page | GitHub | `DOWNLOAD_PAGE` |
 | Signing | Builds are not signed yet; each system warns on first open; `docs/INSTALL.md` has the steps | `docs/INSTALL.md`, #51 | /download copy |
-| Checksums | Each release has `SHA256SUMS.txt` | `docs/INSTALL.md` | /download copy |
+| Checksums, doctor, licence keys, updates | From the release after 0.2.0, which carries CHANGELOG's Unreleased section: `SHA256SUMS.txt`, `quotadial doctor`, Settings' Licence field and the daily update check. 0.1.0 and 0.2.0 have none of them, so the site goes live only after that release is published (the deploy workflow checks for `SHA256SUMS.txt`) | `CHANGELOG.md`, `docs/INSTALL.md` | /download, /support, /pro, /key, /changelog |
 | Sign-in | Reads the sign-in Claude Code and the Codex CLI keep; never writes, refreshes, moves or logs it | `README.md`, `docs/PRIVACY.md` | page copy |
 | How often it asks | Anthropic at most once every 5 minutes per account; ChatGPT at most once every 2 minutes | `README.md` | page copy |
 | Addresses it connects to | The list in `docs/PRIVACY.md`, and nothing else | `docs/PRIVACY.md` (D-106) | /privacy renders the file |

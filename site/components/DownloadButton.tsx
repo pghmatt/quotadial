@@ -24,15 +24,16 @@ export function detectSystem(): System | null {
 
 /**
  * The download action, named for the visitor's system once the page knows it ("Download QuotaDial"
- * before then, and on a phone), leading to that system's part of /download, or to `href` when given
- * (on /download itself, the releases page).
+ * before then, and on a phone), leading to /download, whose first screen names that system's file
+ * and holds the action that fetches it, or to `href` when given (on /download itself, the latest
+ * release).
  */
 export function DownloadButton({ primary = true, href }: { primary?: boolean; href?: string }) {
   const [system, setSystem] = useState<System | null>(null);
   useEffect(() => setSystem(detectSystem()), []);
   return (
     <a
-      href={href ?? (system ? `/download#${system}` : "/download")}
+      href={href ?? "/download"}
       data-primary-action={primary ? "" : undefined}
       data-event="download_click"
       data-event-system={system ?? "unknown"}
