@@ -12,7 +12,7 @@ out of this repository, `docs/PUBLIC_SCOPE.md`); this map is QuotaDial's own pla
 
 - SEO routes (each has a blueprint in `docs/seo/blueprints/`): `/`.
 - Utility routes (descriptive H1s, never the home phrase): `/download`, `/pro`, `/key` (not
-  indexed), `/privacy`, `/support`, `/changelog`.
+  indexed), `/privacy`, `/support`, `/changelog`, and from item 12 `/install` and `/cli`.
 
 ## What the results show (observed)
 
@@ -36,6 +36,8 @@ out of this repository, `docs/PUBLIC_SCOPE.md`); this map is QuotaDial's own pla
 | /privacy | Utility | `docs/PRIVACY.md` | | | check privacy | What QuotaDial reads and sends | What QuotaDial reads and sends \| QuotaDial |
 | /support | Utility | The right channel for a problem | | | get help | Get help with QuotaDial | Support, feedback and security reports \| QuotaDial |
 | /changelog | Utility | `CHANGELOG.md` | | | see changes | What changed in QuotaDial | Changelog: what changed in each version \| QuotaDial |
+| /install | Utility | `docs/INSTALL.md` | | | install another way, settings, updates | Installing QuotaDial | Install guide: package managers, settings, updates \| QuotaDial |
+| /cli | Utility | `docs/CLI.md` | | | look up a command | The QuotaDial CLI | The quotadial command: output, API and exit codes \| QuotaDial |
 
 ## Uniqueness check
 

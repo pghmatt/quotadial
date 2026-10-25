@@ -200,6 +200,56 @@
           "download_click"
         ]
       }
+    },
+    {
+      "path": "/install",
+      "kind": "utility",
+      "intent": "install QuotaDial another way, change its settings, or update it",
+      "job": "Show docs/INSTALL.md whole: every way to install QuotaDial, its settings, its updates, the quotadial command and building it yourself",
+      "primary": "",
+      "title": "Install guide: package managers, settings, updates | QuotaDial",
+      "blueprint": "docs/seo/blueprints/install.md",
+      "sections": [
+        "Installing QuotaDial"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/download",
+        "/cli",
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Read the command guide",
+        "events": [
+          "download_click"
+        ]
+      }
+    },
+    {
+      "path": "/cli",
+      "kind": "utility",
+      "intent": "look up a quotadial command, what it prints, or its exit codes",
+      "job": "Show docs/CLI.md whole: every command, its text and JSON output, the local API, the MCP server and the exit codes",
+      "primary": "",
+      "title": "The quotadial command: output, API and exit codes | QuotaDial",
+      "blueprint": "docs/seo/blueprints/cli.md",
+      "sections": [
+        "The QuotaDial CLI"
+      ],
+      "schemaTypes": [],
+      "internalLinks": [
+        "/install",
+        "/download",
+        "/support"
+      ],
+      "conversion": {
+        "primarySelector": "[data-primary-action]",
+        "secondary": "Read the install guide",
+        "events": [
+          "download_click"
+        ]
+      }
     }
   ],
   "upstream": {
@@ -217,7 +267,7 @@
     },
     "blueprints": {
       "status": "complete",
-      "evidence": "docs/seo/blueprints/ (home, download, pro, key, privacy, support, changelog)"
+      "evidence": "docs/seo/blueprints/ (home, download, pro, key, privacy, support, changelog, install, cli)"
     },
     "contract": {
       "status": "complete",
