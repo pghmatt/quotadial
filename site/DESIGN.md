@@ -30,6 +30,25 @@ colors:
   rule-night: "color-mix(in srgb, #dce9f2 18%, transparent)"
   row-band-night: "color-mix(in srgb, #dce9f2 5%, transparent)"
 typography:
+  scale:
+    home-display-wide: "4.25rem"
+    display: "4rem"
+    home-display: "3.75rem"
+    close: "3rem"
+    headline: "2.75rem"
+    close-phone: "2.25rem"
+    headline-phone: "2rem"
+    ledger-heading: "1.875rem"
+    subhead: "1.75rem"
+    read-aloud: "1.5rem"
+    title: "1.375rem"
+    answer: "1.25rem"
+    lead: "1.1875rem"
+    label: "1.125rem"
+    body: "1.0625rem"
+    table: "1rem"
+    caption: "0.9375rem"
+    table-head: "0.875rem"
   display:
     fontFamily: "'Sofia Sans Condensed Variable', 'Arial Narrow', sans-serif"
     fontSize: "4rem"
@@ -260,6 +279,10 @@ A full palette with chart roles: the blues own whole regions of the page, line b
 ### Hierarchy
 - **Display** (800, 4rem from 768 px and 2.75rem below, line height 1.02, tracking -0.01em): the one H1 of every page. The home H1 steps on its own scale because it shares the first screen with the almanac plate: 2.75rem on a phone, 3.75rem from 640 px, 4.25rem from 1024 px and 3.75rem again from 1280 px, where it holds five columns, at line height 0.98 and tracking -0.015em.
 - **Headline** (750, 2.75rem from 768 px and 2rem below, line height 1.05, tracking -0.01em): section headings, at most 24ch wide.
+- **Close** (Condensed 750, 3rem from 768 px and 2.25rem below, line height 1.02): the closing band's one line on the home page, at most 22ch wide.
+- **Names in a row** (Condensed 750, 2rem at every width): the three systems' names on the home page and each version on /changelog, set at the headline's phone size.
+- **Ledger heading** (Condensed 750, 1.875rem, line height 1.1): the heading inside /pro's ledger plate.
+- **Read aloud** (Semi Condensed 600, 1.5rem, and 1.75rem from 768 px, line height 1.25): the one row of a window the home page reads aloud in its plate ("Weekly 91%, resets in 1 d 15 h, ...").
 - **Subhead** (750, 1.75rem, line height 1.1): a heading inside a plate or on the key page, and the second level of rendered Markdown.
 - **Title** (700, 1.375rem, line height 1.15): the H3s: questions, the per-system checks, and the changelog's Added, Changed and Fixed.
 - **Answer** (Sofia Sans 400, 1.25rem, line height 1.45, Second Ink): the sentence under an H1 that answers it, 34ch to 40ch wide.

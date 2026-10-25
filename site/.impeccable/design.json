@@ -359,9 +359,25 @@
         "displayName": "Headline",
         "purpose": "Section headings, at most 24ch wide."
       },
+      "close": {
+        "displayName": "Close",
+        "purpose": "The closing band's one line on the home page: Condensed 750, 3rem from 768 px and 2.25rem below, at most 22ch wide."
+      },
+      "names-in-a-row": {
+        "displayName": "Names in a row",
+        "purpose": "The three systems' names on the home page and each version on /changelog: Condensed 750 at 2rem, the headline's phone size, at every width."
+      },
+      "ledger-heading": {
+        "displayName": "Ledger heading",
+        "purpose": "The heading inside /pro's ledger plate: Condensed 750, 1.875rem."
+      },
       "subhead": {
         "displayName": "Subhead",
         "purpose": "A heading inside a plate or on the key page, and the second level of rendered Markdown."
+      },
+      "read-aloud": {
+        "displayName": "Read aloud",
+        "purpose": "The one row of a window the home page reads aloud in its plate: Semi Condensed 600, 1.5rem, and 1.75rem from 768 px."
       },
       "title": {
         "displayName": "Title",
