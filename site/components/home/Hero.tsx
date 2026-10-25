@@ -56,14 +56,18 @@ export function Hero() {
               See what Pro adds
             </ButtonLink>
           </div>
+          <p className="m-0 mt-5 max-w-[40ch] text-ink-2">
+            Free and open source under the MIT licence, for macOS, Windows and Linux.
+          </p>
         </div>
 
         <Plate
           className="xl:col-span-7 lg:mb-[8rem]"
+          title="Example accounts, Tuesday 14:10"
           caption={
             <span className="block lg:max-w-[calc(100%-20.5rem)]">
-              Example accounts. Claude's weekly window from Thursday 06:00 as a curve, its three windows in the
-              table, and the window as QuotaDial draws it on a Tuesday at 14:10.
+              Claude's weekly window from Thursday 06:00 as a curve, its three windows in the table, and the window as
+              QuotaDial draws it.
             </span>
           }
         >
