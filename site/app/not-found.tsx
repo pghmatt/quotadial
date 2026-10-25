@@ -17,7 +17,7 @@ const WAYS = [
 /** Any address the site does not have. */
 export default function NotFound() {
   return (
-    <Section className="md:min-h-[calc(100dvh-24rem)]">
+    <Section>
       <div className="grid gap-14 lg:grid-cols-12 lg:gap-x-12">
         <div className="lg:col-span-6">
           <PageIntro
