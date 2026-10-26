@@ -2628,9 +2628,9 @@ mod tests {
         let (_temp, dir) = data_dir();
         let _instance = Instance::acquire(&dir).expect("holds the daemon lock");
         Token::load_or_create(&dir).expect("makes a token");
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
-        let port = closed.local_addr().expect("address").port();
-        drop(closed);
+        // Port 1, where nothing listens and which no test running beside this one is ever given,
+        // as a port bound and let go can be.
+        let port = 1;
         Runtime {
             pid: std::process::id(),
             port,

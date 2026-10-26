@@ -188,7 +188,7 @@ mod tests {
 
     use super::*;
     use crate::WebhookKind;
-    use crate::test_support::receiver;
+    use crate::test_support::{receiver, unreachable};
 
     /// A history whose 90% rule has just told one firing.
     fn told() -> (tempfile::TempDir, Arc<History>) {
@@ -386,15 +386,22 @@ mod tests {
         );
     }
 
+    /// The place the next test sends to refuses a connection, and is never a port a test running
+    /// beside it can be given, as a port bound and let go can be.
+    #[tokio::test]
+    async fn an_unreachable_place_refuses_and_is_never_given_to_a_test() {
+        let place = unreachable();
+        assert!(
+            tokio::net::TcpStream::connect(place).await.is_err(),
+            "refused"
+        );
+        assert!(place.port() < 1024, "below every system's ephemeral ports");
+    }
+
     #[tokio::test]
     async fn a_webhook_that_cannot_be_reached_says_so_by_its_host() {
         let (_dir, history) = told();
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
-        let address = format!(
-            "http://{}/hooks/secret-path",
-            closed.local_addr().expect("address")
-        );
-        drop(closed);
+        let address = format!("http://{}/hooks/secret-path", unreachable());
         let webhook = Webhook::new(&address, WebhookKind::Json).expect("a webhook");
 
         deliver_due(
