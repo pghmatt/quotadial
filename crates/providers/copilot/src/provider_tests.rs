@@ -210,6 +210,19 @@ fn ts(rfc3339: &str) -> DateTime<Utc> {
         .with_timezone(&Utc)
 }
 
+/// Where GitHub CLI's `hosts.yml` is in the test's home, as the provider writes a place: `~` for the
+/// home folder, then the platform's own separators, as `quotadial_core::text::tilde` gives it
+/// (`~/.config\gh\hosts.yml` on Windows), the way Gemini CLI's tests build theirs.
+fn gh_place() -> String {
+    format!(
+        "~/{}",
+        [".config", "gh", "hosts.yml"]
+            .iter()
+            .collect::<PathBuf>()
+            .display()
+    )
+}
+
 fn answer(fixture: &str) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_raw(fixture, "application/json")
 }
@@ -265,10 +278,12 @@ async fn github_cli_s_account_is_found_in_its_file_without_a_request() {
             display_name: "Example-User".into(),
             plan: None,
             org: None,
-            sign_in: Some("~/.config/gh/hosts.yml".into()),
-            sign_in_use: "QuotaDial reads this account's sign-in from ~/.config/gh/hosts.yml. It \
-                          only reads it and never changes it."
-                .into(),
+            sign_in: Some(gh_place()),
+            sign_in_use: format!(
+                "QuotaDial reads this account's sign-in from {}. It only reads it and never changes \
+                 it.",
+                gh_place()
+            ),
         }
     );
     assert_eq!(account.provider_name, provider.name());
@@ -370,9 +385,12 @@ async fn fetches_usage_with_github_s_headers_and_quotadial_s_own_name() {
     assert_eq!(credits.fetched_at, ts("2026-01-15T12:00:00Z"));
     assert_eq!(
         snapshot.account.sign_in_use,
-        "QuotaDial reads this account's sign-in from ~/.config/gh/hosts.yml. It only reads it and \
-         never changes it. GitHub gives this account unlimited chat messages and code completions, \
-         so QuotaDial has no share to show for them."
+        format!(
+            "QuotaDial reads this account's sign-in from {}. It only reads it and never changes it. \
+             GitHub gives this account unlimited chat messages and code completions, so QuotaDial \
+             has no share to show for them.",
+            gh_place()
+        )
     );
 }
 
@@ -546,7 +564,7 @@ async fn one_account_in_both_is_read_from_github_cli_s_file_which_macos_never_as
     let provider = harness.provider();
 
     let account = only(&provider);
-    assert_eq!(account.sign_in.as_deref(), Some("~/.config/gh/hosts.yml"));
+    assert_eq!(account.sign_in, Some(gh_place()));
     let snapshot = provider.fetch(&account).await.expect("fetches");
 
     assert_eq!(snapshot.status, Status::Ok);
@@ -769,11 +787,12 @@ async fn signing_out_after_discovery_sends_no_request() {
     );
     assert_eq!(gh.status, Status::AuthRequired);
     assert_eq!(
-        gh.error.as_deref(),
-        Some(
-            "QuotaDial no longer finds GitHub CLI's sign-in in ~/.config/gh/hosts.yml. Run `gh \
-             auth login` to sign in again."
-        )
+        gh.error,
+        Some(format!(
+            "QuotaDial no longer finds GitHub CLI's sign-in in {}. Run `gh auth login` to sign in \
+             again.",
+            gh_place()
+        ))
     );
     assert_eq!(harness.requests().await, 0);
     assert_eq!(harness.keychain.reads(), 0);
@@ -818,11 +837,12 @@ async fn a_sign_in_now_for_another_account_is_never_read_for_this_one() {
 
     assert_eq!(snapshot.status, Status::AuthRequired);
     assert_eq!(
-        snapshot.error.as_deref(),
-        Some(
-            "GitHub CLI's sign-in in ~/.config/gh/hosts.yml is now for another GitHub account, so \
-             this one's usage cannot be read there."
-        )
+        snapshot.error,
+        Some(format!(
+            "GitHub CLI's sign-in in {} is now for another GitHub account, so this one's usage \
+             cannot be read there.",
+            gh_place()
+        ))
     );
     assert_eq!(harness.requests().await, 0);
 }
@@ -863,10 +883,10 @@ async fn what_cannot_be_looked_at_is_a_warning_beside_the_accounts_found() {
     );
     assert_eq!(
         provider.discovery_warnings(),
-        [
-            "copilot: could not read GitHub CLI's sign-in in ~/.config/gh/hosts.yml: it is not a \
-          plain file."
-        ]
+        [format!(
+            "copilot: could not read GitHub CLI's sign-in in {}: it is not a plain file.",
+            gh_place()
+        )]
     );
 
     fs::remove_dir(harness.hosts_file()).expect("removes it");
