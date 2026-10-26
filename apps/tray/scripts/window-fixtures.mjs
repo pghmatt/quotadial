@@ -248,7 +248,8 @@ const EXAMPLE_ACCOUNT = {
 const METER = {
   percent: 91,
   level: "high",
-  headline: "Claude Weekly, resets in 2 d 4 h",
+  // As the app names the account whose window sets the number: by the name given it (D-132).
+  headline: "Weekly · Claude Work, the team account we share across two offices · resets in 2 d 4 h",
   accounts: ACCOUNTS,
   problems: [
     "The history could not be saved: the disk is full. Free some space and QuotaDial carries on " +

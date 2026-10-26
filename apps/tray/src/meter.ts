@@ -3,7 +3,8 @@ export interface Meter {
   /** The tightest window's share used, rounded down, if any account has numbers. */
   percent: number | null;
   level: Level;
-  /** What that number is, such as "Codex Weekly, resets in 6 d 1 h". */
+  /** What that number is: its window, the account it belongs to and its reset, such as "Weekly ·
+   * Claude Work · resets in 1 d 15 h". */
   headline: string | null;
   accounts: Account[];
   /** What needs the user's attention and belongs to no account, each naming the fix. */

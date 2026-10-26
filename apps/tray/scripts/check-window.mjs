@@ -11,6 +11,8 @@
 //   selectable and read as part of the heading, at 100% and at 200%;
 // - every command a message names between backticks, such as Claude's sign-in command, shows as
 //   code with no backtick left, and one click selects the whole command, to copy it;
+// - the line under the summary's number shows what the app sent, and names the window and the
+//   account that set the number, by the name given it or its address;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -801,6 +803,7 @@ async function checkView(view, panel, operate, copy) {
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
+      await checkSummary(view, copy, zoom);
     }
   }
   await view.zoom(1);
@@ -912,6 +915,44 @@ async function checkCards(view, copy, zoom) {
       check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
     }
   }
+}
+
+/** In the page: the line under the summary's number, and whether it is shown. */
+const SUMMARY = `(() => {
+  const line = document.querySelector('header.summary .headline');
+  if (!line) return null;
+  const { width, height } = line.getBoundingClientRect();
+  return { text: line.textContent, shown: line.getClientRects().length > 0 && width > 0 && height > 0 };
+})()`;
+
+/**
+ * The summary names the account (D-132): its line shows the headline the app sent, and that names
+ * the window that sets the number and its account, by the name given it, or its address, or its
+ * provider alone when the address says nothing more, so two accounts of one provider are never
+ * confused. The account is the one whose window holds the number, as the app chooses it: the
+ * fullest window of an account that is not waiting for a sign-in.
+ */
+async function checkSummary(view, copy, zoom) {
+  const label = `${view.label}, summary at ${zoom * 100}%`;
+  const summary = await view.evaluate(SUMMARY);
+  const { meter } = copy;
+  check(label, (!summary || !summary.shown) && "the line under the number is not shown");
+  if (!summary || meter.headline === null) {
+    return;
+  }
+  check(label, summary.text !== meter.headline && `the line under the number reads "${summary.text}", not "${meter.headline}"`);
+  const [account, window] = meter.accounts
+    .filter((one) => !["sign-in required", "unsupported"].includes(one.status))
+    .flatMap((one) => one.windows.map((each) => [one, each]))
+    .reduce((fullest, pair) => (pair[1].used_pct > (fullest?.[1].used_pct ?? -1) ? pair : fullest), null) ?? [];
+  if (!account) {
+    check(label, "the copy has a headline but no window to set the number");
+    return;
+  }
+  const named = account.alias ?? (account.name || account.provider);
+  check(label, Math.floor(window.used_pct) !== meter.percent && `the copy's number ${meter.percent}% is not its fullest window's`);
+  check(label, !summary.text.includes(window.label) && `the line under the number does not name the window, ${window.label}`);
+  check(label, !summary.text.includes(named) && `the line under the number does not name the account, "${named}"`);
 }
 
 /**

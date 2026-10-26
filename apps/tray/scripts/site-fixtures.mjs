@@ -111,7 +111,7 @@ const ACCOUNTS = [
 const METER = {
   percent: 91,
   level: "high",
-  headline: "Claude Weekly, resets in 1 d 15 h",
+  headline: "Weekly · Claude Work · resets in 1 d 15 h",
   accounts: ACCOUNTS,
   problems: [],
   incidents: [],

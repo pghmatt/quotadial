@@ -48,7 +48,8 @@ pub struct Meter {
     /// The tightest window's share used, rounded down, if any account has numbers.
     pub percent: Option<u8>,
     pub level: Level,
-    /// What that number is, such as "Codex Weekly, resets in 6 d 1 h".
+    /// What that number is: its window, the account it belongs to and its reset, such as
+    /// "Weekly · Claude Work · resets in 1 d 15 h" (D-132).
     pub headline: Option<String>,
     pub accounts: Vec<AccountView>,
     /// What needs the user's attention and belongs to no account, each naming the fix.
@@ -64,6 +65,24 @@ pub struct Meter {
     /// What this copy leaves out because it is QuotaDial Free, a line each, shown under the
     /// accounts where the feature would be (D-100).
     pub left_out: Vec<String>,
+    /// The window that sets the number, which the headline is about, kept so that the name the
+    /// user gives its account can join the headline. Not sent: the headline says it.
+    #[serde(skip)]
+    tightest: Option<Tightest>,
+}
+
+/// The window that sets the tray's number, as the headline names it.
+#[derive(Debug, Clone, PartialEq)]
+struct Tightest {
+    /// Its account, as the settings name it ([`account_key`]).
+    key: String,
+    /// Its account as named before any name the user gave it, such as "Claude dev@example.com", in
+    /// case the account is not in the meter's list.
+    account: String,
+    /// Such as "Weekly".
+    window: String,
+    /// Such as "resets in 1 d 15 h".
+    resets: String,
 }
 
 /// What a provider's week would have cost at API prices.
@@ -150,6 +169,7 @@ impl Meter {
             incidents: Vec::new(),
             costs: Vec::new(),
             left_out: Vec::new(),
+            tightest: None,
             origin: role.map(|role| match role {
                 Role::Running { port } => format!("Running the daemon, port {port}"),
                 Role::Following => "Reading `quotadial daemon`".to_owned(),
@@ -177,18 +197,23 @@ impl Meter {
             let used_pct = window.used_pct.clamp(0.0, 100.0);
             meter.percent = Some(used_pct.floor() as u8);
             meter.level = Level::of(used_pct);
-            meter.headline = Some(format!(
-                "{} {}, {}",
-                snapshot.account.provider_label(),
-                window.label,
-                text::resets(window.resets_at, now)
-            ));
+            let account = &snapshot.account;
+            meter.tightest = Some(Tightest {
+                key: account_key(account),
+                account: text::labelled(
+                    account.provider_label(),
+                    account.name_beside_provider().unwrap_or_default(),
+                ),
+                window: window.label.clone(),
+                resets: text::resets(window.resets_at, now),
+            });
         }
         meter.accounts = report
             .snapshots
             .iter()
             .map(|snapshot| account_view(snapshot, now))
             .collect();
+        meter.headline = meter.headline();
         // A provider's under its own name, as every surface shows it (D-128).
         meter.problems.extend(report.error_lines());
         // What is wrong with QuotaDial itself, such as a history it could not save (D-107).
@@ -275,12 +300,9 @@ impl Meter {
     pub fn with_aliases(mut self, aliases: &BTreeMap<String, String>) -> Self {
         for account in &mut self.accounts {
             if let Some(alias) = aliases.get(&account.key) {
-                account.summary = account.summary.replacen(
-                    &text::labelled(&account.provider, &account.name),
-                    &format!("{} {alias}", account.provider),
-                    1,
-                );
+                let unnamed = account.label();
                 account.alias = Some(alias.clone());
+                account.summary = account.summary.replacen(&unnamed, &account.label(), 1);
             }
         }
         for provider in self.accounts.chunk_by_mut(|a, b| a.provider == b.provider) {
@@ -292,18 +314,52 @@ impl Meter {
                     .to_lowercase()
             });
         }
+        self.headline = self.headline();
         self
     }
 
-    /// The tray icon's tooltip: the app's name, then [`Meter::lines`].
+    /// The headline for the window that sets the number: the window, its account as the popover
+    /// names it, and its reset, such as "Weekly · Claude Work · resets in 1 d 15 h". It names the
+    /// account because two accounts of one provider must not be confused: by the name given it,
+    /// or else by its address (D-132).
+    fn headline(&self) -> Option<String> {
+        let tightest = self.tightest.as_ref()?;
+        let account = self
+            .accounts
+            .iter()
+            .find(|account| account.key == tightest.key)
+            .map_or_else(|| tightest.account.clone(), AccountView::label);
+        Some(format!(
+            "{} · {account} · {}",
+            tightest.window, tightest.resets
+        ))
+    }
+
+    /// The tray icon's tooltip: the app's name, the number and its headline, as the popover's
+    /// summary says them, then [`Meter::lines`].
     #[must_use]
     pub fn tooltip(&self) -> String {
         let mut lines = vec!["QuotaDial".to_owned()];
+        if let (Some(percent), Some(headline)) = (self.percent, &self.headline) {
+            lines.push(format!("{percent}% · {headline}"));
+        }
         lines.extend(self.lines());
         if lines.len() == 1 {
             lines.push("Looking for the accounts on this machine…".to_owned());
         }
         lines.join("\n")
+    }
+}
+
+impl AccountView {
+    /// The account as the headline and the tray's lines name it: its provider's name with the
+    /// name the user gave it, or else its address, or the provider's name alone when the address
+    /// adds nothing, such as "Claude Work", "Claude dev@example.com" or "Example".
+    fn label(&self) -> String {
+        match &self.alias {
+            Some(alias) => format!("{} {alias}", self.provider),
+            None => text::labelled(&self.provider, &self.name),
+        }
     }
 }
 
@@ -606,7 +662,7 @@ mod tests {
         assert_eq!(meter.title(), "73%");
         assert_eq!(
             meter.headline.as_deref(),
-            Some("Codex Weekly, resets in 6 d 3 h")
+            Some("Weekly · Codex user@example.com · resets in 6 d 3 h")
         );
         assert_eq!(
             meter.lines(),
@@ -614,6 +670,119 @@ mod tests {
                 "Claude user@example.com (max): Session 42%, resets in 2 h 10 min",
                 "Codex user@example.com (pro): Weekly 73%, resets in 6 d 3 h",
             ]
+        );
+    }
+
+    /// Two Claude accounts, the second of them nearer its limit.
+    fn two_claude_accounts() -> StatusReport {
+        let mut report = two_accounts();
+        let mut second = snapshot(
+            "claude",
+            Some("pro"),
+            vec![window("Weekly", 88.0, "2099-01-02T15:04:00Z")],
+        );
+        second.account.account_id = "user-2".into();
+        second.account.display_name = "dev@example.com".into();
+        report.snapshots.insert(1, second);
+        report
+    }
+
+    #[test]
+    fn the_headline_names_the_account_the_number_belongs_to_by_its_address() {
+        // Two Claude accounts must not be confused (D-132): the window that sets the number is
+        // the second's, and only its address says which.
+        let meter = Meter::new(Some(&two_claude_accounts()), None, None, now());
+
+        assert_eq!(meter.percent, Some(88));
+        assert_eq!(
+            meter.headline.as_deref(),
+            Some("Weekly · Claude dev@example.com · resets in 1 d 15 h")
+        );
+    }
+
+    #[test]
+    fn the_headline_names_the_account_by_the_name_the_user_gave_it() {
+        let meter = Meter::new(Some(&two_claude_accounts()), None, None, now()).with_aliases(
+            &BTreeMap::from([
+                ("claude user-2 -".to_owned(), "Work".to_owned()),
+                ("claude user-1 -".to_owned(), "Home".to_owned()),
+            ]),
+        );
+
+        assert_eq!(
+            meter.headline.as_deref(),
+            Some("Weekly · Claude Work · resets in 1 d 15 h"),
+            "the name given, not the address, even after the accounts are sorted by name"
+        );
+        assert_eq!(meter.accounts[0].alias.as_deref(), Some("Home"));
+        assert!(
+            meter
+                .lines()
+                .contains(&"Claude Work (pro): Weekly 88%, resets in 1 d 15 h".to_owned()),
+            "{:?}",
+            meter.lines()
+        );
+    }
+
+    #[test]
+    fn the_headline_names_an_example_account_once() {
+        // Called as its provider is (D-124), so its provider's name alone says which account.
+        let mut report = two_accounts();
+        report.snapshots[1] = Snapshot {
+            account: Account {
+                provider: "fake".into(),
+                provider_name: "Example".into(),
+                account_id: "example-2".into(),
+                display_name: "Example".into(),
+                plan: Some("ChatGPT Pro".into()),
+                org: None,
+                sign_in: None,
+                sign_in_use: String::new(),
+            },
+            ..snapshot(
+                "fake",
+                None,
+                vec![window("Session", 97.0, "2099-01-01T02:14:00Z")],
+            )
+        };
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        assert_eq!(
+            meter.headline.as_deref(),
+            Some("Session · Example · resets in 2 h 10 min")
+        );
+        let named = meter.with_aliases(&BTreeMap::from([(
+            "fake example-2 -".to_owned(),
+            "Demo".to_owned(),
+        )]));
+        assert_eq!(
+            named.headline.as_deref(),
+            Some("Session · Example Demo · resets in 2 h 10 min")
+        );
+    }
+
+    #[test]
+    fn the_tooltip_says_the_number_and_its_headline_as_the_popover_does() {
+        let meter = Meter::new(Some(&two_claude_accounts()), None, None, now()).with_aliases(
+            &BTreeMap::from([("claude user-2 -".to_owned(), "Work".to_owned())]),
+        );
+
+        let tooltip = meter.tooltip();
+        let lines: Vec<&str> = tooltip.lines().collect();
+
+        assert_eq!(
+            lines[..2],
+            [
+                "QuotaDial",
+                "88% · Weekly · Claude Work · resets in 1 d 15 h"
+            ],
+            "{tooltip}"
+        );
+        assert_eq!(
+            &lines[2..],
+            meter.lines(),
+            "then every account, as the menu lists them"
         );
     }
 
@@ -692,7 +861,7 @@ mod tests {
         );
         assert_eq!(
             meter.headline.as_deref(),
-            Some("GitHub Copilot Credits, resets in 3 d")
+            Some("Credits · GitHub Copilot user@example.com · resets in 3 d")
         );
         assert!(
             meter
