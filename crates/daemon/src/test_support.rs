@@ -77,6 +77,16 @@ pub async fn receiver(status: &'static str) -> (String, Arc<Mutex<Vec<String>>>)
     (address, bodies)
 }
 
+/// A place on this machine where nothing answers: port 1, where nothing listens, so a connection to
+/// it is refused at once. No test is ever given that port, since a port asked for as 0 comes from
+/// the system's ephemeral range, far above it. A port a test bound and then let go can be given to
+/// a test running beside it, whose server a delivery then reaches instead, as one did on CI on
+/// 2026-10-26. (A port held bound without listening will not do: macOS lets a connection to it hang
+/// until it times out, where a refusal is what these tests ask for.)
+pub fn unreachable() -> std::net::SocketAddr {
+    ([127, 0, 0, 1], 1).into()
+}
+
 /// A status page on this machine that answers every request with `body`, and its address.
 pub async fn status_page(body: &'static str) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("binds");

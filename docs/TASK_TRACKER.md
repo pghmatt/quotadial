@@ -420,6 +420,28 @@ so they became #10.
 
 The notes below run newest first; the setup notes above them are the oldest.
 
+### Main's CI, a second flake: a place where nothing answers, on a port no test is given
+
+- **What happened:** #90's CI at d248b46 failed once in `fake provider (macos-latest)`, in a test
+  #90 does not touch: `deliveries::tests::a_webhook_that_cannot_be_reached_says_so_by_its_host`
+  got "not sent to 127.0.0.1: the connection failed" where it expects "... it could not be
+  reached". The job passed when run again.
+- **Why:** the test made its unreachable webhook by binding a port and letting it go. A test
+  running beside it can be given that same port next, and then the delivery reaches that test's
+  server, which fails it otherwise.
+- **The fix:** `test_support::unreachable()`, port 1 on this machine, where nothing listens, so a
+  connection is refused at once, and which no test is ever given, since a port asked for as 0 comes
+  from the system's ephemeral range, far above it. A port held bound without listening will not do:
+  macOS lets a connection to it hang until it times out (7.8 s here, where port 1 refuses at once).
+  A new test, `an_unreachable_place_refuses_and_is_never_given_to_a_test`, failed first against the
+  old way (a port let go is in the ephemeral range). Three more tests made a place nothing answers
+  the same racy way, and take port 1 now too: the CLI's
+  `a_running_daemon_that_does_not_answer_is_shown_instead_of_polling`, and Claude's and Codex's
+  `an_unreachable_..._shows_stale_numbers_without_using_up_the_floor`. Checked here: `cargo fmt
+  --check`; clippy with `-D warnings` for the daemon's, the CLI's and both providers' targets; the
+  daemon's `deliveries`, `test_support` and `status_pages` tests (14 pass) and the three others; CI
+  runs the rest.
+
 ### M6: where and when an account's windows were read, said once for the card (D-135)
 
 - **The ask:** the manager's review of #86 (2026-10-26, 19:28 UTC) confirmed D-132's call to keep each

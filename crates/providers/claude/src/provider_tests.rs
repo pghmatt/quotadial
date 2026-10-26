@@ -3,7 +3,6 @@
 //! real Keychain, Claude Code's files, the network or the user's cache.
 
 use std::collections::HashMap;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -743,10 +742,9 @@ async fn an_unreachable_anthropic_shows_stale_numbers_without_using_up_the_floor
     let account = discovered(&provider).await;
     provider.fetch(&account).await.expect("first fetch");
 
-    // A port with nothing listening on it.
-    let closed = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let dead_url = format!("http://{}", closed.local_addr().expect("address"));
-    drop(closed);
+    // Port 1, where nothing listens and which no test running beside this one is ever given, as a
+    // port bound and let go can be.
+    let dead_url = "http://127.0.0.1:1".to_owned();
     harness.advance(6);
     let offline = harness.provider_with(harness.env(), &dead_url);
     let stale = offline.fetch(&account).await.expect("stale fetch");
