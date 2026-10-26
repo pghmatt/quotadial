@@ -213,13 +213,15 @@ impl Snapshot {
         sorted
     }
 
-    /// The same snapshot with any token blanked out of its error text, whichever provider wrote
-    /// it.
+    /// The same snapshot with any token blanked out of the text a provider wrote: its error, where
+    /// its account's sign-in is and what QuotaDial does with it (P-020). A provider never puts a
+    /// token there; this pass makes sure, as it does for everything a provider writes.
     #[must_use]
     pub fn without_secrets(mut self) -> Self {
-        self.error = self
-            .error
-            .map(|error| crate::redact_secrets(&error).into_owned());
+        let redacted = |text: &str| crate::redact_secrets(text).into_owned();
+        self.error = self.error.as_deref().map(redacted);
+        self.account.sign_in = self.account.sign_in.as_deref().map(redacted);
+        self.account.sign_in_use = redacted(&self.account.sign_in_use);
         self
     }
 
@@ -455,6 +457,34 @@ mod tests {
             "its id until the next poll, never a name from a table"
         );
         assert_eq!(account().provider_label(), "Claude");
+    }
+
+    #[test]
+    fn the_redact_pass_covers_what_an_account_says_of_its_sign_in() {
+        // Written in pieces, so no secret scanner takes this file for one holding a token.
+        let token = concat!("sk-ant-", "oat01-", "abcdefghijklmnopqrstuvwxyz0123456789");
+        let leaky = Snapshot {
+            account: Account {
+                sign_in: Some(format!("the variable holding {token}")),
+                sign_in_use: format!("QuotaDial reads {token} and never changes it."),
+                ..account()
+            },
+            windows: Vec::new(),
+            extra_usage: None,
+            status: Status::Ok,
+            error: None,
+        };
+
+        let shown = leaky.without_secrets();
+
+        assert_eq!(
+            shown.account.sign_in.as_deref(),
+            Some(format!("the variable holding {}", crate::REDACTED).as_str())
+        );
+        assert_eq!(
+            shown.account.sign_in_use,
+            format!("QuotaDial reads {} and never changes it.", crate::REDACTED)
+        );
     }
 
     #[test]
