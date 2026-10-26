@@ -304,6 +304,15 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
   at discovery, a refusal firing the sign-in alert, the unsaid beside windows, the prompt not said
   first, GitHub CLI's folder misplaced); the test for an account with no known place against the
   sentence it replaced.
+- **Windows CI on #81:** six end-to-end tests failed on windows-latest (`check` and `fake
+  provider`): they expected `~/.config/gh/hosts.yml` written by hand, while the provider writes a
+  place as core's `text::tilde` does for every provider, with the platform's separators
+  (`~/.config\gh\hosts.yml` on Windows). The provider is unchanged; the tests now build the place
+  from its parts (`gh_place()`), as Gemini CLI's do with `in_home`, in the account's `sign_in` and
+  `sign_in_use`, the sentence beside windows, the signed-out and another-account lines and the
+  unreadable-file warning. Nothing else in the crate writes a separator into expected text: the
+  `advice` and plain-words tests pass a place in and expect it back, `environment`'s compare paths
+  built with `join`, and the fixtures hold no path.
 - **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings --locked`
   on the workspace, default, `fake` and `copilot`, and on the tray app, default and `fake`; the
   crate's clippy again with the macOS-only Keychain code switched off (a simulated non-macOS
