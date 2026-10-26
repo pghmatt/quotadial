@@ -548,13 +548,13 @@ mod tests {
         );
     }
 
-    /// `parts` in the home folder, as `text::tilde` writes it: `~/.codex/auth.json` on macOS and
-    /// Linux, with Windows' own separator after the `~/` there.
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/.codex/auth.json` on macOS and Linux and `~\.codex\auth.json` on Windows.
     fn in_home(parts: &[&str]) -> String {
-        format!(
-            "~/{}",
-            parts.iter().collect::<std::path::PathBuf>().display()
-        )
+        std::path::Path::new("~")
+            .join(parts.iter().collect::<std::path::PathBuf>())
+            .display()
+            .to_string()
     }
 
     #[test]

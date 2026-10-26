@@ -7,25 +7,28 @@ use chrono::{DateTime, TimeDelta, Utc};
 
 use crate::{Cost, ExtraUsage, ModelCost, Pace, Source, Status};
 
-/// `path` with `~` for the home folder, as people write it, such as `~/.codex/auth.json`.
+/// `path` with `~` for the home folder, as people write it, such as `~/.codex/auth.json`: `~`, the
+/// system's own separator and the rest, so Windows writes `~\.codex\auth.json` (D-129).
 #[must_use]
 pub fn tilde(path: &Path, home: Option<&Path>) -> String {
     match home.and_then(|home| path.strip_prefix(home).ok()) {
         Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
-        Some(rest) => format!("~/{}", rest.display()),
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
         None => path.display().to_string(),
     }
 }
 
 /// `text` with every path in it that starts in the home folder `home` written as [`tilde`] writes
 /// it, such as `~/.codex/auth.json`, so a sentence that names a place keeps the user's name out of
-/// it (#52). A path starts where the text does or after a character no path holds, such as a space
-/// or a quote, and starts in the home folder only where the folder's own name ends, at a separator
-/// or where the path does: with `/Users/ann` as the home folder, a path in `/Users/anna` or in
-/// `/Volumes/Backup/Users/ann` stays as it is. The home folder is matched as written, without a
-/// separator at its end. With no home folder, or one that is a whole disk, the text is left as it
-/// is. Every message QuotaDial writes that can name a place, a provider's error or one of its own,
-/// goes through it once where its text is made, and so does doctor's whole text (D-128, D-129).
+/// it (#52): `~`, the separator the path has after the home folder, which for a path the system
+/// wrote is its own, and the rest as written. A path starts where the text does or after a
+/// character no path holds, such as a space or a quote, and starts in the home folder only where
+/// the folder's own name ends, at a separator or where the path does: with `/Users/ann` as the home
+/// folder, a path in `/Users/anna` or in `/Volumes/Backup/Users/ann` stays as it is. The home
+/// folder is matched as written, without a separator at its end. With no home folder, or one that
+/// is a whole disk, the text is left as it is. Every message QuotaDial writes that can name a
+/// place, a provider's error or one of its own, goes through it once where its text is made, and so
+/// does doctor's whole text (D-128, D-129).
 #[must_use]
 pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
     let Some(home) = home.filter(|home| home.parent().is_some()) else {
@@ -47,9 +50,12 @@ pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
             .next_back()
             .is_none_or(|before| !in_path(before));
         match after.chars().next() {
-            // As `tilde` writes it: `~/` and the rest of the path as it was written.
+            // As `tilde` writes it: `~`, the separator, and the rest of the path as it was
+            // written. The separator is the path's own, so a path written with `/` on Windows
+            // keeps it.
             Some(separator) if starts && std::path::is_separator(separator) => {
-                written.push_str("~/");
+                written.push('~');
+                written.push(separator);
                 rest = &after[separator.len_utf8()..];
             }
             _ if starts && ends_path(after) => {
@@ -330,9 +336,14 @@ mod tests {
     #[test]
     fn paths_in_the_home_folder_start_with_a_tilde() {
         let home = PathBuf::from("/Users/example");
+        // `~` and the system's own separator, then the rest as the path has it: on Windows
+        // `~\.codex/auth.json` here (D-129).
         assert_eq!(
             tilde(&home.join(".codex/auth.json"), Some(&home)),
-            "~/.codex/auth.json"
+            Path::new("~")
+                .join(".codex/auth.json")
+                .display()
+                .to_string()
         );
         assert_eq!(tilde(&home, Some(&home)), "~");
         assert_eq!(tilde(Path::new("/etc/x"), Some(&home)), "/etc/x");
@@ -344,10 +355,10 @@ mod tests {
         parts.iter().collect()
     }
 
-    /// `parts` in the home folder, as [`tilde`] writes it: `~/.codex/auth.json` on macOS and Linux,
-    /// with Windows' own separator after the `~/` there.
+    /// `parts` in the home folder, as [`tilde`] writes it: `~` and the system's own separator, so
+    /// `~/.codex/auth.json` on macOS and Linux and `~\.codex\auth.json` on Windows.
     fn in_home(parts: &[&str]) -> String {
-        format!("~/{}", path(parts).display())
+        Path::new("~").join(path(parts)).display().to_string()
     }
 
     /// A sentence naming `place`, as a provider's error does.
@@ -459,6 +470,11 @@ mod tests {
         assert_eq!(
             tilde_in(&naming(&place), Some(&ended)),
             tilde_in(&naming(&place), Some(&home))
+        );
+        // A path that goes on with `/`, which Windows takes too, keeps it after `~` (D-129).
+        assert_eq!(
+            tilde_in(&format!("nothing in {}/x.", home.display()), Some(&home)),
+            "nothing in ~/x."
         );
     }
 
@@ -728,7 +744,7 @@ mod tests {
 
             let written = tilde_in(&text, home.as_deref());
 
-            // A place is only ever shortened, to `~` or `~/` and the rest as it was.
+            // A place is only ever shortened, to `~`, or `~`, its separator and the rest as it was.
             prop_assert!(written.len() <= text.len(), "{text:?} became {written:?}");
             prop_assert_eq!(tilde_in(&text, None), text.as_str(), "no home folder");
             let disk = Path::new(std::path::MAIN_SEPARATOR_STR);

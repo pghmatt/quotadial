@@ -324,10 +324,14 @@ mod tests {
         found
     }
 
-    /// `parts` in the home folder, as people write it: `~/.gemini/oauth_creds.json` on macOS and
-    /// Linux, with Windows' own separator after the `~/` there.
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/.gemini/oauth_creds.json` on macOS and Linux and `~\.gemini\oauth_creds.json` on
+    /// Windows (D-129).
     fn in_home(parts: &[&str]) -> String {
-        format!("~/{}", parts.iter().collect::<PathBuf>().display())
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
     }
 
     fn account(account_id: &str, display_name: &str, sign_in: &str, sign_in_use: &str) -> Account {

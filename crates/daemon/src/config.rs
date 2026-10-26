@@ -242,10 +242,13 @@ mod tests {
         dir
     }
 
-    /// `parts` in the home folder, as `text::tilde` writes it: `~/quotadial/config.json` on macOS
-    /// and Linux, with Windows' own separators after the `~/` there.
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/config.json` on macOS and Linux and `~\quotadial\config.json` on Windows.
     fn in_home(parts: &[&str]) -> String {
-        format!("~/{}", parts.iter().collect::<PathBuf>().display())
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
     }
 
     #[test]

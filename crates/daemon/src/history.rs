@@ -982,10 +982,13 @@ mod tests {
         );
     }
 
-    /// `parts` in the home folder, as `text::tilde` writes it: `~/quotadial/history.db` on macOS
-    /// and Linux, with Windows' own separators after the `~/` there.
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/history.db` on macOS and Linux and `~\quotadial\history.db` on Windows.
     fn in_home(parts: &[&str]) -> String {
-        format!("~/{}", parts.iter().collect::<PathBuf>().display())
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
     }
 
     #[test]
@@ -1065,17 +1068,18 @@ mod tests {
             Some(format!("unable to open database file: {}", place.display())),
         );
 
+        let written = in_home(&["history.db"]);
         assert_eq!(
             HistoryError::new(format!(
                 "{} was written by a newer QuotaDial (schema 99)",
                 place.display()
             ))
             .to_string(),
-            "~/history.db was written by a newer QuotaDial (schema 99)"
+            format!("{written} was written by a newer QuotaDial (schema 99)")
         );
         assert_eq!(
             HistoryError::from(unopened).to_string(),
-            "unable to open database file: ~/history.db"
+            format!("unable to open database file: {written}")
         );
     }
 
@@ -1146,8 +1150,11 @@ mod tests {
         assert!(history.record(&first, now).expect("records"));
         assert_eq!(
             recovered.line(Some(dir.path())),
-            "QuotaDial could not read its history, so it started a new one with the starting \
-             alert rules; the old file is ~/history-damaged-20991025T011200Z.db."
+            format!(
+                "QuotaDial could not read its history, so it started a new one with the starting \
+                 alert rules; the old file is {}.",
+                in_home(&["history-damaged-20991025T011200Z.db"])
+            )
         );
         let again = History::open_or_recover(&path, true, now).expect("opens");
         assert_eq!(again.1, None, "a sound history stays where it is");

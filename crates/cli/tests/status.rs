@@ -45,6 +45,15 @@ fn providers() -> Value {
         .collect()
 }
 
+/// `parts` in the home folder, as QuotaDial writes a place there: `~` and the system's own
+/// separator, so `~/data/history.db` on macOS and Linux and `~\data\history.db` on Windows (D-129).
+fn in_home(parts: &[&str]) -> String {
+    Path::new("~")
+        .join(parts.iter().collect::<PathBuf>())
+        .display()
+        .to_string()
+}
+
 /// An empty directory used as the home directory, so no stored login on the machine is found.
 fn empty_home(test: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("quotadial-{test}-{}", std::process::id()));
@@ -189,10 +198,7 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
         r#"{ "security": { "auth": { "selectedType": "oauth-personal" } } }"#,
     )
     .expect("chooses Google");
-    let sign_in = format!(
-        "~/{}",
-        Path::new(".gemini").join("oauth_creds.json").display()
-    );
+    let sign_in = in_home(&[".gemini", "oauth_creds.json"]);
     let why = "Google's terms do not let other tools use Gemini CLI's sign-in, so QuotaDial shows \
                no numbers for it. In Gemini CLI, `/model` shows each model's share used and when \
                it resets.";
@@ -601,9 +607,9 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
     assert_eq!(
         line,
         format!(
-            "QuotaDial daemon running. {ASKS} It keeps history in ~/{}, and is the only thing that \
+            "QuotaDial daemon running. {ASKS} It keeps history in {}, and is the only thing that \
              polls while it runs.\n",
-            Path::new("data").join("history.db").display()
+            in_home(&["data", "history.db"])
         )
     );
     assert_eq!(
@@ -641,7 +647,7 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let port = u16::try_from(runtime["port"].as_u64().expect("a port")).expect("a port");
     let token = std::fs::read_to_string(data.join("token")).expect("the token");
 
-    let token_file = format!("~/{}", Path::new("data").join("token").display());
+    let token_file = in_home(&["data", "token"]);
     assert_eq!(
         line,
         format!(
@@ -746,17 +752,14 @@ fn a_history_that_cannot_be_opened_is_named_with_the_home_folder_written_with_a_
         std::fs::create_dir_all(data.join("history.db")).expect("a folder in the history's place");
     }
 
-    let in_home = run(env!("CARGO_BIN_EXE_quotadial"), &["alerts"], &home);
+    let in_home_output = run(env!("CARGO_BIN_EXE_quotadial"), &["alerts"], &home);
     let elsewhere = command(env!("CARGO_BIN_EXE_quotadial"), &["alerts"], &home)
         .env(quotadial_core::copy::DATA_DIR_VARIABLE, beside.join("data"))
         .output()
         .expect("binary runs");
 
     for (output, place) in [
-        (
-            in_home,
-            format!("~/{}", Path::new("data").join("history.db").display()),
-        ),
+        (in_home_output, in_home(&["data", "history.db"])),
         (
             elsewhere,
             beside.join("data").join("history.db").display().to_string(),
@@ -989,12 +992,10 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
         !text.contains(&home_text),
         "the home folder is written ~:\n{text}"
     );
-    // As every message writes a place in the home folder, on Windows too: `~/` and the rest as the
-    // system writes it (D-129).
-    assert!(
-        text.lines().any(|line| line == "Data folder: ~/data"),
-        "{text}"
-    );
+    // As every message writes a place in the home folder: `~` and the system's own separator, and
+    // the rest as the system writes it (D-129).
+    let data_folder = format!("Data folder: {}", in_home(&["data"]));
+    assert!(text.lines().any(|line| line == data_folder), "{text}");
 }
 
 /// Rule 3 of D-117: with no variable naming a data folder, the example build still keeps its own,

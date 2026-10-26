@@ -214,9 +214,13 @@ mod tests {
             "a webhook is named by its host only"
         );
         assert!(!text.contains("api-test"), "no licence id");
-        // As `text::tilde` writes a place in the home folder: `~/` and the rest as written, which
-        // on Windows is `~/quotadial` too.
-        assert!(text.contains("Data folder: ~/quotadial\n"), "{text}");
+        // As `text::tilde` writes a place in the home folder: `~` and the system's own separator,
+        // `~\quotadial` on Windows (D-129).
+        let data_folder = format!(
+            "Data folder: {}\n",
+            std::path::Path::new("~").join("quotadial").display()
+        );
+        assert!(text.contains(&data_folder), "{text}");
     }
 
     #[test]

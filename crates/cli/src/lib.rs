@@ -2367,12 +2367,7 @@ mod tests {
 
         let report = collect(&providers).await;
 
-        let shown = format!(
-            "~/{}",
-            std::path::Path::new(".scripted")
-                .join("credentials.json")
-                .display()
-        );
+        let shown = in_home(&[".scripted", "credentials.json"]);
         assert_eq!(
             report.errors[0].message,
             format!("could not read the sign-in from {shown}: permission denied")
@@ -2385,10 +2380,13 @@ mod tests {
         );
     }
 
-    /// `parts` in the home folder, as `text::tilde` writes it: `~/quotadial/history.db` on macOS
-    /// and Linux, with Windows' own separators after the `~/` there.
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/history.db` on macOS and Linux and `~\quotadial\history.db` on Windows.
     fn in_home(parts: &[&str]) -> String {
-        format!("~/{}", parts.iter().collect::<PathBuf>().display())
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
     }
 
     #[test]

@@ -475,7 +475,12 @@ mod tests {
 
         let text = facts.text(at("2099-01-01T00:03:00Z"), Some(&home));
 
-        let in_home = |parts: &[&str]| format!("~/{}", parts.iter().collect::<PathBuf>().display());
+        let in_home = |parts: &[&str]| {
+            Path::new("~")
+                .join(parts.iter().collect::<PathBuf>())
+                .display()
+                .to_string()
+        };
         assert!(
             text.contains(&format!("Data folder: {}\n", in_home(&["quotadial"]))),
             "{text}"

@@ -677,7 +677,13 @@ async fn why_a_daemon_gave_no_answer_names_its_files_with_the_home_folder_writte
     // only starts with, as `/Users/ann` is to `/Users/anna`.
     let home = dir.path().parent().expect("in a folder").to_owned();
     let other = home.join("quota");
-    let in_home = |name: &str| format!("~/{}", Path::new("quotadial").join(name).display());
+    let in_home = |name: &str| {
+        Path::new("~")
+            .join("quotadial")
+            .join(name)
+            .display()
+            .to_string()
+    };
     let restart = "restart it with `quotadial daemon`.";
 
     std::fs::write(dir.token(), "0".repeat(64)).expect("writes another token");

@@ -354,7 +354,11 @@ mod tests {
         let written = places(&in_home).map(|place| text::tilde(&place, Some(&home)));
         assert_eq!(
             written[1],
-            format!("~/{}", Path::new("quotadial").join("history.db").display())
+            Path::new("~")
+                .join("quotadial")
+                .join("history.db")
+                .display()
+                .to_string()
         );
         assert_eq!(
             failed(&in_home).map(|error| error.line(Some(&home))),
@@ -381,8 +385,11 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "could not create the API token at ~/token: permission denied; check that you can \
-             write to it"
+            format!(
+                "could not create the API token at {}: permission denied; check that you can \
+                 write to it",
+                Path::new("~").join("token").display()
+            )
         );
     }
 }

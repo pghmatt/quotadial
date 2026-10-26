@@ -843,8 +843,12 @@ mod tests {
         let file = Path::new("Downloads").join("QuotaDial history 2099-01-07.csv");
 
         let said = unsaved(&home.join("Downloads"));
+        // `~` and the system's own separator (D-129).
         assert!(
-            said.starts_with(&format!("QuotaDial could not save ~/{}: ", file.display())),
+            said.starts_with(&format!(
+                "QuotaDial could not save {}: ",
+                Path::new("~").join(&file).display()
+            )),
             "{said}"
         );
         // Another user's folder, whose name starts as the home folder's does.
