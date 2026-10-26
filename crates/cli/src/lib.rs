@@ -1196,8 +1196,9 @@ fn write_text(
     for left_out in others {
         writeln!(out, "{}", left_out.text)?;
     }
-    for error in &report.errors {
-        writeln!(out, "error: {}", error.message)?;
+    // Under the provider's own name, as every surface shows it (D-128).
+    for line in report.error_lines() {
+        writeln!(out, "error: {line}")?;
     }
     for problem in &report.problems {
         writeln!(out, "{problem}")?;
@@ -1929,6 +1930,45 @@ mod tests {
     }
 
     #[test]
+    fn a_providers_error_is_shown_under_the_providers_own_name() {
+        let error = |provider: &str, message: &str| quotadial_core::ProviderError {
+            provider: provider.into(),
+            message: message.into(),
+        };
+        let report = StatusReport {
+            errors: vec![
+                error(
+                    "gemini",
+                    "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                     file",
+                ),
+                error("copilot", "request failed: GitHub did not answer."),
+                // From a daemon older than D-128, which began each message with its provider's id.
+                error(
+                    "claude",
+                    "claude: request failed: Could not reach Anthropic.",
+                ),
+            ],
+            providers: [("claude", "Claude"), ("gemini", "Gemini CLI")]
+                .map(|(id, name)| ProviderName {
+                    id: id.into(),
+                    name: name.into(),
+                })
+                .to_vec(),
+            ..StatusReport::default()
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "error: Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is \
+             not a plain file\n\
+             error: copilot: request failed: GitHub did not answer.\n\
+             error: Claude: request failed: Could not reach Anthropic.\n",
+            "a provider the report does not list keeps its id"
+        );
+    }
+
+    #[test]
     fn text_marks_an_unconfirmed_zero() {
         let mut snapshot = snapshot(account(), Source::Api);
         snapshot.windows[0].used_pct = 0.0;
@@ -2244,7 +2284,7 @@ mod tests {
         assert!(report.snapshots.is_empty());
         assert_eq!(
             render(&report, false),
-            "error: scripted: could not read credentials from /nonexistent/credentials.json: \
+            "error: Scripted: could not read credentials from /nonexistent/credentials.json: \
              permission denied\n"
         );
     }
