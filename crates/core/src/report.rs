@@ -150,6 +150,21 @@ impl StatusReport {
         ProviderName::find(&self.providers, id)
     }
 
+    /// Every provider's error in the report as every surface shows it, `status` and `watch`,
+    /// doctor and the app's problems alike: "{the provider's own name}: {what happened and what to
+    /// do}", the name from [`StatusReport::provider_name`], so it is never taken from a table and
+    /// the surfaces cannot drift apart (D-128). A message from an older QuotaDial, which began with
+    /// its provider's id, loses the id, so the provider is named once.
+    pub fn error_lines(&self) -> impl Iterator<Item = String> + '_ {
+        self.errors.iter().map(|error| {
+            format!(
+                "{}: {}",
+                self.provider_name(&error.provider),
+                without_id(&error.provider, &error.message)
+            )
+        })
+    }
+
     /// The report as every consumer shows it: one snapshot per account (D-024), in an order that
     /// lasts. Two sign-ins can turn out to belong to one subscription only once each has been
     /// asked, as with Keychain items whose folder is gone (#34): a working snapshot beats one that
@@ -206,6 +221,16 @@ fn better(candidate: &Snapshot, known: &Snapshot) -> bool {
         (false, true) => false,
         _ => newest(candidate) > newest(known),
     }
+}
+
+/// `message` without the `<provider id>: ` that every provider's error began with before D-128:
+/// exactly the id, as written, then a colon and a space.
+fn without_id<'a>(provider: &str, message: &'a str) -> &'a str {
+    message
+        .strip_prefix(provider)
+        .and_then(|rest| rest.strip_prefix(": "))
+        .filter(|_| !provider.is_empty())
+        .unwrap_or(message)
 }
 
 impl ProviderError {
@@ -380,6 +405,97 @@ mod tests {
             report.provider_name("codex"),
             "codex",
             "a provider the report does not list, as from an older QuotaDial, keeps its id"
+        );
+    }
+
+    /// Claude's and Gemini CLI's ids and names, as a report lists the providers it asked.
+    fn claude_and_gemini() -> Vec<ProviderName> {
+        [("claude", "Claude"), ("gemini", "Gemini CLI")]
+            .map(|(id, name)| ProviderName {
+                id: id.into(),
+                name: name.into(),
+            })
+            .to_vec()
+    }
+
+    fn error(provider: &str, message: &str) -> ProviderError {
+        ProviderError {
+            provider: provider.into(),
+            message: message.into(),
+        }
+    }
+
+    #[test]
+    fn a_providers_error_is_shown_under_the_providers_own_name() {
+        let report = StatusReport {
+            errors: vec![
+                error(
+                    "gemini",
+                    "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                     file",
+                ),
+                error("copilot", "request failed: GitHub did not answer."),
+            ],
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+
+        assert_eq!(
+            report.error_lines().collect::<Vec<_>>(),
+            [
+                "Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is not a \
+                 plain file",
+                "copilot: request failed: GitHub did not answer.",
+            ],
+            "a provider the report does not list keeps its id"
+        );
+    }
+
+    #[test]
+    fn an_older_quotadials_error_names_its_provider_once() {
+        // Before D-128 every message began with its provider's id.
+        let named = StatusReport {
+            errors: vec![error(
+                "claude",
+                "claude: request failed: Could not reach Anthropic.",
+            )],
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+        assert_eq!(
+            named.error_lines().collect::<Vec<_>>(),
+            ["Claude: request failed: Could not reach Anthropic."]
+        );
+
+        // One older than P-020 lists no providers either, so the id shows, once.
+        let unnamed = StatusReport {
+            providers: Vec::new(),
+            ..named
+        };
+        assert_eq!(
+            unnamed.error_lines().collect::<Vec<_>>(),
+            ["claude: request failed: Could not reach Anthropic."]
+        );
+
+        // Only the provider's own id, as it was written, followed by a colon and a space.
+        let others = StatusReport {
+            errors: [
+                "claudes: a word that starts like the id.",
+                "gemini: another provider's id.",
+                "claude:no space.",
+            ]
+            .map(|message| error("claude", message))
+            .to_vec(),
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+        assert_eq!(
+            others.error_lines().collect::<Vec<_>>(),
+            [
+                "Claude: claudes: a word that starts like the id.",
+                "Claude: gemini: another provider's id.",
+                "Claude: claude:no space.",
+            ]
         );
     }
 
