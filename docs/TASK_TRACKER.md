@@ -220,6 +220,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
+| Error lines named through the report | Built on `fix/provider-error-names`, not yet opened (D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 
 ## Kickoff
 
@@ -407,6 +408,81 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: error lines named through the report (D-128)
+
+- **The decision:** the manager's item 3 on #73 (2026-10-26, 01:26 UTC): a provider's error is named
+  through the report, `StatusReport::provider_name(id)`, where the CLI and the app render it, not
+  in each provider, by P-020's rule 1. 1c found three places (D-125), so it is this PR, on
+  `fix/provider-error-names` from `main` at 1789d07 (#79).
+- **Where the id goes:** out of the message (D-128). `quotadial_core::Error`'s text no longer
+  begins with `{provider}: `, and `ProviderError::warning`, which `new` uses, takes a leading
+  `<id>: ` off whatever a provider writes; Claude's two discovery warnings no longer write it. The
+  API's `errors[].message` is the sentence alone: `errors[].provider` is the id, and the report's
+  `providers` the name.
+- **One helper** (`crates/core/src/report.rs`): `StatusReport::error_lines()`, "{the provider's own
+  name}: {what happened and what to do}", the name from `provider_name`. `status` and `watch` print
+  it after `error: ` (`write_text`), doctor under Problems (`Diagnostics::text`), and the app among
+  its problems (`Meter::new`), which the popover, the tray's menu and its tooltip show. A provider
+  the report does not list keeps its id. An older daemon's message, which began with its id, loses
+  exactly `<id>: `, so the provider shows once: by its name where the report lists providers, by its
+  id from 0.2.0, which lists none.
+- **#52's plain words:** "could not read credentials from" is "could not read the sign-in from".
+  Claude's Keychain location gained "the", and Claude's and the daemon's lookups that stop
+  unexpectedly read the sign-in "from this machine", so each sentence reads after "from". A test
+  over one of each `Error` variant holds its text to `unplain_words` and to not beginning with its
+  provider, and its match makes a new variant join it. The README's "these credentials" is "these
+  sign-ins". Going down the repository's text found no other "quota", "auth" or "credential"
+  outside a name in anything a user reads, but in `docs/PRD-public.md`, which is the manager's.
+- **Docs:** `docs/openapi.json` (`ProviderError`'s two fields and `providers`), `docs/CLI.md`
+  (the error line, `errors[]` and its JSON example, `providers[]`, doctor),
+  `skills/quotadial/SKILL.md` and the MCP tools `get_usage` and `get_account_headroom`; D-128; one
+  changelog line.
+- **Found going down #52, left for a later PR:** a sign-in or cache error's location is a full
+  path, so outside doctor, which writes the home folder `~`, it can hold the user's name;
+  `/v1/headroom` sends no `providers`, so an agent names its errors from `/v1/status`'s.
+- **#81 (Copilot), built before this:** its crate's two discovery warnings begin "copilot: ", and
+  its tests hold the old `Error` text, its id in front and the old words for a sign-in. Whichever
+  of the two merges second drops the prefix from those warnings (the report drops it anyway) and
+  moves those tests to the new text. #81's queued row "error lines named through the report" is
+  this PR's row in the M6 table.
+- **Tests:** in the workspace, 725 passed (1 ignored) on `main` at 1789d07 and 738 (1 ignored) now;
+  the example build 722 (2 ignored) and 735 (2 ignored). By crate, from `main`: core 118 to 125
+  (the helper's two, doctor's, the report keeping a message without the id, and `Error`'s three:
+  plain words, not beginning with its provider, the sign-in sentence); API 54 to 56 (`/v1/status`'s
+  and `/v1/headroom`'s JSON, and the MCP tools' text); the CLI 62 to 63, `write_text` (59 to 60, 1
+  ignored, in the example build); the daemon 103 to 104, a lookup that stops; Claude 136 to 138 (and
+  1 ignored), its warnings and its stopped lookup; Antigravity 64, Codex 63, fake 19, Gemini CLI 29,
+  cost 30, issue 6, poll 37 and `quotadial-providers` 4 unchanged in number, their error texts moved
+  to the new words. The tray app 85 to 86 in both builds, the problems list; its scripts' tests 5;
+  the site 90; the window check 4371 checks over 16 views, as before. Every new test failed first:
+  core's against a stub that gave each message as it is, the CLI's and the app's before they used
+  the helper, the message's nine (eight new, and the Keychain test's new words) before its text
+  changed, and the MCP tools' on their old text.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
+  `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default
+  and `fake`, with the OpenAPI and packaging checks in them; the tray app's tests, default and
+  `fake`, as CI runs them, so `tests/icon_press.rs` too, which put a status item in the menu bar for
+  under a second each run and passed; the release-only licence key test; the tray app's `npm ci`,
+  `npm run build` (34.0 KB of 150, contrast), `npm test`, `npm run check:window` (headless Chrome
+  with a profile of its own, removed after), `npm run cli` and `npm run cli -- --fake`; the site's
+  `npm ci`, wrangler's start, `npm run check`, `npm run build` and `npm test`;
+  `scripts/privacy.sh` (no change) and `--check`, `scripts/public-prd.sh --check`, shellcheck on
+  `scripts/`, actionlint 1.7.12 (its release tarball checked against the release's checksums) on
+  every workflow, the release scripts' tests (39, 1 skipped for GNU sha256sum) and the 0.2.0
+  release notes; and `scripts/no-example-provider.sh` on the CLI and the app's bundled CLI (both
+  pass) and the example CLI (it fails, naming both commands), the bundled CLI built again after. By
+  hand, in a scratch home with a made-up `auth.json` that is not JSON: `status` says "error: Codex:
+  could not read the sign-in from ...", doctor's Problems "Codex: could not read the sign-in from
+  ~/.codex/auth.json: ...", and `status --json`'s message leaves the provider out. **Not run:**
+  `cargo deny` and `cargo audit`, not installed here (no dependency or lockfile changed); a release
+  build of the CLI or the app (the release check ran on debug builds of the same code).
+- **Safety on this Mac:** every cargo run after the first had QuotaDial's data folders and every
+  sign-in folder in the scratchpad and no token in its environment; the first, the count on `main`,
+  ran the tests as they are, each making up its own home and data folder or faking the Keychain.
+  The release check and the runs by hand used scratch homes, where `security` sees no login
+  keychain. No vendor CLI ran, no sign-in or keychain item was read, and no app or daemon ran
+  against Matt's data.
 
 ### M6 PR 3: Antigravity through its CLI's status line (D-126, P-022, P-023)
 
