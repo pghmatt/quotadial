@@ -3,9 +3,10 @@
 //! place.
 //!
 //! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini`, on by
-//! default, adds Gemini CLI after them (D-118, D-124), and `antigravity`, on by default, Antigravity
-//! after it (D-119, D-126), keeping what its CLI's status line hands over in QuotaDial's data folder.
-//! The example build (the `fake` feature, D-117) lists the fake provider alone, whose made-up
+//! default, adds Gemini CLI after them (D-118, D-124), `antigravity`, on by default, Antigravity
+//! after it (D-119, D-126), keeping what its CLI's status line hands over in QuotaDial's data folder,
+//! and `copilot`, off by default until #51's live check, GitHub Copilot last (D-127). The example
+//! build (the `fake` feature, D-117) lists the fake provider alone, whose made-up
 //! accounts are for pictures of the app: no sign-in is read and no provider is asked, whatever else
 //! is on. No release has `fake`, and the tests below hold each build's list.
 
@@ -52,6 +53,13 @@ pub fn with_config(config: &Config, licensing: &Licensing) -> Vec<Arc<dyn Provid
         Arc::new(quotadial_provider_antigravity::AntigravityProvider::new(
             DataDir::from_env().map(|dir| dir.path().to_path_buf()),
         )),
+        // Built but in no release until #51's live check (D-127). Like Claude's, it can find more
+        // than one account, so it shows as many as the licence and `max_accounts` allow.
+        #[cfg(feature = "copilot")]
+        Arc::new(
+            quotadial_provider_copilot::CopilotProvider::new()
+                .with_max_accounts(licensing.account_limit(config.max_accounts)),
+        ),
     ]
 }
 
@@ -188,8 +196,9 @@ mod tests {
 
     /// What a release ships: Claude, Codex, Gemini CLI, turned on in the PR after the one that
     /// merged it (D-121, D-122, D-124), and Antigravity, turned on in the PR that merges it, since
-    /// it needs no live check (D-121, D-126).
-    #[cfg(not(feature = "fake"))]
+    /// it needs no live check (D-121, D-126). Copilot, built and waiting on #51's live check, is not
+    /// in it (D-127).
+    #[cfg(not(any(feature = "fake", feature = "copilot")))]
     #[test]
     fn a_release_lists_exactly_claude_codex_gemini_then_antigravity() {
         assert_eq!(
@@ -206,6 +215,24 @@ mod tests {
             "quotadial",
             "and the copy keeps QuotaDial's own folders"
         );
+    }
+
+    /// The build with `copilot`, as #51's live check and CI make it: a release's list, then
+    /// Copilot (D-127).
+    #[cfg(all(feature = "copilot", not(feature = "fake")))]
+    #[test]
+    fn with_the_copilot_feature_the_list_ends_with_copilot() {
+        assert_eq!(
+            listed(),
+            [
+                ("claude", "Claude"),
+                ("codex", "Codex"),
+                ("gemini", "Gemini CLI"),
+                ("antigravity", "Antigravity"),
+                ("copilot", "Copilot")
+            ]
+        );
+        assert_eq!(quotadial_core::copy::FOLDER, "quotadial");
     }
 
     #[cfg(feature = "fake")]

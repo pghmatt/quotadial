@@ -175,7 +175,7 @@ Register-ArgumentCompleter -Native -CommandName 'quotadial' -ScriptBlock {
         }
         'quotadial;history' {
             [CompletionResult]::new('--since', '--since', [CompletionResultType]::ParameterName, 'From how long ago: such as 24h, 7d or 30d, or a time such as 2099-01-01T00:00:00Z')
-            [CompletionResult]::new('--provider', '--provider', [CompletionResultType]::ParameterName, 'Only this provider: claude, codex, gemini or antigravity')
+            [CompletionResult]::new('--provider', '--provider', [CompletionResultType]::ParameterName, 'Only this provider: claude, codex, gemini or antigravity, or copilot in a build with it')
             [CompletionResult]::new('--account', '--account', [CompletionResultType]::ParameterName, 'Only this account, by its email address or id')
             [CompletionResult]::new('--window', '--window', [CompletionResultType]::ParameterName, 'Only windows with this label, such as Session or Weekly')
             [CompletionResult]::new('--csv', '--csv', [CompletionResultType]::ParameterName, 'Print every reading as CSV, for a spreadsheet')

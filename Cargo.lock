@@ -1637,6 +1637,7 @@ dependencies = [
  "quotadial-provider-antigravity",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
+ "quotadial-provider-copilot",
  "quotadial-provider-fake",
  "quotadial-provider-gemini",
 ]
