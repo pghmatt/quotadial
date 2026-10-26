@@ -111,7 +111,7 @@ const ACCOUNTS = [
 const METER = {
   percent: 91,
   level: "high",
-  headline: "Claude Weekly, resets in 1 d 15 h",
+  headline: "Weekly · Claude Work · resets in 1 d 15 h",
   accounts: ACCOUNTS,
   problems: [],
   incidents: [],
@@ -148,7 +148,8 @@ const SETTINGS = {
   ],
   accounts: ACCOUNTS.map((account) => ({
     key: account.key,
-    label: `${account.provider} ${account.name}`,
+    provider: account.provider,
+    name: account.name,
     alias: account.alias ?? "",
   })),
   licence: { text: "QuotaDial Pro, licence 1042.", kept: true, adds: [] },
@@ -278,7 +279,8 @@ function accountHistory(account, days) {
   return {
     key: account.key,
     provider: account.provider,
-    name: account.alias ?? account.name,
+    alias: account.alias,
+    name: account.name,
     label: label(account),
     windows: account.windows.map((window) => {
       const points = readings(window, days);

@@ -42,8 +42,11 @@ pub struct AccountHistory {
     pub key: String,
     /// Such as "Claude".
     pub provider: String,
-    /// The name the user gave the account, or its email address; empty when that says nothing
-    /// beyond `provider`, so the provider shows once.
+    /// The name the user gave the account, if any, which its card is titled by, as the popover's
+    /// is (D-132).
+    pub alias: Option<String>,
+    /// The account's own name, such as its email address; empty when that says nothing beyond
+    /// `provider`, so the provider shows once.
     pub name: String,
     /// What the picture of this account's history calls it ([`share::label`]): its provider and
     /// the name given it, or its plan, and never its address.
@@ -265,15 +268,14 @@ fn account<Tz: TimeZone>(
     let key = key(&first.provider, &first.account_id, first.org.as_deref());
     let alias = settings.aliases.get(&key);
     let provider = newest.name(&first.provider);
-    // The name given, or the account's own when it says more than the provider's label.
-    let name = alias.cloned().unwrap_or_else(|| {
-        text::name_beside(provider, &first.account)
-            .unwrap_or_default()
-            .to_owned()
-    });
+    // The account's own name, when it says more than the provider's label.
+    let name = text::name_beside(provider, &first.account)
+        .unwrap_or_default()
+        .to_owned();
     let period = format!("in the last {days} days");
     AccountHistory {
         provider: provider.to_owned(),
+        alias: alias.cloned(),
         name,
         label: share::label(
             provider,
@@ -546,8 +548,13 @@ mod tests {
         assert_eq!(view.accounts.len(), 1, "Codex is hidden");
         let work = &view.accounts[0];
         assert_eq!(
-            (work.provider.as_str(), work.name.as_str()),
-            ("Claude", "Work")
+            (
+                work.provider.as_str(),
+                work.alias.as_deref(),
+                work.name.as_str()
+            ),
+            ("Claude", Some("Work"), "claude@example.com"),
+            "titled by the name given, its address beside it, as the popover shows it"
         );
         let session = &work.windows[0];
         assert_eq!(session.label, "Session");
@@ -685,6 +692,7 @@ mod tests {
             view.accounts[0].name, "",
             "no name beside the label it repeats"
         );
+        assert_eq!(view.accounts[0].alias, None);
     }
 
     #[test]

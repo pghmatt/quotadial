@@ -2,9 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { AccountHeading } from "./account";
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
+import { Said } from "./said";
 import { SettingsPanel } from "./settings";
 import { UpdateStatus, useUpdate } from "./update";
 
@@ -119,9 +121,9 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           </p>
         ))}
       </header>
-      {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
-      {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}
-      {panel === "help" && <HelpPanel update={update} onDone={() => setPanel("accounts")} />}
+      {panel === "settings" && <SettingsPanel />}
+      {panel === "history" && <HistoryPanel />}
+      {panel === "help" && <HelpPanel update={update} />}
       {accounts &&
         meter.accounts.map((account, index) => (
           <AccountSection
@@ -131,10 +133,12 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           />
         ))}
       {accounts && meter.problems.length > 0 && (
-        <section class="problems" aria-label="Problems">
+        <section class="problems card" aria-label="Problems">
           <ul>
             {meter.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
+              <li key={problem}>
+                <Said text={problem} />
+              </li>
             ))}
           </ul>
         </section>
@@ -148,47 +152,64 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
       )}
       {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
       {accounts && update?.available && (
-        <section class="update-offer" aria-label="Update">
+        <section class="update-offer card" aria-label="Update">
           <UpdateStatus update={update} offer />
         </section>
       )}
+      {/* One calm toolbar at the foot of every view, in line with the cards' text: History,
+          Settings and Help under the accounts, Done under a panel, and Quit set apart at its far
+          end; under it, where the numbers come from. */}
       <footer ref={footer}>
-        <p class="origin">{meter.origin ?? ""}</p>
-        {accounts && (
-          <button type="button" data-panel="history" onClick={() => setPanel("history")}>
-            History
+        <div class="toolbar">
+          {accounts ? (
+            <>
+              <button type="button" data-panel="history" onClick={() => setPanel("history")}>
+                History
+              </button>
+              <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
+                Settings
+              </button>
+              <button type="button" data-panel="help" onClick={() => setPanel("help")}>
+                Help
+              </button>
+            </>
+          ) : (
+            <button type="button" class="done" onClick={() => setPanel("accounts")}>
+              Done
+            </button>
+          )}
+          <button type="button" class="quit" onClick={() => void invoke("quit")}>
+            Quit QuotaDial
           </button>
-        )}
-        {accounts && (
-          <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
-            Settings
-          </button>
-        )}
-        {accounts && (
-          <button type="button" data-panel="help" onClick={() => setPanel("help")}>
-            Help
-          </button>
-        )}
-        <button type="button" onClick={() => void invoke("quit")}>
-          Quit QuotaDial
-        </button>
+        </div>
+        {meter.origin && <p class="origin">{meter.origin}</p>}
       </footer>
     </>
   );
 }
 
+/**
+ * One account, as a card of its own: who it is in its first two lines, then each window. The
+ * heading holds both lines, so a screen reader hears the account's address with its name.
+ */
 function AccountSection({ account, index }: { account: Account; index: number }) {
   const heading = `account-${index}`;
   return (
-    <section class="account" aria-labelledby={heading}>
-      <h2 id={heading}>
-        <span class="provider">{account.provider}</span>
-        {account.alias && <span class="alias">{account.alias}</span>}
-        {account.name && <span class="name">{account.name}</span>}
-        {account.plan && <span class="tag">{account.plan}</span>}
-        {!account.ok && <span class="tag attention">{account.status}</span>}
-      </h2>
-      {!account.ok && account.note && <p class="note">{account.note}</p>}
+    <section class="account card" aria-labelledby={heading}>
+      <AccountHeading who={account} id={heading} level={2}>
+        {(account.plan || !account.ok) && (
+          <span class="badges">
+            {account.plan && <span class="badge">{account.plan}</span>}
+            {account.plan && !account.ok && " "}
+            {!account.ok && <span class="badge attention">{account.status}</span>}
+          </span>
+        )}
+      </AccountHeading>
+      {!account.ok && account.note && (
+        <p class="note">
+          <Said text={account.note} />
+        </p>
+      )}
       {account.windows.length > 0 && (
         <ul class="windows">
           {account.windows.map((window, windowIndex) => (
@@ -204,7 +225,9 @@ function AccountSection({ account, index }: { account: Account; index: number })
       {account.sign_in && (
         <details class="sign-in">
           <summary>What QuotaDial does with this sign-in</summary>
-          <p>{account.sign_in}</p>
+          <p>
+            <Said text={account.sign_in} />
+          </p>
         </details>
       )}
     </section>
@@ -214,7 +237,7 @@ function AccountSection({ account, index }: { account: Account; index: number })
 /** What each provider's week would have cost at API prices, from the CLIs' logs. */
 function Costs({ costs }: { costs: Cost[] }) {
   return (
-    <section class="costs" aria-label="The week at API prices">
+    <section class="costs card" aria-label="The week at API prices">
       {costs.map((cost) => (
         <div class="cost" key={cost.provider}>
           <p>
@@ -265,12 +288,15 @@ function WindowRow({ window, id }: { window: Window; id: string }) {
       <p class="detail">
         {window.resets}, {window.fetched}
         {window.unconfirmed && (
-          <span
-            class="tag"
-            title="A sudden 0% that QuotaDial holds until the next fetch agrees"
-          >
-            unconfirmed
-          </span>
+          <>
+            {" "}
+            <span
+              class="badge"
+              title="A sudden 0% that QuotaDial holds until the next fetch agrees"
+            >
+              unconfirmed
+            </span>
+          </>
         )}
       </p>
       {window.pace && (

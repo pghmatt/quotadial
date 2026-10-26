@@ -1,24 +1,47 @@
 :root {
   color-scheme: light dark;
+  /* Text, from the strongest to the quietest. Each text colour has 4.5:1 against every ground it
+     can sit on: the page, which stands in for the macOS material, a card, and a capsule, button or
+     command on either, checked from this file by scripts/check-contrast.mjs (#52). */
   --text: #1d1d1f;
-  /* Each text colour has 4.5:1 against the background and the tag's, checked by
-     scripts/check-contrast.mjs (#52). */
-  --muted: #67676c;
-  --rule: rgb(0 0 0 / 10%);
-  --warning: #a05600;
+  /* An account's address, its plan and the summary's line: second only to the text. */
+  --secondary: #48484d;
+  /* A window's reset, source and pace, the provider after an address, the origin line and a
+     field's hint. */
+  --muted: #58585d;
+  --warning: #8f4b00;
   --high: #c41e13;
-  --bar: rgb(0 0 0 / 10%);
-  --bar-normal: #0a84ff;
+  /* The page: on macOS the system draws the popover material behind a transparent page, and the
+     painted page elsewhere, and in the pictures, is a grey like it, which the contrast check takes
+     for both. */
+  --background: #ececec;
+  /* A card: an account, the problems, the week's cost or an update, a platter raised on the
+     ground in both themes, as Control Centre's modules sit on the material and Windows 11's cards
+     on a window, with a hairline edge in light. */
+  --card: rgb(255 255 255 / 70%);
+  --card-edge: rgb(0 0 0 / 7%);
+  /* A capsule, a button or a command, on whatever ground is behind it. */
+  --tag: rgb(0 0 0 / 6%);
+  --tag-pressed: rgb(0 0 0 / 12%);
+  /* The capsule of an account that is not ok, such as "stale". */
+  --attention: rgb(255 149 0 / 16%);
+  /* The chosen segment of a segmented control, raised in its track. */
+  --segment: #ffffff;
+  --segment-shadow: 0 1px 2px rgb(0 0 0 / 14%), 0 0 0 0.5px rgb(0 0 0 / 6%);
+  --rule: rgb(0 0 0 / 10%);
+  --bar: rgb(0 0 0 / 9%);
+  /* macOS's own blue, as the system draws it in each theme; 3:1 on a card, as a chart's line. */
+  --bar-normal: #007aff;
   --bar-warning: #ff9f0a;
   --bar-high: #ff3b30;
-  --tag: rgb(0 0 0 / 6%);
-  --background: #fbfbfd;
-  --focus: #0a84ff;
-  /* The chosen period in History, and its text. */
-  --accent: #0071e3;
-  --on-accent: #ffffff;
-  /* The edge of a text field, 3:1 against the background. */
-  --field: #8a8a8e;
+  /* A chart's hairline at 0%, and its faint line at 100%. */
+  --chart-base: rgb(0 0 0 / 22%);
+  --chart-top: rgb(0 0 0 / 8%);
+  --focus: #0071e3;
+  /* The edge of a text field, 3:1 against the ground and a card. */
+  --field: #78787d;
+  /* A card's corners. */
+  --radius: 10px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.35;
@@ -29,14 +52,25 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #f5f5f7;
-    --muted: #a1a1a6;
-    --rule: rgb(255 255 255 / 12%);
-    --warning: #ff9f0a;
-    --high: #ff453a;
-    --bar: rgb(255 255 255 / 14%);
+    --secondary: #c7c7cc;
+    --muted: #b0b0b5;
+    --warning: #ffb340;
+    --high: #ff7f78;
+    --background: #2c2c2e;
+    --card: rgb(255 255 255 / 6%);
+    --card-edge: rgb(255 255 255 / 0%);
     --tag: rgb(255 255 255 / 10%);
-    --background: #1f1f21;
-    --field: #6e6e73;
+    --tag-pressed: rgb(255 255 255 / 16%);
+    --attention: rgb(255 159 10 / 18%);
+    --segment: rgb(255 255 255 / 16%);
+    --segment-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+    --rule: rgb(255 255 255 / 12%);
+    --bar: rgb(255 255 255 / 14%);
+    --bar-normal: #0a84ff;
+    --chart-base: rgb(255 255 255 / 25%);
+    --chart-top: rgb(255 255 255 / 9%);
+    --focus: #0a84ff;
+    --field: #8e8e93;
   }
 }
 
@@ -69,8 +103,14 @@ html.solid .popover {
   border: 1px solid var(--rule);
 }
 
+/* The cards fill the width but for an even edge; text outside them lines up with text inside. */
 .popover {
-  padding: 14px 16px 10px;
+  padding: 14px 12px 10px;
+}
+
+.summary {
+  margin-bottom: 12px;
+  padding: 0 12px;
 }
 
 .percent {
@@ -94,16 +134,22 @@ html.solid .popover {
 
 .headline {
   margin: 2px 0 0;
-  color: var(--muted);
+  color: var(--secondary);
 }
 
-.account,
-.problems,
-.costs,
-footer {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
+.incident {
+  margin: 4px 0 0;
+  color: var(--warning);
+  font-size: 12px;
+}
+
+/* Space and each card's own ground set the accounts apart, not rules. */
+.card {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.5px var(--card-edge);
 }
 
 h2 {
@@ -116,27 +162,80 @@ h2 {
   font-weight: 600;
 }
 
-.name {
-  font-weight: 400;
-  color: var(--muted);
+/* An account's first two lines: the name given it or its provider's, with its plan and status
+   to the right, then its address. */
+.card-head {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-.tag {
-  padding: 0 6px;
-  border-radius: 4px;
+/* The plan and status go under the name when there is too little room beside it, as at 200%. */
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+/* A step above the windows' labels, so the eye lands on it first. */
+.title {
+  flex: 1 1 0;
+  min-width: min(100%, 8em);
+  font-size: 14px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.badge {
+  padding: 0 7px;
+  border-radius: 999px;
   background: var(--tag);
-  color: var(--muted);
+  color: var(--secondary);
   font-size: 11px;
   font-weight: 500;
+  line-height: 17px;
 }
 
-.tag.attention {
+.badge.attention {
+  background: var(--attention);
   color: var(--warning);
+}
+
+.address {
+  display: block;
+  margin-top: 2px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* The address alone can be selected, to copy it. The provider after it, under a name given, is
+   quieter, so the addresses read down the cards as one column. */
+.address .name {
+  user-select: text;
+  cursor: text;
+}
+
+.address .provider {
+  color: var(--muted);
 }
 
 .note {
   margin: 0 0 8px;
   color: var(--warning);
+}
+
+.account .note {
+  margin: 10px 0 0;
+  font-size: 12px;
 }
 
 ul {
@@ -145,13 +244,18 @@ ul {
   list-style: none;
 }
 
+.windows {
+  margin-top: 12px;
+}
+
 .window + .window {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
 }
 
@@ -172,7 +276,7 @@ meter {
   display: block;
   width: 100%;
   height: 6px;
-  margin: 3px 0 2px;
+  margin: 4px 0 3px;
   appearance: none;
   border-radius: 3px;
   background: var(--bar);
@@ -202,69 +306,208 @@ meter::-webkit-meter-even-less-good-value {
 
 .detail,
 .pace,
-.extra,
-.sign-in {
+.extra {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* Under each bar, its reset, where its number came from and its pace, quietest of all. */
+.window .detail,
+.window .pace,
+.extra {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.window .detail::first-letter,
+.window .pace::first-letter {
+  text-transform: uppercase;
 }
 
 .pace.runs-out {
   color: var(--warning);
 }
 
-.detail .tag {
-  margin-left: 6px;
+.detail .badge {
+  font-size: 10px;
+  line-height: 15px;
 }
 
-.extra,
+.extra {
+  margin-top: 10px;
+}
+
+/* A disclosure: a small chevron that turns down when it opens, as macOS draws one. */
+summary {
+  list-style: none;
+  border-radius: 4px;
+  cursor: default;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 8px 1px -1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms ease-out;
+}
+
+details[open] > summary::before {
+  margin-bottom: 3px;
+  transform: rotate(45deg);
+}
+
+/* What QuotaDial does with this sign-in: quiet, at the card's foot. */
 .sign-in {
-  margin-top: 8px;
-}
-
-.sign-in summary {
-  cursor: pointer;
-}
-
-.sign-in p {
-  margin: 4px 0 0;
-  user-select: text;
-}
-
-.problems li {
-  color: var(--warning);
-}
-
-.problems li + li {
-  margin-top: 4px;
-}
-
-footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  padding-top: 8px;
-}
-
-.origin {
-  flex: 1 0 100%;
-  margin: 0;
+  margin-top: 10px;
   color: var(--muted);
   font-size: 11px;
 }
 
+.sign-in p {
+  margin: 6px 0 0;
+  color: var(--secondary);
+  font-size: 12px;
+  user-select: text;
+  cursor: text;
+}
+
+/* A command in what QuotaDial says, as code that one click selects whole, to copy it exactly as it
+   must be pasted. */
+code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--tag);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  user-select: all;
+  cursor: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.problems {
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.problems li + li {
+  margin-top: 6px;
+}
+
+.left-out {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* On QuotaDial Free, a line under the accounts for each part of Pro, in line with their text. */
+.popover > .left-out {
+  margin-top: 8px;
+  padding: 0 12px;
+}
+
+.left-out p {
+  margin: 0;
+}
+
+.left-out p + p {
+  margin-top: 4px;
+}
+
+.cost + .cost {
+  margin-top: 10px;
+}
+
+.cost p {
+  margin: 0;
+}
+
+.cost .provider {
+  font-weight: 600;
+}
+
+.cost .detail {
+  margin-top: 2px;
+}
+
+.models {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.models ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+/* The footer, in line with the cards' text: no rule above it, only space. */
+footer {
+  margin-top: 12px;
+  padding: 0 12px;
+}
+
+/* Each button's label lines up with the text above it, its fill reaching a little past it. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 -8px;
+}
+
+/* History, Settings and Help: quiet buttons that take a fill only under the pointer or the focus,
+   as a Mac's toolbar buttons do. */
+.toolbar button {
+  padding: 3px 8px;
+  background: none;
+}
+
+.toolbar button:hover,
+.toolbar button:focus-visible {
+  background: var(--tag);
+}
+
+.toolbar button:active {
+  background: var(--tag-pressed);
+}
+
+/* Quit is set apart, at the far end. */
+.toolbar .quit {
+  margin-left: auto;
+}
+
+.origin {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* A button. Outside a card it takes the cards' edge, and its label lines up with their text. */
 button {
   flex: none;
   max-width: 100%;
-  padding: 3px 10px;
+  padding: 3px 12px;
   border: 0;
   border-radius: 6px;
   background: var(--tag);
   color: var(--text);
   font: inherit;
   font-size: 12px;
+}
+
+button:active:not(:disabled) {
+  background: var(--tag-pressed);
 }
 
 button:disabled {
@@ -284,25 +527,50 @@ section[tabindex="-1"]:focus {
   outline: none;
 }
 
-.settings {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
+/* A panel, History, Settings or Help, opens under the number in the cards' language: its title
+   and its words outside the cards in line with the cards' text, each group or account a card, and
+   no rules. */
+.history > h2,
+.settings > h2,
+.help > h2 {
+  margin: 0;
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+.history > p,
+.settings > p,
+.help > p {
+  margin: 8px 0 0;
+  padding: 0 12px;
+}
+
+/* A line kept in the page for a screen reader, with nothing in it yet, takes no room. */
+.history > p:empty {
+  margin: 0;
+}
+
+/* Nothing in a card leaves room under its last line. */
+.card > :last-child {
+  margin-bottom: 0;
 }
 
 /* A fieldset is otherwise as wide as its widest word, however narrow the window. */
 fieldset {
   min-width: 0;
-  margin: 10px 0 0;
+  margin: 16px 0 0;
   padding: 0;
   border: 0;
 }
 
+/* A group's name, over its card, as macOS names its own groups of settings. */
 legend {
-  padding: 0;
-  margin-bottom: 4px;
-  color: var(--muted);
-  font-size: 12px;
+  padding: 0 12px;
+  font-weight: 600;
+}
+
+fieldset > .card {
+  margin-top: 6px;
 }
 
 .choice {
@@ -316,26 +584,25 @@ legend {
   margin: 0;
 }
 
-.done {
-  margin-top: 12px;
+.choice-detail {
+  margin: 0 0 4px 21px;
 }
 
-footer button + button {
-  margin-left: -2px;
-}
-
-.alias {
-  font-weight: 600;
-}
-
-/* The field is as wide as the window allows, however wide a text field would be by itself. */
+/* Each account to name, headed as the popover heads its card, with its field under it. The field
+   is as wide as the card allows, however wide a text field would be by itself. */
 .name-choice {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-  padding: 4px 0;
-  color: var(--muted);
-  font-size: 12px;
+  gap: 6px;
+}
+
+.name-choice + .name-choice {
+  margin-top: 14px;
+}
+
+/* In Settings, an account's name is the size of the words around it. */
+.name-choice .title {
+  font-size: 13px;
 }
 
 .name-choice input {
@@ -356,6 +623,17 @@ footer button + button {
   user-select: text;
 }
 
+/* A field's hint, in a colour that keeps 4.5:1 on a card, not the browser's own grey. */
+input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/* Off the Mac, a box takes the bars' blue; on a Mac it keeps the system's own accent colour. */
+html.solid input[type="checkbox"] {
+  accent-color: var(--bar-normal);
+}
+
 /* Remove sits beside its rule, or under it when the window is too narrow, as at 200%. */
 .alert-choice {
   display: flex;
@@ -369,15 +647,20 @@ footer button + button {
 }
 
 .alert-choice + .alert-choice {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .alert-choice .read-as {
   flex-basis: 100%;
   margin: 0;
-  padding-left: 22px;
+  padding-left: 21px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.alert-choice ~ .detail,
+.alert-choice ~ .note {
+  margin: 10px 0 0;
 }
 
 /* Add sits beside its field, or under it when the field would be too narrow for its hint. */
@@ -386,7 +669,7 @@ footer button + button {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .add-alert input,
@@ -400,7 +683,7 @@ footer button + button {
 }
 
 .licence-adds {
-  margin-top: 4px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 12px;
 }
@@ -414,53 +697,42 @@ footer button + button {
   padding-left: 18px;
 }
 
-.left-out {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.left-out p {
-  margin: 4px 0 0;
-}
-
 .remove-licence {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
-.history {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-
+/* The period, as a Mac draws a segmented control: one rounded track, the chosen segment raised
+   in it, its words bold and in the text colour, the other's quieter. */
 .period {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--tag);
 }
 
-/* The chosen period is told by its weight as well as its colour. */
+.period button {
+  padding: 2px 14px;
+  border-radius: 6px;
+  background: none;
+  color: var(--secondary);
+}
+
+/* The chosen period is told by its weight and its raised segment as well as its colour. */
 .period button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--segment);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: var(--segment-shadow);
 }
 
-.account-history + .account-history {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-
-.account-history h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
+.account-history .card-head {
+  margin-bottom: 10px;
 }
 
 .chart {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .chart figcaption {
@@ -470,13 +742,28 @@ footer button + button {
   font-size: 12px;
 }
 
+/* No plate: a hairline base at 0% and a faint line at 100% give the scale, as macOS's own charts
+   do, and the lines are drawn whole at the chart's edges. */
 .chart svg {
   display: block;
   width: 100%;
   height: 40px;
-  margin-top: 2px;
-  border-radius: 3px;
-  background: var(--bar);
+  margin-top: 4px;
+  overflow: visible;
+}
+
+.chart .base,
+.chart .top {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .base {
+  stroke: var(--chart-base);
+}
+
+.chart .top {
+  stroke: var(--chart-top);
 }
 
 .chart .used {
@@ -519,76 +806,23 @@ footer button + button {
 
 /* Each account's Share image (QuotaDial Pro), under its heatmap. */
 .account-history .share {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
-/* On QuotaDial Free, the one line said where the Share image buttons would be. */
-.history .left-out {
-  margin: 12px 0 0;
-}
-
-/* The panel's own actions, ruled off from the last account's Share image above them. */
+/* The panel's own actions, under the last card. */
 .history-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-
-.history-actions .done {
-  margin-top: 0;
-}
-
-.incident {
-  margin: 4px 0 0;
-  color: var(--warning);
-  font-size: 12px;
-}
-
-.cost + .cost {
-  margin-top: 8px;
-}
-
-.cost p {
-  margin: 0;
-}
-
-.cost .provider {
-  font-weight: 600;
-}
-
-.models {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.models summary {
-  cursor: pointer;
-}
-
-.models ul {
-  margin: 4px 0 0;
-  padding-left: 16px;
-}
-
-.help {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-
-.help h2 {
-  margin-bottom: 4px;
 }
 
 .help h3 {
-  margin: 12px 0 4px;
+  margin: 0 0 6px;
   font-size: 13px;
 }
 
-.help p {
+.help .card p {
   margin: 0 0 6px;
 }
 
@@ -607,16 +841,17 @@ footer button + button {
   gap: 8px;
 }
 
+/* In About, room between where updates stand and the credits under it. */
+.help .update {
+  margin-bottom: 10px;
+}
+
 button.link {
   padding: 0;
   border: 0;
   background: none;
   color: var(--text);
   text-decoration: underline;
-}
-
-.choice-detail {
-  margin: 0 0 4px 21px;
 }
 
 .update p {
@@ -643,12 +878,6 @@ button.link {
 .update-notes ul {
   margin-top: 4px;
   padding-left: 18px;
-}
-
-.update-offer {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
 }
 
 .visually-hidden {

@@ -24,13 +24,20 @@ support@quotadial.com.
 - Enter or Space presses a button, Space ticks or clears a box, and Enter opens or closes "What
   QuotaDial does with this sign-in" and the other disclosures.
 - History, Settings and Help open below the numbers and take the focus, so Tab carries on inside
-  them. Done gives the focus back to the button that opened them.
+  them. Done, at the foot of the window where those three buttons were, gives the focus back to the
+  button that opened them.
+- A command QuotaDial asks you to run, such as the one that signs a Claude Code folder in again,
+  is shown as code, and one click selects all of it, ready to copy. An account's email address can
+  be selected and copied too.
 - Escape hides the window.
 
 ## With a screen reader
 
 - Every control says its name, what it is and its state: a box ticked or not, a disclosure open or
   closed, the period History shows.
+- Each account is a section named by its heading: the name you gave it, or its provider, then its
+  email address, so two accounts of one provider are told apart. The line under the number names
+  the account it belongs to, and so does the tooltip of QuotaDial's icon.
 - Each limit's bar is read with its words, such as "Weekly, 91% used, resets in 2 d 4 h".
 - Each chart in History is read as what it shows, such as "Session: latest 18%, highest 18% in the
   last 7 days", and when an account was used is read as a line a day, such as "Mon 20: used 9:00
@@ -43,10 +50,11 @@ support@quotadial.com.
 - **Larger text:** Command and = (Control and = on Windows and Linux) zooms the window in, Command
   and - zooms it out, and Command and 0 sets it back. The window grows with its text to its tallest
   and then scrolls; nothing is cut off at 200%, and a long account name or address wraps.
-- **Contrast:** text has at least 4.5:1 against what is behind it, and the focus ring and the
-  edges of text fields at least 3:1, in both themes (WCAG 2.2 AA).
+- **Contrast:** text has at least 4.5:1 against what is behind it, an account's card, the
+  capsules on it and a field's hint included, and the focus ring, the edges of text fields and
+  History's lines at least 3:1, in both themes (WCAG 2.2 AA).
 - **Colour is never the only sign:** each bar has its percentage beside it in text, and the period
-  History shows is bold as well as blue.
+  History shows is bold as well as raised.
 - **Less motion:** with Reduce motion on (macOS, Windows or your desktop's setting), nothing in the
   window moves.
 - **Steady numbers:** every figure is the same width, so a number that changes does not move what
@@ -62,9 +70,11 @@ support@quotadial.com.
   with a very long address. It presses Tab through every control and checks the order and the
   focus ring, presses each control with the keyboard and checks that it did something, checks
   what a screen reader is told of each, that a panel takes the focus and Done gives it back, that
-  no text is cut off at 100% and 200%, that nothing moves with less motion asked for, and that the
-  page reports no error. Each of these checks was first shown to fail on a window broken on
-  purpose.
+  no text is cut off at 100% and 200%, that each account is a card of its own, apart from the next,
+  with its email address shown inside it and read as part of its heading, that the line under the
+  number names the account, that each command is shown whole as code and selected by one click,
+  that nothing moves with less motion asked for, and that the page reports no error. Each of these
+  checks was first shown to fail on a window broken on purpose.
 - The same names, roles, states and focus were read from the macOS accessibility interface of the
   app itself, which is what VoiceOver uses.
 

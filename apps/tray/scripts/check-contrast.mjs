@@ -1,26 +1,42 @@
 // Checks the window's colours against WCAG AA in both themes (#52), from src/style.css itself, so
-// a colour changed there is checked here: 4.5:1 for every pair of text and what is behind it, and
-// 3:1 for the focus ring and a text field's edge against the background. A see-through colour is laid over the background
-// first, as the window shows it. Run by `npm run build`; fails, naming the pair, when one falls short.
+// a colour changed there is checked here: 4.5:1 for every text colour against every ground it can
+// sit on, and 3:1 for the focus ring, a text field's edge and a chart's line. A ground is a stack:
+// the page, then what is laid over it, such as a card and a capsule on the card, each see-through
+// colour laid over what is under it, as the window shows it. Run by `npm run build`; fails, naming
+// the pair, when one falls short.
 //
-// The bars' fill against their track is left out: each bar has its percentage beside it in text,
-// which is checked, so the bar is never the only way to tell.
+// On macOS the system draws the popover material behind a transparent page; the page's own colour,
+// which Windows, Linux and the pictures show, is a grey like it, and stands in for it here. The
+// bars' fill against their track is left out: each bar has its percentage beside it in text, which
+// is checked, so the bar is never the only way to tell.
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
 
-/** Each pair: the colour, what it is on, the ratio it needs, and where the window uses it. */
+/** Each pair: the colour, the grounds under it from the bottom up, the ratio it needs, and where
+ * the window uses it. */
 const PAIRS = [
-  ["--text", "--background", 4.5, "body text"],
-  ["--muted", "--background", 4.5, "details, the origin line and the legend"],
-  ["--warning", "--background", 4.5, "notes, a window past 70% and incidents"],
-  ["--high", "--background", 4.5, "a window past 90%"],
-  ["--text", "--tag", 4.5, "buttons"],
-  ["--muted", "--tag", 4.5, "tags, such as a plan"],
-  ["--warning", "--tag", 4.5, "a tag that needs attention"],
-  ["--on-accent", "--accent", 4.5, "the chosen period in History"],
-  ["--focus", "--background", 3, "the focus ring"],
-  ["--field", "--background", 3, "the edge of a text field"],
+  ["--text", ["--background"], 4.5, "text outside a card, such as a panel's"],
+  ["--text", ["--background", "--card"], 4.5, "an account's name and its windows, on its card"],
+  ["--text", ["--background", "--tag"], 4.5, "a button, such as the footer's, or a command"],
+  ["--text", ["--background", "--card", "--tag"], 4.5, "a button or a command on a card"],
+  ["--text", ["--background", "--tag", "--segment"], 4.5, "the chosen period in History"],
+  ["--secondary", ["--background"], 4.5, "the line under the summary's number"],
+  ["--secondary", ["--background", "--card"], 4.5, "an account's address and what it does with its sign-in"],
+  ["--secondary", ["--background", "--card", "--tag"], 4.5, "a capsule, such as a plan, on a card"],
+  ["--secondary", ["--background", "--tag"], 4.5, "a period not chosen, in History"],
+  ["--muted", ["--background"], 4.5, "words outside a card, such as History's span, Free's lines and the origin line"],
+  ["--muted", ["--background", "--card"], 4.5, "a window's reset, source and pace, the provider after an address, and a field's hint, on a card"],
+  ["--warning", ["--background"], 4.5, "an incident, and a problem in a panel"],
+  ["--warning", ["--background", "--card"], 4.5, "a window past 70%, an account's note and a problem"],
+  ["--warning", ["--background", "--card", "--attention"], 4.5, "the capsule of an account that is not ok"],
+  ["--high", ["--background"], 4.5, "the summary's number past 90%"],
+  ["--high", ["--background", "--card"], 4.5, "a window past 90%, on its card"],
+  ["--focus", ["--background"], 3, "the focus ring"],
+  ["--focus", ["--background", "--card"], 3, "the focus ring on a card"],
+  ["--field", ["--background"], 3, "the edge of a text field"],
+  ["--field", ["--background", "--card"], 3, "the edge of a text field in a card, in Settings"],
+  ["--bar-normal", ["--background", "--card"], 3, "a chart's line in History, on its card"],
 ];
 
 /** The custom properties in the first `:root` block after `from`. */
@@ -78,21 +94,20 @@ const themes = [
 
 let failed = false;
 for (const [theme, colours] of themes) {
-  const background = parse(colours["--background"]);
-  const solid = (name) => over(parse(colours[name]), background);
-  for (const [foreground, behind, needed, where] of PAIRS) {
-    const missing = [foreground, behind].find((name) => colours[name] === undefined);
+  for (const [foreground, grounds, needed, where] of PAIRS) {
+    const missing = [foreground, ...grounds].find((name) => colours[name] === undefined);
     if (missing) {
       failed = true;
       console.error(`${theme}: style.css does not define ${missing}, used for ${where}.`);
       continue;
     }
-    const back = behind === "--background" ? background : solid(behind);
+    // The bottom ground is laid on white in case it is see-through, then each one over it in turn.
+    const back = grounds.reduce((under, name) => over(parse(colours[name]), under), [255, 255, 255]);
     const found = ratio(over(parse(colours[foreground]), back), back);
     if (found < needed) {
       failed = true;
       console.error(
-        `${theme}: ${foreground} on ${behind} (${where}) is ${found.toFixed(2)}:1, under ${needed}:1.`,
+        `${theme}: ${foreground} on ${[...grounds].reverse().join(" on ")} (${where}) is ${found.toFixed(2)}:1, under ${needed}:1.`,
       );
     }
   }

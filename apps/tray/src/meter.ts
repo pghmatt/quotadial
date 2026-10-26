@@ -3,7 +3,8 @@ export interface Meter {
   /** The tightest window's share used, rounded down, if any account has numbers. */
   percent: number | null;
   level: Level;
-  /** What that number is, such as "Codex Weekly, resets in 6 d 1 h". */
+  /** What that number is: its window, the account it belongs to and its reset, such as "Weekly ·
+   * Claude Work · resets in 1 d 15 h". */
   headline: string | null;
   accounts: Account[];
   /** What needs the user's attention and belongs to no account, each naming the fix. */
@@ -120,8 +121,11 @@ export interface AlertChoice {
 
 export interface AccountChoice {
   key: string;
-  /** Such as "Claude user@example.com". */
-  label: string;
+  /** What the provider calls itself, such as "Claude". */
+  provider: string;
+  /** The account's own name, such as its email address; empty when it says nothing beyond
+   * `provider`. */
+  name: string;
   /** The name given, or empty. */
   alias: string;
 }
@@ -150,7 +154,9 @@ export interface AccountHistory {
   key: string;
   /** Such as "Claude". */
   provider: string;
-  /** The name the user gave the account, or its email address; empty when that says nothing beyond
+  /** The name the user gave the account, if any, which titles its card. */
+  alias: string | null;
+  /** The account's own name, such as its email address; empty when that says nothing beyond
    * `provider`. */
   name: string;
   /** What a picture of this account's history calls it, such as "Claude Work" or "Claude Max":

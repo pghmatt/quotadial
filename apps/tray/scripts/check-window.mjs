@@ -6,6 +6,17 @@
 //   has words;
 // - a panel takes the focus when it opens, and its Done gives it back to the button that opened it;
 // - no text is cut off, at 100% and at 200% zoom, with a very long account name;
+// - each account is a card of its own, apart from the next and overlapping none, whose heading
+//   names it by the name given it or its provider's, with its address, visible inside the card,
+//   selectable and read as part of the heading, at 100% and at 200%;
+// - every command a message names between backticks, such as Claude's sign-in command, shows as
+//   code with no backtick left, and one click selects the whole command, to copy it;
+// - the line under the summary's number shows what the app sent, and names the window and the
+//   account that set the number, by the name given it or its address;
+// - History's cards and Settings' names head each account as the popover's cards do: the name
+//   given it or its provider's, then its address, inside the card;
+// - one toolbar at the foot of every view: History, Settings and Help under the accounts, Done
+//   under a panel, which has no Done of its own, and Quit set apart at its far end;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -461,6 +472,57 @@ const WORDS = `(() => {
   return found;
 })()`;
 
+/**
+ * In the page: every card in the window, in order, with where it is, and for an account's card its
+ * heading's parts: its title, its address line and the address itself, where each is, whether it
+ * is shown, and whether the address can be selected.
+ */
+const CARDS = `(() => {
+  const place = (element) => {
+    const { top, bottom, left, right, width, height } = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return { top, bottom, left, right, width, height, shown: element.getClientRects().length > 0 && style.visibility !== 'hidden' && Number(style.opacity) > 0 && !element.closest('.visually-hidden') };
+  };
+  return [...document.querySelectorAll('main > .card')].map((card) => {
+    const heading = card.querySelector('h2');
+    const address = card.querySelector('.address');
+    const name = card.querySelector('.address .name');
+    return {
+      account: card.matches('section.account'),
+      what: card.getAttribute('aria-label') || heading?.textContent.trim() || card.className,
+      card: place(card),
+      labelled: card.getAttribute('aria-labelledby'),
+      heading: heading ? { id: heading.id, holds: [address, name].every((part) => !part || heading.contains(part)) } : null,
+      title: card.querySelector('.title')?.textContent ?? null,
+      address: address ? { text: address.textContent.replace(/\\s+/g, ' ').trim(), ...place(address) } : null,
+      name: name ? { text: name.textContent, select: getComputedStyle(name).userSelect, ...place(name) } : null,
+    };
+  });
+})()`;
+
+/** In the page: the messages that can name a command, and every command shown as code in them. */
+const COMMANDS = `(() => {
+  const messages = [...document.querySelectorAll('.note, .sign-in p, .problems li')];
+  return {
+    // What each message says outside its code, where no backtick may be left.
+    words: messages.map((message) => {
+      const copy = message.cloneNode(true);
+      for (const code of copy.querySelectorAll('code')) code.remove();
+      return copy.textContent;
+    }),
+    codes: [...document.querySelectorAll('main code')].map((code) => ({
+      text: code.textContent,
+      select: getComputedStyle(code).userSelect,
+      inMessage: messages.some((message) => message.contains(code)),
+    })),
+  };
+})()`;
+
+/** The commands `text` names between backticks, as the copies' messages write them. */
+function commandsIn(text) {
+  return [...(text ?? "").matchAll(/(?:^|[\s(])`([^`\s][^`]*?)`(?=$|[\s.,;:!?)])/g)].map((found) => found[1]);
+}
+
 /** A page of the window, opened on one copy of the app in one theme. */
 class View {
   constructor(tools, sessionId, label, url) {
@@ -614,6 +676,43 @@ class View {
     };
   }
 
+  /** Clicks the middle of the `index`th element `selector` finds, as a person would, and answers
+   * what is selected after, or null when there is no such element. */
+  async clickAndSelect(selector, index) {
+    const at = await this.evaluate(`(() => {
+      const element = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+      if (!element) return null;
+      element.closest('details')?.setAttribute('open', '');
+      window.getSelection().removeAllRanges();
+      element.scrollIntoView({ block: 'center' });
+      const box = element.getClientRects()[0];
+      return { x: box.left + Math.min(box.width / 2, 12), y: box.top + box.height / 2 };
+    })()`);
+    if (!at) {
+      return null;
+    }
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await this.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
+    }
+    await this.settle();
+    return this.evaluate("window.getSelection().toString()");
+  }
+
+  /** What a screen reader calls the `index`th element `selector` finds, or null when there is none. */
+  async called(selector, index) {
+    const { result } = await this.send("Runtime.evaluate", {
+      expression: `document.querySelectorAll(${JSON.stringify(selector)})[${index}]`,
+    });
+    if (!result.objectId) {
+      return null;
+    }
+    const { nodes } = await this.send("Accessibility.getPartialAXTree", {
+      objectId: result.objectId,
+      fetchRelatives: false,
+    });
+    return String(nodes[0]?.name?.value ?? "").trim();
+  }
+
   async close() {
     this.stop();
     await this.tools.send("Target.closeTarget", { targetId: this.targetId });
@@ -648,7 +747,7 @@ function toldProblem(tag, type, told) {
 }
 
 /** The checks over one panel of one copy in one theme. */
-async function checkView(view, panel, operate) {
+async function checkView(view, panel, operate, copy) {
   const label = view.label;
   await view.load(panel);
   const focused = await view.evaluate(FOCUSED);
@@ -693,6 +792,14 @@ async function checkView(view, panel, operate) {
     check(label, problem);
   }
 
+  if (panel === "accounts" || panel === "settings") {
+    await checkCommands(view, copy, panel);
+  }
+  if (panel === "history" || panel === "settings") {
+    await checkHeadings(view, copy, panel);
+  }
+  await checkToolbar(view, panel);
+
   // Nothing moves, and no text is cut off at 100% or 200%.
   for (const problem of await view.evaluate(MOVING)) {
     check(label, `${problem} with less motion asked for`);
@@ -702,6 +809,10 @@ async function checkView(view, panel, operate) {
     await view.settle();
     const cut = await view.evaluate(CUT_OFF);
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
+    if (panel === "accounts") {
+      await checkCards(view, copy, zoom);
+      await checkSummary(view, copy, zoom);
+    }
   }
   await view.zoom(1);
 
@@ -748,6 +859,225 @@ async function checkView(view, panel, operate) {
   check(label, view.errors.length > 0 && `the page reported ${[...new Set(view.errors)].slice(0, 3).join("; ")}`);
   view.errors = [];
   return controls.length;
+}
+
+/** The space between two cards, in CSS pixels, as style.css sets it. */
+const CARD_GAP = 8;
+
+/**
+ * Each account as a card of its own, its address easy to see (Matt's ask of 2026-10-26, D-132): a
+ * card per account, in the copy's order, each at least the cards' gap from the next and none
+ * overlapping, all in one column. Its title is the name given it, or its provider's own; its
+ * second line its address, after the provider's name when the title is a name given, or nothing
+ * when its name says nothing beyond its provider (D-124). The address is visible, inside its card
+ * and its heading, and can be selected, and a screen reader calls the card by its heading, address
+ * and all.
+ */
+async function checkCards(view, copy, zoom) {
+  const label = `${view.label}, cards at ${zoom * 100}%`;
+  const cards = await view.evaluate(CARDS);
+  for (let index = 1; index < cards.length; index += 1) {
+    const [above, below] = [cards[index - 1], cards[index]];
+    const gap = below.card.top - above.card.bottom;
+    check(label, gap < CARD_GAP - 0.5 && `"${below.what}" is ${gap.toFixed(1)} px below "${above.what}", not ${CARD_GAP} or more`);
+    const aside = Math.max(Math.abs(below.card.left - above.card.left), Math.abs(below.card.right - above.card.right));
+    check(label, aside > 0.5 && `"${below.what}" is not in line with "${above.what}"`);
+  }
+  const accounts = cards.filter((card) => card.account);
+  check(label, accounts.length !== copy.meter.accounts.length && `the window shows ${accounts.length} account cards for ${copy.meter.accounts.length} accounts`);
+  for (const [index, account] of copy.meter.accounts.entries()) {
+    const card = accounts[index];
+    if (!card) {
+      break;
+    }
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    const title = account.alias ?? account.provider;
+    check(label, card.title !== title && `${what}'s card is titled "${card.title}", not "${title}"`);
+    const line = account.alias === null ? account.name : [account.name, account.provider].filter(Boolean).join(" · ");
+    if (!line) {
+      check(label, card.address !== null && `${what}'s card has the line "${card.address?.text}", though its name says nothing more`);
+      continue;
+    }
+    check(label, card.address?.text !== line && `${what}'s card's second line is "${card.address?.text}", not "${line}"`);
+    check(label, !card.heading?.holds && `${what}'s address is not in its card's heading`);
+    check(label, (!card.heading || card.labelled !== card.heading.id) && `${what}'s card is not labelled by its heading`);
+    if (!account.name) {
+      continue;
+    }
+    const name = card.name;
+    if (!name || name.text !== account.name) {
+      check(label, `${what}'s address is not shown as a part of its own, which can be selected alone`);
+      continue;
+    }
+    check(label, (!name.shown || name.width <= 0 || name.height <= 0) && `${what}'s address is not visible`);
+    const outside =
+      name.left < card.card.left - 0.5 ||
+      name.right > card.card.right + 0.5 ||
+      name.top < card.card.top - 0.5 ||
+      name.bottom > card.card.bottom + 0.5;
+    check(label, outside && `${what}'s address is not inside its card`);
+    check(label, name.select !== "text" && `${what}'s address cannot be selected to copy it (user-select: ${name.select})`);
+    if (zoom === 1) {
+      const called = await view.called("main > section.account", index);
+      const heard = called !== null && called.includes(title) && called.includes(account.name);
+      check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
+    }
+  }
+}
+
+/** In the page: each account's heading in the panel, its title and second line, and whether the
+ * line is inside its card. */
+const HEADINGS = (selector) => `[...document.querySelectorAll(${JSON.stringify(selector)})].map((part) => {
+  const card = part.closest('.card');
+  const line = part.querySelector('.address');
+  const inside = (element) => {
+    if (!element || !card) return false;
+    const [inner, outer] = [element.getBoundingClientRect(), card.getBoundingClientRect()];
+    return inner.width > 0 && inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
+  };
+  return {
+    title: part.querySelector('.title')?.textContent ?? null,
+    line: line ? line.textContent.replace(/\\s+/g, ' ').trim() : null,
+    inside: !line || inside(line),
+  };
+})`;
+
+/**
+ * The same heading for an account everywhere (D-132): History's cards, in the order History lists
+ * them, are titled by the name given each account, or its provider's, with its address, and then
+ * the provider under a name given, on the line under it, as the popover's are. Settings' names,
+ * where the name to give is typed, are headed by which account it is: its address, with its
+ * provider under it, or the provider alone when it has no address. Each second line is inside its
+ * card.
+ */
+async function checkHeadings(view, copy, panel) {
+  const label = `${view.label}, headings`;
+  const [selector, accounts] =
+    panel === "history"
+      ? ["section.history .account-history .card-head", copy.history[7].accounts]
+      : [".name-choice", copy.settings.accounts];
+  const shown = await view.evaluate(HEADINGS(selector));
+  check(label, shown.length !== accounts.length && `${panel} heads ${shown.length} accounts, not ${accounts.length}`);
+  for (const [index, account] of accounts.entries()) {
+    const heading = shown[index];
+    if (!heading) {
+      break;
+    }
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    let [title, line] = [account.name || account.provider, account.name ? account.provider : ""];
+    if (panel === "history") {
+      title = account.alias ?? account.provider;
+      line = account.alias === null ? account.name : [account.name, account.provider].filter(Boolean).join(" · ");
+    }
+    check(label, heading.title !== title && `${what} is titled "${heading.title}", not "${title}"`);
+    check(label, (heading.line ?? "") !== line && `${what}'s second line is "${heading.line}", not "${line}"`);
+    check(label, !heading.inside && `${what}'s second line is not inside its card`);
+  }
+}
+
+/** In the page: the buttons of the footer's toolbar, in order, where each is, and the panel's own
+ * buttons called Done. */
+const TOOLBAR = `({
+  buttons: [...document.querySelectorAll('footer .toolbar > button')].map((button) => {
+    const { left, right, top } = button.getBoundingClientRect();
+    return { text: button.textContent.trim(), left, right, top };
+  }),
+  panelDone: [...document.querySelectorAll('main > section button')].filter((button) => button.textContent.trim() === 'Done').length,
+})`;
+
+/**
+ * One calm toolbar at the foot of every view (D-132): under the accounts, History, Settings and
+ * Help, then Quit QuotaDial; under a panel, Done, where those three were, then Quit, and no Done in
+ * the panel itself. Quit is set apart at the far end, further from the button before it than the
+ * others are from each other.
+ */
+async function checkToolbar(view, panel) {
+  const label = `${view.label}, toolbar`;
+  const { buttons, panelDone } = await view.evaluate(TOOLBAR);
+  const expected = panel === "accounts" ? ["History", "Settings", "Help", "Quit QuotaDial"] : ["Done", "Quit QuotaDial"];
+  const texts = buttons.map((button) => button.text);
+  check(label, texts.join("|") !== expected.join("|") && `the footer's toolbar holds ${JSON.stringify(texts)}, not ${JSON.stringify(expected)}`);
+  check(label, panelDone > 0 && `the ${panel} panel has a Done of its own as well as the toolbar's`);
+  if (buttons.length < 2) {
+    return;
+  }
+  const [before, quit] = buttons.slice(-2);
+  const between = buttons.slice(1, -1).map((button, index) => button.left - buttons[index].right);
+  const apart = quit.top === before.top ? quit.left - before.right : Number.POSITIVE_INFINITY;
+  check(label, apart <= Math.max(0, ...between) + 8 && `Quit QuotaDial is not set apart from ${before.text}`);
+}
+
+/** In the page: the line under the summary's number, and whether it is shown. */
+const SUMMARY = `(() => {
+  const line = document.querySelector('header.summary .headline');
+  if (!line) return null;
+  const { width, height } = line.getBoundingClientRect();
+  return { text: line.textContent, shown: line.getClientRects().length > 0 && width > 0 && height > 0 };
+})()`;
+
+/**
+ * The summary names the account (D-132): its line shows the headline the app sent, and that names
+ * the window that sets the number and its account, by the name given it, or its address, or its
+ * provider alone when the address says nothing more, so two accounts of one provider are never
+ * confused. The account is the one whose window holds the number, as the app chooses it: the
+ * fullest window of an account that is not waiting for a sign-in.
+ */
+async function checkSummary(view, copy, zoom) {
+  const label = `${view.label}, summary at ${zoom * 100}%`;
+  const summary = await view.evaluate(SUMMARY);
+  const { meter } = copy;
+  check(label, (!summary || !summary.shown) && "the line under the number is not shown");
+  if (!summary || meter.headline === null) {
+    return;
+  }
+  check(label, summary.text !== meter.headline && `the line under the number reads "${summary.text}", not "${meter.headline}"`);
+  const [account, window] = meter.accounts
+    .filter((one) => !["sign-in required", "unsupported"].includes(one.status))
+    .flatMap((one) => one.windows.map((each) => [one, each]))
+    .reduce((fullest, pair) => (pair[1].used_pct > (fullest?.[1].used_pct ?? -1) ? pair : fullest), null) ?? [];
+  if (!account) {
+    check(label, "the copy has a headline but no window to set the number");
+    return;
+  }
+  const named = account.alias ?? (account.name || account.provider);
+  check(label, Math.floor(window.used_pct) !== meter.percent && `the copy's number ${meter.percent}% is not its fullest window's`);
+  check(label, !summary.text.includes(window.label) && `the line under the number does not name the window, ${window.label}`);
+  check(label, !summary.text.includes(named) && `the line under the number does not name the account, "${named}"`);
+}
+
+/**
+ * The commands in what QuotaDial says (the manager's note on #85): each one a message in `panel`
+ * names between backticks, such as Claude's sign-in command in an account's note, Gemini CLI's
+ * `/model`, Antigravity's block in its sign-in panel or config.json's chmod in Settings, shows as
+ * code, whole, with no backtick left in the message's words; and a click on it selects the whole
+ * command, so it can be copied as it must be pasted.
+ */
+async function checkCommands(view, copy, panel) {
+  const label = `${view.label}, commands`;
+  const said =
+    panel === "accounts"
+      ? [
+          ...copy.meter.accounts.flatMap((account) => [account.ok ? null : account.note, account.sign_in]),
+          ...copy.meter.problems,
+        ]
+      : copy.settings.alert_problems;
+  const expected = said.flatMap(commandsIn);
+  const { words, codes } = await view.evaluate(COMMANDS);
+  for (const left of words.filter((text) => text.includes("`"))) {
+    check(label, `a message still shows a backtick: "${left.trim().slice(0, 80)}"`);
+  }
+  const shown = codes.filter((code) => code.inMessage);
+  check(label, shown.length !== expected.length && `the window shows ${shown.length} commands as code for ${expected.length}`);
+  for (const command of expected) {
+    const index = codes.findIndex((code) => code.text === command);
+    if (index < 0) {
+      check(label, `"${command}" is not shown whole as code`);
+      continue;
+    }
+    check(label, codes[index].select !== "all" && `"${command}" is not selected whole by a click (user-select: ${codes[index].select})`);
+    const selected = await view.clickAndSelect("main code", index);
+    check(label, selected !== command && `a click on "${command}" selects "${selected}", not the whole command`);
+  }
 }
 
 /** The CRC-32 a PNG chunk ends with. */
@@ -1135,7 +1465,7 @@ async function main() {
           const view = await View.open(tools, label, url, copy, theme);
           try {
             // Pressing each control is the same in either theme, so once is enough.
-            await checkView(view, panel, theme === "light");
+            await checkView(view, panel, theme === "light", copy);
             // The picture to share follows the theme, so it is checked in both.
             if (panel === "history") {
               await checkSharing(view, name, copy, theme, shares);
