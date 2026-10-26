@@ -14,6 +14,12 @@ SKILL.md. It runs on macOS, Windows and Linux.
   </picture>
 </p>
 
+<p align="center">
+  <img src="docs/images/first-run.gif" width="376" alt="QuotaDial's first run: its icon shows 91% in the menu bar, and a click opens the window with two accounts named Example">
+  <br>
+  <sub>The first run of QuotaDial Example, a build with made-up accounts: its number in the menu bar, then the window a click opens (<a href="docs/images/first-run.mp4">as an MP4</a>).</sub>
+</p>
+
 **Status: pre-alpha.** `quotadial status` and `quotadial watch` show Claude, ChatGPT/Codex and
 Antigravity usage. `quotadial daemon` polls for every consumer, keeps the history that gives each window its
 pace (how fast it fills, and whether it runs out before it resets), checks alert rules written in
