@@ -220,7 +220,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
-| Error lines named through the report | Built on `fix/provider-error-names`, not yet opened (D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
+| Error lines named through the report | In review (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 
 ## Kickoff
 
@@ -414,7 +414,7 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **The decision:** the manager's item 3 on #73 (2026-10-26, 01:26 UTC): a provider's error is named
   through the report, `StatusReport::provider_name(id)`, where the CLI and the app render it, not
   in each provider, by P-020's rule 1. 1c found three places (D-125), so it is this PR, on
-  `fix/provider-error-names` from `main` at 1789d07 (#79).
+  `fix/provider-error-names` from `main` at 1789d07 (#79), in review as #82.
 - **Where the id goes:** out of the message (D-128). `quotadial_core::Error`'s text no longer
   begins with `{provider}: `, and `ProviderError::warning`, which `new` uses, takes a leading
   `<id>: ` off whatever a provider writes; Claude's two discovery warnings no longer write it. The
