@@ -94,6 +94,28 @@ fn ends_path(after: &str) -> bool {
     }
 }
 
+/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130): in the home
+/// folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes, so a
+/// space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
+/// anywhere else, or with no home folder or one that is a whole disk, the whole place in single
+/// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
+/// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
+/// missed. In the home folder by whole names, as [`tilde`] finds it, so `/Users/anna` is not in
+/// `/Users/ann`. `~/` on every system, being for a POSIX shell: `config.json`'s warning, which uses
+/// it, cannot occur on Windows.
+#[must_use]
+pub fn shell_word(place: &Path, home: Option<&Path>) -> String {
+    let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));
+    match home
+        .filter(|home| home.parent().is_some())
+        .and_then(|home| place.strip_prefix(home).ok())
+    {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", quoted(rest)),
+        None => quoted(place),
+    }
+}
+
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
 #[must_use]
 pub fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
@@ -327,7 +349,7 @@ pub fn unplain_words(text: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, PathBuf};
 
     use proptest::prelude::*;
 
@@ -475,6 +497,76 @@ mod tests {
         assert_eq!(
             tilde_in(&format!("nothing in {}/x.", home.display()), Some(&home)),
             "nothing in ~/x."
+        );
+    }
+
+    /// `shell_word`'s word for `place`, held to the warning's pass leaving it as it was written.
+    fn word(place: &Path, home: Option<&Path>) -> String {
+        let word = shell_word(place, home);
+        assert_eq!(tilde_in(&word, home), word, "the warning's pass");
+        word
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_is_quoted_after_a_bare_tilde() {
+        // macOS keeps the data folder in `~/Library/Application Support`, whose space split the
+        // command, and a shell expands `~` only where it is not quoted (D-130).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let rest: PathBuf = ["Library", "Application Support", "quotadial", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&home.join(&rest), Some(&home)),
+            format!("~/'{}'", rest.display())
+        );
+        assert_eq!(word(&home, Some(&home)), "~", "the home folder itself");
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_is_quoted_whole() {
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let beside: PathBuf = [MAIN_SEPARATOR_STR, "Users", "anna", "config.json"]
+            .iter()
+            .collect();
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "config.json"]
+            .iter()
+            .collect();
+        for place in [beside, elsewhere] {
+            assert_eq!(
+                word(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "a folder whose name only starts as the home folder's does, and another disk"
+            );
+        }
+        let place = home.join("config.json");
+        assert_eq!(
+            word(&place, None),
+            format!("'{}'", place.display()),
+            "no home folder"
+        );
+        assert_eq!(
+            word(&place, Some(Path::new(MAIN_SEPARATOR_STR))),
+            format!("'{}'", place.display()),
+            "a home folder that is a whole disk, which the warning's sentence leaves as it is too"
+        );
+    }
+
+    #[test]
+    fn a_single_quote_in_a_place_is_written_as_a_shell_reads_it() {
+        // `'\''`: the quotes closed, a quote escaped, and the quotes opened again.
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        assert_eq!(
+            word(&home.join("Ann's data").join("config.json"), Some(&home)),
+            format!(r"~/'Ann'\''s data{MAIN_SEPARATOR}config.json'")
+        );
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "O'Brien", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&elsewhere, Some(&home)),
+            format!(
+                r"'{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O'\''Brien{MAIN_SEPARATOR}config.json'"
+            )
         );
     }
 
