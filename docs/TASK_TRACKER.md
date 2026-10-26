@@ -420,6 +420,24 @@ so they became #10.
 
 The notes below run newest first; the setup notes above them are the oldest.
 
+### Main's CI: the daemon's stand-in servers say they close each connection
+
+- **What happened:** CI on `main` at 72bc175 (#87) failed once, in `fake provider (macos-latest)`:
+  `deliveries::tests::a_webhook_that_fails_is_tried_again_later_and_its_address_never_shown` saw
+  one delivery where it expected two ("again a minute later"). The job passed when run again, and
+  #87 changed nothing the test touches.
+- **Why:** the daemon's tests' stand-in webhook (`test_support::receiver`) and status page
+  (`test_support::status_page`) take one request on each connection and then close it, but their
+  answers did not say so. A `reqwest` client keeps a connection for its next request unless told
+  otherwise, so the retry could be sent down the connection the stand-in had just closed and never
+  arrive. Whether it did turned on timing, which a busy CI runner changes.
+- **The fix:** both answers say `connection: close`, so the client opens a new connection for each
+  request. A new test, `the_stand_ins_say_they_close_each_connection`, holds both stand-ins to it
+  and sends two requests through one client; it failed first, with the header taken out. The retry
+  test then passed 300 runs in a row. Nothing outside the tests changed. Checked here: `cargo fmt
+  --check`, clippy with `-D warnings` for the daemon's targets, and the daemon's `test_support`,
+  `deliveries` and `status_pages` tests; CI runs the rest.
+
 ### M6: a folder whose name only starts as the home folder's is never written `~` (D-133)
 
 - **The ask:** the coordinator's brief of 2026-10-26: D-130's other leftover, now its own queued row,

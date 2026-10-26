@@ -63,8 +63,14 @@ pub async fn receiver(status: &'static str) -> (String, Arc<Mutex<Vec<String>>>)
                     break;
                 }
             }
+            // It takes one request on each connection and then closes it, so it says so: told
+            // nothing, a client keeps the connection for its next request, which can then go to a
+            // connection already closed and never arrive, as a retry did on main's CI.
             let _ = stream
-                .write_all(format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\n\r\n").as_bytes())
+                .write_all(
+                    format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                        .as_bytes(),
+                )
                 .await;
         }
     });
@@ -79,11 +85,12 @@ pub async fn status_page(body: &'static str) -> String {
         while let Ok((mut stream, _)) = listener.accept().await {
             let mut buffer = [0_u8; 4096];
             let _ = stream.read(&mut buffer).await;
+            // One request on each connection, as `receiver` takes, and said in the same way.
             let _ = stream
                 .write_all(
                     format!(
                         "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: \
-                         {}\r\n\r\n{body}",
+                         {}\r\nconnection: close\r\n\r\n{body}",
                         body.len()
                     )
                     .as_bytes(),
@@ -92,4 +99,40 @@ pub async fn status_page(body: &'static str) -> String {
         }
     });
     address
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{receiver, status_page};
+
+    /// What a stand-in's answer says about its connection.
+    fn connection(answer: &reqwest::Response) -> Option<&str> {
+        answer
+            .headers()
+            .get("connection")
+            .and_then(|value| value.to_str().ok())
+    }
+
+    /// Each stand-in takes one request on a connection and then closes it, so its answer says so,
+    /// and a client that keeps connections opens a new one for its next request, which arrives.
+    /// Told nothing, the client can send it down the closed one, where it is lost: a webhook's retry
+    /// on main's CI, 2026-10-26.
+    #[tokio::test]
+    async fn the_stand_ins_say_they_close_each_connection() {
+        let client = reqwest::Client::new();
+        let (address, bodies) = receiver("404 Not Found").await;
+        for _ in 0..2 {
+            let answer = client
+                .post(&address)
+                .body("{}")
+                .send()
+                .await
+                .expect("answers");
+            assert_eq!(connection(&answer), Some("close"));
+        }
+        assert_eq!(bodies.lock().expect("lock").len(), 2, "both arrived");
+        let page = status_page("{}").await;
+        let answer = client.get(&page).send().await.expect("answers");
+        assert_eq!(connection(&answer), Some("close"));
+    }
 }
