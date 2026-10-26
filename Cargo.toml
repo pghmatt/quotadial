@@ -12,6 +12,7 @@ members = [
     "crates/providers/codex",
     "crates/providers/fake",
     "crates/providers/gemini",
+    "crates/providers/antigravity",
     "crates/providers/all",
     "crates/api",
     "crates/cli",
@@ -37,6 +38,7 @@ quotadial-provider-claude = { path = "crates/providers/claude" }
 quotadial-provider-codex = { path = "crates/providers/codex" }
 quotadial-provider-fake = { path = "crates/providers/fake" }
 quotadial-provider-gemini = { path = "crates/providers/gemini" }
+quotadial-provider-antigravity = { path = "crates/providers/antigravity" }
 quotadial-providers = { path = "crates/providers/all" }
 async-trait = "0.1.92"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
