@@ -40,6 +40,13 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --workspace --locked
+      # A provider built but not yet turned on for releases (D-127): GitHub Copilot, whose merge waits
+      # on #51's live check. The provider list and the CLI with it, linted and tested on every
+      # system, so it is ready the day it is turned on; its own crate is in the steps above.
+      - name: Clippy, with Copilot
+        run: cargo clippy -p quotadial-providers -p quotadial --all-targets --locked --features copilot -- -D warnings
+      - name: Test, with Copilot
+        run: cargo test -p quotadial-providers -p quotadial --locked --features copilot
       # Only a debug build trusts the licence test key, whose private half is public (D-099).
       - name: A release build trusts only QuotaDial's licence key
         if: runner.os == 'Linux'
