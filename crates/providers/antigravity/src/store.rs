@@ -83,7 +83,6 @@ pub(crate) fn read(file: &Path) -> Option<(Handover, DateTime<Utc>)> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::time::Duration;
 
     use chrono::TimeDelta;
 
@@ -256,6 +255,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_pipe_in_place_of_the_file_is_never_opened() {
+        // Imported here: the test is built only on Unix, and an import nothing else in the module
+        // uses fails clippy on Windows.
+        use std::time::Duration;
+
         let temp = tempfile::tempdir().expect("temp dir");
         let pipe = temp.path().join(FILE);
         let made = std::process::Command::new("mkfifo")
