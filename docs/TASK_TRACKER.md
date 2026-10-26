@@ -225,8 +225,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 | The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
 | `config.json`'s `chmod 600` command, working as written | Done (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
-| Claude's sign-in command, working as written and naming no user | In review (PR #85, D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
+| Claude's sign-in command, working as written and naming no user | Done (PR #85, D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
 | A place holding the home folder's path beside a space or a quote | Queued (D-130, D-131) | D-130's other leftover: a place whose text holds the home folder's path beside a space, a quote or the like, such as `/Users/ann (old)/quotadial` beside the home folder `/Users/ann`, which `text::tilde_in` still rewrites, in a sentence and in the commands written from it (`config.json`'s `chmod 600`, Claude's sign-in command), so such a command fails as written; no folder QuotaDial makes is one, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
+| The popover redesigned (Matt's ask, 2026-10-26) | Built on `feat/popover-design`, for review (D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -415,6 +416,125 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### Matt's ask: the popover redesigned (D-132)
+
+- **The ask:** Matt, on 2026-10-26 at about 12:50 UTC: "make the OS X UX more professional and make
+  it easier to see separation between accounts and what the account email addresses are. make the
+  ux something Steve Jobs would love." Built on `feat/popover-design` from `main` at c7dedc8 to the
+  coordinator's brief, in steps the coordinator pushed and reviewed from pictures as they came: the
+  cards and their heading (0e847f0); commands as code, the manager's note on #85 (e78fa63); a
+  card's title a step larger and a hairline edge in light, from the review of the first pictures
+  (c3d6721); the summary naming the account (8a3621f); the footer, to the coordinator's spec
+  (699f56e); History, Settings and Help (7f0cf7b); the coordinator's three findings on the final
+  pictures (12bddd4); an independent design review's findings, as the coordinator decided them
+  (2363064); then the pictures and these records.
+- **Each account a card** (`style.css`, `app.tsx`): a rounded platter, 10 px corners and 12 px of
+  padding, 8 px from the next, raised on the page in both themes: `--card` white at 70% in light,
+  with a 0.5 px hairline (`--card-edge`, an inset shadow), and white at 6% in dark. The page Windows,
+  Linux and the pictures paint is a grey like the macOS popover material (`--background` `#ececec`
+  and `#2c2c2e`, were `#fbfbfd` and `#1f1f21`); on macOS the page stays transparent over the
+  material (`html.mac`). Space and the cards' grounds set accounts apart, with no rules. Problems,
+  the week's cost and an update offer take the same card; Free's lines stay in words under the
+  accounts, in line with the cards' text.
+- **One heading for an account** (`src/account.tsx`, `AccountHeading`), in the popover and History:
+  the name the user gave it or its provider's (P-020), 14 px semibold, the plan a capsule on the
+  right and a tinted status capsule beside it when it is not ok; under it the address, 12 px in
+  `--secondary`, then under a name given the provider in `--muted`: "dev@example.com · Claude", so
+  the addresses start at one edge down the cards (the review's finding; the brief had the provider
+  first). Nothing for an account whose name adds nothing (D-124). The address alone is selectable;
+  it sits in the heading, so a screen reader names the section by both, and the dot is hidden from
+  it. Settings' names are headed by the address with the provider under it, or the provider alone.
+  `AccountHistory` carries `alias` and the account's own `name` apart (`history.rs`), and
+  `AccountChoice` the `provider` and `name` in place of `label` (`lib.rs`).
+- **Windows:** the reset, source and pace at 11 px in `--muted`, sentence case by CSS
+  (`::first-letter`), so the view model's words are unchanged; the unconfirmed capsule after a real
+  space, so a screen reader does not run it into the line; every disclosure's chevron drawn in CSS,
+  turning in 150 ms, and not at all with less motion.
+- **The summary** (`meter.rs`): `Meter` keeps the window that sets the number (`Tightest`, skipped
+  by serde) and builds the headline from the account as listed, `AccountView::label`, in `new` and
+  again in `with_aliases`: "Weekly · Claude Work · resets in 1 d 15 h", or the provider and the
+  address, or the provider alone for an example account. The tooltip has "88% · {headline}" after
+  "QuotaDial"; `lines()`, which the tray's menu shows, is unchanged.
+- **Commands** (`src/code.ts`, `src/said.tsx`): `codeSpans` splits a message into words and
+  commands; `Said` shows each command as code (`ui-monospace`, the text colour on `--tag`,
+  `user-select: all`) in an account's note and sign-in panel, the problems and Settings' warnings.
+- **One toolbar at every view's foot:** History, Settings and Help under the accounts, Done under a
+  panel (the panels lose their `onDone`), borderless with a fill only on `:hover` and
+  `:focus-visible`, and Quit pushed to the far end; the toolbar's negative 8 px margin puts each
+  label, and the origin line under them, at the cards' text edge (measured at 24 and 336 px in the
+  360 px window). Export CSV stays in History, under its last card.
+- **Panels:** title 15 px; words outside a card padded to the cards' text; a button outside a card
+  at the cards' edge with a 12 px label inset (all buttons now 12 px, were 10). History: each
+  account a card; each chart with no plate, a hairline at 0% (`--chart-base`) and a faint line at
+  100% (`--chart-top`) drawn whole at the edges (`overflow: visible`), the dashed line at 90% kept;
+  the period a segmented control, a `--tag` track with the chosen segment raised (`--segment`,
+  `--segment-shadow`) and bold. "The last 7 days." under it stays: it is the charts' span from the
+  app, which reads "Since Mon 5 at 09:10, when the history begins." when the history is younger
+  than the period, and is not wired to the control. Settings: each group a card under its name.
+  Help: its four sections cards.
+- **Colours:** new `--secondary` (`#48484d`, `#c7c7cc`), `--card`, `--card-edge`, `--attention`,
+  `--tag-pressed`, `--segment`, `--segment-shadow`, `--chart-base` and `--chart-top`; in light
+  `--muted` `#58585d`, `--focus` `#0071e3`, `--field` `#78787d` and the bars `#007aff` (were
+  `#67676c`, `#0a84ff`, `#8a8a8e` and `#0a84ff`), `--warning` `#8f4b00` (was `#a05600`); in dark
+  `--muted` `#b0b0b5`, `--warning` `#ffb340`, `--high` `#ff7f78` and `--field` `#8e8e93` (were
+  `#a1a1a6`, `#ff9f0a`, `#ff453a` and `#6e6e73`); `--accent` and `--on-accent` gone; a field's hint
+  in `--muted`, where the browser's grey was 4.08:1 and 3.02:1 on a card; off the Mac a box takes
+  the bars' blue. Ratios on a card: the address 8.66 (light) and 6.88 (dark), a window's details
+  6.74 and 5.36, a window past 90% 5.65 and 4.72, a status capsule 5.57 and 4.68, a chart's line
+  3.83 and 3.18. `check-contrast.mjs` lays each colour over a stack of grounds; 21 pairs a theme,
+  up from 10.
+- **Calls where the brief left room:** the title at 14 px (the coordinator's, after the first
+  pictures); a hairline for light cards' edge; the details at 11 px, below the address's 12 px;
+  sentence case by CSS; a tinted status capsule; the address alone selectable; the headline naming
+  the account by provider and address when it has no name given, since one address can have
+  accounts at two providers; the tooltip's new line, the menu unchanged; Settings' group names over
+  their cards; Help's sections as cards too; the costs card's words unchanged.
+- **The independent review** (a fresh-context reviewer, from the pictures alone): "ship with
+  fixes". Taken: the field hints, colour to spare on the material, the checkboxes off the Mac, the
+  "Read as:" and chevron offsets, and, by the coordinator's calls, the address first, raised cards
+  and Settings' names headed by the address. Left, by the coordinator's calls, and in D-132: a
+  17 px title, a line once per card for the source and sign-in panel, and the origin line in Help.
+- **Proof:** the window check adds five checks (`checkCards` and `checkSummary`, each at 100% and
+  200%, `checkCommands`, `checkHeadings` and `checkToolbar`); each failed first on a window broken
+  on purpose: cards 3 px apart; the address moved out of its card and heading and made
+  unselectable; the note as plain text and the code selectable like any text; the headline naming
+  no account, and hidden; History headed as before, and Settings headed by the provider; a panel
+  with a Done of its own, and Quit beside the others. The contrast check failed on a pale chart
+  line (2.17:1). The four new meter tests and the two changed ones failed against the old headline
+  and tooltip; `code.test.mjs`'s two tests of hard cases failed against a split at every backtick.
+  The design detector (`impeccable detect`) found nothing in the changed sources, after it was
+  shown to fire on a planted side-tab border and gradient text.
+- **Pictures:** `site/scripts/app-pictures.mjs` wrote the six pictures again: accounts 720 x 1312
+  (was 1214), History 720 x 2078 (was 1776) and Settings 720 x 2172 (was 1826), with the site's
+  `AppShot` sizes and `docs/IMAGE-MANIFEST.md` to match. Main's committed History picture was older
+  than main's window, which captured at 1918 px.
+- **Counts:** in the workspace, 763 passed (1 ignored) and in the example build 760 (2 ignored),
+  both as on `main` at c7dedc8, since no crate changed; the app's `--lib` tests 91 in both builds,
+  up from 87 (the four new meter tests); the window's `npm test` 8, up from 5 (the three of
+  `code.test.mjs`); the window check 5,019 checks over 16 views, up from 4,371; the contrast check
+  21 pairs a theme, up from 10; the window's JavaScript 35.5 KB, up from 34.0 KB, within its 150 KB;
+  the site's tests 90.
+- **Checks run here:** the heavy run, from 18:26:58 to 18:33:51 UTC with the app's Rust as
+  committed in 7f0cf7b, which nothing after it changed: `cargo fmt --check` in both workspaces;
+  clippy with `-D warnings` and `--locked` on the workspace and the tray app, default and `fake`;
+  the workspace's tests, default and `fake`; the tray app's `--lib` tests, default and `fake`, the
+  latter with the example's CLI bundled (`npm run cli -- --fake`, then `npm run cli` again);
+  `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`. Then, on the final tree: the
+  tray app's `npm run build` (its budget and contrast), `npm test` and `npm run check:window`; the
+  app's `--lib` tests in both builds again, since they read `CHANGELOG.md`; and the site's
+  `npm run check`, `npm run build` and `npm test`, after `site/scripts/app-pictures.mjs`. All
+  passed.
+- **Not run:** a Windows or Linux build, which no target here makes (CI's); `cargo deny`,
+  `cargo audit` and actionlint, not installed here, and no dependency, lockfile or workflow
+  changed; the app itself, never run, as briefed: the window check renders the built window in
+  headless Chrome, and a scratch preview drew it as macOS does, a transparent page over a stand-in
+  for the material; `tests/icon_press.rs`, as briefed (clippy compiles it, nothing runs it);
+  VoiceOver by hand: what a screen reader is told was read from Chrome's accessibility tree.
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
+  scratchpad and no token in its environment; no vendor CLI ran, no sign-in or keychain item was
+  read, and nothing touched `~/Library/Application Support/quotadial`.
 
 ### M6: Claude's sign-in command works as written and names no user (D-131)
 

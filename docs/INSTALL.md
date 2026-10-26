@@ -138,9 +138,9 @@ that; Ubuntu has it on already.
   to Slack, set in `config.json` ([`CLI.md`](CLI.md#settings)); Settings names where they go.
 - Show or hide each provider. A hidden provider still has its usage read for the `quotadial`
   command.
-- Give each account a name, such as "Work", shown in the popover beside its email address and in
-  the tray's menu in place of it. Accounts are listed by the name shown. Clear the name to go back
-  to the email address.
+- Give each account a name, such as "Work", which heads its card in the popover, with its email
+  address and provider under it, and stands in the tray's menu in place of the address. Accounts
+  are listed by the name shown. Clear the name to go back to the email address.
 - Licence: whether this copy is QuotaDial Free or QuotaDial Pro and, on Free, what Pro adds; a
   field to paste a licence key into, and a button to remove the key. A key is checked on this
   machine, with no network call, and counts at once ([`CLI.md`](CLI.md#licence)).
