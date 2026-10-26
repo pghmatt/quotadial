@@ -431,20 +431,44 @@ code {
   padding-left: 16px;
 }
 
+/* The footer, in line with the cards' text: no rule above it, only space. */
 footer {
+  margin-top: 12px;
+  padding: 0 12px;
+}
+
+/* Each button's label lines up with the text above it, its fill reaching a little past it. */
+.toolbar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--rule);
+  gap: 2px;
+  margin: 0 -8px;
+}
+
+/* History, Settings and Help: quiet buttons that take a fill only under the pointer or the focus,
+   as a Mac's toolbar buttons do. */
+.toolbar button {
+  padding: 3px 8px;
+  background: none;
+}
+
+.toolbar button:hover,
+.toolbar button:focus-visible {
+  background: var(--tag);
+}
+
+.toolbar button:active {
+  background: var(--tag-pressed);
+}
+
+/* Quit is set apart, at the far end. */
+.toolbar .quit {
+  margin-left: auto;
 }
 
 .origin {
-  flex: 1 0 100%;
-  margin: 0;
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 11px;
 }
@@ -516,10 +540,6 @@ legend {
 
 .done {
   margin-top: 12px;
-}
-
-footer button + button {
-  margin-left: -2px;
 }
 
 /* The field is as wide as the window allows, however wide a text field would be by itself. */

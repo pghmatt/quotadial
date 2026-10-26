@@ -155,26 +155,30 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           <UpdateStatus update={update} offer />
         </section>
       )}
+      {/* A calm toolbar in line with the cards' text, Quit set apart at its far end, and under it
+          where the numbers come from. */}
       <footer ref={footer}>
-        <p class="origin">{meter.origin ?? ""}</p>
-        {accounts && (
-          <button type="button" data-panel="history" onClick={() => setPanel("history")}>
-            History
+        <div class="toolbar">
+          {accounts && (
+            <button type="button" data-panel="history" onClick={() => setPanel("history")}>
+              History
+            </button>
+          )}
+          {accounts && (
+            <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
+              Settings
+            </button>
+          )}
+          {accounts && (
+            <button type="button" data-panel="help" onClick={() => setPanel("help")}>
+              Help
+            </button>
+          )}
+          <button type="button" class="quit" onClick={() => void invoke("quit")}>
+            Quit QuotaDial
           </button>
-        )}
-        {accounts && (
-          <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
-            Settings
-          </button>
-        )}
-        {accounts && (
-          <button type="button" data-panel="help" onClick={() => setPanel("help")}>
-            Help
-          </button>
-        )}
-        <button type="button" onClick={() => void invoke("quit")}>
-          Quit QuotaDial
-        </button>
+        </div>
+        {meter.origin && <p class="origin">{meter.origin}</p>}
       </footer>
     </>
   );
