@@ -385,12 +385,15 @@ fn mcp(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
+    let names: Vec<ProviderName> = providers
+        .iter()
+        .map(|provider| ProviderName::of(provider.as_ref()))
+        .collect();
     let dir = DataDir::from_env();
     let served = runtime.block_on(quotadial_api::mcp::serve(
         tokio::io::BufReader::new(tokio::io::stdin()),
         tokio::io::stdout(),
-        &ids,
+        &names,
         async || {
             report(providers, dir.as_ref())
                 .await

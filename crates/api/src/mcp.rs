@@ -15,7 +15,7 @@
 
 use std::io;
 
-use quotadial_core::{ProFeature, StatusReport};
+use quotadial_core::{ProFeature, ProviderName, StatusReport};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
@@ -47,9 +47,10 @@ const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGP
     reaches 100% if that comes before it resets. Providers are never asked more often than their \
     limits allow, so a number can be a few minutes old; its fetched_at says when it was fetched.";
 
-/// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the provider
-/// ids an agent may narrow an answer to; `report` gets the numbers, and `alerts` the alert rules
-/// and what they told, or why it could not; `licensing` says whether the Pro tools answer.
+/// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the providers
+/// an agent may narrow an answer to, by id, each described by its own name (P-020); `report` gets
+/// the numbers, and `alerts` the alert rules and what they told, or why it could not; `licensing`
+/// says whether the Pro tools answer.
 ///
 /// # Errors
 ///
@@ -57,7 +58,7 @@ const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGP
 pub async fn serve<R, W, F, A>(
     input: R,
     mut output: W,
-    providers: &[&str],
+    providers: &[ProviderName],
     report: F,
     alerts: A,
     licensing: Licensing,
@@ -99,7 +100,7 @@ struct Sources<F, A> {
 }
 
 struct Server<'a> {
-    providers: &'a [&'a str],
+    providers: &'a [ProviderName],
     /// The revision agreed at `initialize`.
     version: Option<&'static str>,
     /// Whether the copy has the Pro tools.
@@ -283,12 +284,18 @@ impl Server<'_> {
         }
         match arguments.get("provider") {
             None | Some(Value::Null) => Ok(None),
-            Some(Value::String(provider)) if self.providers.contains(&provider.as_str()) => {
+            Some(Value::String(provider))
+                if self.providers.iter().any(|named| named.id == *provider) =>
+            {
                 Ok(Some(provider.as_str()))
             }
             Some(other) => Err(format!(
                 "provider must be one of {}, not {other}.",
-                self.providers.join(", ")
+                self.providers
+                    .iter()
+                    .map(|named| named.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )),
         }
     }
@@ -357,16 +364,22 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
     }
 }
 
-/// The three tools, for `tools/list`.
-fn tools(providers: &[&str]) -> Value {
+/// The three tools, for `tools/list`. The `provider` argument takes each provider's id, described
+/// by the provider's own name, so no table of names is kept here (P-020).
+fn tools(providers: &[ProviderName]) -> Value {
+    let ids: Vec<&str> = providers.iter().map(|named| named.id.as_str()).collect();
+    let each = providers
+        .iter()
+        .map(|named| format!("{} for {}", named.id, named.name))
+        .collect::<Vec<_>>()
+        .join(", ");
     let narrowed = json!({
         "type": "object",
         "properties": {
             "provider": {
                 "type": "string",
-                "enum": providers,
-                "description": "Only this provider's accounts: claude for Claude plans, codex for \
-                                ChatGPT plans used through the Codex CLI.",
+                "enum": ids,
+                "description": format!("Only this provider's accounts, by its id: {each}."),
             },
         },
         "additionalProperties": false,
@@ -515,7 +528,7 @@ mod tests {
         serve(
             input.as_bytes(),
             &mut output,
-            &["claude", "codex"],
+            &[provider("claude", "Claude"), provider("codex", "Codex")],
             async || answer.clone(),
             async || Ok(alerts()),
             licensing,
@@ -614,6 +627,11 @@ mod tests {
         assert_eq!(
             tools[0]["inputSchema"]["properties"]["provider"]["enum"],
             json!(["claude", "codex"])
+        );
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["provider"]["description"],
+            "Only this provider's accounts, by its id: claude for Claude, codex for Codex.",
+            "each provider as it names itself (P-020)"
         );
     }
 
@@ -877,7 +895,7 @@ mod tests {
         serve(
             input.as_slice(),
             &mut output,
-            &["claude"],
+            &[provider("claude", "Claude")],
             async || Ok(report()),
             async || Ok(alerts()),
             Licensing::default(),
@@ -970,7 +988,7 @@ mod tests {
                 .block_on(serve(
                     input.as_slice(),
                     &mut output,
-                    &["claude"],
+                    &[provider("claude", "Claude")],
                     async || Ok(report()),
                     async || Ok(alerts()),
                     Licensing::default(),
