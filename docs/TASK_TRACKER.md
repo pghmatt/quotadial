@@ -83,7 +83,7 @@ queue, by its numbers:
   three PRs: the fake provider and the example build (D-117), merged (PR #71); the release copies,
   the site's downloads and guides and the README's pictures (D-116), merged (PR #72); the install
   check and #52's figures from Matt's copy, merged (PR #74); the example build's figures, merged
-  (PR D, #80); and the first-run recording, PR E, waiting on Matt's menu bar (#51);
+  (PR D, #80); and the first-run recording, PR E, in review (#91);
 - then M6. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
   to build it with item 12 (D-117). The M6 plan is #73, approved by the manager at 20:29 UTC with
   its decisions (Gemini CLI detected and explained, then Antigravity through its status line, then
@@ -91,8 +91,8 @@ queue, by its numbers:
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (#71, #72, #74 and #80 merged; PR E, the recording, waits on
-Matt),
+#64's fix (PR #69); from here: 12 (#71, #72, #74 and #80 merged; PR E, the recording, in
+review as #91),
 then M6 (#73).
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
@@ -209,7 +209,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
 | 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80 |
-| 12, PR E: the first-run recording | Waiting on Matt (#51) | The README's recording of QuotaDial Example's first run, cropped to its icon and popover, under rule 4 on #49; it needs Matt's menu bar set to stay visible for about two minutes, and its run is the Graphics and Media helper's third (#80) |
+| 12, PR E: the first-run recording | In review (PR #91) | The README's recording of QuotaDial Example's first run, cropped to its icon and popover, under rule 4 on #49: `docs/images/first-run.gif` (376x600, 5.5 s) in the README and the same as an MP4, recorded on 2026-10-26 at 21:02 UTC from the example built at 485d0cf (#86) once Matt's menu bar stayed visible; the Graphics and Media helper's third reading says its 245 MiB is the window being drawn, given back within 10 seconds |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## M6
@@ -419,6 +419,44 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M5 queue item 12, PR E: the README's first-run recording
+
+- **The ask:** #52: "`README.md` shows the app: a screenshot of the popover in both themes and a
+  short recording of the first run". The manager's rule 4 on #49 (2026-10-25, 14:25 UTC): the
+  recording comes from the example build, cropped to QuotaDial's icon and popover, with the account
+  labelled as an example in the picture itself. The manager split it from PR D on #80. Matt set his
+  menu bar to stay visible for it on 2026-10-26 (#51).
+- **What it shows:** `docs/images/first-run.gif` (376x600, 5.5 s, 196 KB), in the README under the
+  window's picture, and the same as an MP4 (`docs/images/first-run.mp4`, H.264, 60 KB), linked
+  under it. QuotaDial Example, built at 485d0cf (#86's head, the same tree as 82038b0 on `main`),
+  starts as a first run with an empty data folder of its own. Its icon shows 91% in the menu bar, a
+  click opens the window, whose two accounts are named "Example" in the picture itself (D-117), and
+  the window stays open for 3 seconds. First run to the number while recording: 391.9 ms, with the
+  icon in the menu bar at 331.5 ms.
+- **Only the example in it:** recorded through ScreenCaptureKit with a filter that takes the
+  example's windows and nothing else, so the menu bar, other apps' icons (Matt's own QuotaDial among
+  them), their windows and the desktop are in neither the picture nor the raw file. Every frame was
+  checked to be the plain background outside the icon and the window (297 frames; the largest
+  spread was 3, where 8 is allowed), then cropped to the two.
+- **On macOS 26, Control Center draws the icon.** The first take recorded nothing: macOS 26 draws
+  every app's menu bar icon in a window of Control Center's own, so a filter of the example's
+  windows held no icon, and the recorder waited for one in vain. The recorder, kept outside the
+  repository with the builder's notes, now waits until the icon shows its number, then records the
+  example's windows and the one Control Center window that lies within the icon's width, so a
+  neighbour's icon is never in it.
+- **The Graphics and Media helper's third reading** (#80 left open whether the 245 MiB it held in its
+  first minutes was the app or macOS): a 6-minute run of the same build, sampled every 10 seconds
+  from 21:04 to 21:11 UTC. The helper held 244.7 MiB at the launch, then 11.5 to 14.5 MiB from 10
+  seconds later, except 240.9 MiB at the one sample with the window open, and 14.5 MiB again at the
+  next. So it takes about 245 MiB while the window is drawn and gives it back within 10 seconds;
+  #80's samples, a minute apart, could not see it go. The app's process: 22.1 MiB of footprint on
+  average, 24.9 at most; its helpers' footprints add 48.4 MiB on average.
+- **Left for later:** the recording shows each window's source under it, as the window did at #86.
+  #89, in review, says it once for a card whose windows agree, so a recording made after it would
+  differ in that line. A new recording needs Matt's menu bar again, so it waits for a change worth
+  one.
+- **Checked:** `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`. No code changed.
 
 ### Test: a property test for `codeSpans` (the manager's note 1 on #86)
 
