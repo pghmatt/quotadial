@@ -4,7 +4,8 @@
 //!
 //! The text holds no token, no email address in full, no home folder by name, no licence id and
 //! no webhook address: tokens are redacted, email addresses are cut to their first letters, the
-//! home folder is written `~`, and webhooks are named by their host.
+//! home folder is written `~` by [`text::tilde_in`], the rule every message follows, and webhooks
+//! are named by their host.
 
 use std::path::Path;
 
@@ -34,7 +35,8 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
-    /// The text, at `now`, with the home folder `home` written `~`.
+    /// The text, at `now`, with every place in the home folder `home` written `~`, as
+    /// [`text::tilde_in`] writes it for every message.
     #[must_use]
     pub fn text(&self, now: DateTime<Utc>, home: Option<&Path>) -> String {
         let mut lines = vec![
@@ -130,13 +132,10 @@ impl Diagnostics {
         );
         let mut text = lines.join("\n");
         text.push('\n');
-        if let Some(home) = home.map(|home| home.display().to_string())
-            && !home.is_empty()
-            && home != "/"
-        {
-            text = text.replace(&home, "~");
-        }
-        text = mask_emails(&redact_secrets(&text));
+        // The home folder written `~` by the one rule every message QuotaDial writes follows, so a
+        // folder whose name only starts as the home folder's does, such as `/Users/anna` beside
+        // `/Users/ann`, keeps its name (D-129).
+        text = mask_emails(&redact_secrets(&text::tilde_in(&text, home)));
         // The account's name can be in a path outside the home folder too, such as a data folder
         // that QUOTADIAL_DATA_DIR puts in a temporary folder named after it. Email addresses are
         // cut first, so one that starts with the name is still cut to its first letters.
@@ -227,6 +226,8 @@ pub fn mask_emails(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use proptest::prelude::*;
 
     use super::*;
@@ -450,6 +451,56 @@ mod tests {
             without_word("me at home", "me", "[user]"),
             "me at home",
             "too short to be sure"
+        );
+    }
+
+    #[test]
+    fn only_the_home_folder_is_written_with_a_tilde_never_a_longer_name() {
+        // With `/Users/ann` as the home folder, `/Users/anna` is another user's folder, which
+        // doctor's own plain replace cut to `~a`. Doctor now writes the home folder `~` by the rule
+        // every message QuotaDial writes uses (D-129).
+        let home: PathBuf = ["/", "Users", "ann"].iter().collect();
+        let anna = home.with_file_name("anna");
+        let backup: PathBuf = ["/", "Volumes", "Backup", "Users", "ann"].iter().collect();
+        let auth = |folder: &Path| folder.join(".codex").join("auth.json");
+        let mut facts = diagnostics();
+        facts.data_folder = home.join("quotadial").display().to_string();
+        facts.report.errors = [&anna, &backup, &home]
+            .into_iter()
+            .map(|folder| ProviderError {
+                provider: "codex".into(),
+                message: format!("could not read the sign-in from {}", auth(folder).display()),
+            })
+            .collect();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(&home));
+
+        let in_home = |parts: &[&str]| {
+            Path::new("~")
+                .join(parts.iter().collect::<PathBuf>())
+                .display()
+                .to_string()
+        };
+        assert!(
+            text.contains(&format!("Data folder: {}\n", in_home(&["quotadial"]))),
+            "{text}"
+        );
+        // The home folder's own words inside a longer path are not the home folder, and the user's
+        // name in them is hidden, as anywhere outside the home folder.
+        let hidden: PathBuf = ["/", "Volumes", "Backup", "Users", "[user]"]
+            .iter()
+            .collect();
+        assert!(
+            text.contains(&format!(
+                "Problems:\n  \
+                 Codex: could not read the sign-in from {}\n  \
+                 Codex: could not read the sign-in from {}\n  \
+                 Codex: could not read the sign-in from {}\n",
+                auth(&anna).display(),
+                auth(&hidden).display(),
+                in_home(&[".codex", "auth.json"])
+            )),
+            "{text}"
         );
     }
 

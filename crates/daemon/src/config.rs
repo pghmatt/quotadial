@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use quotadial_core::Secret;
+use quotadial_core::{Secret, text};
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -36,8 +36,9 @@ pub struct Config {
     /// Whether the daemon reads Claude Code's and the Codex CLI's session logs for the week's
     /// API-equivalent cost (D-097): on unless `cost_scan` is `false`.
     pub cost_scan: bool,
-    /// What the settings could not be used for, each naming the fix, such as a webhook that is not
-    /// an `https` address. Never the address itself.
+    /// What the settings could not be used for, each naming the fix and `config.json`, with the
+    /// home folder written `~`, such as a webhook that is not an `https` address. Never the address
+    /// itself.
     pub warnings: Vec<String>,
 }
 
@@ -124,9 +125,15 @@ impl Default for Config {
 }
 
 impl Config {
-    /// The settings in `dir`, or the defaults.
+    /// The settings in `dir`, or the defaults. A warning names `config.json` with this process's
+    /// home folder written `~`.
     #[must_use]
     pub fn load(dir: &DataDir) -> Self {
+        Self::loaded(dir, std::env::home_dir().as_deref())
+    }
+
+    /// [`Config::load`], with `home` as the home folder.
+    fn loaded(dir: &DataDir, home: Option<&Path>) -> Self {
         let path = dir.path().join("config.json");
         let Some(settings) = std::fs::read(&path)
             .ok()
@@ -178,6 +185,11 @@ impl Config {
                 path.display()
             ));
         }
+        // Each names config.json: the one pass its text goes through where it is made writes the
+        // home folder `~` (#52, D-129).
+        for warning in &mut config.warnings {
+            *warning = text::tilde_in(warning, home);
+        }
         config
     }
 }
@@ -204,11 +216,22 @@ fn readable_by_others(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     fn written(json: &str) -> (tempfile::TempDir, DataDir) {
         let temp = tempfile::tempdir().expect("temp dir");
-        let path = temp.path().join("config.json");
+        let dir = written_in(temp.path().to_path_buf(), json);
+        (temp, dir)
+    }
+
+    /// The data folder `folder`, made if it is not there, with `json` as its `config.json`,
+    /// readable only by its owner.
+    fn written_in(folder: PathBuf, json: &str) -> DataDir {
+        let dir = DataDir::new(folder);
+        dir.create().expect("makes the folder");
+        let path = dir.path().join("config.json");
         std::fs::write(&path, json).expect("writes");
         #[cfg(unix)]
         {
@@ -216,8 +239,53 @@ mod tests {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
                 .expect("private");
         }
-        let dir = DataDir::new(temp.path().to_path_buf());
-        (temp, dir)
+        dir
+    }
+
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/config.json` on macOS and Linux and `~\quotadial\config.json` on Windows.
+    fn in_home(parts: &[&str]) -> String {
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
+    }
+
+    #[test]
+    fn a_warning_names_config_json_with_the_home_folder_written_with_a_tilde() {
+        // #52: no message shows a path with the user's name in it (D-129).
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        let warned = |folder: PathBuf| {
+            let dir = written_in(
+                folder,
+                r#"{"history_days": 0, "alert_webhooks": ["http://example.com/plain"]}"#,
+            );
+            Config::loaded(&dir, Some(&home)).warnings
+        };
+        let warnings = |file: &str| {
+            [
+                format!(
+                    "history_days in {file} must be from 1 to 365, so QuotaDial keeps 30 days."
+                ),
+                format!(
+                    "A webhook in {file} is not an https address, so no alerts are sent to it; \
+                     correct it there."
+                ),
+            ]
+        };
+
+        assert_eq!(
+            warned(home.join("quotadial")),
+            warnings(&in_home(&["quotadial", "config.json"]))
+        );
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = temp.path().join("anna").join("quotadial");
+        assert_eq!(
+            warned(elsewhere.clone()),
+            warnings(&elsewhere.join("config.json").display().to_string()),
+            "a place outside the home folder stays as it is"
+        );
     }
 
     #[test]
@@ -346,16 +414,38 @@ mod tests {
     #[test]
     fn a_file_with_webhooks_that_others_can_read_gets_a_warning() {
         use std::os::unix::fs::PermissionsExt;
-        let (temp, dir) = written(r#"{"slack_webhook": "https://hooks.slack.com/services/T/B/X"}"#);
-        let path = temp.path().join("config.json");
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        let readable = |folder: PathBuf| {
+            let dir = written_in(
+                folder,
+                r#"{"slack_webhook": "https://hooks.slack.com/services/T/B/X"}"#,
+            );
+            let path = dir.path().join("config.json");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+            (dir, path)
+        };
+        let warning = |file: &str| {
+            format!(
+                "{file} holds webhook addresses, which work like passwords, and other users can \
+                 read it; run `chmod 600 {file}`."
+            )
+        };
 
-        let warnings = Config::load(&dir).warnings;
-
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].ends_with(&format!("run `chmod 600 {}`.", path.display())));
+        // Written `~` where it is in the home folder (#52, D-129), a command that works as it is.
+        let (dir, path) = readable(home.join("quotadial"));
+        assert_eq!(
+            Config::loaded(&dir, Some(&home)).warnings,
+            [warning(&in_home(&["quotadial", "config.json"]))]
+        );
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("chmod");
-        assert!(Config::load(&dir).warnings.is_empty());
+        assert!(Config::loaded(&dir, Some(&home)).warnings.is_empty());
+        // Another user's folder, whose name starts as the home folder's does.
+        let (dir, path) = readable(temp.path().join("anna").join("quotadial"));
+        assert_eq!(
+            Config::loaded(&dir, Some(&home)).warnings,
+            [warning(&path.display().to_string())]
+        );
     }
 
     proptest::proptest! {

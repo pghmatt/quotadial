@@ -1511,11 +1511,15 @@ mod tests {
 
         poller.poll_due().await;
 
+        // `~` and the system's own separator (D-129).
         assert_eq!(
             poller.latest().report().errors[0].message,
             format!(
-                "could not look in ~/{}.",
-                PathBuf::from(".claude").join("work").display()
+                "could not look in {}.",
+                std::path::Path::new("~")
+                    .join(".claude")
+                    .join("work")
+                    .display()
             )
         );
     }

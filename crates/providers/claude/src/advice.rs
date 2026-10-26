@@ -144,7 +144,7 @@ pub(crate) fn failed(status: u16, message: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use quotadial_core::Secret;
 
@@ -240,12 +240,15 @@ mod tests {
                  refresh it."
             )
         );
+        // The folder as `text::tilde` writes it: `~` and the system's own separator (D-129).
+        let folder = Path::new("~").join(".claude-work");
         assert_eq!(
             signed_out(&work),
             format!(
                 "QuotaDial no longer finds the Claude Code sign-in in the macOS Keychain item \
-                 \"Claude Code-credentials-1df4ed49\" (CLAUDE_CONFIG_DIR ~/.claude-work). Run \
-                 {command} to sign in again."
+                 \"Claude Code-credentials-1df4ed49\" (CLAUDE_CONFIG_DIR {}). Run {command} to \
+                 sign in again.",
+                folder.display()
             )
         );
         assert!(different_account(&work).contains(&format!("run {command} and sign in")));
@@ -266,12 +269,13 @@ mod tests {
             "The sign-in in the macOS Keychain item \"Claude Code-credentials\" holds no Claude \
              account, only MCP server sign-ins. Run `claude` and sign in with /login."
         );
+        let file = Path::new("~").join(".claude/.credentials.json");
         assert!(
             no_claude_login(&login(
                 LoginSource::File(PathBuf::from("/Users/example/.claude/.credentials.json")),
                 Folder::Default
             ))
-            .starts_with("The sign-in in ~/.claude/.credentials.json holds")
+            .starts_with(&format!("The sign-in in {} holds", file.display()))
         );
     }
 

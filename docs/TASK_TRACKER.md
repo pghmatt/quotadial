@@ -220,7 +220,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
-| Error lines named through the report | In review (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
+| Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
+| The home folder written `~` in QuotaDial's own messages | In review (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
 
 ## Kickoff
 
@@ -408,6 +409,125 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the home folder written `~` in QuotaDial's own messages (D-129)
+
+- **The ask:** what D-128 left, QuotaDial's own messages naming its data folder and `config.json`'s
+  warnings, with the manager's two notes on #82 (2026-10-26, 07:27 UTC): a property test of
+  `text::tilde_in`, which takes a server's words, and doctor through it, so the rule has one
+  implementation. Built on `fix/home-folder-in-messages` from `main` at 52265b6 (#82), in review as
+  #83.
+- **One pass where each message is made** (D-129), with the process's home folder, as
+  `ProviderError::warning` does for a provider's error. Each place that makes the text takes the
+  home folder as an argument, which its tests give and its callers read from the process:
+  - `config.json`'s three warnings, in `Config::load`, through `Config::loaded(dir, home)`
+    (`crates/daemon/src/config.rs`);
+  - every history error, through `HistoryError::said`, which `new`, SQLite's errors and the page
+    check use, and `made(message, damaged, home)` (`crates/daemon/src/history.rs`). SQLite's own
+    words for a file it cannot open name the file ("unable to open database file: ..."), which the
+    test takes from a real `Connection::open`;
+  - the daemon's start errors, in `HostError::line(home)`, which `Display` calls
+    (`crates/api/src/host.rs`);
+  - why a running daemon gave no answer, in `Unanswered::new(said, home)`; `status` and `headroom`
+    read the home folder once and hand it through `get` and `announced`
+    (`crates/api/src/client.rs`);
+  - the CLI's own, in `history_in(dir, home)`, which `open_history` calls, and
+    `started(asking, dir, port, home)`, `quotadial daemon`'s first two lines
+    (`crates/cli/src/lib.rs`). `fix_for` now takes the folder whose history it notes as damaged,
+    the one `history_in` opened, which in use is the same folder, so a test of a damaged history
+    could never note it in the real data folder;
+  - the app's own, `history::export(..., home)`, with Tauri's `home_dir()`, read once in
+    `export_history` for the error and the "Saved to ..." line (`apps/tray/src-tauri`).
+- **Doctor** (`crates/core/src/diagnostics.rs`): `Diagnostics::text` writes its whole text through
+  `tilde_in`; its plain replace is gone. Its new test failed first against the replace, which wrote
+  `/Users/anna/.codex/auth.json` as `~a/.codex/auth.json` and `/Volumes/Backup/Users/ann/...` as
+  `/Volumes/Backup~/...`. On Windows it writes `~\data`, as its replace did and #57 wanted, now by
+  the rule every message follows (next).
+- **The separator** (the manager's decision on #83, 2026-10-26, 09:22 UTC, asked for in the first
+  round, where doctor would have written `~/data` on Windows): the home folder is written `~` and
+  then the system's own separator, so `~\AppData\Roaming\quotadial\history.db` on Windows and
+  `~/.codex/auth.json` elsewhere. `tilde` writes `std::path::MAIN_SEPARATOR` after `~`; `tilde_in`
+  writes the separator it found after the home folder, which for a path the system wrote is the
+  same, so a path written with `/` on Windows keeps it (an assertion in the Windows home folder's
+  test holds that, and only Windows can fail it). Before, both wrote `~/`, so Windows showed
+  `~/quotadial\history.db`. Every test that wrote `~/` into an expectation of either function now
+  builds it as `Path::new("~").join(...)`, the platform's separator with no `cfg(windows)` branch:
+  in core `text.rs`, `report.rs` and `diagnostics.rs`; in the daemon `config.rs`, `history.rs` (the
+  recovery line's test too) and `poller.rs`; in the API `host.rs`, `diagnostics.rs` and `tests.rs`;
+  in the CLI `lib.rs` and `tests/status.rs` (Gemini CLI's sign-in and doctor's data folder too); the
+  tray's `history.rs`; Claude's advice tests (a folder's place and a file's); and Gemini CLI's
+  `in_home`. To find them all, the whole workspace's and the app's tests ran once on this Mac with
+  both functions made to write `~\`: 33 failed, these 30 and three that pass on Windows as they are,
+  doctor's two whose places are written with `/` and so keep it, and Claude's command test, whose
+  Unix command is checked off Windows only. The window check's fixtures and the site show no Windows
+  path, and Antigravity's settings place is written as its docs write it, not by `tilde`, so they
+  stay.
+- **The property test** (`crates/core/src/text.rs`, beside `unplain_words`'s test): for any text and
+  any home folder or none, with short home folders of a path's characters mixed in, `tilde_in` never
+  panics and never makes the text longer, and with no home folder or a whole disk leaves it as it
+  is; for a home folder as a system names one (`/` or `C:\` and one to three names), written again
+  is written once, a place in it after a space is written as `tilde` writes it with the text before
+  it as it would be alone, and a place beside it whose name only starts as the home folder's, or
+  around its name, stays as it is. Each property failed first against a stub: one that cut a
+  character in two (the first, shrunk to the home folder `೦`), the plain replace (the fourth), one
+  that left every text as it was (the third), one that took a path to start anywhere (the second
+  and the fourth), and one that wrote the home folder itself as `~/` (the first and the third; the
+  first only once its strategy had short home folders, which it was given for that). 100,000 cases
+  of each passed on the real code; the stubs' failure seeds were removed, not committed.
+- **Found going down #52, left for a later PR:**
+  - `config.json`'s warning for a file others can read says to run `chmod 600 <the file>`,
+    unquoted, so on macOS, where the data folder is in `Application Support`, the command as written
+    stops at the space. Quoting it needs care, since a quoted `~` is not expanded; this PR writes
+    the home folder `~` and leaves the command as it was.
+  - A Claude sign-in in a file whose account Anthropic has not named yet is called by the file's
+    full path (`LoginSource::File`'s stand-in) in `status`, the app and the API until an answer
+    names it: an account's name, not a message, so not this pass.
+  - Antigravity's `status-line` writes "quotadial: <the command after it> could not be started:
+    ..." on standard error, as a shell does, with the command as written; Antigravity CLI does not
+    show it.
+- **Tests:** in the workspace, 745 passed (1 ignored) on `main` at 52265b6 and 759 (1 ignored) now;
+  the example build 742 (2 ignored) and 756 (2 ignored). By crate: core 130 to 135 (`tilde_in`'s
+  four properties and doctor's `/Users/anna`); the daemon 105 to 108 (`config.json`'s warnings with
+  a home folder given, the history errors with one given and with this process's; the test of a
+  file others can read now gives the home folder too); the API 56 to 59 (the start errors with a
+  home folder given and with this process's, and why a daemon gave no answer); the CLI 64 to 67
+  (61 to 64, 1 ignored, in the example build): `history_in`, `started`, and `alerts` run on a
+  history it cannot open in a data folder in the home folder and beside it, with the daemon's two
+  first lines and a refused token's message now held whole; Antigravity 64, Claude 138 (and 1
+  ignored), Codex 63, cost 30, fake 19, Gemini CLI 29, issue 6, poll 37 and `quotadial-providers` 4
+  unchanged. The tray app 86 to 87 in both builds, the export. Every new test failed first: the
+  properties against the stubs above, doctor's against its plain replace, the rest against a stub
+  that left their text as it was, and the tests of the built binaries with the CLI's and the
+  client's passes undone. The API's and the CLI's doctor tests, and the test of a file others can
+  read, are changed for the new text. After the manager's review on #83 the counts are the same,
+  every test passing: the separator added no test, only the assertion above.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
+  `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default
+  and `fake`; the tray app's `--lib` tests, default and `fake` (`tests/icon_press.rs` not run, as
+  briefed); the tray app's `npm run build` (34.0 KB of 150, contrast), `npm test` (5) and
+  `npm run check:window` (4371 checks over 16 views, headless Chrome with a profile of its own,
+  removed after); the site's `npm run check`, `npm run build` and `npm test` (90), since it renders
+  `CHANGELOG.md` and `docs/CLI.md`; `scripts/privacy.sh --check`, `scripts/public-prd.sh --check`,
+  shellcheck on `scripts/`, actionlint 1.7.12 on every workflow, the release scripts' tests (39, 1
+  skipped for GNU sha256sum) and the 0.2.0 release notes; and `scripts/no-example-provider.sh` on
+  the example build's CLI, bundled by `npm run cli -- --fake` (it fails, naming `status --json` and
+  doctor), then, once `npm run cli` had bundled the default build's CLI again, on that and on the
+  workspace's CLI (both pass). By hand, in scratch homes and data folders: `quotadial alerts` says
+  "could not open the history at ~/data/history.db: Is a directory (os error 21)" where a folder
+  stands in the history's place, and, with a `config.json` holding `history_days` 0 and an `http`
+  webhook, "warning: history_days in ~/data/config.json ..." and "warning: A webhook in
+  ~/data/config.json ...". **Not run:** `cargo deny` and `cargo audit`, not installed here (no
+  dependency or lockfile changed); the release-only licence key test, which no change here reaches;
+  and a release build of the CLI or the app. After the review, every check above ran again with the
+  same results, the site's because `docs/CLI.md` changed: its built `/cli` page shows `~\` in each
+  code span that names Windows.
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
+  scratchpad and no token in its environment; every test made up its own home and data folder, and
+  the tests that take this process's home folder only build a path's text from it; the built CLIs
+  ran only in scratch homes, the runs by hand and the example-provider check included, where they
+  found no sign-in, as the empty-home tests' empty reports show. No vendor CLI ran, no sign-in or
+  keychain item was read, and no app or daemon ran against Matt's data.
 
 ### M6: error lines named through the report (D-128)
 

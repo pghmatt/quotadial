@@ -150,13 +150,15 @@ pub fn view<Tz: TimeZone>(
 ///
 /// # Errors
 ///
-/// When the history cannot be read or the file written.
+/// When the history cannot be read or the file written, naming the file with the home folder
+/// `home` written `~` (#52), in the one pass its text goes through (D-129).
 pub fn export(
     history: &History,
     settings: &Settings,
     days: u32,
     now: DateTime<Utc>,
     folder: &Path,
+    home: Option<&Path>,
 ) -> Result<PathBuf, String> {
     let mut series = history
         .series(&SeriesQuery::since(now - TimeDelta::days(i64::from(days))))
@@ -165,8 +167,12 @@ pub fn export(
     let path = folder.join(format!("QuotaDial history {}.csv", now.format("%Y-%m-%d")));
     let mut bytes = Vec::new();
     write_csv(&series, &mut bytes).map_err(|error| error.to_string())?;
-    std::fs::write(&path, bytes)
-        .map_err(|error| format!("QuotaDial could not save {}: {error}", path.display()))?;
+    std::fs::write(&path, bytes).map_err(|error| {
+        text::tilde_in(
+            &format!("QuotaDial could not save {}: {error}", path.display()),
+            home,
+        )
+    })?;
     Ok(path)
 }
 
@@ -799,6 +805,7 @@ mod tests {
             7,
             at("2099-01-07T00:00:00Z"),
             folder.path(),
+            None,
         )
         .expect("saves");
 
@@ -813,5 +820,46 @@ mod tests {
             "a header and two windows of three readings"
         );
         assert!(!csv.contains("codex"));
+    }
+
+    #[test]
+    fn a_file_the_export_could_not_save_is_named_with_the_home_folder_written_with_a_tilde() {
+        // #52 (D-129).
+        let (_dir, history) = history();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        // A Downloads folder that is not there, so nothing can be saved in it.
+        let unsaved = |folder: &Path| {
+            export(
+                &history,
+                &Settings::default(),
+                7,
+                at("2099-01-07T00:00:00Z"),
+                folder,
+                Some(&home),
+            )
+            .expect_err("no folder to save in")
+        };
+        let file = Path::new("Downloads").join("QuotaDial history 2099-01-07.csv");
+
+        let said = unsaved(&home.join("Downloads"));
+        // `~` and the system's own separator (D-129).
+        assert!(
+            said.starts_with(&format!(
+                "QuotaDial could not save {}: ",
+                Path::new("~").join(&file).display()
+            )),
+            "{said}"
+        );
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = temp.path().join("anna");
+        let said = unsaved(&elsewhere.join("Downloads"));
+        assert!(
+            said.starts_with(&format!(
+                "QuotaDial could not save {}: ",
+                elsewhere.join(&file).display()
+            )),
+            "{said}"
+        );
     }
 }

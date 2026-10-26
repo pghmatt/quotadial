@@ -51,9 +51,22 @@ pub struct HistoryError {
 
 impl HistoryError {
     pub(crate) fn new(message: impl Into<String>) -> Self {
+        Self::said(&message.into(), false)
+    }
+
+    /// The error saying `message`, and whether SQLite found the file `damaged`. It is the one pass
+    /// every history error's text goes through where it is made, whatever made it: this process's
+    /// home folder is written `~` (#52), since the text can name a place in it, as SQLite's own
+    /// words do for a file it could not open (D-129).
+    fn said(message: &str, damaged: bool) -> Self {
+        Self::made(message, damaged, std::env::home_dir().as_deref())
+    }
+
+    /// [`HistoryError::said`], with `home` as the home folder.
+    fn made(message: &str, damaged: bool, home: Option<&Path>) -> Self {
         Self {
-            message: message.into(),
-            damaged: false,
+            message: text::tilde_in(message, home),
+            damaged,
         }
     }
 
@@ -73,13 +86,13 @@ impl std::fmt::Display for HistoryError {
 
 impl From<rusqlite::Error> for HistoryError {
     fn from(error: rusqlite::Error) -> Self {
-        Self {
-            damaged: matches!(
+        Self::said(
+            &error.to_string(),
+            matches!(
                 error.sqlite_error_code(),
                 Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase)
             ),
-            message: error.to_string(),
-        }
+        )
     }
 }
 
@@ -261,10 +274,10 @@ impl History {
         if found == "ok" {
             Ok(())
         } else {
-            Err(HistoryError {
-                message: format!("the history is damaged: {found}"),
-                damaged: true,
-            })
+            Err(HistoryError::said(
+                &format!("the history is damaged: {found}"),
+                true,
+            ))
         }
     }
 
@@ -969,6 +982,107 @@ mod tests {
         );
     }
 
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/history.db` on macOS and Linux and `~\quotadial\history.db` on Windows.
+    fn in_home(parts: &[&str]) -> String {
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
+    }
+
+    #[test]
+    fn a_place_in_a_history_error_is_written_with_the_home_folder_as_a_tilde() {
+        // #52 (D-129): what opening a history says names its file, and so do SQLite's own words
+        // for a file it could not open.
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        let said = |folder: &Path| {
+            let place = folder.join("quotadial").join("history.db");
+            let unopened = Connection::open(folder.join("missing").join("history.db"))
+                .expect_err("no such folder");
+            [
+                format!(
+                    "{} was written by a newer QuotaDial (schema 99)",
+                    place.display()
+                ),
+                format!(
+                    "SQLite would not use WAL mode for {} (it chose delete)",
+                    place.display()
+                ),
+                unopened.to_string(),
+            ]
+            .map(|message| HistoryError::made(&message, false, Some(&home)).to_string())
+        };
+
+        let [newer, journal, unopened] = said(&home);
+        let history = in_home(&["quotadial", "history.db"]);
+        assert_eq!(
+            newer,
+            format!("{history} was written by a newer QuotaDial (schema 99)")
+        );
+        assert_eq!(
+            journal,
+            format!("SQLite would not use WAL mode for {history} (it chose delete)")
+        );
+        assert!(
+            unopened.ends_with(&format!(": {}", in_home(&["missing", "history.db"]))),
+            "{unopened}"
+        );
+
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = temp.path().join("anna");
+        let [newer, journal, unopened] = said(&elsewhere);
+        let history = elsewhere.join("quotadial").join("history.db");
+        assert_eq!(
+            newer,
+            format!(
+                "{} was written by a newer QuotaDial (schema 99)",
+                history.display()
+            )
+        );
+        assert_eq!(
+            journal,
+            format!(
+                "SQLite would not use WAL mode for {} (it chose delete)",
+                history.display()
+            )
+        );
+        assert!(
+            unopened.ends_with(&format!(
+                ": {}",
+                elsewhere.join("missing").join("history.db").display()
+            )),
+            "{unopened}"
+        );
+    }
+
+    #[test]
+    fn every_history_error_is_made_with_this_processs_home_folder() {
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let place = home.join("history.db");
+        let unopened = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+            Some(format!("unable to open database file: {}", place.display())),
+        );
+
+        let written = in_home(&["history.db"]);
+        assert_eq!(
+            HistoryError::new(format!(
+                "{} was written by a newer QuotaDial (schema 99)",
+                place.display()
+            ))
+            .to_string(),
+            format!("{written} was written by a newer QuotaDial (schema 99)")
+        );
+        assert_eq!(
+            HistoryError::from(unopened).to_string(),
+            format!("unable to open database file: {written}")
+        );
+    }
+
     #[test]
     fn the_history_survives_a_restart() {
         let dir = tempfile::tempdir().expect("temp dir");
@@ -1036,8 +1150,11 @@ mod tests {
         assert!(history.record(&first, now).expect("records"));
         assert_eq!(
             recovered.line(Some(dir.path())),
-            "QuotaDial could not read its history, so it started a new one with the starting \
-             alert rules; the old file is ~/history-damaged-20991025T011200Z.db."
+            format!(
+                "QuotaDial could not read its history, so it started a new one with the starting \
+                 alert rules; the old file is {}.",
+                in_home(&["history-damaged-20991025T011200Z.db"])
+            )
         );
         let again = History::open_or_recover(&path, true, now).expect("opens");
         assert_eq!(again.1, None, "a sound history stays where it is");

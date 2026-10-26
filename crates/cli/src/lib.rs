@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -801,32 +802,40 @@ fn no_data_directory() -> String {
 /// The daemon's history, where the alert rules live, created if no daemon has run yet.
 fn open_history() -> Result<History, String> {
     let dir = DataDir::from_env().ok_or_else(no_data_directory)?;
+    history_in(&dir, std::env::home_dir().as_deref())
+}
+
+/// The history in the data folder `dir`, created if no daemon has run yet. Why it could not be
+/// opened names the place with the home folder `home` written `~` (#52), in the one pass its text
+/// goes through (D-129).
+fn history_in(dir: &DataDir, home: Option<&Path>) -> Result<History, String> {
+    let said = |line: String| text::tilde_in(&line, home);
     dir.create()
-        .map_err(|error| format!("could not use {}: {error}", dir.path().display()))?;
+        .map_err(|error| said(format!("could not use {}: {error}", dir.path().display())))?;
     History::open(&dir.history()).map_err(|error| {
-        format!(
+        said(format!(
             "could not open the history at {}: {error}{}",
             dir.history().display(),
-            fix_for(&error)
-        )
+            fix_for(&error, Some(dir))
+        ))
     })
 }
 
 fn history_failed(error: &HistoryError) -> ExitCode {
     eprintln!(
         "quotadial: could not use the history: {error}{}",
-        fix_for(error)
+        fix_for(error, DataDir::from_env().as_ref())
     );
     ExitCode::FAILURE
 }
 
-/// What to do about `error`, from a history the CLI may read but not move: a damaged one is noted
-/// for the daemon, which starts a new one (#52).
-fn fix_for(error: &HistoryError) -> &'static str {
+/// What to do about `error`, from the history in the data folder `dir`, which the CLI may read but
+/// not move: a damaged one is noted beside it for the daemon, which starts a new one (#52).
+fn fix_for(error: &HistoryError, dir: Option<&DataDir>) -> &'static str {
     if !error.is_damaged() {
         return "";
     }
-    if let Some(dir) = DataDir::from_env() {
+    if let Some(dir) = dir {
         History::note_damage_at(&dir.history());
     }
     ". It is damaged: quit QuotaDial and open it again, or restart `quotadial daemon`, which \
@@ -935,17 +944,14 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        say(format_args!(
-            "QuotaDial daemon running. {asking} It keeps history in {}, and is the only thing that \
-             polls while it runs.",
-            host.dir().history().display()
-        ));
-        say(format_args!(
-            "Its API is at http://127.0.0.1:{}, for requests with the token in {}. Press Ctrl-C \
-             to stop.",
+        for line in started(
+            &asking,
+            host.dir(),
             host.port(),
-            host.dir().token().display()
-        ));
+            std::env::home_dir().as_deref(),
+        ) {
+            say(format_args!("{line}"));
+        }
         let config = Config::load(host.dir());
         let tier = host.licensing().tier();
         if !config.webhooks.is_empty() {
@@ -987,6 +993,26 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
             }
         }
     })
+}
+
+/// The two lines the daemon starts with: whom it asks and where it keeps history in the data
+/// folder `dir`, then where its API listens, at `port`, and where the token it takes is kept, never
+/// the token itself. Each names a place with the home folder `home` written `~` (#52), in the one
+/// pass its text goes through (D-129).
+fn started(asking: &str, dir: &DataDir, port: u16, home: Option<&Path>) -> [String; 2] {
+    [
+        format!(
+            "QuotaDial daemon running. {asking} It keeps history in {}, and is the only thing that \
+             polls while it runs.",
+            dir.history().display()
+        ),
+        format!(
+            "Its API is at http://127.0.0.1:{port}, for requests with the token in {}. Press \
+             Ctrl-C to stop.",
+            dir.token().display()
+        ),
+    ]
+    .map(|line| text::tilde_in(&line, home))
 }
 
 /// Prints a line from the daemon, which keeps running when nothing reads its output any more.
@@ -1234,6 +1260,7 @@ mod packaging;
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -2340,12 +2367,7 @@ mod tests {
 
         let report = collect(&providers).await;
 
-        let shown = format!(
-            "~/{}",
-            std::path::Path::new(".scripted")
-                .join("credentials.json")
-                .display()
-        );
+        let shown = in_home(&[".scripted", "credentials.json"]);
         assert_eq!(
             report.errors[0].message,
             format!("could not read the sign-in from {shown}: permission denied")
@@ -2355,6 +2377,111 @@ mod tests {
             format!(
                 "error: Scripted: could not read the sign-in from {shown}: permission denied\n"
             )
+        );
+    }
+
+    /// `parts` in the home folder, as `text::tilde` writes it: `~` and the system's own separator,
+    /// so `~/quotadial/history.db` on macOS and Linux and `~\quotadial\history.db` on Windows.
+    fn in_home(parts: &[&str]) -> String {
+        Path::new("~")
+            .join(parts.iter().collect::<PathBuf>())
+            .display()
+            .to_string()
+    }
+
+    #[test]
+    fn a_history_that_cannot_be_used_is_named_with_the_home_folder_written_with_a_tilde() {
+        // #52 (D-129).
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        // A folder where the history should be, so it cannot be opened.
+        let unopened = |folder: PathBuf| {
+            let dir = DataDir::new(folder);
+            std::fs::create_dir_all(dir.history()).expect("a folder in the history's place");
+            history_in(&dir, Some(&home)).expect_err("a folder is no history")
+        };
+        // A file where the data folder should be, so it cannot be made.
+        let unmade = |folder: PathBuf| {
+            std::fs::create_dir_all(folder.parent().expect("in a folder")).expect("makes it");
+            std::fs::write(&folder, b"").expect("a file in the folder's place");
+            history_in(&DataDir::new(folder), Some(&home)).expect_err("a file is no folder")
+        };
+
+        let said = unopened(home.join("quotadial"));
+        assert!(
+            said.starts_with(&format!(
+                "could not open the history at {}: ",
+                in_home(&["quotadial", "history.db"])
+            )),
+            "{said}"
+        );
+        let said = unmade(home.join("unmade"));
+        assert!(
+            said.starts_with(&format!("could not use {}: ", in_home(&["unmade"]))),
+            "{said}"
+        );
+
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = temp.path().join("anna");
+        let said = unopened(elsewhere.join("quotadial"));
+        assert!(
+            said.starts_with(&format!(
+                "could not open the history at {}: ",
+                elsewhere.join("quotadial").join("history.db").display()
+            )),
+            "{said}"
+        );
+        let said = unmade(elsewhere.join("unmade"));
+        assert!(
+            said.starts_with(&format!(
+                "could not use {}: ",
+                elsewhere.join("unmade").display()
+            )),
+            "{said}"
+        );
+    }
+
+    #[test]
+    fn the_daemon_says_where_its_history_and_token_are_with_the_home_folder_written_with_a_tilde() {
+        // #52 (D-129).
+        let home: PathBuf = ["/", "Users", "ann"].iter().collect();
+        let lines = |folder: &Path| {
+            started(
+                "It asks Anthropic at most every 5 min.",
+                &DataDir::new(folder.join("quotadial")),
+                47_115,
+                Some(&home),
+            )
+        };
+        let said = |history: String, token: String| {
+            [
+                format!(
+                    "QuotaDial daemon running. It asks Anthropic at most every 5 min. It keeps \
+                     history in {history}, and is the only thing that polls while it runs."
+                ),
+                format!(
+                    "Its API is at http://127.0.0.1:47115, for requests with the token in {token}. \
+                     Press Ctrl-C to stop."
+                ),
+            ]
+        };
+
+        assert_eq!(
+            lines(&home),
+            said(
+                in_home(&["quotadial", "history.db"]),
+                in_home(&["quotadial", "token"])
+            )
+        );
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = home.with_file_name("anna").join("quotadial");
+        assert_eq!(
+            lines(&home.with_file_name("anna")),
+            said(
+                elsewhere.join("history.db").display().to_string(),
+                elsewhere.join("token").display().to_string()
+            ),
+            "a place outside the home folder stays as it is"
         );
     }
 

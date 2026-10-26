@@ -12,9 +12,10 @@
 //! fetches for itself. A daemon that keeps its lock but does not answer is reported instead.
 
 use std::fmt;
+use std::path::Path;
 use std::time::Duration;
 
-use quotadial_core::StatusReport;
+use quotadial_core::{StatusReport, text};
 use quotadial_daemon::{DataDir, Instance};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
@@ -37,6 +38,15 @@ const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unanswered(pub(crate) String);
 
+impl Unanswered {
+    /// Why the daemon gave no answer, as `said`, with every place in the home folder `home`
+    /// written `~` (#52): the one pass its text goes through where it is made, whichever surface
+    /// shows it (D-129).
+    fn new(said: &str, home: Option<&Path>) -> Self {
+        Self(text::tilde_in(said, home))
+    }
+}
+
 impl fmt::Display for Unanswered {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
@@ -51,7 +61,7 @@ impl std::error::Error for Unanswered {}
 ///
 /// When a daemon is running but does not answer. Nothing else should poll in its place.
 pub async fn status(dir: &DataDir) -> Result<Option<StatusReport>, Unanswered> {
-    get(dir, "/v1/status").await
+    get(dir, "/v1/status", std::env::home_dir().as_deref()).await
 }
 
 /// The running daemon's headroom ranking, or `None` when no daemon is running.
@@ -60,24 +70,34 @@ pub async fn status(dir: &DataDir) -> Result<Option<StatusReport>, Unanswered> {
 ///
 /// When a daemon is running but does not answer. Nothing else should poll in its place.
 pub async fn headroom(dir: &DataDir) -> Result<Option<HeadroomReport>, Unanswered> {
-    get(dir, "/v1/headroom").await
+    get(dir, "/v1/headroom", std::env::home_dir().as_deref()).await
 }
 
-async fn get<T: DeserializeOwned>(dir: &DataDir, path: &str) -> Result<Option<T>, Unanswered> {
-    let Some(runtime) = announced(dir).await? else {
+/// What the daemon running in `dir` answers at `path`, or `None` when none runs. Why it gave no
+/// answer names its files with `home`, this process's home folder, written `~`.
+pub(crate) async fn get<T: DeserializeOwned>(
+    dir: &DataDir,
+    path: &str,
+    home: Option<&Path>,
+) -> Result<Option<T>, Unanswered> {
+    let Some(runtime) = announced(dir, home).await? else {
         return Ok(None);
     };
     let Some(token) = Token::load(dir) else {
-        return Err(Unanswered(format!(
-            "the QuotaDial daemon is running, but its token at {} cannot be read; {RESTART}.",
-            dir.token().display()
-        )));
+        return Err(Unanswered::new(
+            &format!(
+                "the QuotaDial daemon is running, but its token at {} cannot be read; {RESTART}.",
+                dir.token().display()
+            ),
+            home,
+        ));
     };
     let url = format!("http://127.0.0.1:{}{path}", runtime.port);
     let unanswered = |what: &str| {
-        Unanswered(format!(
-            "the QuotaDial daemon is running, but its API at {url} {what}; {RESTART}."
-        ))
+        Unanswered::new(
+            &format!("the QuotaDial daemon is running, but its API at {url} {what}; {RESTART}."),
+            home,
+        )
     };
     match ask(&url, &token, dir).await {
         Ok(answer) => Ok(Some(answer)),
@@ -160,8 +180,9 @@ async fn stopped(dir: &DataDir) -> bool {
 }
 
 /// Where the running daemon's API listens, waiting briefly for one that is starting. `None` when
-/// no daemon is running.
-async fn announced(dir: &DataDir) -> Result<Option<Runtime>, Unanswered> {
+/// no daemon is running. Why it gave no answer names its file with the home folder `home` written
+/// `~`.
+async fn announced(dir: &DataDir, home: Option<&Path>) -> Result<Option<Runtime>, Unanswered> {
     let deadline = tokio::time::Instant::now() + START_WAIT;
     loop {
         if !Instance::is_running(dir) {
@@ -171,11 +192,14 @@ async fn announced(dir: &DataDir) -> Result<Option<Runtime>, Unanswered> {
             return Ok(Some(runtime));
         }
         if tokio::time::Instant::now() >= deadline {
-            return Err(Unanswered(format!(
-                "a QuotaDial daemon is running, but it has not said where its API listens in {}; \
-                 {RESTART}.",
-                dir.runtime().display()
-            )));
+            return Err(Unanswered::new(
+                &format!(
+                    "a QuotaDial daemon is running, but it has not said where its API listens in \
+                     {}; {RESTART}.",
+                    dir.runtime().display()
+                ),
+                home,
+            ));
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
