@@ -24,7 +24,8 @@ pub fn tilde(path: &Path, home: Option<&Path>) -> String {
 /// or where the path does: with `/Users/ann` as the home folder, a path in `/Users/anna` or in
 /// `/Volumes/Backup/Users/ann` stays as it is. The home folder is matched as written, without a
 /// separator at its end. With no home folder, or one that is a whole disk, the text is left as it
-/// is.
+/// is. Every message QuotaDial writes that can name a place, a provider's error or one of its own,
+/// goes through it once where its text is made, and so does doctor's whole text (D-128, D-129).
 #[must_use]
 pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
     let Some(home) = home.filter(|home| home.parent().is_some()) else {
@@ -321,6 +322,8 @@ pub fn unplain_words(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use proptest::prelude::*;
 
     use super::*;
 
@@ -679,6 +682,106 @@ mod tests {
             "C:\\Users\\someone\\.codex\\auth.json, as Windows writes it.",
         ] {
             assert_eq!(unplain_words(named), Vec::<String>::new(), "{named}");
+        }
+    }
+
+    /// A home folder as a system names one: a root, `/`, or `C:\` as Windows writes it (on macOS
+    /// and Linux only a name), then one to three names of letters, digits, `.`, `_`, `-` and spaces
+    /// inside, such as `/Users/ann` or `C:\Users\Ann Smith`. None holds `~`.
+    fn home_folder() -> impl Strategy<Value = PathBuf> {
+        (
+            prop_oneof![Just("/"), Just("C:\\")],
+            proptest::collection::vec("[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,8}[A-Za-z0-9]", 1..4),
+        )
+            .prop_map(|(root, names)| {
+                std::iter::once(root)
+                    .chain(names.iter().map(String::as_str))
+                    .collect()
+            })
+    }
+
+    /// The text `pieces` make, each `None` the home folder `home` as written, so the home folder
+    /// comes up often, and beside anything.
+    fn pieced(home: &str, pieces: &[Option<String>]) -> String {
+        pieces
+            .iter()
+            .map(|piece| piece.as_deref().unwrap_or(home))
+            .collect()
+    }
+
+    // `tilde_in` takes text from outside, such as a server's words in a request's error, so no
+    // text and no home folder may make it panic (the manager on #82, D-129). Any string, and short
+    // ones of a path's characters, so a home folder of one or two characters, and a separator, a
+    // stop or a space beside it, come up often.
+    proptest! {
+        #[test]
+        fn no_text_or_home_folder_makes_writing_the_home_folder_panic(
+            home in proptest::option::of(prop_oneof![any::<String>(), "[a-z./\\\\~ ]{1,3}"]),
+            pieces in proptest::collection::vec(
+                proptest::option::of(prop_oneof![any::<String>(), "[ ./\\\\:a-z~]{0,2}"]),
+                0..8,
+            ),
+        ) {
+            let home = home.map(PathBuf::from);
+            let written_home = home.as_deref().map(|home| home.display().to_string());
+            let text = pieced(written_home.as_deref().unwrap_or_default(), &pieces);
+
+            let written = tilde_in(&text, home.as_deref());
+
+            // A place is only ever shortened, to `~` or `~/` and the rest as it was.
+            prop_assert!(written.len() <= text.len(), "{text:?} became {written:?}");
+            prop_assert_eq!(tilde_in(&text, None), text.as_str(), "no home folder");
+            let disk = Path::new(std::path::MAIN_SEPARATOR_STR);
+            prop_assert_eq!(tilde_in(&text, Some(disk)), text.as_str(), "a whole disk");
+        }
+
+        #[test]
+        fn writing_the_home_folder_again_changes_nothing(
+            home in home_folder(),
+            pieces in proptest::collection::vec(
+                proptest::option::of(prop_oneof!["[ ./\\\\:;,)('\"`~a-z]{0,3}", ".{0,3}"]),
+                0..12,
+            ),
+        ) {
+            let text = pieced(&home.display().to_string(), &pieces);
+
+            let once = tilde_in(&text, Some(&home));
+
+            prop_assert_eq!(tilde_in(&once, Some(&home)), once);
+        }
+
+        #[test]
+        fn a_place_in_the_home_folder_after_a_space_is_written_as_tilde_writes_it(
+            home in home_folder(),
+            names in proptest::collection::vec("\\.?[A-Za-z0-9_-][A-Za-z0-9._-]{0,8}", 0..4),
+            before in ".{0,24}",
+        ) {
+            let place = names.iter().fold(home.clone(), |place, name| place.join(name));
+
+            prop_assert_eq!(
+                tilde_in(&format!("{before} {}", place.display()), Some(&home)),
+                format!("{} {}", tilde_in(&before, Some(&home)), tilde(&place, Some(&home)))
+            );
+        }
+
+        #[test]
+        fn a_place_beside_the_home_folder_or_around_its_name_stays_as_it_is(
+            home in home_folder(),
+            more in "[A-Za-z0-9_-][A-Za-z0-9._-]{0,3}",
+            lead in "[A-Za-z0-9._-]{1,4}",
+            names in proptest::collection::vec("[A-Za-z0-9_-]{1,8}", 0..3),
+        ) {
+            let name = home.file_name().map(|name| name.to_string_lossy()).unwrap_or_default();
+            let inside = |folder: PathBuf| names.iter().fold(folder, |place, name| place.join(name));
+            // Another folder whose name starts as the home folder's does, as `/Users/anna` beside
+            // `/Users/ann`, and the home folder's own words inside a longer path, as in
+            // `/Volumes/Backup/Users/ann`.
+            for place in [
+                inside(home.with_file_name(format!("{name}{more}"))),
+                inside(PathBuf::from(format!("{lead}{}", home.display()))),
+            ] {
+                prop_assert_eq!(tilde_in(&naming(&place), Some(&home)), naming(&place));
+            }
         }
     }
 }
