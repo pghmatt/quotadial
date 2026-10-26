@@ -10,11 +10,11 @@
 use std::fmt;
 use std::future::Future;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Utc;
-use quotadial_core::Provider;
+use quotadial_core::{Provider, text};
 use quotadial_cost::CostScan;
 use quotadial_daemon::{
     Config, DataDir, History, HistoryError, Instance, InstanceError, Latest, Licensing, Poller,
@@ -60,43 +60,41 @@ pub enum HostError {
 
 impl fmt::Display for HostError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let writable = "check that you can write to it";
-        match self {
-            Self::AlreadyRunning => formatter.write_str("a QuotaDial daemon is already running"),
-            Self::DataDir { path, error } => {
-                write!(
-                    formatter,
-                    "could not use {}: {error}; {writable}",
-                    path.display()
-                )
-            }
-            Self::History { path, error } => write!(
-                formatter,
-                "could not open the history at {}: {error}",
-                path.display()
-            ),
-            Self::Token { path, error } => write!(
-                formatter,
-                "could not create the API token at {}: {error}; {writable}",
-                path.display()
-            ),
-            Self::Listen { port, error } => write!(
-                formatter,
-                "could not listen on 127.0.0.1:{port}: {error}; another program may be using the \
-                 port"
-            ),
-            Self::Announce { path, error } => {
-                write!(
-                    formatter,
-                    "could not write {}: {error}; {writable}",
-                    path.display()
-                )
-            }
-        }
+        formatter.write_str(&self.line(std::env::home_dir().as_deref()))
     }
 }
 
 impl std::error::Error for HostError {}
+
+impl HostError {
+    /// Why the daemon could not start, naming the fix, with every place in the home folder `home`
+    /// written `~` (#52): the one pass its text goes through where it is made, so `quotadial
+    /// daemon` and the app say it alike (D-129).
+    fn line(&self, home: Option<&Path>) -> String {
+        let writable = "check that you can write to it";
+        let line = match self {
+            Self::AlreadyRunning => "a QuotaDial daemon is already running".to_owned(),
+            Self::DataDir { path, error } => {
+                format!("could not use {}: {error}; {writable}", path.display())
+            }
+            Self::History { path, error } => {
+                format!("could not open the history at {}: {error}", path.display())
+            }
+            Self::Token { path, error } => format!(
+                "could not create the API token at {}: {error}; {writable}",
+                path.display()
+            ),
+            Self::Listen { port, error } => format!(
+                "could not listen on 127.0.0.1:{port}: {error}; another program may be using the \
+                 port"
+            ),
+            Self::Announce { path, error } => {
+                format!("could not write {}: {error}; {writable}", path.display())
+            }
+        };
+        text::tilde_in(&line, home)
+    }
+}
 
 impl Host {
     /// Claims `dir` for this daemon and listens on `port` (0 lets the system choose). What the
@@ -288,5 +286,103 @@ impl Host {
         // The lock goes last: until now this process could still have been polling.
         drop(instance);
         served
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each start error that names a place in the data folder `dir`: the folder or its lock, the
+    /// history, the token and `daemon.json`.
+    fn failed(dir: &DataDir) -> [HostError; 4] {
+        let denied = || io::Error::new(io::ErrorKind::PermissionDenied, "permission denied");
+        [
+            HostError::DataDir {
+                path: dir.path().to_owned(),
+                error: denied(),
+            },
+            HostError::History {
+                path: dir.history(),
+                error: HistoryError::from(denied()),
+            },
+            HostError::Token {
+                path: dir.token(),
+                error: denied(),
+            },
+            HostError::Announce {
+                path: dir.runtime(),
+                error: denied(),
+            },
+        ]
+    }
+
+    /// What [`failed`]'s errors say, with their places written as `places` are.
+    fn said(places: &[String; 4]) -> [String; 4] {
+        let writable = "check that you can write to it";
+        [
+            format!("could not use {}: permission denied; {writable}", places[0]),
+            format!(
+                "could not open the history at {}: permission denied",
+                places[1]
+            ),
+            format!(
+                "could not create the API token at {}: permission denied; {writable}",
+                places[2]
+            ),
+            format!(
+                "could not write {}: permission denied; {writable}",
+                places[3]
+            ),
+        ]
+    }
+
+    #[test]
+    fn a_place_the_daemon_could_not_use_is_named_with_the_home_folder_written_with_a_tilde() {
+        // #52 (D-129).
+        let home: PathBuf = ["/", "Users", "ann"].iter().collect();
+        let places = |dir: &DataDir| {
+            [
+                dir.path().to_owned(),
+                dir.history(),
+                dir.token(),
+                dir.runtime(),
+            ]
+        };
+
+        let in_home = DataDir::new(home.join("quotadial"));
+        let written = places(&in_home).map(|place| text::tilde(&place, Some(&home)));
+        assert_eq!(
+            written[1],
+            format!("~/{}", Path::new("quotadial").join("history.db").display())
+        );
+        assert_eq!(
+            failed(&in_home).map(|error| error.line(Some(&home))),
+            said(&written)
+        );
+        // Another user's folder, whose name starts as the home folder's does.
+        let elsewhere = DataDir::new(home.with_file_name("anna").join("quotadial"));
+        assert_eq!(
+            failed(&elsewhere).map(|error| error.line(Some(&home))),
+            said(&places(&elsewhere).map(|place| place.display().to_string())),
+            "a place outside the home folder stays as it is"
+        );
+    }
+
+    #[test]
+    fn a_start_error_is_written_with_this_processs_home_folder() {
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let error = HostError::Token {
+            path: home.join("token"),
+            error: io::Error::new(io::ErrorKind::PermissionDenied, "permission denied"),
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "could not create the API token at ~/token: permission denied; check that you can \
+             write to it"
+        );
     }
 }

@@ -1,5 +1,6 @@
 //! The server and the client together, over a real socket on `127.0.0.1`.
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -656,6 +657,73 @@ async fn a_running_daemon_that_does_not_answer_is_an_error_not_a_reason_to_poll(
 
     drop(instance);
     assert_eq!(client::status(&dir).await, Ok(None), "it has stopped");
+}
+
+/// Why the daemon running in `dir` gave `/v1/status` no answer, with `home` as the home folder.
+async fn unanswered(dir: &DataDir, home: &Path) -> String {
+    client::get::<StatusReport>(dir, "/v1/status", Some(home))
+        .await
+        .expect_err("no answer")
+        .to_string()
+}
+
+#[tokio::test]
+async fn why_a_daemon_gave_no_answer_names_its_files_with_the_home_folder_written_with_a_tilde() {
+    // #52 (D-129): its token, which it refused or which cannot be read, and the daemon.json that
+    // does not say where its API listens.
+    let daemon = daemon().await;
+    let (dir, port) = (daemon.dir.clone(), daemon.port);
+    // The folder the data folder is in as the home folder, and one whose name the data folder's
+    // only starts with, as `/Users/ann` is to `/Users/anna`.
+    let home = dir.path().parent().expect("in a folder").to_owned();
+    let other = home.join("quota");
+    let in_home = |name: &str| format!("~/{}", Path::new("quotadial").join(name).display());
+    let restart = "restart it with `quotadial daemon`.";
+
+    std::fs::write(dir.token(), "0".repeat(64)).expect("writes another token");
+    let refused = |token: String| {
+        format!(
+            "the QuotaDial daemon is running, but its API at http://127.0.0.1:{port}/v1/status \
+             refused the token at {token}; {restart}"
+        )
+    };
+    assert_eq!(unanswered(&dir, &home).await, refused(in_home("token")));
+    assert_eq!(
+        unanswered(&dir, &other).await,
+        refused(dir.token().display().to_string()),
+        "a place outside the home folder stays as it is"
+    );
+
+    std::fs::remove_file(dir.token()).expect("removes the token");
+    let unread = |token: String| {
+        format!(
+            "the QuotaDial daemon is running, but its token at {token} cannot be read; {restart}"
+        )
+    };
+    assert_eq!(unanswered(&dir, &home).await, unread(in_home("token")));
+    assert_eq!(
+        unanswered(&dir, &other).await,
+        unread(dir.token().display().to_string())
+    );
+
+    // Still holding the lock, but it never said where its API listens.
+    let (_temp, dir, instance) = daemon.stop().await;
+    Runtime::remove(&dir);
+    let silent = |runtime: String| {
+        format!(
+            "a QuotaDial daemon is running, but it has not said where its API listens in \
+             {runtime}; {restart}"
+        )
+    };
+    assert_eq!(
+        unanswered(&dir, &home).await,
+        silent(in_home("daemon.json"))
+    );
+    assert_eq!(
+        unanswered(&dir, &other).await,
+        silent(dir.runtime().display().to_string())
+    );
+    drop(instance);
 }
 
 /// A daemon that takes a request and quits before answering, as the tray app might when the user
