@@ -291,7 +291,11 @@ fn runtime() -> Option<tokio::runtime::Runtime> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Origin {
     Daemon,
-    Direct,
+    /// Fetched directly, and whether the daemon would add the week's cost: on QuotaDial Pro, with
+    /// the cost scan on, for an account of a provider that keeps logs (D-125).
+    Direct {
+        costs: bool,
+    },
 }
 
 /// What the running daemon last found or, when no daemon is running, a direct fetch, which still
@@ -310,12 +314,17 @@ async fn report<P: AsRef<dyn Provider>>(
     // back, and the week's cost, which the daemon would read on QuotaDial Pro.
     let mut report = collect(providers).await;
     let cost_scan = dir.map(Config::load).unwrap_or_default().cost_scan;
-    report.left_out = licence::left_out(
-        Licensing::new(dir).tier(),
-        providers,
-        cost_scan && !report.snapshots.is_empty(),
-    );
-    Ok((report, Origin::Direct))
+    // Read, and so offered, only for an account of a provider that keeps logs (D-125).
+    let readable = cost_scan
+        && report.snapshots.iter().any(|snapshot| {
+            providers.iter().map(AsRef::as_ref).any(|provider| {
+                provider.id() == snapshot.account.provider && licence::keeps_logs(provider)
+            })
+        });
+    let tier = Licensing::new(dir).tier();
+    report.left_out = licence::left_out(tier, providers, readable);
+    let costs = readable && tier.allows(ProFeature::CostScan);
+    Ok((report, Origin::Direct { costs }))
 }
 
 fn status(providers: &[Arc<dyn Provider>], json: bool) -> ExitCode {
@@ -497,7 +506,7 @@ fn doctor(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let dir = DataDir::from_env();
     let (report, numbers_from) = match runtime.block_on(report(providers, dir.as_ref())) {
         Ok((report, Origin::Daemon)) => (report, "the daemon".to_owned()),
-        Ok((report, Origin::Direct)) => (report, "a direct fetch".to_owned()),
+        Ok((report, Origin::Direct { .. })) => (report, "a direct fetch".to_owned()),
         Err(error) => (StatusReport::default(), format!("nowhere: {error}")),
     };
     let now = Utc::now();
@@ -908,6 +917,11 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
     };
     runtime.block_on(async {
         let asking = asking(&providers);
+        // The week's cost is read from logs, so a copy whose providers keep none, such as the
+        // example build, says nothing of it (D-125).
+        let keeps_logs = providers
+            .iter()
+            .any(|provider| licence::keeps_logs(provider.as_ref()));
         let host = match Host::start(dir, providers, port).await {
             Ok(host) => host,
             Err(error @ HostError::Listen { .. }) => {
@@ -940,7 +954,7 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
                 say(format_args!("{}", ProFeature::AlertDelivery.line()));
             }
         }
-        if host.scans_costs() {
+        if host.scans_costs() && keeps_logs {
             if tier.allows(ProFeature::CostScan) {
                 say(format_args!(
                     "Every 10 minutes it reads the token counts in Claude Code's and the Codex \
@@ -1190,15 +1204,14 @@ fn write_text(
         .snapshots
         .iter()
         .any(|snapshot| !snapshot.windows.is_empty());
-    if origin == Origin::Direct && windows {
-        let costs = if report
-            .left_out
-            .iter()
-            .any(|left_out| left_out.feature == ProFeature::CostScan)
-        {
-            ""
-        } else {
+    if let Origin::Direct { costs } = origin
+        && windows
+    {
+        // The week's cost only where the daemon would add it (D-125).
+        let costs = if costs {
             ", and each provider what the week would have cost at API prices"
+        } else {
+            ""
         };
         writeln!(
             out,
@@ -1561,11 +1574,12 @@ mod tests {
             problems: Vec::new(),
             providers: Vec::new(),
         };
-        let text = |report: &StatusReport| {
+        let text_with = |report: &StatusReport, costs| {
             let mut out = Vec::new();
-            write_text(report, Origin::Direct, now(), &mut out).expect("writes");
+            write_text(report, Origin::Direct { costs }, now(), &mut out).expect("writes");
             String::from_utf8(out).expect("UTF-8")
         };
+        let text = |report: &StatusReport| text_with(report, true);
 
         let shown = text(&report);
         assert_eq!(shown.matches("Pace needs the daemon").count(), 1);
@@ -1573,6 +1587,12 @@ mod tests {
             "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
              window also shows how fast it fills, and each provider what the week would have \
              cost at API prices.\n"
+        ));
+        // With no logs to read the week's cost from, or on QuotaDial Free, whose line already
+        // says it is Pro's, the daemon would add no cost, so none is promised (D-125).
+        assert!(text_with(&report, false).ends_with(
+            "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
+             window also shows how fast it fills.\n"
         ));
 
         let expired = StatusReport {
@@ -2311,7 +2331,11 @@ mod tests {
         let providers = [Arc::clone(&cli) as Arc<dyn Provider>];
 
         let (shown, origin) = report(&providers, Some(&dir)).await.expect("fetches");
-        assert_eq!(origin, Origin::Direct);
+        assert_eq!(
+            origin,
+            Origin::Direct { costs: false },
+            "its provider keeps no logs to read the week's cost from"
+        );
         assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
         assert_eq!(cli.fetches(), 1);
 

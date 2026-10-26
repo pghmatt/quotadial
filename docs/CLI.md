@@ -374,7 +374,7 @@ budget. QuotaDial Pro adds:
 
 A Free copy never hides a feature silently: where it would be, one line says what is left out, that
 it is part of QuotaDial Pro, and where Pro is, such as `The week's cost at API prices is part of
-QuotaDial Pro: quotadial.com/pro`. `status` and `watch` print those lines under the accounts and
+QuotaDial Pro: quotadial.com/pro`, which comes only where there are logs to read the cost from. `status` and `watch` print those lines under the accounts and
 where the costs would be, the app shows them under its accounts, and the report carries them as
 `left_out` (see JSON output). Nothing else asks, nags or counts down.
 
@@ -658,8 +658,11 @@ Codex user@example.com (pro): stale
 - A provider that produced nothing at all shows as `error: <provider>: <what happened>`, which also
   names the fix or when QuotaDial tries again.
 - On QuotaDial Free, a line under the accounts says how many more a provider has on the machine,
-  and one where the costs would be says the week's cost is part of QuotaDial Pro. With no daemon
-  running, the pace line then leaves out the costs.
+  and one where the costs would be says the week's cost is part of QuotaDial Pro. The week's cost
+  is read from the logs of Claude Code and the Codex CLI, so that line, and the pace line's mention
+  of the cost, come only with an account of a provider whose logs QuotaDial reads: not for a
+  machine with only a Gemini CLI account, nor in the example build. On Free the pace line leaves
+  the cost out, since the line under the accounts says it.
 
 `watch` clears the terminal before each refresh and ends with when it was updated and, in one
 sentence, whom QuotaDial asks and how often, and which providers it asks no one about, such as "It
