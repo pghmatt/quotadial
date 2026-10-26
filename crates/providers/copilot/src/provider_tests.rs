@@ -18,6 +18,7 @@ use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
+use crate::advice::tests::gh_place;
 use crate::keychain::Item;
 use crate::usage::tests::{BUSINESS, FREE, PRO_CREDITS};
 
@@ -208,19 +209,6 @@ fn ts(rfc3339: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(rfc3339)
         .expect("valid timestamp")
         .with_timezone(&Utc)
-}
-
-/// Where GitHub CLI's `hosts.yml` is in the test's home, as the provider writes a place: `~` for the
-/// home folder, then the platform's own separators, as `quotadial_core::text::tilde` gives it
-/// (`~/.config\gh\hosts.yml` on Windows), the way Gemini CLI's tests build theirs.
-fn gh_place() -> String {
-    format!(
-        "~/{}",
-        [".config", "gh", "hosts.yml"]
-            .iter()
-            .collect::<PathBuf>()
-            .display()
-    )
 }
 
 fn answer(fixture: &str) -> ResponseTemplate {

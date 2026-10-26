@@ -792,13 +792,13 @@ mod tests {
 
     #[test]
     fn its_name_and_every_sentence_it_says_keep_to_plain_words() {
-        let place = "~/.config/gh/hosts.yml";
+        let place = advice::tests::gh_place();
         let mut said = vec![NAME.to_owned()];
         for source in [
             Source::GhFile(PathBuf::from("/Users/example/.config/gh/hosts.yml")),
             Source::Keychain(None),
         ] {
-            said.push(advice::sign_in_use(&source, place));
+            said.push(advice::sign_in_use(&source, &place));
             said.push(advice::sign_in_use(&source, KEYCHAIN_PLACE));
         }
         said.extend(advice::tests::every_sentence());
@@ -834,7 +834,7 @@ mod tests {
     /// it, and #52's plain words.
     #[test]
     fn every_error_it_makes_leaves_the_provider_out_in_plain_words() {
-        let place = "~/.config/gh/hosts.yml";
+        let place = advice::tests::gh_place();
         let errors = [
             stopped(),
             Error::Credentials {
@@ -844,7 +844,7 @@ mod tests {
             },
             Error::Credentials {
                 provider: ID,
-                location: place.to_owned(),
+                location: place,
                 reason: "it is not a plain file".to_owned(),
             },
             Error::Request {

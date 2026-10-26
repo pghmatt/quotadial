@@ -146,7 +146,7 @@ fn sign_in_again(source: &Source) -> &'static str {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::*;
 
@@ -158,13 +158,26 @@ pub(crate) mod tests {
         Source::Keychain(Some("example-user".into()))
     }
 
-    const GH_PLACE: &str = "~/.config/gh/hosts.yml";
+    /// Where GitHub CLI's `hosts.yml` is in the home folder, as the provider writes a place:
+    /// `text::tilde`'s `~` and the system's own separator, so `~/.config/gh/hosts.yml` on macOS and
+    /// Linux and `~\.config\gh\hosts.yml` on Windows (D-129). The provider's tests expect it where
+    /// they find the file in their home, and the sentences here are given it.
+    pub(crate) fn gh_place() -> String {
+        Path::new("~")
+            .join(".config")
+            .join("gh")
+            .join("hosts.yml")
+            .display()
+            .to_string()
+    }
+
     const KEYCHAIN_PLACE: &str = "the macOS Keychain item \"copilot-cli\"";
 
     /// Every sentence the provider can say, with each place it can name.
     pub(crate) fn every_sentence() -> Vec<String> {
+        let gh_place = gh_place();
         let mut said = Vec::new();
-        for (source, place) in [(gh(), GH_PLACE), (keychain(), KEYCHAIN_PLACE)] {
+        for (source, place) in [(gh(), gh_place.as_str()), (keychain(), KEYCHAIN_PLACE)] {
             said.extend([
                 sign_in_use(&source, place),
                 signed_out(&source, place),
@@ -182,7 +195,7 @@ pub(crate) mod tests {
             refused(KEYCHAIN_PLACE),
             changed_while_read(KEYCHAIN_PLACE),
             keychain_not_searched("/usr/bin/security exited with status 1"),
-            gh_unreadable(GH_PLACE, "it is not text"),
+            gh_unreadable(&gh_place, "it is not text"),
             failed(404, Some("Not Found")),
             failed(502, None),
             NO_LIMITS.to_owned(),
@@ -226,7 +239,7 @@ pub(crate) mod tests {
     fn what_discovery_could_not_look_at_is_said_in_plain_words_without_the_providers_id() {
         let warnings = [
             keychain_not_searched("/usr/bin/security exited with status 1"),
-            gh_unreadable(GH_PLACE, "it is not a plain file"),
+            gh_unreadable(&gh_place(), "it is not a plain file"),
         ];
         for warning in warnings {
             // The report names the provider, by its own name (D-128).
@@ -239,17 +252,23 @@ pub(crate) mod tests {
             );
         }
         assert_eq!(
-            gh_unreadable(GH_PLACE, "it is not a plain file"),
-            "could not read GitHub CLI's sign-in in ~/.config/gh/hosts.yml: it is not a plain file."
+            gh_unreadable(&gh_place(), "it is not a plain file"),
+            format!(
+                "could not read GitHub CLI's sign-in in {}: it is not a plain file.",
+                gh_place()
+            )
         );
     }
 
     #[test]
     fn each_sentence_names_the_cli_and_its_fix() {
         assert_eq!(
-            sign_in_use(&gh(), GH_PLACE),
-            "QuotaDial reads this account's sign-in from ~/.config/gh/hosts.yml. It only reads it \
-             and never changes it."
+            sign_in_use(&gh(), &gh_place()),
+            format!(
+                "QuotaDial reads this account's sign-in from {}. It only reads it and never \
+                 changes it.",
+                gh_place()
+            )
         );
         assert_eq!(
             sign_in_use(&keychain(), KEYCHAIN_PLACE),
@@ -259,9 +278,12 @@ pub(crate) mod tests {
              starts again."
         );
         assert_eq!(
-            signed_out(&gh(), GH_PLACE),
-            "QuotaDial no longer finds GitHub CLI's sign-in in ~/.config/gh/hosts.yml. Run `gh \
-             auth login` to sign in again."
+            signed_out(&gh(), &gh_place()),
+            format!(
+                "QuotaDial no longer finds GitHub CLI's sign-in in {}. Run `gh auth login` to sign \
+                 in again.",
+                gh_place()
+            )
         );
         assert_eq!(
             different_account(&keychain(), KEYCHAIN_PLACE),
