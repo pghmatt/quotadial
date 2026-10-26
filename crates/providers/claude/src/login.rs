@@ -13,7 +13,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
-use quotadial_core::{Account, Error, Result, Secret};
+use quotadial_core::{Account, Error, Result, Secret, text};
 
 use crate::environment::{Environment, KEYCHAIN_SERVICE, sha256_hex};
 use crate::identity::{self, Identity};
@@ -204,12 +204,13 @@ impl Login {
     }
 
     /// The command that signs this sign-in's account in again, such as
-    /// `` `CLAUDE_CONFIG_DIR=~/.claude-work claude` ``.
+    /// `` `CLAUDE_CONFIG_DIR=~/'.claude-work' claude` ``.
     pub(crate) fn sign_in_command(&self) -> String {
         match (&self.folder, &self.source) {
-            (Folder::Named(dir), _) => {
-                format!("`{}`", claude_in(dir, &self.env.tilde(dir), cfg!(windows)))
-            }
+            (Folder::Named(dir), _) => format!(
+                "`{}`",
+                claude_in(dir, self.env.home.as_deref(), cfg!(windows))
+            ),
             (Folder::Unknown, LoginSource::Keychain { service, .. }) => format!(
                 "`claude` with the CLAUDE_CONFIG_DIR that made the Keychain item \"{service}\""
             ),
@@ -226,24 +227,22 @@ impl Login {
     }
 }
 
-/// The command that runs `claude` with `CLAUDE_CONFIG_DIR` set to `dir`: for PowerShell on
-/// Windows, and elsewhere for a POSIX shell, writing `shown`, the folder with `~`, when it needs no
-/// quotes.
-pub(crate) fn claude_in(dir: &Path, shown: &str, windows: bool) -> String {
+/// The command that runs `claude` with `CLAUDE_CONFIG_DIR` set to `dir`, which works as written when
+/// pasted (D-131): for PowerShell on Windows, which neither expands `~` nor takes `NAME=value`
+/// before a command, and elsewhere for a POSIX shell. A folder in the home folder `home` is written
+/// from it, `~` for a POSIX shell and `$HOME` for PowerShell, so the command never names the user
+/// (#52), and the rest is quoted as that shell reads it, such as
+/// `CLAUDE_CONFIG_DIR=~/'My Claude' claude` or `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`;
+/// any other folder is quoted whole. Neither holds the home folder's path where the pass that writes
+/// it `~` in doctor's text, `text::tilde_in`, would take it, so doctor shows it as written too.
+pub(crate) fn claude_in(dir: &Path, home: Option<&Path>, windows: bool) -> String {
     if windows {
-        let dir = dir.display().to_string().replace('\'', "''");
-        return format!("$env:CLAUDE_CONFIG_DIR = '{dir}'; claude");
+        return format!(
+            "$env:CLAUDE_CONFIG_DIR = {}; claude",
+            text::powershell_string(dir, home)
+        );
     }
-    let plain = shown.chars().all(|c| {
-        c.is_ascii_alphanumeric()
-            || matches!(c, '~' | '/' | '.' | '_' | '-' | '+' | '@' | ',' | ':')
-    });
-    if plain {
-        format!("CLAUDE_CONFIG_DIR={shown} claude")
-    } else {
-        let dir = dir.display().to_string().replace('\'', r"'\''");
-        format!("CLAUDE_CONFIG_DIR='{dir}' claude")
-    }
+    format!("CLAUDE_CONFIG_DIR={} claude", text::shell_word(dir, home))
 }
 
 /// What QuotaDial does with a sign-in found at `place`, in Claude's words (P-020): where it read
@@ -634,7 +633,7 @@ fn written(login: &Login) -> Option<DateTime<Utc>> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path};
 
     use serde_json::json;
 
@@ -981,35 +980,159 @@ mod tests {
         folder
     }
 
+    /// `claude_in`'s command for `dir`, held to the pass doctor's text goes through, which writes
+    /// the home folder `~`, leaving it as it was written (D-131).
+    fn command(dir: &Path, home: &Path, windows: bool) -> String {
+        let command = claude_in(dir, Some(home), windows);
+        assert_eq!(
+            quotadial_core::text::tilde_in(&command, Some(home)),
+            command,
+            "doctor's pass"
+        );
+        command
+    }
+
     #[test]
-    fn the_fix_command_suits_the_shell_and_the_folder() {
-        let home_folder = Path::new("/Users/example/.claude-work");
-        assert_eq!(
-            claude_in(home_folder, "~/.claude-work", false),
-            "CLAUDE_CONFIG_DIR=~/.claude-work claude"
-        );
-        assert_eq!(
-            claude_in(Path::new("/Users/example/My Claude"), "~/My Claude", false),
-            "CLAUDE_CONFIG_DIR='/Users/example/My Claude' claude",
-            "quoted, with the full path, since quotes stop ~ from expanding"
-        );
-        assert_eq!(
-            claude_in(Path::new("/Users/example/it's"), "~/it's", false),
-            r"CLAUDE_CONFIG_DIR='/Users/example/it'\''s' claude"
-        );
-        assert_eq!(
-            claude_in(
-                Path::new(r"C:\Users\example\.claude-work"),
-                r"~\.claude-work",
-                true
+    fn the_fix_command_for_a_folder_in_the_home_folder_never_names_the_user() {
+        // `~` for a POSIX shell, which expands it after an assignment's `=`, and `$HOME` for
+        // PowerShell, which neither expands `~` nor takes `NAME=value` before a command, with the
+        // rest quoted as each shell reads it (#52, D-131).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        for (name, posix, powershell) in [
+            (".claude-work", "~/'.claude-work'", ".claude-work"),
+            ("My Claude", "~/'My Claude'", "My Claude"),
+            ("Ann's Claude", r"~/'Ann'\''s Claude'", "Ann's Claude"),
+            (
+                "$x `y` \"z\" “w”",
+                "~/'$x `y` \"z\" “w”'",
+                "`$x ``y`` `\"z`\" `“w`”",
             ),
-            r"$env:CLAUDE_CONFIG_DIR = 'C:\Users\example\.claude-work'; claude",
-            "PowerShell, which neither expands ~ nor takes VAR=value before a command"
+        ] {
+            let dir = home.join(name);
+            assert_eq!(
+                command(&dir, &home, false),
+                format!("CLAUDE_CONFIG_DIR={posix} claude")
+            );
+            assert_eq!(
+                command(&dir, &home, true),
+                format!("$env:CLAUDE_CONFIG_DIR = \"$HOME{MAIN_SEPARATOR}{powershell}\"; claude")
+            );
+            for windows in [false, true] {
+                let command = command(&dir, &home, windows);
+                assert!(!command.contains(&home.display().to_string()), "{command}");
+            }
+        }
+        assert_eq!(command(&home, &home, false), "CLAUDE_CONFIG_DIR=~ claude");
+        assert_eq!(
+            command(&home, &home, true),
+            "$env:CLAUDE_CONFIG_DIR = \"$HOME\"; claude"
+        );
+    }
+
+    #[test]
+    fn the_fix_command_for_a_folder_outside_the_home_folder_quotes_the_whole_folder() {
+        // As each shell reads it: `'\''` for a quote in a POSIX shell, and in PowerShell each single
+        // quotation mark it takes, straight or curly, written twice (D-131).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let place = |parts: &[&str]| -> PathBuf {
+            std::iter::once(MAIN_SEPARATOR_STR)
+                .chain(parts.iter().copied())
+                .collect()
+        };
+        for dir in [
+            place(&["Volumes", "Data", "claude"]),
+            place(&["Volumes", "Data", "My Claude"]),
+            // Another user's folder, whose name starts as the home folder's does.
+            place(&["Users", "anna", ".claude"]),
+        ] {
+            assert_eq!(
+                command(&dir, &home, false),
+                format!("CLAUDE_CONFIG_DIR='{}' claude", dir.display())
+            );
+            assert_eq!(
+                command(&dir, &home, true),
+                format!("$env:CLAUDE_CONFIG_DIR = '{}'; claude", dir.display())
+            );
+        }
+        let quoted = place(&["Volumes", "O'Brien’s Claude"]);
+        assert_eq!(
+            command(&quoted, &home, false),
+            format!(
+                r"CLAUDE_CONFIG_DIR='{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O'\''Brien’s Claude' claude"
+            )
         );
         assert_eq!(
-            claude_in(Path::new(r"C:\Users\o'brien\.claude"), r"~\.claude", true),
-            r"$env:CLAUDE_CONFIG_DIR = 'C:\Users\o''brien\.claude'; claude"
+            command(&quoted, &home, true),
+            format!(
+                "$env:CLAUDE_CONFIG_DIR = '{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O''Brien’’s \
+                 Claude'; claude"
+            )
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_fix_command_gives_claude_code_the_folder_when_a_shell_runs_it() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+        // #52: every error names the fix, in one sentence a stranger can act on (D-131). The
+        // command, as a sentence shows it and as doctor's pass writes it, run by `sh` with `HOME`
+        // set and a stand-in `claude` first on `PATH` that prints the folder it was given, finds
+        // each folder's own path, whatever its name holds, in the home folder and outside it, and
+        // with a home folder whose name has a space.
+        let temp = tempfile::tempdir().expect("temp dir");
+        let bin = temp.path().join("bin");
+        std::fs::create_dir(&bin).expect("makes the folder");
+        let claude = bin.join("claude");
+        std::fs::write(&claude, "#!/bin/sh\nprintf '%s' \"$CLAUDE_CONFIG_DIR\"\n")
+            .expect("writes the stand-in");
+        std::fs::set_permissions(&claude, std::fs::Permissions::from_mode(0o755))
+            .expect("makes it runnable");
+        for home in [temp.path().join("ann"), temp.path().join("Ann Smith")] {
+            for dir in [
+                home.join(".claude-work"),
+                home.join("My Claude"),
+                home.join("Ann's Claude"),
+                home.join("$HOME `id` \"q\" \\ * ~").join("work"),
+                home.clone(),
+                temp.path().join("O'Brien's Claude"),
+            ] {
+                let login = Login::new(
+                    &env_in(&home),
+                    LoginSource::File(dir.join(".credentials.json")),
+                    None,
+                    None,
+                    Folder::Named(dir.clone()),
+                );
+                let shown = login.sign_in_command();
+                let command = shown
+                    .strip_prefix('`')
+                    .and_then(|command| command.strip_suffix('`'))
+                    .expect("the command, in backticks");
+                // `PATH` holds the stand-in alone, so no other `claude` can run.
+                for written in [
+                    command.to_owned(),
+                    quotadial_core::text::tilde_in(command, Some(&home)),
+                ] {
+                    let ran = Command::new("/bin/sh")
+                        .arg("-c")
+                        .arg(&written)
+                        .env_clear()
+                        .env("HOME", &home)
+                        .env("PATH", &bin)
+                        .current_dir(temp.path())
+                        .output()
+                        .expect("sh runs");
+
+                    assert!(ran.status.success(), "{written}");
+                    assert_eq!(
+                        String::from_utf8_lossy(&ran.stdout),
+                        dir.display().to_string(),
+                        "{written}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

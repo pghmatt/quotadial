@@ -117,10 +117,13 @@ one account per provider, the one the current shell would use, and names how man
   the provider's words, what QuotaDial does with it, as `doctor` and the app's "What QuotaDial
   does with this sign-in" show it.
 - **A sign-in that expired or was rejected** shows `sign-in required`, with the command that signs
-  that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/.claude-work claude` once to refresh
-  it." On Windows the command is for PowerShell: `$env:CLAUDE_CONFIG_DIR = '…'; claude`. Its last
-  good numbers stay on show, marked as coming from the cache. QuotaDial never refreshes or writes a
-  sign-in itself.
+  that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/'.claude-work' claude` once to refresh
+  it." On Windows the command is for PowerShell, such as
+  `$env:CLAUDE_CONFIG_DIR = "$HOME\.claude-work"; claude`. A folder in your home folder is written
+  from `~`, or `$HOME` in PowerShell, so the command never holds your user name, and the rest is
+  quoted, so it works when pasted with a space or a quote in a name, as `status` and `doctor` show
+  it. Its last good numbers stay on show, marked as coming from the cache. QuotaDial never
+  refreshes or writes a sign-in itself.
 - **A Keychain item whose folder QuotaDial cannot find** still shows, named by its item. Its fix
   asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
   account, as when a folder only ever signed in to MCP servers, it is left out until the item

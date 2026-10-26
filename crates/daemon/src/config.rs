@@ -182,12 +182,12 @@ impl Config {
                 "{} holds webhook addresses, which work like passwords, and other users can read \
                  it; run `chmod 600 {}`.",
                 path.display(),
-                shell_word(&path, home)
+                text::shell_word(&path, home)
             ));
         }
         // Each names config.json: the one pass its text goes through where it is made writes the
-        // home folder `~` (#52, D-129). It leaves the chmod command as `shell_word` wrote it: the
-        // pass writes `~` only for the home folder's own path, and the command holds that path
+        // home folder `~` (#52, D-129). It leaves the chmod command as `text::shell_word` wrote it:
+        // the pass writes `~` only for the home folder's own path, and the command holds that path
         // nowhere the pass takes it for the home folder, `~` standing for it already and a place
         // outside the home folder not starting in it. D-130 has the one exception, never a folder
         // QuotaDial makes: a place whose text holds the home folder's path beside a space, a quote
@@ -202,27 +202,6 @@ impl Config {
 /// The setting called `name`, if it is there and of the right kind.
 fn setting<T: DeserializeOwned>(settings: &Value, name: &str) -> Option<T> {
     serde_json::from_value(settings.get(name)?.clone()).ok()
-}
-
-/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130): in the home
-/// folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes, so a
-/// space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
-/// anywhere else, or with no home folder or one that is a whole disk, the whole place in single
-/// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
-/// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
-/// missed. In the home folder by whole names, as [`text::tilde`] finds it, so `/Users/anna` is not
-/// in `/Users/ann`. `~/` on every system, being for a POSIX shell: the warning that uses it cannot
-/// occur on Windows.
-fn shell_word(place: &Path, home: Option<&Path>) -> String {
-    let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));
-    match home
-        .filter(|home| home.parent().is_some())
-        .and_then(|home| place.strip_prefix(home).ok())
-    {
-        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
-        Some(rest) => format!("~/{}", quoted(rest)),
-        None => quoted(place),
-    }
 }
 
 /// Whether users other than the owner can read the file at `path`.
@@ -242,7 +221,7 @@ fn readable_by_others(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, PathBuf};
+    use std::path::PathBuf;
 
     use super::*;
 
@@ -536,76 +515,6 @@ mod tests {
                 "{command}"
             );
         }
-    }
-
-    /// `shell_word`'s word for `place`, held to the warning's pass leaving it as it was written.
-    fn word(place: &Path, home: Option<&Path>) -> String {
-        let word = shell_word(place, home);
-        assert_eq!(text::tilde_in(&word, home), word, "the warning's pass");
-        word
-    }
-
-    #[test]
-    fn a_place_in_the_home_folder_is_quoted_after_a_bare_tilde() {
-        // macOS keeps the data folder in `~/Library/Application Support`, whose space split the
-        // command, and a shell expands `~` only where it is not quoted (D-130).
-        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
-        let rest: PathBuf = ["Library", "Application Support", "quotadial", "config.json"]
-            .iter()
-            .collect();
-        assert_eq!(
-            word(&home.join(&rest), Some(&home)),
-            format!("~/'{}'", rest.display())
-        );
-        assert_eq!(word(&home, Some(&home)), "~", "the home folder itself");
-    }
-
-    #[test]
-    fn a_place_outside_the_home_folder_is_quoted_whole() {
-        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
-        let beside: PathBuf = [MAIN_SEPARATOR_STR, "Users", "anna", "config.json"]
-            .iter()
-            .collect();
-        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "config.json"]
-            .iter()
-            .collect();
-        for place in [beside, elsewhere] {
-            assert_eq!(
-                word(&place, Some(&home)),
-                format!("'{}'", place.display()),
-                "a folder whose name only starts as the home folder's does, and another disk"
-            );
-        }
-        let place = home.join("config.json");
-        assert_eq!(
-            word(&place, None),
-            format!("'{}'", place.display()),
-            "no home folder"
-        );
-        assert_eq!(
-            word(&place, Some(Path::new(MAIN_SEPARATOR_STR))),
-            format!("'{}'", place.display()),
-            "a home folder that is a whole disk, which the warning's sentence leaves as it is too"
-        );
-    }
-
-    #[test]
-    fn a_single_quote_in_a_place_is_written_as_a_shell_reads_it() {
-        // `'\''`: the quotes closed, a quote escaped, and the quotes opened again.
-        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
-        assert_eq!(
-            word(&home.join("Ann's data").join("config.json"), Some(&home)),
-            format!(r"~/'Ann'\''s data{MAIN_SEPARATOR}config.json'")
-        );
-        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "O'Brien", "config.json"]
-            .iter()
-            .collect();
-        assert_eq!(
-            word(&elsewhere, Some(&home)),
-            format!(
-                r"'{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O'\''Brien{MAIN_SEPARATOR}config.json'"
-            )
-        );
     }
 
     proptest::proptest! {

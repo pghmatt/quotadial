@@ -94,6 +94,80 @@ fn ends_path(after: &str) -> bool {
     }
 }
 
+/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130, D-131): in the
+/// home folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes,
+/// so a space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
+/// anywhere else, or with no home folder or one that is a whole disk, the whole place in single
+/// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
+/// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
+/// missed. In the home folder by whole names, as [`tilde`] finds it, so `/Users/anna` is not in
+/// `/Users/ann`. `~/` on every system, being for a POSIX shell: neither command that uses it is
+/// shown on Windows, where `config.json`'s warning cannot occur and a sign-in command is written
+/// for PowerShell, with [`powershell_string`].
+#[must_use]
+pub fn shell_word(place: &Path, home: Option<&Path>) -> String {
+    let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));
+    match after_home(place, home) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", quoted(rest)),
+        None => quoted(place),
+    }
+}
+
+/// The characters PowerShell takes for `"`: the straight double quotation mark and the curly `“`,
+/// `”` and `„` (the PowerShell Language Specification, 2.3.5.2, double-quote-character).
+const POWERSHELL_DOUBLE_QUOTES: [char; 4] = ['"', '\u{201c}', '\u{201d}', '\u{201e}'];
+
+/// The characters PowerShell takes for `'`: the straight single quotation mark and the curly `‘`,
+/// `’`, `‚` and `‛` (the same section, single-quote-character).
+const POWERSHELL_SINGLE_QUOTES: [char; 5] = ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'];
+
+/// `place` as PowerShell takes it, for a command a user pastes as written (D-131). In the home folder
+/// `home`, a double-quoted string that starts with `$HOME`, which PowerShell sets to the home folder,
+/// from `USERPROFILE` on Windows and `HOME` elsewhere (about_Automatic_Variables), then the system's
+/// own separator and the rest, such as `"$HOME\.claude-work"`, or `"$HOME"` for the home folder
+/// itself. In double quotes PowerShell reads `$` as the start of a variable, the backtick as its
+/// escape character, and `"`, `“`, `”` or `„` as the string's end, so each of those in the rest is
+/// written after a backtick, which takes it as written (about_Quoting_Rules). Anywhere else, or with
+/// no home folder or one that is a whole disk, the whole place in single quotes, in which PowerShell
+/// reads nothing but the string's end, `'`, `‘`, `’`, `‚` or `‛`, so each of those is written twice.
+/// In the home folder by whole names, as [`shell_word`] finds it; like that word, the string holds
+/// the home folder's path nowhere [`tilde_in`] takes it for the home folder.
+#[must_use]
+pub fn powershell_string(place: &Path, home: Option<&Path>) -> String {
+    let Some(rest) = after_home(place, home) else {
+        let mut string = String::from('\'');
+        for character in place.display().to_string().chars() {
+            if POWERSHELL_SINGLE_QUOTES.contains(&character) {
+                string.push(character);
+            }
+            string.push(character);
+        }
+        string.push('\'');
+        return string;
+    };
+    let mut string = String::from("\"$HOME");
+    if !rest.as_os_str().is_empty() {
+        string.push(std::path::MAIN_SEPARATOR);
+        for character in rest.display().to_string().chars() {
+            if matches!(character, '`' | '$') || POWERSHELL_DOUBLE_QUOTES.contains(&character) {
+                string.push('`');
+            }
+            string.push(character);
+        }
+    }
+    string.push('"');
+    string
+}
+
+/// What follows the home folder `home` in `place`, found by whole names, or `None` where `place` is
+/// not in it, or there is no home folder or one that is a whole disk, which [`tilde_in`] leaves as
+/// it is too: the place a shell word or a PowerShell string writes from the home folder.
+fn after_home<'a>(place: &'a Path, home: Option<&Path>) -> Option<&'a Path> {
+    home.filter(|home| home.parent().is_some())
+        .and_then(|home| place.strip_prefix(home).ok())
+}
+
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
 #[must_use]
 pub fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
@@ -327,7 +401,7 @@ pub fn unplain_words(text: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, PathBuf};
 
     use proptest::prelude::*;
 
@@ -475,6 +549,161 @@ mod tests {
         assert_eq!(
             tilde_in(&format!("nothing in {}/x.", home.display()), Some(&home)),
             "nothing in ~/x."
+        );
+    }
+
+    /// `shell_word`'s word for `place`, held to the warning's pass leaving it as it was written.
+    fn word(place: &Path, home: Option<&Path>) -> String {
+        let word = shell_word(place, home);
+        assert_eq!(tilde_in(&word, home), word, "the warning's pass");
+        word
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_is_quoted_after_a_bare_tilde() {
+        // macOS keeps the data folder in `~/Library/Application Support`, whose space split the
+        // command, and a shell expands `~` only where it is not quoted (D-130).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let rest: PathBuf = ["Library", "Application Support", "quotadial", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&home.join(&rest), Some(&home)),
+            format!("~/'{}'", rest.display())
+        );
+        assert_eq!(word(&home, Some(&home)), "~", "the home folder itself");
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_is_quoted_whole() {
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let beside: PathBuf = [MAIN_SEPARATOR_STR, "Users", "anna", "config.json"]
+            .iter()
+            .collect();
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "config.json"]
+            .iter()
+            .collect();
+        for place in [beside, elsewhere] {
+            assert_eq!(
+                word(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "a folder whose name only starts as the home folder's does, and another disk"
+            );
+        }
+        let place = home.join("config.json");
+        assert_eq!(
+            word(&place, None),
+            format!("'{}'", place.display()),
+            "no home folder"
+        );
+        assert_eq!(
+            word(&place, Some(Path::new(MAIN_SEPARATOR_STR))),
+            format!("'{}'", place.display()),
+            "a home folder that is a whole disk, which the warning's sentence leaves as it is too"
+        );
+    }
+
+    #[test]
+    fn a_single_quote_in_a_place_is_written_as_a_shell_reads_it() {
+        // `'\''`: the quotes closed, a quote escaped, and the quotes opened again.
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        assert_eq!(
+            word(&home.join("Ann's data").join("config.json"), Some(&home)),
+            format!(r"~/'Ann'\''s data{MAIN_SEPARATOR}config.json'")
+        );
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "O'Brien", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&elsewhere, Some(&home)),
+            format!(
+                r"'{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O'\''Brien{MAIN_SEPARATOR}config.json'"
+            )
+        );
+    }
+
+    /// `powershell_string`'s string for `place`, held to the pass a message goes through leaving it
+    /// as it was written (D-131).
+    fn powershell(place: &Path, home: Option<&Path>) -> String {
+        let string = powershell_string(place, home);
+        assert_eq!(tilde_in(&string, home), string, "the pass");
+        string
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_is_a_powershell_string_from_home() {
+        // PowerShell sets `$HOME` to the home folder and reads it in double quotes, so a command
+        // names no user and works with a space or a quote in a name (D-131).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        for name in [".claude-work", "My Claude", "Ann's Claude"] {
+            assert_eq!(
+                powershell(&home.join(name), Some(&home)),
+                format!("\"$HOME{MAIN_SEPARATOR}{name}\"")
+            );
+        }
+        let rest: PathBuf = ["Claude", "work"].iter().collect();
+        assert_eq!(
+            powershell(&home.join(&rest), Some(&home)),
+            format!("\"$HOME{MAIN_SEPARATOR}{}\"", rest.display()),
+            "the rest with the system's own separator"
+        );
+        assert_eq!(
+            powershell(&home, Some(&home)),
+            "\"$HOME\"",
+            "the home folder itself"
+        );
+    }
+
+    #[test]
+    fn what_a_double_quoted_powershell_string_reads_is_written_after_a_backtick() {
+        // In double quotes PowerShell reads `$` as a variable, the backtick as its escape character,
+        // and `"` and the curly `“`, `”` and `„` as the string's end; a backtick before each takes
+        // it as written (about_Quoting_Rules). Single quotes, curly or not, are plain there.
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        assert_eq!(
+            powershell(
+                &home.join("$HOME `x` \"q\" “a” „b ‘c’ $(d) {e}"),
+                Some(&home)
+            ),
+            format!("\"$HOME{MAIN_SEPARATOR}`$HOME ``x`` `\"q`\" `“a`” `„b ‘c’ `$(d) {{e}}\"")
+        );
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_is_a_single_quoted_powershell_string() {
+        // In single quotes PowerShell reads nothing but the string's end, which `'` and the curly
+        // `‘`, `’`, `‚` and `‛` each mark, so each is written twice (about_Quoting_Rules).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let beside: PathBuf = [MAIN_SEPARATOR_STR, "Users", "anna", "My Claude"]
+            .iter()
+            .collect();
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "$HOME `x` \"q\""]
+            .iter()
+            .collect();
+        for place in [beside, elsewhere] {
+            assert_eq!(
+                powershell(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "a folder whose name only starts as the home folder's does, and another disk"
+            );
+        }
+        let quoted: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "O'Brien ‘x’ ‚y‛"]
+            .iter()
+            .collect();
+        assert_eq!(
+            powershell(&quoted, Some(&home)),
+            format!("'{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O''Brien ‘‘x’’ ‚‚y‛‛'")
+        );
+        let place = home.join("My Claude");
+        assert_eq!(
+            powershell(&place, None),
+            format!("'{}'", place.display()),
+            "no home folder"
+        );
+        assert_eq!(
+            powershell(&place, Some(Path::new(MAIN_SEPARATOR_STR))),
+            format!("'{}'", place.display()),
+            "a home folder that is a whole disk"
         );
     }
 
