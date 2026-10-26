@@ -42,6 +42,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 
 - `quotadial watch` and `quotadial daemon` say whom QuotaDial asks and how often, Anthropic and OpenAI, and that it asks no one about Gemini CLI; QuotaDial Free offers the week's cost only where Claude Code's or the Codex CLI's logs could give it.
 - A provider's error now begins with the provider's own name and writes your home folder as `~`, such as "Codex: could not read the sign-in from ~/.codex/auth.json: ...", the same in `quotadial status`, `doctor`, the app and the local API, whose `errors[].message` no longer begins with the provider's id.
+- QuotaDial's own messages, such as a history it could not open, a warning about `config.json` or where `quotadial daemon` keeps its history, write your home folder as `~` too, and `doctor` no longer cuts into a folder whose name only starts like it, such as `/Users/anna` beside `/Users/ann`.
 
 ### Fixed
 

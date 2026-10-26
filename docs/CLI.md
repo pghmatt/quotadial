@@ -212,8 +212,9 @@ same daemon itself when none is running, so with the app open there is no need t
 - A restarted daemon shows the numbers it stored last, marked as coming from the cache, until its
   first poll.
 - It serves the local API on `127.0.0.1:47115`, or the port given with `--port`, and starts by
-  printing where the API is and where its token is kept, never the token itself. If the port is
-  taken, it says so and exits with status 1.
+  printing where it keeps history, where the API is and where its token is kept, with your home
+  folder written `~`, never the token itself. If the port is taken, it says so and exits with
+  status 1.
 - `status` and `watch` find it through `daemon.json` in the same folder, which holds its process id
   and port while it runs. With no daemon running they fetch for themselves. If a daemon is running
   but its API does not answer, they say so and name the fix rather than polling in its place. A
@@ -244,6 +245,11 @@ The daemon keeps going, and says what is wrong in one line in the report's `prob
   marked stale, with their age.
 - **The clock.** A clock that jumps ahead is taken as a wake. One set back does not stop polling,
   repeat alerts or hold up a webhook's next try.
+
+Every message that names a place, a provider's error or QuotaDial's own, such as a history it could
+not open, a warning about `config.json` or why a running daemon did not answer, writes your home
+folder as `~`. A place outside it, such as a data folder `QUOTADIAL_DATA_DIR` puts elsewhere, is
+written in full.
 
 ## Alerts
 
