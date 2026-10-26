@@ -3,7 +3,9 @@
 The tray app puts the share used of your tightest Claude or ChatGPT/Codex limit in the menu bar or
 system tray. On macOS and Linux it shows a dial with the number beside it. On Windows it shows the
 number drawn into the icon. Its menu and tooltip list every account. Clicking it opens a popover
-beside it with every window: a bar, the reset, where each number came from and how old it is.
+beside it with every window: a bar, the reset and the pace, and under an account's windows where
+the numbers came from and how old they are, said once for the account when all its windows were
+read from one source at one moment, and under each window when they were not.
 
 When no QuotaDial daemon is running, the app runs one itself, through the same code as
 `quotadial daemon`. The `quotadial` command and the MCP server then read the app's numbers, and

@@ -9,7 +9,19 @@ import { PLAN_ROWS } from "../components/home/plan-rows.ts";
 import { WEEKLY_CURVE } from "../lib/data/examples.ts";
 import { FREE_HAS, PRO_FEATURES } from "../lib/data/pro.ts";
 
-type Window = (typeof site.meter.accounts)[number]["windows"][number];
+type Account = (typeof site.meter.accounts)[number];
+type Window = Account["windows"][number];
+
+/**
+ * Where and when a window was read, as the app says it: under the window, or once for its card when
+ * every window of the card was read from one source at one moment (D-135). `quotadial status` says
+ * it under each window either way (#52), so the sample below takes it from whichever the app used.
+ */
+function readFrom(account: Account, window: Window): string {
+  const said = [window.fetched, account.fetched].filter((line) => line !== null);
+  assert.equal(said.length, 1, `the app says where ${account.provider} ${window.label} was read once, not ${said.length} times`);
+  return said[0];
+}
 
 const claudeWeekly = (): Window => {
   const window = site.meter.accounts[0].windows.find((candidate) => candidate.label === "Weekly");
@@ -43,7 +55,7 @@ test("the quotadial status sample is the example accounts in the command's text 
     lines.push(`${account.provider} ${account.name} (${(account.plan ?? "").split(" ")[0].toLowerCase()}): ${account.status}`);
     // The window closest to its limit comes first.
     for (const window of [...account.windows].sort((a, b) => b.used_pct - a.used_pct)) {
-      lines.push(`  ${window.label}: ${window.used_pct}% used, ${window.resets}, ${window.fetched}`);
+      lines.push(`  ${window.label}: ${window.used_pct}% used, ${window.resets}, ${readFrom(account, window)}`);
       if (window.pace) {
         lines.push(`    ${window.pace}`);
       }
@@ -57,7 +69,7 @@ test("the row read aloud is Claude Work's weekly window in the app", () => {
   assert.equal(READ_ALOUD.label, window.label);
   assert.equal(READ_ALOUD.used, window.used_pct);
   assert.equal(window.resets, `resets in ${READ_ALOUD.resets}`);
-  assert.equal(window.fetched, `from the API ${READ_ALOUD.fetched}`);
+  assert.equal(readFrom(site.meter.accounts[0], window), `from the API ${READ_ALOUD.fetched}`);
   assert.equal(
     window.pace,
     `at ${READ_ALOUD.rate}, runs out in ${READ_ALOUD.runsOut}, ${READ_ALOUD.early} before it resets`,

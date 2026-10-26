@@ -26,7 +26,7 @@ const PAIRS = [
   ["--secondary", ["--background", "--card", "--tag"], 4.5, "a capsule, such as a plan, on a card"],
   ["--secondary", ["--background", "--tag"], 4.5, "a period not chosen, in History"],
   ["--muted", ["--background"], 4.5, "words outside a card, such as History's span, Free's lines and the origin line"],
-  ["--muted", ["--background", "--card"], 4.5, "a window's reset, source and pace, the provider after an address, and a field's hint, on a card"],
+  ["--muted", ["--background", "--card"], 4.5, "a window's reset and pace, a card's line for where its windows were read, the provider after an address, and a field's hint, on a card"],
   ["--warning", ["--background"], 4.5, "an incident, and a problem in a panel"],
   ["--warning", ["--background", "--card"], 4.5, "a window past 70%, an account's note and a problem"],
   ["--warning", ["--background", "--card", "--attention"], 4.5, "the capsule of an account that is not ok"],
