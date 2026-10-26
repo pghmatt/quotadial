@@ -220,7 +220,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
-| Error lines named through the report | Built on `fix/provider-error-names`, not yet opened (D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
+| Error lines named through the report | Built on `fix/provider-error-names`, not yet opened (D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 
 ## Kickoff
 
@@ -438,27 +438,52 @@ The notes below run newest first; the setup notes above them are the oldest.
   (the error line, `errors[]` and its JSON example, `providers[]`, doctor),
   `skills/quotadial/SKILL.md` and the MCP tools `get_usage` and `get_account_headroom`; D-128; one
   changelog line.
-- **Found going down #52, left for a later PR:** a sign-in or cache error's location is a full
-  path, so outside doctor, which writes the home folder `~`, it can hold the user's name;
+- **The home folder written `~`** (#52, no path with a username in it; the coordinator's word on
+  this PR, the same concern): a sign-in or cache error's location was a full path. One pass where
+  a provider's error text is made, `ProviderError::warning`, which `new` uses, now writes the home
+  folder `~` after `redact_secrets`, through `text::tilde_in`, `text::tilde`'s rule for any text:
+  a path that starts in the home folder becomes `~/` and the rest as written, or `~` for the folder
+  itself; a path starts at the start of the text or after a character no path holds, and is in the
+  home folder only where the folder's name ends, so with `/Users/ann` as the home, `/Users/anna`
+  and `/Volumes/Backup/Users/ann` stay as they are. The home folder is the process's own,
+  `std::env::home_dir()`, the one the providers in the CLI and in the daemon build these paths
+  from, and doctor and the daemon's recovery line already use; the two do not find it differently.
+  So every provider's error is written so in the report, the API, `status`, doctor and the app.
+  `docs/openapi.json`, `docs/CLI.md`, the skill and the changelog line say so.
+- **Found going down #52, left for a later PR:** a place outside the home folder is written as it
+  is, so an error still holds a user's name where a variable or setting puts a provider's folder
+  there (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `extra_config_dirs`, `XDG_CACHE_HOME`, the example
+  build's `QUOTADIAL_FAKE_ACCOUNTS`), where Windows redirects AppData, or where a path reaches the
+  home folder by another spelling (D-128); a daemon older than this sends full paths until it is
+  updated; QuotaDial's own messages naming its data folder, such as "could not open the history
+  at ...", and config.json's warnings are not a provider's error and still write a place in full;
+  doctor's own plain replace of the home folder would also cut into `/Users/anna`; and
   `/v1/headroom` sends no `providers`, so an agent names its errors from `/v1/status`'s.
 - **#81 (Copilot), built before this:** its crate's two discovery warnings begin "copilot: ", and
   its tests hold the old `Error` text, its id in front and the old words for a sign-in. Whichever
   of the two merges second drops the prefix from those warnings (the report drops it anyway) and
   moves those tests to the new text. #81's queued row "error lines named through the report" is
   this PR's row in the M6 table.
-- **Tests:** in the workspace, 725 passed (1 ignored) on `main` at 1789d07 and 738 (1 ignored) now;
-  the example build 722 (2 ignored) and 735 (2 ignored). By crate, from `main`: core 118 to 125
-  (the helper's two, doctor's, the report keeping a message without the id, and `Error`'s three:
-  plain words, not beginning with its provider, the sign-in sentence); API 54 to 56 (`/v1/status`'s
-  and `/v1/headroom`'s JSON, and the MCP tools' text); the CLI 62 to 63, `write_text` (59 to 60, 1
-  ignored, in the example build); the daemon 103 to 104, a lookup that stops; Claude 136 to 138 (and
+- **Tests:** in the workspace, 725 passed (1 ignored) on `main` at 1789d07 and 745 (1 ignored) now;
+  the example build 722 (2 ignored) and 742 (2 ignored). By crate, from `main`: core 118 to 130
+  (the helper's two, doctor's, the report keeping a message without the id, `Error`'s three: plain
+  words, not beginning with its provider, the sign-in sentence; and the home folder's five: a place
+  in it in any text, places outside it, a Windows home folder, and the report's message with a
+  home folder given and with this process's own); API 54 to 56 (`/v1/status`'s and
+  `/v1/headroom`'s JSON, and the MCP tools' text); the CLI 62 to 64, `write_text` and a place in the
+  home folder in `collect`'s report and `status` (59 to 61, 1 ignored, in the example build); the
+  daemon 103 to 105, a lookup that stops and the home folder in its report; Claude 136 to 138 (and
   1 ignored), its warnings and its stopped lookup; Antigravity 64, Codex 63, fake 19, Gemini CLI 29,
   cost 30, issue 6, poll 37 and `quotadial-providers` 4 unchanged in number, their error texts moved
-  to the new words. The tray app 85 to 86 in both builds, the problems list; its scripts' tests 5;
-  the site 90; the window check 4371 checks over 16 views, as before. Every new test failed first:
-  core's against a stub that gave each message as it is, the CLI's and the app's before they used
-  the helper, the message's nine (eight new, and the Keychain test's new words) before its text
-  changed, and the MCP tools' on their old text.
+  to the new words, and the example provider's test of an unusable file expecting its path as
+  `text::tilde` writes it, since Windows keeps temporary folders in the home folder. The tray app
+  85 to 86 in both builds, the problems list; its scripts' tests 5; the site 90; the window check
+  4371 checks over 16 views, as before. Every new test failed first: core's helper against a stub
+  that gave each message as it is, the CLI's and the app's before they used the helper, the
+  message's nine (eight new, and the Keychain test's new words) before its text changed, the MCP
+  tools' on their old text, the home folder's six against a stub that left the text as it was, and
+  its test of places outside the home folder against a plain replace, which wrote `/Users/anna` as
+  `~a`.
 - **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
   `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default
   and `fake`, with the OpenAPI and packaging checks in them; the tray app's tests, default and
@@ -474,9 +499,16 @@ The notes below run newest first; the setup notes above them are the oldest.
   pass) and the example CLI (it fails, naming both commands), the bundled CLI built again after. By
   hand, in a scratch home with a made-up `auth.json` that is not JSON: `status` says "error: Codex:
   could not read the sign-in from ...", doctor's Problems "Codex: could not read the sign-in from
-  ~/.codex/auth.json: ...", and `status --json`'s message leaves the provider out. **Not run:**
-  `cargo deny` and `cargo audit`, not installed here (no dependency or lockfile changed); a release
-  build of the CLI or the app (the release check ran on debug builds of the same code).
+  ~/.codex/auth.json: ...", and `status --json`'s message leaves the provider out. After the home
+  folder pass: `cargo fmt --check` in both workspaces; clippy with `-D warnings` on the workspace
+  and the tray app, default and `fake`; the workspace's tests, default and `fake`; the tray app's
+  tests, default and `fake`, with `--lib` only from here on, so `tests/icon_press.rs` no longer
+  runs; the site's `npm run check`, `npm run build` and `npm test`; `scripts/privacy.sh --check`
+  and the 0.2.0 release notes; and by hand, in the same scratch home, `status`, `status --json` and
+  doctor each write "could not read the sign-in from ~/.codex/auth.json". **Not run:** `cargo deny`
+  and `cargo audit`, not installed here (no dependency or lockfile changed); a release build of the
+  CLI or the app (the release check ran on debug builds of the same code); and, after the home
+  folder pass, the window check and the release check, which it does not touch.
 - **Safety on this Mac:** every cargo run after the first had QuotaDial's data folders and every
   sign-in folder in the scratchpad and no token in its environment; the first, the count on `main`,
   ran the tests as they are, each making up its own home and data folder or faking the Keychain.
