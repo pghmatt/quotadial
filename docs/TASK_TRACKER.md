@@ -221,7 +221,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
-| The home folder written `~` in QuotaDial's own messages | Built on `fix/home-folder-in-messages` (D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; a property test of `tilde_in` beside `unplain_words`'s |
+| The home folder written `~` in QuotaDial's own messages | In review (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; a property test of `tilde_in` beside `unplain_words`'s |
 
 ## Kickoff
 
@@ -415,7 +415,8 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **The ask:** what D-128 left, QuotaDial's own messages naming its data folder and `config.json`'s
   warnings, with the manager's two notes on #82 (2026-10-26, 07:27 UTC): a property test of
   `text::tilde_in`, which takes a server's words, and doctor through it, so the rule has one
-  implementation. Built on `fix/home-folder-in-messages` from `main` at 52265b6 (#82).
+  implementation. Built on `fix/home-folder-in-messages` from `main` at 52265b6 (#82), in review as
+  #83.
 - **One pass where each message is made** (D-129), with the process's home folder, as
   `ProviderError::warning` does for a provider's error. Each place that makes the text takes the
   home folder as an argument, which its tests give and its callers read from the process:
