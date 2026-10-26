@@ -557,6 +557,23 @@ mod sign_in_tests {
     use super::*;
 
     #[test]
+    fn its_name_and_every_sentence_it_says_of_a_sign_in_keep_to_plain_words() {
+        for words in [
+            NAME.to_owned(),
+            sign_in_use(None),
+            sign_in_use(Some("~/.codex/auth.json")),
+            sign_in_use(Some("~/work/codex/auth.json")),
+        ] {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(&words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
+    #[test]
     fn with_no_place_known_the_sentence_says_where_the_codex_cli_keeps_its_sign_in() {
         assert_eq!(
             sign_in_use(None),

@@ -199,6 +199,34 @@ pub fn source_label(source: Source) -> &'static str {
     }
 }
 
+/// The words #52 keeps out of anything a user reads, "quota", "auth" and "credential" with their
+/// plurals, found in `text` outside a name, each lowercased: what tests hold every sentence people
+/// read to. A name is written as it is: anything in backticks or double quotes, and a path, a file
+/// or a variable, a word holding `/`, `\`, `~`, `_` or a `.` inside it, such as
+/// `~/.codex/auth.json`, `.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`.
+#[must_use]
+pub fn unplain_words(text: &str) -> Vec<String> {
+    const KEPT_OUT: [&str; 5] = ["quota", "quotas", "auth", "credential", "credentials"];
+    let mut prose = String::with_capacity(text.len());
+    let mut inside = None;
+    for char in text.chars() {
+        match inside {
+            Some(close) if char == close => inside = None,
+            Some(_) => {}
+            None if char == '`' || char == '"' => inside = Some(char),
+            None => prose.push(char),
+        }
+    }
+    prose
+        .split_whitespace()
+        .map(|word| word.trim_matches(|char: char| !char.is_alphanumeric()))
+        .filter(|word| !word.contains(['/', '\\', '~', '_', '.']))
+        .flat_map(|word| word.split(|char: char| !char.is_alphanumeric()))
+        .map(str::to_lowercase)
+        .filter(|word| KEPT_OUT.contains(&word.as_str()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -409,5 +437,29 @@ mod tests {
         model.usd = None;
         model.requests = 1;
         assert_eq!(model_cost(&model), "claude-opus-5-5: no price, 1 request");
+    }
+
+    #[test]
+    fn the_words_people_never_read_are_found_outside_names_only() {
+        // #52's plain words: a window, a reset, a sign-in, never these.
+        assert_eq!(
+            unplain_words("Your quota resets soon; check your Auth and Credentials."),
+            ["quota", "auth", "credentials"]
+        );
+        assert_eq!(
+            unplain_words("A credential-free quotas page."),
+            ["credential", "quotas"]
+        );
+        // A name is written as it is: in backticks or quotes, or a path, file or variable.
+        for named in [
+            "QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it.",
+            "QuotaDial reads the sign-in Codex keeps in auth.json, in ~/.codex.",
+            "the macOS Keychain item \"Claude Code-credentials\", then .credentials.json.",
+            "the CLAUDE_CODE_OAUTH_TOKEN variable, or `quota` in a command.",
+            "QuotaDial only checks that Gemini CLI's sign-in is at ~/.gemini/oauth_creds.json.",
+            "C:\\Users\\someone\\.codex\\auth.json, as Windows writes it.",
+        ] {
+            assert_eq!(unplain_words(named), Vec::<String>::new(), "{named}");
+        }
     }
 }

@@ -233,6 +233,25 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn its_name_and_every_sentence_it_says_of_a_sign_in_keep_to_plain_words() {
+        let said = SignedIn::ALL.map(|signed_in| {
+            signed_in.sign_in_use(match signed_in {
+                SignedIn::Google => "~/.gemini/oauth_creds.json",
+                SignedIn::ApiKey | SignedIn::VertexAi => "~/.gemini/settings.json",
+            })
+        });
+
+        for words in said.iter().map(String::as_str).chain([NAME]) {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
     /// A home folder for Gemini CLI, made up by the test.
     struct Home {
         dir: tempfile::TempDir,

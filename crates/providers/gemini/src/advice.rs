@@ -34,19 +34,12 @@ mod tests {
                 !line.contains('\u{2014}') && !line.contains('\u{2013}'),
                 "{line}"
             );
-            // #52's plain words: never these in anything a user reads.
-            for word in line
-                .split(|c: char| !c.is_ascii_alphabetic())
-                .map(str::to_ascii_lowercase)
-            {
-                assert!(
-                    !matches!(
-                        word.as_str(),
-                        "quota" | "quotas" | "auth" | "credential" | "credentials"
-                    ),
-                    "{line}"
-                );
-            }
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(line),
+                Vec::<String>::new(),
+                "{line}"
+            );
         }
     }
 

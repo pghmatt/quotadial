@@ -199,6 +199,18 @@ mod tests {
             .with_timezone(&Utc)
     }
 
+    #[test]
+    fn its_name_and_what_it_says_of_a_sign_in_keep_to_plain_words() {
+        for words in [NAME, SIGN_IN_USE] {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
     /// A clock that stays where the test puts it.
     fn clock(start: &str) -> (Clock, Arc<Mutex<DateTime<Utc>>>) {
         let now = Arc::new(Mutex::new(at(start)));

@@ -61,19 +61,36 @@ pub fn with_config(_config: &Config, _licensing: &Licensing) -> Vec<Arc<dyn Prov
 mod tests {
     use super::*;
 
-    /// The ids of the providers listed, made with the default settings and no licence, so no
-    /// folder is read.
-    fn listed() -> Vec<&'static str> {
+    /// The ids and names of the providers listed, made with the default settings and no
+    /// licence, so no folder is read.
+    fn listed() -> Vec<(&'static str, &'static str)> {
         with_config(&Config::default(), &Licensing::new(None))
             .iter()
-            .map(|provider| provider.id())
+            .map(|provider| (provider.id(), provider.name()))
             .collect()
+    }
+
+    #[test]
+    fn every_name_listed_is_a_short_name_in_plain_words() {
+        for (id, name) in listed() {
+            // Each provider's own short name for itself, never a sentence (P-020), and #52's plain
+            // words: never "quota", "auth" or "credential".
+            assert!(
+                !name.is_empty() && name.len() <= 20 && !name.ends_with('.'),
+                "{id}: {name}"
+            );
+            assert_eq!(
+                quotadial_core::text::unplain_words(name),
+                Vec::<String>::new(),
+                "{id}: {name}"
+            );
+        }
     }
 
     #[cfg(not(any(feature = "fake", feature = "gemini")))]
     #[test]
     fn a_release_lists_exactly_claude_then_codex() {
-        assert_eq!(listed(), ["claude", "codex"]);
+        assert_eq!(listed(), [("claude", "Claude"), ("codex", "Codex")]);
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial",
@@ -84,7 +101,14 @@ mod tests {
     #[cfg(all(feature = "gemini", not(feature = "fake")))]
     #[test]
     fn with_gemini_the_list_is_exactly_claude_codex_then_gemini() {
-        assert_eq!(listed(), ["claude", "codex", "gemini"]);
+        assert_eq!(
+            listed(),
+            [
+                ("claude", "Claude"),
+                ("codex", "Codex"),
+                ("gemini", "Gemini CLI")
+            ]
+        );
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial",
@@ -95,7 +119,7 @@ mod tests {
     #[cfg(feature = "fake")]
     #[test]
     fn with_the_fake_feature_the_list_is_exactly_the_fake_provider() {
-        assert_eq!(listed(), ["fake"]);
+        assert_eq!(listed(), [("fake", "Example")]);
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial-fake",

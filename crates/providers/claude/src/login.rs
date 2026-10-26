@@ -815,6 +815,55 @@ mod tests {
     }
 
     #[test]
+    fn its_name_and_every_sentence_it_says_of_a_sign_in_keep_to_plain_words() {
+        let home = Path::new("/Users/example");
+        let env = env_in(home);
+        let keychain = |folder| {
+            Login::new(
+                &env,
+                LoginSource::Keychain {
+                    service: "Claude Code-credentials-1df4ed49".into(),
+                    account: Some("example".into()),
+                },
+                None,
+                None,
+                folder,
+            )
+        };
+        let logins = [
+            Login::new(
+                &env,
+                LoginSource::Environment(Secret::new("not a token")),
+                None,
+                None,
+                Folder::Default,
+            ),
+            keychain(Folder::Default),
+            keychain(Folder::Named(home.join(".claude-work"))),
+            Login::new(
+                &env,
+                LoginSource::File(home.join(".claude").join(".credentials.json")),
+                None,
+                None,
+                Folder::Default,
+            ),
+        ];
+        let said = logins
+            .iter()
+            .map(|login| login.account().sign_in_use)
+            .chain([sign_in_use(None), crate::NAME.to_owned()]);
+
+        for words in said {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(&words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
+    #[test]
     fn with_no_place_known_the_sentence_names_every_place_claude_code_keeps_a_sign_in() {
         let keychain = if cfg!(target_os = "macos") {
             "then the macOS Keychain item \"Claude Code-credentials\", "
