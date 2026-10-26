@@ -743,11 +743,12 @@ fn changed_while_read(state: &AccountState, account: Account, sign_in: &SignIn) 
     snapshot
 }
 
-/// The error for a lookup whose task stopped before it finished.
+/// The error for a lookup whose task stopped before it finished: the sign-in could not be read
+/// "from this machine", as Claude's says (D-128).
 fn stopped() -> Error {
     Error::Credentials {
         provider: ID,
-        location: "Copilot's sign-in".to_owned(),
+        location: "this machine".to_owned(),
         reason: "looking it up stopped unexpectedly; try again".to_owned(),
     }
 }
@@ -825,6 +826,49 @@ mod tests {
         assert_eq!(
             format!("{provider:?}"),
             "CopilotProvider { base_url: \"https://api.github.com\", .. }"
+        );
+    }
+
+    /// Each error the provider makes, as D-128 has them: the provider left out, since the report
+    /// names it, the sign-in never called anything else, a place written as `text::tilde` writes
+    /// it, and #52's plain words.
+    #[test]
+    fn every_error_it_makes_leaves_the_provider_out_in_plain_words() {
+        let place = "~/.config/gh/hosts.yml";
+        let errors = [
+            stopped(),
+            Error::Credentials {
+                provider: ID,
+                location: KEYCHAIN_PLACE.to_owned(),
+                reason: "reading it stopped unexpectedly; try again".to_owned(),
+            },
+            Error::Credentials {
+                provider: ID,
+                location: place.to_owned(),
+                reason: "it is not a plain file".to_owned(),
+            },
+            Error::Request {
+                provider: ID,
+                reason: advice::failed(404, Some("Not Found")),
+            },
+            Error::InvalidResponse {
+                provider: ID,
+                reason: advice::ANOTHER_ACCOUNT.to_owned(),
+            },
+        ];
+        for error in errors {
+            let text = error.to_string();
+            assert!(!text.starts_with(ID), "{text}");
+            assert_eq!(
+                quotadial_core::text::unplain_words(&text),
+                Vec::<String>::new(),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            stopped().to_string(),
+            "could not read the sign-in from this machine: looking it up stopped unexpectedly; try \
+             again"
         );
     }
 

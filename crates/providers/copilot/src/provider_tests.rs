@@ -532,7 +532,7 @@ async fn a_read_left_unanswered_says_to_answer_the_prompt_and_is_tried_at_the_ne
 
     assert_eq!(
         error.to_string(),
-        "copilot: could not read credentials from the macOS Keychain item \"copilot-cli\": \
+        "could not read the sign-in from the macOS Keychain item \"copilot-cli\": \
          /usr/bin/security did not answer within 30 seconds; if macOS is asking whether to allow \
          access, answer it and try again"
     );
@@ -755,7 +755,7 @@ async fn a_403_with_requests_left_is_github_refusing_not_a_limit() {
 
     assert_eq!(
         error.to_string(),
-        "copilot: request failed: GitHub's Copilot usage endpoint answered HTTP 403: Resource not \
+        "request failed: GitHub's Copilot usage endpoint answered HTTP 403: Resource not \
          accessible by integration. QuotaDial asks GitHub at most every 5 minutes, so the next \
          request is after 2026-01-15T12:05:00Z."
     );
@@ -884,7 +884,7 @@ async fn what_cannot_be_looked_at_is_a_warning_beside_the_accounts_found() {
     assert_eq!(
         provider.discovery_warnings(),
         [format!(
-            "copilot: could not read GitHub CLI's sign-in in {}: it is not a plain file.",
+            "could not read GitHub CLI's sign-in in {}: it is not a plain file.",
             gh_place()
         )]
     );
@@ -901,7 +901,7 @@ async fn what_cannot_be_looked_at_is_a_warning_beside_the_accounts_found() {
     assert_eq!(
         provider.discovery_warnings(),
         [
-            "copilot: could not look for the Copilot CLI's sign-in in the macOS Keychain: \
+            "could not look for the Copilot CLI's sign-in in the macOS Keychain: \
           /usr/bin/security exited with status 1."
         ]
     );
@@ -925,9 +925,9 @@ async fn a_token_quoted_in_github_s_error_is_never_shown_or_saved() {
     assert_no_token(&printed(&failed));
     assert_eq!(
         failed.expect_err("fails").to_string(),
-        "copilot: request failed: GitHub's Copilot usage endpoint answered HTTP 404: Token \
-         [redacted token] is not a Copilot user. QuotaDial asks GitHub at most every 5 minutes, so \
-         the next request is after 2026-01-15T12:05:00Z."
+        "request failed: GitHub's Copilot usage endpoint answered HTTP 404: Token [redacted \
+         token] is not a Copilot user. QuotaDial asks GitHub at most every 5 minutes, so the next \
+         request is after 2026-01-15T12:05:00Z."
     );
     assert_no_token(&harness.cache_contents());
 }
@@ -947,9 +947,9 @@ async fn an_answer_for_another_account_is_never_used() {
 
     assert_eq!(
         result.expect_err("refused").to_string(),
-        "copilot: unexpected response: GitHub's answer names another account than the sign-in, so \
-         it was not used. QuotaDial asks GitHub at most every 5 minutes, so the next request is \
-         after 2026-01-15T12:05:00Z."
+        "unexpected response: GitHub's answer names another account than the sign-in, so it was \
+         not used. QuotaDial asks GitHub at most every 5 minutes, so the next request is after \
+         2026-01-15T12:05:00Z."
     );
     assert!(
         !harness.cache_contents().contains("used_pct"),
@@ -1051,7 +1051,7 @@ async fn a_request_that_times_out_still_counts_against_the_floor() {
         first
             .expect_err("times out")
             .to_string()
-            .starts_with("copilot: request failed: GitHub did not answer: no answer within")
+            .starts_with("request failed: GitHub did not answer: no answer within")
     );
 
     harness.advance(1);
@@ -1081,8 +1081,8 @@ async fn a_redirect_is_never_followed_and_an_answer_over_a_mebibyte_is_not_read(
     let redirected = provider.fetch(&account).await;
     assert_eq!(
         redirected.expect_err("fails").to_string(),
-        "copilot: request failed: GitHub's Copilot usage endpoint answered HTTP 302. QuotaDial asks \
-         GitHub at most every 5 minutes, so the next request is after 2026-01-15T12:05:00Z."
+        "request failed: GitHub's Copilot usage endpoint answered HTTP 302. QuotaDial asks GitHub \
+         at most every 5 minutes, so the next request is after 2026-01-15T12:05:00Z."
     );
     let requests = harness.server.received_requests().await.expect("recorded");
     assert_eq!(requests.len(), 1, "only the usage request was sent");
@@ -1099,9 +1099,9 @@ async fn a_redirect_is_never_followed_and_an_answer_over_a_mebibyte_is_not_read(
             .await
             .expect_err("refused")
             .to_string(),
-        "copilot: unexpected response: GitHub's answer could not be read: the usage response did \
-         not arrive in full (the response is larger than 1 MiB). QuotaDial asks GitHub at most \
-         every 5 minutes, so the next request is after 2026-01-15T12:10:00Z."
+        "unexpected response: GitHub's answer could not be read: the usage response did not \
+         arrive in full (the response is larger than 1 MiB). QuotaDial asks GitHub at most every 5 \
+         minutes, so the next request is after 2026-01-15T12:10:00Z."
     );
 }
 
@@ -1127,6 +1127,6 @@ async fn an_account_of_another_provider_is_not_one_of_its() {
 
     assert_eq!(
         error.to_string(),
-        "copilot: unexpected response: an account of codex is not one of Copilot's"
+        "unexpected response: an account of codex is not one of Copilot's"
     );
 }

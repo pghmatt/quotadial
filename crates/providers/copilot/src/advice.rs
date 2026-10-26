@@ -65,16 +65,16 @@ pub(crate) fn changed_while_read(place: &str) -> String {
     )
 }
 
-/// The Keychain could not be searched, so a Copilot CLI sign-in may be missing.
+/// The Keychain could not be searched, so a Copilot CLI sign-in may be missing. Like every
+/// warning, it leaves the provider out: the report shows it under the provider's own name (D-128).
 pub(crate) fn keychain_not_searched(reason: &str) -> String {
-    format!(
-        "copilot: could not look for the Copilot CLI's sign-in in the macOS Keychain: {reason}."
-    )
+    format!("could not look for the Copilot CLI's sign-in in the macOS Keychain: {reason}.")
 }
 
-/// GitHub CLI's `hosts.yml` could not be read, so its sign-in may be missing.
+/// GitHub CLI's `hosts.yml` at `place`, as `text::tilde` writes it, could not be read, so its
+/// sign-in may be missing. It leaves the provider out, as every warning does (D-128).
 pub(crate) fn gh_unreadable(place: &str, reason: &str) -> String {
-    format!("copilot: could not read GitHub CLI's sign-in in {place}: {reason}.")
+    format!("could not read GitHub CLI's sign-in in {place}: {reason}.")
 }
 
 /// GitHub answered with a status QuotaDial cannot use.
@@ -220,6 +220,28 @@ pub(crate) mod tests {
             );
             assert!(!sentence.contains('\u{2014}') && !sentence.contains('\u{2013}'));
         }
+    }
+
+    #[test]
+    fn what_discovery_could_not_look_at_is_said_in_plain_words_without_the_providers_id() {
+        let warnings = [
+            keychain_not_searched("/usr/bin/security exited with status 1"),
+            gh_unreadable(GH_PLACE, "it is not a plain file"),
+        ];
+        for warning in warnings {
+            // The report names the provider, by its own name (D-128).
+            assert!(!warning.starts_with(crate::ID), "{warning}");
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                text::unplain_words(&warning),
+                Vec::<String>::new(),
+                "{warning}"
+            );
+        }
+        assert_eq!(
+            gh_unreadable(GH_PLACE, "it is not a plain file"),
+            "could not read GitHub CLI's sign-in in ~/.config/gh/hosts.yml: it is not a plain file."
+        );
     }
 
     #[test]
