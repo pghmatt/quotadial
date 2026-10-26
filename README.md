@@ -49,6 +49,7 @@ feature would be. See [docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
 | ChatGPT / Codex | Codex CLI (`auth.json` in `$CODEX_HOME` or `~/.codex`) | Works |
 | Gemini CLI | Nothing inside the sign-in: only that Gemini CLI's `oauth_creds.json` is in `.gemini` in `$GEMINI_CLI_HOME` or your home folder, and one field of its `settings.json` | Shown, with why it has no numbers |
 | Antigravity | No sign-in: what Antigravity CLI's status line hands `quotadial antigravity status-line`, once you add it to Antigravity CLI's settings | Works while Antigravity CLI runs |
+| GitHub Copilot | GitHub CLI (`hosts.yml` in `~/.config/gh`, when it keeps its sign-in there) or, on macOS, the Copilot CLI (the Keychain item `copilot-cli`) | Built, in no release yet: waits on a check with a real account |
 
 Gemini CLI's account shows with no numbers. Signed in with Google, Google's terms do not let other
 tools use Gemini CLI's sign-in, so QuotaDial never opens it and says where Gemini CLI shows its
@@ -58,6 +59,11 @@ Antigravity's terms do not let other tools use its sign-in either, so QuotaDial 
 Antigravity CLI hands each limit's share and reset to a command named in its settings: add the
 line [docs/INSTALL.md](docs/INSTALL.md#antigravity) gives, and its five-hour and weekly windows
 show while Antigravity CLI runs, marked stale with the time they are from once it stops.
+
+GitHub Copilot's limits are built: the month's AI credits used and when they reset, premium
+requests on an annual plan, and Copilot Free's chat messages and code completions, from GitHub's
+usage endpoint at most once every 5 minutes. They are in no release yet, since they wait on a check
+with a real GitHub account; [docs/INSTALL.md](docs/INSTALL.md#copilot) says what they read.
 
 If you keep several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`,
 QuotaDial shows all of them, not only the one Claude Code uses now. See
@@ -92,12 +98,22 @@ CLI's folder, `~/.gemini/antigravity-cli`, is there, without opening anything in
 hands that command, each limit's share or amount left and its reset, the plan and the account's
 address, with the time, in `antigravity.json` in QuotaDial's data folder, readable only by you.
 
+For Copilot, which is built but in no release yet, as it waits on a check with a real GitHub
+account, QuotaDial reads the sign-in GitHub CLI keeps in `hosts.yml` in its folder, such as
+`~/.config/gh`, when GitHub CLI keeps it there rather than in the system's keychain, or, on macOS,
+the one the Copilot CLI keeps in the Keychain item `copilot-cli`, which macOS may ask you to allow.
+It never writes, refreshes, moves or logs either, and never signs in to GitHub itself.
+
 QuotaDial connects to these, and nothing else:
 
 - **api.anthropic.com**, Anthropic's, with your Claude Code sign-in, for each Claude account's
   limits, at most once every 5 minutes per account.
 - **chatgpt.com**, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most
   once every 2 minutes.
+- **api.github.com**, GitHub's, with your GitHub CLI or Copilot CLI sign-in, for each Copilot
+  account's limits, at most once every 5 minutes per account, and only in a build with Copilot,
+  which no release is yet. It is Copilot's usage endpoint, apart from **github.com** below, which
+  is only for QuotaDial's own updates.
 - **status.claude.com** and **status.openai.com**, the providers' public status pages, every 5
   minutes while `status_pages` is on. These carry no sign-in.
 - **github.com**, where QuotaDial's releases are, once a day while the app's "Check for updates"

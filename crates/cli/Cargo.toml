@@ -29,6 +29,9 @@ path = "src/bin/qd.rs"
 # on here, in the provider list and in core together, and so do the tray app's example build and
 # `npm run cli -- --fake`.
 fake = ["quotadial-providers/fake"]
+# GitHub Copilot (D-127), off by default until #51's live check: `cargo run -p quotadial --features
+# copilot -- status` shows it, and the CLI's tests expect it in that build.
+copilot = ["quotadial-providers/copilot"]
 
 [dependencies]
 chrono.workspace = true

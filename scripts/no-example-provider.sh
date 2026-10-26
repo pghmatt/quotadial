@@ -33,11 +33,13 @@ home="$(native "$scratch/home")"
 data="$(native "$scratch/data")"
 
 # Runs the CLI with "$@", its output in $scratch/out and $scratch/err, where no sign-in can be
-# found: a scratch home, no token in the environment, Gemini CLI's folder in that home rather than
-# where GEMINI_CLI_HOME may point, and either build's data folder in scratch.
+# found: a scratch home, no token in the environment, Gemini CLI's and GitHub CLI's folders in that
+# home rather than where GEMINI_CLI_HOME or GH_CONFIG_DIR may point, and either build's data folder
+# in scratch.
 run() {
   env -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_SECURESTORAGE_CONFIG_DIR -u ANTHROPIC_API_KEY \
     -u OPENAI_API_KEY -u QUOTADIAL_FAKE_ACCOUNTS -u GEMINI_CLI_HOME \
+    -u GH_CONFIG_DIR -u GH_TOKEN -u GITHUB_TOKEN -u COPILOT_GITHUB_TOKEN \
     HOME="$home" USERPROFILE="$home" \
     XDG_DATA_HOME="$home" XDG_CACHE_HOME="$home" XDG_CONFIG_HOME="$home" \
     CLAUDE_CONFIG_DIR="$(native "$scratch/home/.claude")" \

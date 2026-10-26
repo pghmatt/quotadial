@@ -227,7 +227,7 @@ esac
 (history)
 _arguments "${_arguments_options[@]}" : \
 '--since=[From how long ago\: such as 24h, 7d or 30d, or a time such as 2099-01-01T00\:00\:00Z]:SINCE:_default' \
-'--provider=[Only this provider\: claude, codex, gemini or antigravity]:PROVIDER:_default' \
+'--provider=[Only this provider\: claude, codex, gemini or antigravity, or copilot in a build with it]:PROVIDER:_default' \
 '--account=[Only this account, by its email address or id]:ACCOUNT:_default' \
 '--window=[Only windows with this label, such as Session or Weekly]:WINDOW:_default' \
 '(--json)--csv[Print every reading as CSV, for a spreadsheet]' \

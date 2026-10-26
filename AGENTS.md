@@ -1,10 +1,12 @@
 # QuotaDial agent guide
 
 QuotaDial tracks AI coding-subscription usage limits on macOS, Windows and Linux. Version 1 covers
-Claude and ChatGPT/Codex. It reads the OAuth credentials the official CLIs already store, calls each
-provider's usage endpoint, normalizes the result, and serves it through a tray app, a CLI
-(`quotadial`, alias `qd`), a local HTTP API, an MCP server and a SKILL.md. It is sold with a free
-and a Pro tier. Domains: quotadial.com and quotadial.app.
+Claude and ChatGPT/Codex. M6 adds Gemini CLI, listed with why it has no numbers and its sign-in
+never opened; Antigravity, from what its CLI's status line hands QuotaDial; and GitHub Copilot,
+built behind its own feature until its live check (#51). It reads the OAuth credentials the official
+CLIs already store, calls each provider's usage endpoint, normalizes the result, and serves it
+through a tray app, a CLI (`quotadial`, alias `qd`), a local HTTP API, an MCP server and a SKILL.md.
+It is sold with a free and a Pro tier. Domains: quotadial.com and quotadial.app.
 
 Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScript/Preact tray app
 (D-070), and a thin CLI.
@@ -35,7 +37,7 @@ Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScri
 | CLI binary | `quotadial`, with `qd` as an alias (a second binary in the same package) |
 | Agent skill | `skills/quotadial/SKILL.md` |
 | MCP server | `quotadial` |
-| Provider ids | `claude`, `codex`; `fake` in the example build only (D-117) |
+| Provider ids | `claude`, `codex`, `gemini`, `antigravity`; `copilot` behind its feature until its live check (D-127); `fake` in the example build only (D-117) |
 
 Nothing is named `usage`, the PRD's old working name.
 
@@ -49,8 +51,11 @@ Nothing is named `usage`, the PRD's old working name.
 | `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
 | `crates/providers/codex` (`quotadial-provider-codex`) | ChatGPT/Codex provider |
+| `crates/providers/gemini` (`quotadial-provider-gemini`) | Gemini CLI provider: sees that Gemini CLI is signed in and says why there are no numbers, never opening its sign-in and asking no one (D-118, D-122) |
+| `crates/providers/antigravity` (`quotadial-provider-antigravity`) | Antigravity provider: `quotadial antigravity status-line` keeps what Antigravity CLI's status line hands it, and the provider shows that, asking no one (D-119, D-126) |
+| `crates/providers/copilot` (`quotadial-provider-copilot`) | GitHub Copilot provider: asks `api.github.com` with the sign-in GitHub CLI or the Copilot CLI keeps; behind the `copilot` feature, off until its live check (D-127) |
 | `crates/providers/fake` (`quotadial-provider-fake`) | The example provider: made-up accounts for pictures of the app, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, in the example build only (D-117) |
-| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app; with its `fake` feature, the example build's list, the fake provider alone, with folders and a port of its own (`quotadial_core::copy`, D-117) |
+| `crates/providers/all` (`quotadial-providers`) | The list of providers QuotaDial ships, set up from `config.json` in the data directory, used by the CLI and the tray app, each provider after Claude and Codex behind a feature of its own (`gemini` and `antigravity` on by default, `copilot` off until its live check, D-121); with its `fake` feature, the example build's list, the fake provider alone, with folders and a port of its own (`quotadial_core::copy`, D-117) |
 | `crates/api` (`quotadial-api`) | The local HTTP API (the daemon's server on 127.0.0.1, its bearer token, and the client the CLI uses to ask the daemon), the `quotadial` MCP server, and `Host`, which runs the daemon for `quotadial daemon` and the tray app |
 | `crates/cli` (package `quotadial`) | The `quotadial` and `qd` binaries |
 | `crates/issue` (`quotadial-issue`) | The tool that makes QuotaDial's licence signing key and signs licence keys with it (`docs/LICENSING.md`). No release carries it |
@@ -129,6 +134,7 @@ node scripts/packages.mjs 0.3.0 SHA256SUMS.txt out      # the Homebrew formula a
 cargo deny check && cargo audit                         # the supply chain, as CI runs it (also in apps/tray/src-tauri)
 cargo run -p quotadial -- doctor                        # what support asks for, with nothing secret in it
 cargo test --workspace --features fake                  # the example build (D-117), as CI's fake job runs it with clippy too
+cargo test --workspace --features copilot               # the build with GitHub Copilot, off by default until its live check (D-127)
 (cd site && npm ci && npm run check && npm test)        # the key page's function: types and tests, as CI runs them
 cargo run -p quotadial-issue -- sign --id <id>          # a licence key, signed with the key keygen made (docs/LICENSING.md)
 ```

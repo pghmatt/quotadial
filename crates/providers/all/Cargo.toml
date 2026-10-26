@@ -23,6 +23,12 @@ gemini = ["dep:quotadial-provider-gemini"]
 # Antigravity, from what its CLI's status line hands `quotadial antigravity status-line`, asking no
 # one (D-119, D-126). On by default from the PR that merges it, since it needs no live check (D-121).
 antigravity = ["dep:quotadial-provider-antigravity"]
+# GitHub Copilot, asking GitHub with the sign-in GitHub CLI or the Copilot CLI keeps (D-127). Off by
+# default, built but in no release, the app included: it is turned on in the release binaries and
+# the app in the PR that merges it once #51's live check is recorded, or in a later one, as the
+# manager decides then (D-121). `cargo test --workspace --features copilot` holds its list, as CI
+# does.
+copilot = ["dep:quotadial-provider-copilot"]
 
 [dependencies]
 quotadial-core.workspace = true
@@ -32,6 +38,7 @@ quotadial-provider-codex.workspace = true
 quotadial-provider-fake = { workspace = true, optional = true }
 quotadial-provider-gemini = { workspace = true, optional = true }
 quotadial-provider-antigravity = { workspace = true, optional = true }
+quotadial-provider-copilot = { workspace = true, optional = true }
 
 [lints]
 workspace = true

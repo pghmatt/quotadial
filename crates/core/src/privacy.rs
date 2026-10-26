@@ -7,12 +7,14 @@
 /// What QuotaDial reads and sends, as `docs/PRIVACY.md` says it.
 pub const PRIVACY: &str = include_str!("../../../docs/PRIVACY.md");
 
-/// Every host QuotaDial connects to on its own: the two providers' usage endpoints, their status
-/// pages, and GitHub for updates. The webhooks alerts go to are the user's own, set in
-/// `config.json`, and the text names them as such.
-pub const HOSTS: [&str; 6] = [
+/// Every host QuotaDial connects to on its own: the providers' usage endpoints, Copilot's among
+/// them, GitHub's `api.github.com`, which only a build with Copilot asks (D-127); their status
+/// pages; and GitHub for updates, `github.com`. The webhooks alerts go to are the user's own, set
+/// in `config.json`, and the text names them as such.
+pub const HOSTS: [&str; 7] = [
     "api.anthropic.com",
     "chatgpt.com",
+    "api.github.com",
     "status.claude.com",
     "status.openai.com",
     "github.com",
@@ -45,6 +47,37 @@ mod tests {
         assert!(PRIVACY.contains("webhook and Slack addresses you add"));
     }
 
+    /// GitHub's two hosts do different things: `api.github.com` is Copilot's usage endpoint, asked
+    /// with a sign-in, and `github.com` only where QuotaDial's own updates come from, with none
+    /// (the manager's Copilot rules on #73). The text says which is which, each in its own item.
+    #[test]
+    fn the_text_says_which_github_host_is_copilot_s_and_which_the_updates() {
+        let item = |host: &str| {
+            PRIVACY
+                .split("\n- ")
+                .find(|item| item.starts_with(&format!("**{host}**")))
+                .unwrap_or_else(|| panic!("an item for {host}"))
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+
+        let usage = item("api.github.com");
+        assert!(usage.contains("GitHub's"), "{usage}");
+        assert!(usage.contains("Copilot's usage endpoint"), "{usage}");
+        assert!(usage.contains("sign-in"), "{usage}");
+        assert!(
+            usage.contains("only for QuotaDial's own updates"),
+            "{usage}"
+        );
+        let updates = item("github.com");
+        assert!(
+            updates.contains("where QuotaDial's releases are"),
+            "{updates}"
+        );
+        assert!(updates.contains("These carry no sign-in"), "{updates}");
+    }
+
     #[test]
     fn the_text_is_plain() {
         assert!(PRIVACY.starts_with("# What QuotaDial reads and sends\n"));
@@ -55,6 +88,7 @@ mod tests {
     fn an_address_is_named_by_its_host_alone() {
         assert!(named("https://chatgpt.com/backend-api/wham/usage"));
         assert!(named("https://API.anthropic.com"));
+        assert!(named("https://api.github.com/copilot_internal/user"));
         assert!(named(
             "https://github.com:443/pghmatt/quotadial/releases/latest/download/latest.json"
         ));

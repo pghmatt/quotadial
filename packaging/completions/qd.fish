@@ -77,7 +77,7 @@ complete -c qd -n "__fish_qd_using_subcommand licence; and __fish_seen_subcomman
 complete -c qd -n "__fish_qd_using_subcommand licence; and __fish_seen_subcommand_from help" -f -a "remove" -d 'Remove the licence key, which makes this copy QuotaDial Free'
 complete -c qd -n "__fish_qd_using_subcommand licence; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c qd -n "__fish_qd_using_subcommand history" -l since -d 'From how long ago: such as 24h, 7d or 30d, or a time such as 2099-01-01T00:00:00Z' -r
-complete -c qd -n "__fish_qd_using_subcommand history" -l provider -d 'Only this provider: claude, codex, gemini or antigravity' -r
+complete -c qd -n "__fish_qd_using_subcommand history" -l provider -d 'Only this provider: claude, codex, gemini or antigravity, or copilot in a build with it' -r
 complete -c qd -n "__fish_qd_using_subcommand history" -l account -d 'Only this account, by its email address or id' -r
 complete -c qd -n "__fish_qd_using_subcommand history" -l window -d 'Only windows with this label, such as Session or Weekly' -r
 complete -c qd -n "__fish_qd_using_subcommand history" -l csv -d 'Print every reading as CSV, for a spreadsheet'

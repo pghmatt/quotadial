@@ -26,6 +26,7 @@ test("every address in the privacy text is set as an address, and no word of the
   for (const address of [
     "api.anthropic.com",
     "chatgpt.com",
+    "api.github.com",
     "status.claude.com",
     "status.openai.com",
     "github.com",
@@ -178,6 +179,7 @@ const GUIDE_SECTIONS = {
     "Updates",
     "The quotadial command",
     "Antigravity",
+    "Copilot",
     "Build it yourself",
   ],
   cli: [

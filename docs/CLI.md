@@ -5,7 +5,9 @@ used, when each resets, and how old every number is. It reads the sign-ins Claud
 CLI already store and never writes them. A Gemini CLI account it finds signed in is listed too, with
 why it has no numbers, and its sign-in is never opened. Antigravity's limits come from what
 Antigravity CLI's status line hands `quotadial antigravity status-line` (see Antigravity's status
-line); Antigravity's sign-in is never read.
+line); Antigravity's sign-in is never read. GitHub Copilot's limits are built, from the sign-in
+GitHub CLI or the Copilot CLI keeps, but in no release yet: they wait on a check with a real GitHub
+account, and only a build with the `copilot` feature has them (see Accounts).
 
 ## Commands
 
@@ -57,14 +59,17 @@ test -p quotadial packaging` writes them again).
 
 No command asks a provider more often than its own limit, counted across every QuotaDial process on
 the machine: Anthropic at most once every 5 minutes per account, and OpenAI at most once every 2
-minutes. Nothing is asked about Gemini CLI or Antigravity: Antigravity's numbers are the ones its
-CLI's status line last handed over, read from QuotaDial's own file. In between, a command shows the
+minutes; and, in a build with Copilot, GitHub at most once every 5 minutes per account. Nothing is
+asked about Gemini CLI or Antigravity: Antigravity's numbers are the ones its CLI's status line last
+handed over, read from QuotaDial's own file. In between, a command shows the
 last numbers again, marked as coming from the cache, with their age. `watch` refreshes every minute,
 so most refreshes show cached numbers whose age keeps growing until the provider may be asked again.
 While the daemon runs, `status` and `watch` ask it instead of asking providers themselves.
 
 When a provider answers 429, QuotaDial waits as long as the `Retry-After` header says, or else 5,
 10, 20, 40 and then 60 minutes as 429s repeat, and keeps the last numbers on screen meanwhile.
+GitHub's 403 that says a rate limit was reached counts the same, and once no requests remain,
+GitHub's `x-ratelimit-reset` says until when.
 When ChatGPT cannot be reached and nothing is cached, the newest numbers from the Codex CLI's own
 session logs stand in, marked as coming from them.
 
@@ -107,6 +112,25 @@ one account per provider, the one the current shell would use, and names how man
   the time they are from, and a window that has reset since is left out. A limit Antigravity CLI
   marks turned off is left out, and one it gives an amount left for and no share of is named in
   words with its amount and reset, never as a share. See Antigravity's status line.
+- **Copilot**, only in a build with the `copilot` feature, which no release is until it is checked
+  with a real GitHub account: one account for each GitHub account signed in, named by its login;
+  QuotaDial Free shows one, the Copilot CLI's when it has one.
+  - GitHub CLI's sign-in, from `hosts.yml` in its folder (`GH_CONFIG_DIR`, or `gh` in
+    `XDG_CONFIG_HOME`, or `GitHub CLI` in `%AppData%` on Windows, or `~/.config/gh`), its
+    `github.com` entry only, when GitHub CLI keeps the token in that file rather than in the
+    system's keychain, which QuotaDial never reads.
+  - On macOS, the Copilot CLI's sign-in, the Keychain item `copilot-cli`, found by its name alone
+    and read only when QuotaDial asks GitHub. macOS may ask whether to allow that, and the account's
+    `sign_in_use` says so first; if you deny it, QuotaDial does not ask again until the Copilot CLI
+    signs in again or QuotaDial starts again, and the account shows `unsupported` with why. A
+    sign-in for another host than github.com is left out.
+  - When both hold the same GitHub account, GitHub CLI's file is used, which macOS never asks about.
+  - Its windows: `AI credits`, the month's GitHub AI Credits used (`credits`, resetting at 00:00
+    UTC on the 1st, as long as the month); `Premium requests`, on an annual plan still billed by
+    request; and on Copilot Free, `Chat messages` and `Code completions`. What GitHub gives without
+    a limit, and an allowance it sets none of, as for a Copilot Business seat, are said in words
+    and never as a share: in the account's line when it has no window, otherwise after its sign-in
+    sentence.
 - **One row per subscription.** A subscription found in two places, such as two folders signed in
   to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
   sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
@@ -128,8 +152,8 @@ one account per provider, the one the current shell would use, and names how man
   asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
   account, as when a folder only ever signed in to MCP servers, it is left out until the item
   changes.
-- **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, then Antigravity's, each
-  sorted by name.
+- **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, then Antigravity's,
+  then, in a build with it, Copilot's, each sorted by name.
 
 The daemon looks for new and removed sign-ins every minute.
 

@@ -15,19 +15,34 @@ use serde_json::{Value, json};
 /// Whether these tests run the example build.
 const EXAMPLE: bool = cfg!(feature = "fake");
 
+/// Whether these tests run the build with GitHub Copilot, which no release has until #51's live
+/// check (D-127): `cargo test --workspace --features copilot`.
+const COPILOT: bool = cfg!(feature = "copilot");
+
 /// How the daemon and `watch` say whom QuotaDial asks and how often, and whom it asks no one about
 /// (P-021).
 const ASKS: &str = if EXAMPLE {
     "It asks no one about Example."
+} else if COPILOT {
+    "It asks Anthropic at most every 5 min, OpenAI at most every 2 min and GitHub at most every 5 \
+     min, and no one about Gemini CLI or Antigravity."
 } else {
     "It asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini \
      CLI or Antigravity."
 };
 
 /// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
-/// since D-124, and Antigravity since D-126.
+/// since D-124, and Antigravity since D-126; the build with Copilot has it last (D-127).
 const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
     &[("fake", "Example")]
+} else if COPILOT {
+    &[
+        ("claude", "Claude"),
+        ("codex", "Codex"),
+        ("gemini", "Gemini CLI"),
+        ("antigravity", "Antigravity"),
+        ("copilot", "Copilot"),
+    ]
 } else {
     &[
         ("claude", "Claude"),
@@ -71,10 +86,15 @@ fn command(binary: &str, args: &[&str], home: &Path) -> Command {
         .env("CLAUDE_CONFIG_DIR", home.join(".claude"))
         .env("CODEX_HOME", home.join(".codex"))
         .env("GEMINI_CLI_HOME", home)
+        // GitHub CLI's folder, which wins over XDG_CONFIG_HOME and, on Windows, %AppData%.
+        .env("GH_CONFIG_DIR", home.join(".config").join("gh"))
         .env(quotadial_core::copy::DATA_DIR_VARIABLE, home.join("data"))
         .env_remove("CLAUDE_CODE_OAUTH_TOKEN")
         .env_remove("ANTHROPIC_API_KEY")
         .env_remove("OPENAI_API_KEY")
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .env_remove("COPILOT_GITHUB_TOKEN")
         .env_remove("QUOTADIAL_FAKE_ACCOUNTS");
     command
 }

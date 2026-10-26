@@ -1,0 +1,45 @@
+{
+  "access_type_sku": "example_sku",
+  "copilot_plan": "individual_pro",
+  "token_based_billing": true,
+  "can_upgrade_plan": true,
+  "assigned_date": "2026-01-01T00:00:00Z",
+  "quota_reset_date": "2026-02-01",
+  "quota_reset_date_utc": "2026-02-01T00:00:00.000Z",
+  "organization_login_list": [],
+  "quota_snapshots": {
+    "chat": {
+      "quota_id": "chat",
+      "entitlement": 0,
+      "remaining": 0,
+      "percent_remaining": 100,
+      "unlimited": true,
+      "overage_permitted": false,
+      "overage_count": 0
+    },
+    "completions": {
+      "quota_id": "completions",
+      "entitlement": 0,
+      "remaining": 0,
+      "percent_remaining": 100,
+      "unlimited": true,
+      "overage_permitted": false,
+      "overage_count": 0
+    },
+    "premium_interactions": {
+      "quota_id": "premium_interactions",
+      "entitlement": 1500,
+      "remaining": 1125,
+      "quota_remaining": 1125,
+      "percent_remaining": 75.0,
+      "unlimited": false,
+      "overage_permitted": true,
+      "overage_count": 0,
+      "overage_entitlement": 0,
+      "credits_used": 375,
+      "quota_reset_at": 1769904000,
+      "has_quota": true,
+      "timestamp_utc": "2026-01-15T12:00:00.000Z"
+    }
+  }
+}
