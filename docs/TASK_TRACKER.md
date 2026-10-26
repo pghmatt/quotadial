@@ -106,9 +106,11 @@ commands, Google's and GitHub's tokens redacted by their shape, and the Gemini p
 change for one provider. The manager accepted P-020 on #73 for that, one change for every provider,
 as its own PR: PR 1b, merged as #77, where each provider names itself and says what QuotaDial
 does with each sign-in, and which turns Gemini CLI on (D-124). The manager then decided what #77
-left open (#73, 2026-10-26): PR 1c, #78, has each provider say whom it asks
+left open (#73, 2026-10-26): PR 1c, merged as #78, has each provider say whom it asks
 (P-021) and offers the week's cost only where logs could give it (D-125). The order is 1, 1b, 1c,
-3, 2: next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
+3, 2: PR 3, Antigravity through its CLI's status line, is built on `feat/antigravity` (D-126),
+with the manager's answers of 2026-10-26 (02:25 UTC) on #73 in it; then PR 2, Copilot, its merge
+held on its live check (#51).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -128,6 +130,10 @@ Proposals:
   P-018 and P-019.
 - P-021 (each provider says whom it asks) is accepted by the manager on #73 (2026-10-26) and in the
   code (D-125); the PRD edit is the manager's, with P-020.
+- P-022 (`Window.source` `status_line`) is accepted by the manager on #73 (rule (b)(4)) and in the
+  code (D-126); the PRD edit is the manager's.
+- P-023 (a window with no share) is proposed; the manager deferred it to #51's live check of
+  Antigravity, where a real amount-only limit would bring it back with the capture as its reason.
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -210,8 +216,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | --- | --- | --- |
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
 | 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
-| 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | In review (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
-| 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
+| 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Done (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
+| 3: Antigravity, through its status line | Built on `feat/antigravity`, for review | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 
@@ -401,6 +407,83 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6 PR 3: Antigravity through its CLI's status line (D-126, P-022, P-023)
+
+- **The decisions:** the manager's (b) on #73 (2026-10-25, 20:29 UTC; D-119) and its answers of
+  2026-10-26, 02:25 UTC: the design stands, with an amount-only limit named in the account's line
+  or sign-in sentence, P-023 deferred to #51's live check, the folder's path in one constant, the
+  file written before a chained command, QuotaDial's failures shown nowhere, disabled limits left
+  out with a line in the module's docs, and one sentence in `docs/PRIVACY.md`. P-022 is accepted.
+  The branch is `feat/antigravity`, from 1b's a7dc15f, moved onto `main` at 0bd845f (#78) with
+  `git rebase --onto origin/main a7dc15f` before any commit.
+- **The crate** (`crates/providers/antigravity`): `handover` (one reader for Antigravity CLI's
+  JSON and QuotaDial's file, which keeps only each limit's `remaining_fraction` or
+  `remaining_amount`, `reset_time`, `reset_in_seconds` and `disabled`, the `plan_tier`, the `email`
+  and `written_at`, each checked, at most 32 limits), `store` (`antigravity.json`, 0600, a
+  temporary file of the process's own and a rename, read only as a plain file of at most a
+  megabyte, handed over at the earlier of its recorded time and its modified time), `chain` (the
+  status line already there, run as a program and its arguments with the same input, its output
+  and status unchanged, 127 or 126 as a shell ends, stopped at 4.5 s), `command` (keep first, then
+  chain; nothing of its own printed), `windows` (CodexBar's names for the limits; disabled and reset
+  since left out; amounts named, never windows) and `advice` (every sentence, times as RFC 3339 so
+  a line stays the same while its numbers do). No HTTP client, which the P-021 test reads.
+- **The account:** the file's address, in lower case, as its id, or `antigravity-cli`; before any
+  handover, the `antigravity-cli` account, `unsupported`, when `~/.gemini/antigravity-cli` is a
+  folder, opening nothing in it. `name()` is "Antigravity". The block to add is in its
+  `sign_in_use` and in the line before any numbers.
+- **On:** `antigravity` in `quotadial-providers`' default features, after Gemini CLI, its data
+  folder from `DataDir::from_env()` in `with_config`; D-117's list test names it; the app's
+  lockfile gains only the new crate. The CLI's help and quotadial(1) name it, `history --provider`
+  takes `antigravity`, and `packaging/` gains `quotadial-antigravity(1)` and
+  `quotadial-antigravity-status-line(1)`. The daemon's and `watch`'s line ends "and no one about
+  Gemini CLI or Antigravity" (P-021).
+- **Docs:** `docs/PRIVACY.md` (one sentence) and the README's copy; the README's opening, provider
+  table and a paragraph; `docs/INSTALL.md`'s new Antigravity section with the block, chaining onto
+  a status line already there and the `PATH` it needs; `docs/CLI.md`'s new "Antigravity's status
+  line" section, the account, the source, MCP's `provider` and the exit codes, and the review of
+  #78's two notes (the two lines past 100 columns rewrapped, and OpenAI for ChatGPT where it says
+  whom QuotaDial asks, in the README too); `docs/SECURITY.md`; the skill; `docs/openapi.json`; one
+  changelog line. The site's guide test lists the two new sections; Antigravity's docs page is named
+  in words, not linked, so no list of addresses gains `antigravity.google`. The window check's
+  fixtures gain an Antigravity account whose panel carries the block and an amount-only limit, the
+  longest text the popover shows, checked at 200% zoom.
+- **Tests:** in the workspace, 659 passed (1 ignored) on `main` at 0bd845f, as 1c recorded it, and
+  725 (1 ignored) now; the example build 658 (2 ignored) and 722 (2 ignored). By crate, from
+  `main`: `quotadial-provider-antigravity` 64 (handover 11 with its property test, windows 7, store
+  7, chain 7, command 10, advice 5, the provider 17); the CLI 60 to 62, two real-binary tests of the
+  command, `status`, `status --json` and `doctor`, and of a chained status line (59, 1 ignored, in
+  the example build, unchanged); core 118 and `quotadial-providers` 4, unchanged in number, with the
+  source's value and words and the list's fourth provider asserted in their tests; daemon 103, API
+  54, cost 30, issue 6, poll 37, Claude 136 (and 1 ignored), Codex 63, fake 19 and Gemini CLI 29
+  unchanged. The tray app 85 in both builds, its scripts' tests 5, the site 90, the window check
+  4371 checks over 16 views (3394 before, with the new account). Every new test failed first: the
+  core assertions and the list test against a stub or the old list, the CLI's two with the
+  `antigravity` feature off, the crate's first 63 under 77 mutations, each restored after, which
+  between them failed every one of them, and its Debug test against the Debug that named the file;
+  the one mutation that survived, a megabyte cap removed from the file's reader, survives as it
+  should, since the parser's own cap holds.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` on the
+  workspace, default and `fake`, and on the tray app, default and `fake`, with `--locked`; the
+  workspace's tests, default and `fake`, with the packaging and OpenAPI checks in them; the
+  release-only licence key test; `cargo metadata --locked` for both lockfiles; the tray app's `npm
+  ci`, `npm run build` (34.0 KB of 150, contrast), `npm test`, `npm run cli` and `npm run cli --
+  --fake`, its tests (`--lib`), default and `fake`, and `npm run check:window` in headless Chrome;
+  the site's `npm ci`, `npm run check`, `npm run build` and `npm test`; `scripts/privacy.sh` and
+  `--check`, `scripts/public-prd.sh --check`, shellcheck on `scripts/`, actionlint 1.7.12 (fetched
+  into the scratch folder and checked against its release's checksums) on every workflow, and
+  `scripts/no-example-provider.sh` on the CLI and the app's bundled CLI (both pass) and the example
+  CLI (it fails, naming both commands). By hand, in a scratch home: the command's help, the line
+  before any numbers, a handover in 0.01 s into a 0600 file, then `status` and `doctor`.
+  **Not run:** the tray's `tests/icon_press.rs`, which puts a real status item in Matt's menu bar;
+  `cargo deny` and `cargo audit`, not installed here (no third-party crate was added); a release
+  build of the app; and a real Antigravity CLI, which is #51's check.
+- **Safety on this Mac:** every cargo and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
+  scratchpad and no token in its environment; every test made up its own home, data folder and
+  Antigravity folder; the release check and the runs by hand used scratch homes. No vendor CLI ran,
+  `agy` included; no `~/.gemini` file, keychain item or sign-in was read; no app or daemon ran
+  against Matt's data. Antigravity's facts come from its public docs and CodexBar's source.
 
 ### M6 PR 1c: whom QuotaDial asks, and no cost offer where nothing could fill it (P-021, D-125)
 
