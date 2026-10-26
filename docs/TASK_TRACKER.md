@@ -417,8 +417,10 @@ The notes below run newest first; the setup notes above them are the oldest.
   `text::provider_name` is gone, and the app's strings name no provider.
 - **Rule 2, the sentence:** `Account.sign_in_use`, in the provider's words: Claude's and Codex's are
   the popover's old sentences (`text::sign_in_read_from`, or each one's fallback); Gemini CLI's say
-  it only checks the sign-in file is there, or that it reads one field of the settings and never
-  the key; the example's says it has no sign-in. `Snapshot::without_secrets` now blanks a token out
+  it only checks the sign-in file is there, or that it reads one field of the settings, which says
+  how Gemini CLI signs in, and then, in a sentence of its own so it cannot be read as what the
+  field says, "It never reads the key." ("It never reads a key or sign-in." for Vertex AI); the
+  example's says it has no sign-in. `Snapshot::without_secrets` now blanks a token out
   of `sign_in` and `sign_in_use` too. The panel is "What QuotaDial does with this sign-in", and the
   site's two pictures of the accounts were captured again with it (`node scripts/app-pictures.mjs`;
   the settings pictures came out byte for byte the same, and the unused history pictures were left).

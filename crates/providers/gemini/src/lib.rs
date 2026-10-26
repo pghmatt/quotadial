@@ -128,18 +128,22 @@ impl SignedIn {
 
     /// What QuotaDial does with the sign-in, in the provider's words (P-020): for a Google account,
     /// that it only checks the sign-in is at `place`; otherwise that it reads the one field of the
-    /// settings at `place` that names the way, and never the key (the manager's rule 2 on #73).
+    /// settings at `place` that names the way, and, in a sentence of its own so it cannot be read
+    /// as part of what the field says, that it never reads the key (the manager's rule 2 on #73).
     fn sign_in_use(self, place: &str) -> String {
-        let way = match self {
+        let (way, never) = match self {
             Self::Google => {
                 return format!(
                     "QuotaDial only checks that Gemini CLI's sign-in is at {place}. It never opens it."
                 );
             }
-            Self::ApiKey => "it uses a Gemini API key, and never the key",
-            Self::VertexAi => "it uses Vertex AI, and never a key or sign-in",
+            Self::ApiKey => ("a Gemini API key", "the key"),
+            Self::VertexAi => ("Vertex AI", "a key or sign-in"),
         };
-        format!("QuotaDial reads one field of Gemini CLI's settings, in {place}, which says {way}.")
+        format!(
+            "QuotaDial reads one field of Gemini CLI's settings, in {place}, which says it uses \
+             {way}. It never reads {never}."
+        )
     }
 
     /// Why there are no numbers, in one line.
@@ -420,14 +424,14 @@ mod tests {
                 "api-key",
                 "Gemini API key",
                 advice::API_KEY,
-                "says it uses a Gemini API key, and never the key.",
+                "says it uses a Gemini API key. It never reads the key.",
             ),
             (
                 "vertex-ai",
                 "vertex-ai",
                 "Vertex AI",
                 advice::VERTEX_AI,
-                "says it uses Vertex AI, and never a key or sign-in.",
+                "says it uses Vertex AI. It never reads a key or sign-in.",
             ),
         ] {
             let settings = in_home(&[".gemini", "settings.json"]);
