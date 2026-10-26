@@ -367,7 +367,7 @@ mod tests {
             snapshots: vec![snapshot("claude"), snapshot("codex")],
             errors: vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: request failed".into(),
+                message: "request failed".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),

@@ -821,7 +821,7 @@ mod tests {
             snapshots: vec![expired],
             errors: vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: could not read credentials from ~/.codex/auth.json".into(),
+                message: "could not read the sign-in from ~/.codex/auth.json".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
@@ -840,7 +840,7 @@ mod tests {
         assert_eq!(
             meter.tooltip(),
             "QuotaDial\nClaude user@example.com (max): sign-in required\nRun `claude` to sign in \
-             again.\ncodex: could not read credentials from ~/.codex/auth.json"
+             again.\ncodex: could not read the sign-in from ~/.codex/auth.json"
         );
     }
 

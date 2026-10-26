@@ -35,11 +35,12 @@ pub(crate) enum LoginSource {
 }
 
 impl LoginSource {
-    /// Where the token was read, as shown to the user, so they can see exactly what was touched.
+    /// Where the token was read, as shown to the user, so they can see exactly what was touched:
+    /// what an error says it could not read the sign-in from.
     pub(crate) fn location(&self) -> String {
         match self {
             Self::Environment(_) => "the CLAUDE_CODE_OAUTH_TOKEN environment variable".to_owned(),
-            Self::Keychain { service, .. } => format!("macOS Keychain item \"{service}\""),
+            Self::Keychain { service, .. } => format!("the macOS Keychain item \"{service}\""),
             Self::File(path) => path.display().to_string(),
         }
     }
@@ -1296,8 +1297,8 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "claude: could not read credentials from macOS Keychain item \
-             \"Claude Code-credentials\": /usr/bin/security exited with status 36"
+            "could not read the sign-in from the macOS Keychain item \"Claude Code-credentials\": \
+             /usr/bin/security exited with status 36"
         );
     }
 }

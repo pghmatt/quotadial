@@ -32,8 +32,9 @@ pub struct StatusReport {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub problems: Vec<String>,
     /// Every provider this copy asks, by its id and its own name for itself, in the order it asks
-    /// them (P-020): what a status page, a cost or anything else that has only a provider's id is
-    /// named by. A report from an older QuotaDial lists none, and its ids are shown.
+    /// them (P-020): what a status page, a cost, an error or anything else that has only a
+    /// provider's id is named by. A report from an older QuotaDial lists none, and its ids are
+    /// shown.
     #[serde(default)]
     pub providers: Vec<ProviderName>,
 }
@@ -134,10 +135,15 @@ impl Indicator {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderError {
-    /// The provider's id, such as `claude`.
+    /// The provider's id, such as `claude`. The status report's `providers` give the provider's own
+    /// name for it.
     // As `Provider::id` gives it.
     pub provider: String,
-    /// What happened and what to do, with any token blanked out.
+    /// What happened and what to do, with any token blanked out. It leaves out which provider, which
+    /// `provider` says, and QuotaDial shows it after the provider's own name, as `Gemini CLI: could
+    /// not read the sign-in from ~/.gemini/settings.json: ...` (D-128). A message from an older
+    /// QuotaDial begins with the provider's id and a colon.
+    // Never begins with the id: `new` and `warning` see to it.
     pub message: String,
 }
 
@@ -234,18 +240,21 @@ fn without_id<'a>(provider: &str, message: &'a str) -> &'a str {
 }
 
 impl ProviderError {
-    /// `error` from the provider `provider`, with any token blanked out of its text.
+    /// `error` from the provider `provider`, with any token blanked out of its text, which leaves the
+    /// provider out as [`Error`]'s text does.
     #[must_use]
     pub fn new(provider: &str, error: &Error) -> Self {
         Self::warning(provider, &error.to_string())
     }
 
-    /// `message`, about what `provider` could not look at, with any token blanked out of it.
+    /// `message`, about what `provider` could not look at, with any token blanked out of it. A
+    /// message that begins with the provider's id, as every one did before D-128, loses it, so the
+    /// API's `message` never begins with it, whichever provider wrote it.
     #[must_use]
     pub fn warning(provider: &str, message: &str) -> Self {
         Self {
             provider: provider.to_owned(),
-            message: redact_secrets(message).into_owned(),
+            message: redact_secrets(without_id(provider, message)).into_owned(),
         }
     }
 }
@@ -496,6 +505,35 @@ mod tests {
                 "Claude: gemini: another provider's id.",
                 "Claude: claude:no space.",
             ]
+        );
+    }
+
+    #[test]
+    fn a_reports_message_leaves_its_provider_to_provider() {
+        // `provider` says whose it is, and the report's `providers` its name (D-128).
+        let failed = Error::Request {
+            provider: "codex",
+            reason: "Could not reach ChatGPT.".into(),
+        };
+        assert_eq!(
+            ProviderError::new("codex", &failed),
+            error("codex", "request failed: Could not reach ChatGPT.")
+        );
+
+        // A warning a provider still writes with its id in front, as every one did before.
+        assert_eq!(
+            ProviderError::warning(
+                "claude",
+                "claude: could not list the Claude Code items in the macOS Keychain."
+            ),
+            error(
+                "claude",
+                "could not list the Claude Code items in the macOS Keychain."
+            )
+        );
+        assert_eq!(
+            ProviderError::warning("claude", "claudes: a word that starts like the id.").message,
+            "claudes: a word that starts like the id."
         );
     }
 

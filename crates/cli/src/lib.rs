@@ -2213,9 +2213,10 @@ mod tests {
         assert_eq!(
             report.errors[0].message,
             format!(
-                "scripted: could not list every sign-in, near the token {}.",
+                "could not list every sign-in, near the token {}.",
                 quotadial_core::REDACTED
-            )
+            ),
+            "the provider's id in front, as every warning had before D-128, is left off"
         );
     }
 
@@ -2247,7 +2248,7 @@ mod tests {
         assert_eq!(report.errors[0].provider, "scripted");
         assert_eq!(
             report.errors[0].message,
-            "scripted: request failed: connection refused"
+            "request failed: connection refused"
         );
     }
 
@@ -2273,7 +2274,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unreadable_credentials_are_reported_with_their_location() {
+    async fn an_unreadable_sign_in_is_reported_with_where_it_is() {
         let providers: Vec<Box<dyn Provider>> = vec![Box::new(ScriptedProvider {
             discovery_fails: true,
             fetch_fails: false,
@@ -2284,7 +2285,7 @@ mod tests {
         assert!(report.snapshots.is_empty());
         assert_eq!(
             render(&report, false),
-            "error: Scripted: could not read credentials from /nonexistent/credentials.json: \
+            "error: Scripted: could not read the sign-in from /nonexistent/credentials.json: \
              permission denied\n"
         );
     }

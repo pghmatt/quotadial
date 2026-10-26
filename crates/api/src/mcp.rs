@@ -488,7 +488,7 @@ mod tests {
             ],
             errors: vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: request failed: Could not reach ChatGPT.".into(),
+                message: "request failed: Could not reach ChatGPT.".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),

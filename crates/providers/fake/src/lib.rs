@@ -356,7 +356,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "fake: unexpected response: example-9 is not one of the example accounts"
+            "unexpected response: example-9 is not one of the example accounts"
         );
     }
 
@@ -403,7 +403,7 @@ mod tests {
         let message = &report.errors[0].message;
         assert!(
             message.starts_with(&format!(
-                "fake: unexpected response: the example accounts in {} cannot be used: it is not \
+                "unexpected response: the example accounts in {} cannot be used: it is not \
                  the example accounts' JSON (invalid type: string \"none\"",
                 path.display()
             )),

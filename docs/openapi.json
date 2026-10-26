@@ -640,11 +640,11 @@
         "description": "A provider or account that produced no snapshot, for example because its sign-in could not be read, or what a provider could not look at while finding its accounts. The message names the fix.",
         "properties": {
           "message": {
-            "description": "What happened and what to do, with any token blanked out.",
+            "description": "What happened and what to do, with any token blanked out. It leaves out which provider, which `provider` says, and QuotaDial shows it after the provider's own name, as `Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: ...`. A message from an older QuotaDial begins with the provider's id and a colon.",
             "type": "string"
           },
           "provider": {
-            "description": "The provider's id, such as `claude`.",
+            "description": "The provider's id, such as `claude`. The status report's `providers` give the provider's own name for it.",
             "type": "string"
           }
         },
@@ -912,7 +912,7 @@
           },
           "providers": {
             "default": [],
-            "description": "Every provider this copy asks, by its id and its own name for itself, in the order it asks them: what a status page, a cost or anything else that has only a provider's id is named by. A report from an older QuotaDial lists none, and its ids are shown.",
+            "description": "Every provider this copy asks, by its id and its own name for itself, in the order it asks them: what a status page, a cost, an error or anything else that has only a provider's id is named by. A report from an older QuotaDial lists none, and its ids are shown.",
             "items": {
               "$ref": "#/components/schemas/ProviderName"
             },

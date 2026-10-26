@@ -26,20 +26,21 @@ pub(crate) fn different_account(login: &Login) -> String {
     )
 }
 
-/// The Keychain could not be listed, so its items were looked up folder by folder.
+/// The Keychain could not be listed, so its items were looked up folder by folder. Like every
+/// warning, it leaves the provider out: the report shows it under the provider's own name (D-128).
 pub(crate) fn unlisted(reason: &str) -> String {
     format!(
-        "claude: could not list the Claude Code items in the macOS Keychain: {reason}. Each \
-         folder's item was looked up by name instead, so a Keychain item whose folder QuotaDial \
-         does not know is left out until the listing works."
+        "could not list the Claude Code items in the macOS Keychain: {reason}. Each folder's item \
+         was looked up by name instead, so a Keychain item whose folder QuotaDial does not know is \
+         left out until the listing works."
     )
 }
 
 /// An `extra_config_dirs` entry was left out because it is not a full path.
 pub(crate) fn skipped_dir(dir: &std::path::Path) -> String {
     format!(
-        "claude: the extra_config_dirs entry \"{}\" in config.json is not a full path, so QuotaDial \
-         left it out. Write it in full, or start it with ~.",
+        "the extra_config_dirs entry \"{}\" in config.json is not a full path, so QuotaDial left \
+         it out. Write it in full, or start it with ~.",
         dir.display()
     )
 }
@@ -282,6 +283,24 @@ mod tests {
             no_limits(None),
             "Anthropic reported no usage limits for this account."
         );
+    }
+
+    #[test]
+    fn what_discovery_could_not_look_at_is_said_in_plain_words_without_the_providers_id() {
+        let warnings = [
+            unlisted("/usr/bin/security exited with status 36"),
+            skipped_dir(std::path::Path::new("claude-work")),
+        ];
+        for warning in warnings {
+            // The report names the provider, by its own name (D-128).
+            assert!(!warning.starts_with(crate::ID), "{warning}");
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(&warning),
+                Vec::<String>::new(),
+                "{warning}"
+            );
+        }
     }
 
     #[test]

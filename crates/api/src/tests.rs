@@ -13,7 +13,7 @@ use quotadial_core::{Licence, Plan};
 use quotadial_daemon::{DataDir, History, Instance, Latest, Licensing, Poller, licence};
 use reqwest::header::{ALLOW, AUTHORIZATION, CONTENT_TYPE, HOST, WWW_AUTHENTICATE};
 use reqwest::{Method, StatusCode};
-use serde_json::Value;
+use serde_json::{Value, json};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
@@ -93,6 +93,44 @@ impl Provider for Fixed {
     }
 }
 
+/// Gemini CLI's provider as it is when its settings cannot be read.
+struct Unreadable;
+
+#[async_trait]
+impl Provider for Unreadable {
+    fn id(&self) -> &'static str {
+        "gemini"
+    }
+
+    fn name(&self) -> &'static str {
+        "Gemini CLI"
+    }
+
+    fn asks(&self) -> Option<&'static str> {
+        None
+    }
+
+    fn discover_accounts(&self) -> Result<Vec<Account>> {
+        Err(quotadial_core::Error::Credentials {
+            provider: "gemini",
+            location: "~/.gemini/settings.json".into(),
+            reason: "it is not a plain file".into(),
+        })
+    }
+
+    async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+        Ok(Snapshot::unsupported(account.clone(), "No numbers."))
+    }
+
+    fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+        None
+    }
+
+    fn min_poll_interval(&self) -> Duration {
+        Duration::from_secs(5 * 60)
+    }
+}
+
 fn at(text: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(text)
         .expect("valid timestamp")
@@ -118,6 +156,12 @@ async fn daemon() -> Daemon {
 
 /// A daemon on QuotaDial Pro, or on QuotaDial Free with no key.
 async fn daemon_with(pro: bool) -> Daemon {
+    daemon_of(pro, vec![Arc::new(Fixed(40.0))]).await
+}
+
+/// A daemon on QuotaDial Pro, or on QuotaDial Free with no key, serving what one poll of
+/// `providers` found.
+async fn daemon_of(pro: bool, providers: Vec<Arc<dyn Provider>>) -> Daemon {
     let temp = tempfile::tempdir().expect("temp dir");
     let dir = DataDir::new(temp.path().join("quotadial"));
     let instance = Instance::acquire(&dir).expect("holds the daemon lock");
@@ -128,11 +172,7 @@ async fn daemon_with(pro: bool) -> Daemon {
     } else {
         Licensing::new(Some(&dir))
     };
-    let mut poller = Poller::new(
-        vec![Arc::new(Fixed(40.0))],
-        Arc::clone(&history),
-        licensing.clone(),
-    );
+    let mut poller = Poller::new(providers, Arc::clone(&history), licensing.clone());
     poller.poll_due().await;
     let latest = poller.latest();
     let listener = bind(0).await.expect("binds");
@@ -272,6 +312,36 @@ async fn status_and_headroom_answer_with_the_token() {
     assert_eq!(body["accounts"][0]["headroom_pct"], 60.0);
     let headroom: HeadroomReport = serde_json::from_value(body).expect("a headroom report");
     assert_eq!(headroom, rank(&daemon.latest.report()));
+
+    daemon.stop().await;
+}
+
+#[tokio::test]
+async fn an_error_leaves_its_provider_to_provider_and_providers() {
+    let daemon = daemon_of(true, vec![Arc::new(Fixed(40.0)), Arc::new(Unreadable)]).await;
+
+    let (status, body) = daemon.get("/v1/status").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["errors"],
+        json!([{
+            "provider": "gemini",
+            "message": "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                        file",
+        }]),
+        "the message says what happened and what to do, and leaves the provider out (D-128)"
+    );
+    assert_eq!(
+        body["providers"],
+        json!([
+            { "id": "claude", "name": "Claude" },
+            { "id": "gemini", "name": "Gemini CLI" },
+        ])
+    );
+    let (status, headroom) = daemon.get("/v1/headroom").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headroom["errors"], body["errors"]);
 
     daemon.stop().await;
 }

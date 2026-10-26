@@ -719,7 +719,7 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     let first = provider.fetch(&account).await;
     assert_eq!(
         first.expect_err("fails").to_string(),
-        "claude: request failed: Anthropic's usage endpoint answered HTTP 500. QuotaDial asks \
+        "request failed: Anthropic's usage endpoint answered HTTP 500. QuotaDial asks \
          Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
     );
 
@@ -854,7 +854,7 @@ async fn a_damaged_credentials_file_is_an_error_that_names_the_file_but_not_its_
     assert_eq!(
         result.expect_err("fails").to_string(),
         format!(
-            "claude: could not read credentials from {}: it is not valid JSON; run `claude` to \
+            "could not read the sign-in from {}: it is not valid JSON; run `claude` to \
              sign in again",
             file.display()
         )
@@ -904,7 +904,7 @@ async fn an_unwritable_cache_stops_the_request() {
     assert!(
         error
             .to_string()
-            .starts_with("claude: could not use QuotaDial's cache at ")
+            .starts_with("could not use QuotaDial's cache at ")
     );
     assert_eq!(harness.requests().await, 0);
 }
@@ -998,9 +998,12 @@ async fn a_request_that_times_out_still_counts_against_the_floor() {
     let account = discovered(&provider).await;
 
     let first = provider.fetch(&account).await;
-    assert!(first.expect_err("times out").to_string().starts_with(
-        "claude: request failed: Anthropic did not answer: no answer within 0.3 seconds"
-    ));
+    assert!(
+        first
+            .expect_err("times out")
+            .to_string()
+            .starts_with("request failed: Anthropic did not answer: no answer within 0.3 seconds")
+    );
 
     harness.advance(2);
     assert!(provider.fetch(&account).await.is_err());
@@ -1199,7 +1202,7 @@ async fn an_answer_that_cannot_be_saved_fails_the_fetch() {
         result
             .expect_err("fails")
             .to_string()
-            .starts_with("claude: could not use QuotaDial's cache at ")
+            .starts_with("could not use QuotaDial's cache at ")
     );
     assert_eq!(harness.requests().await, 1);
 }
@@ -1249,7 +1252,7 @@ async fn a_token_quoted_in_anthropics_error_is_never_shown_or_saved() {
     assert_no_token(&printed(&failed));
     assert_eq!(
         failed.expect_err("fails").to_string(),
-        "claude: request failed: Anthropic's usage endpoint answered HTTP 400: invalid token: \
+        "request failed: Anthropic's usage endpoint answered HTTP 400: invalid token: \
          [redacted token]. QuotaDial asks Anthropic at most every 5 minutes, so the next request \
          is after 2099-01-01T00:10:00Z."
     );
@@ -1276,7 +1279,7 @@ async fn a_damaged_state_file_still_holds_the_floor() {
     let held = provider.fetch(&account).await;
     assert_eq!(
         held.expect_err("holds").to_string(),
-        "claude: request failed: QuotaDial could not read its saved state for this account, so \
+        "request failed: QuotaDial could not read its saved state for this account, so \
          the last answer is lost. QuotaDial asks Anthropic at most every 5 minutes, so the next \
          request is after 2099-01-01T00:07:00Z."
     );
@@ -1359,7 +1362,7 @@ async fn a_redirect_is_never_followed() {
 
     assert_eq!(
         result.expect_err("fails").to_string(),
-        "claude: request failed: Anthropic's usage endpoint answered HTTP 302. QuotaDial asks \
+        "request failed: Anthropic's usage endpoint answered HTTP 302. QuotaDial asks \
          Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
     );
     assert_eq!(
@@ -1912,7 +1915,7 @@ async fn a_keychain_that_cannot_be_listed_still_finds_each_folders_sign_in() {
     assert_eq!(
         provider.discovery_warnings(),
         [
-            "claude: could not list the Claude Code items in the macOS Keychain: /usr/bin/security \
+            "could not list the Claude Code items in the macOS Keychain: /usr/bin/security \
           did not answer within 5 seconds. Each folder's item was looked up by name instead, so a \
           Keychain item whose folder QuotaDial does not know is left out until the listing works."
         ]
@@ -2210,7 +2213,7 @@ async fn a_relative_extra_folder_is_left_out_with_a_warning() {
     assert_eq!(
         provider.discovery_warnings(),
         [
-            "claude: the extra_config_dirs entry \"claude-work\" in config.json is not a full path, \
+            "the extra_config_dirs entry \"claude-work\" in config.json is not a full path, \
           so QuotaDial left it out. Write it in full, or start it with ~."
         ]
     );
@@ -2272,5 +2275,21 @@ async fn the_logs_are_in_every_folder_a_sign_in_is_looked_for_in() {
             home.join(".codus/accounts/.pending-1/projects"),
         ],
         "this shell's first, each once"
+    );
+}
+
+#[test]
+fn a_lookup_that_stopped_says_so_in_plain_words() {
+    let text = stopped().to_string();
+
+    assert_eq!(
+        text,
+        "could not read the sign-in from this machine: looking it up stopped unexpectedly; try \
+         again"
+    );
+    // #52's plain words: never "quota", "auth" or "credential" outside a name.
+    assert_eq!(
+        quotadial_core::text::unplain_words(&text),
+        Vec::<String>::new()
     );
 }
