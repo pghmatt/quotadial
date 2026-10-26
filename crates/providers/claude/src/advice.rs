@@ -326,6 +326,72 @@ mod tests {
     }
 
     #[test]
+    fn doctor_shows_the_command_and_places_as_written_for_a_user_called_claude_or_codex() {
+        // Doctor hid every whole word that was the user's name, so for a user called `claude` it
+        // wrote the command as `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.claude` as
+        // `~/.[user]`: a command that fails and a folder that is not there (D-134). In the home
+        // folder and in a command the words stay, whatever the user is called, and the name is
+        // still hidden in a place outside the home folder, the command's own words around it kept.
+        for name in ["ann", "claude", "codex"] {
+            let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", name].iter().collect();
+            let env = Environment {
+                home: Some(home.clone()),
+                ..Environment::default()
+            };
+            let login_for = |dir: &Path| {
+                Login::new(
+                    &env,
+                    LoginSource::File(dir.join(".credentials.json")),
+                    None,
+                    None,
+                    Folder::Named(dir.to_path_buf()),
+                )
+            };
+            for dir in [
+                home.join(".claude"),
+                home.join(".claude-work"),
+                home.join(".codex"),
+                home.join("My Claude"),
+            ] {
+                let login = login_for(&dir);
+                for line in [
+                    signed_out(&login),
+                    claude_in(&dir, Some(&home), false),
+                    claude_in(&dir, Some(&home), true),
+                ] {
+                    let text = doctor(login.account(), &line, &home);
+                    assert!(
+                        text.contains(&format!("\n    {line}\n")),
+                        "{name}: {line}\n{text}"
+                    );
+                    // The account's own sentence, which names where its sign-in is.
+                    let sign_in = login.account().sign_in_use;
+                    assert!(
+                        text.contains(&format!("\n    sign-in: {sign_in}\n")),
+                        "{name}: {sign_in}\n{text}"
+                    );
+                }
+            }
+            let outside = |who: &str| -> PathBuf {
+                [MAIN_SEPARATOR_STR, "Volumes", "Data", who, "My Claude"]
+                    .iter()
+                    .collect()
+            };
+            let (shown, hidden) = (outside(name), outside("[user]"));
+            for windows in [false, true] {
+                let line = claude_in(&shown, Some(&home), windows);
+                let hidden_line = claude_in(&hidden, Some(&home), windows);
+                let text = doctor(login_for(&shown).account(), &line, &home);
+                assert!(
+                    text.contains(&format!("\n    {hidden_line}\n")),
+                    "{name}: {hidden_line}\n{text}"
+                );
+                assert!(!text.contains(&line), "{name}: {line}\n{text}");
+            }
+        }
+    }
+
+    #[test]
     fn the_source_is_named_where_it_matters() {
         assert_eq!(
             no_claude_login(&default_keychain()),
