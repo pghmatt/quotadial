@@ -46,7 +46,7 @@ export function Alerts() {
               name="settings"
               alt="QuotaDial's settings: three alert rules in plain words, each with how QuotaDial read it"
               width={720}
-              height={1826}
+              height={2172}
             />
           </div>
         </Plate>

@@ -124,7 +124,7 @@ export default function Pro() {
                   name="settings"
                   alt="QuotaDial's Settings with three alert rules and the Licence field"
                   width={720}
-                  height={1826}
+                  height={2172}
                 />
               </div>
             </Plate>
