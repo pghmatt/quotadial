@@ -139,11 +139,12 @@ pub struct ProviderError {
     /// name for it.
     // As `Provider::id` gives it.
     pub provider: String,
-    /// What happened and what to do, with any token blanked out. It leaves out which provider, which
-    /// `provider` says, and QuotaDial shows it after the provider's own name, as `Gemini CLI: could
-    /// not read the sign-in from ~/.gemini/settings.json: ...` (D-128). A message from an older
-    /// QuotaDial begins with the provider's id and a colon.
-    // Never begins with the id: `new` and `warning` see to it.
+    /// What happened and what to do, with any token blanked out and a place in the home folder
+    /// written with `~`. It leaves out which provider, which `provider` says, and QuotaDial shows it
+    /// after the provider's own name, as `Gemini CLI: could not read the sign-in from
+    /// ~/.gemini/settings.json: ...` (D-128). A message from an older QuotaDial begins with the
+    /// provider's id and a colon, and writes a place in full.
+    // Never begins with the id, and writes the home `~`: `new` and `warning` see to it.
     pub message: String,
 }
 
@@ -247,14 +248,24 @@ impl ProviderError {
         Self::warning(provider, &error.to_string())
     }
 
-    /// `message`, about what `provider` could not look at, with any token blanked out of it. A
-    /// message that begins with the provider's id, as every one did before D-128, loses it, so the
-    /// API's `message` never begins with it, whichever provider wrote it.
+    /// `message`, about what `provider` could not look at, as people may read it. It is the one
+    /// pass every provider's error goes through on its way to the report, the API, doctor and the
+    /// app: any token is blanked out; this process's home folder is written `~`, as `text::tilde`
+    /// writes it, so a place in it never shows the user's name (#52); and a message that begins
+    /// with the provider's id, as every one did before D-128, loses it, so the API's `message`
+    /// never begins with it, whichever provider wrote it. The home folder is the one the providers
+    /// in this process find their folders in, `std::env::home_dir()`, in the CLI and the daemon
+    /// alike.
     #[must_use]
     pub fn warning(provider: &str, message: &str) -> Self {
+        Self::made(provider, message, std::env::home_dir().as_deref())
+    }
+
+    /// [`ProviderError::warning`], with `home` as the home folder.
+    fn made(provider: &str, message: &str, home: Option<&std::path::Path>) -> Self {
         Self {
             provider: provider.to_owned(),
-            message: redact_secrets(without_id(provider, message)).into_owned(),
+            message: crate::text::tilde_in(&redact_secrets(without_id(provider, message)), home),
         }
     }
 }
@@ -534,6 +545,57 @@ mod tests {
         assert_eq!(
             ProviderError::warning("claude", "claudes: a word that starts like the id.").message,
             "claudes: a word that starts like the id."
+        );
+    }
+
+    /// `parts` in the home folder, as `text::tilde` writes it: `~/.codex/auth.json` on macOS and
+    /// Linux, with Windows' own separator after the `~/` there.
+    fn in_home(parts: &[&str]) -> String {
+        format!(
+            "~/{}",
+            parts.iter().collect::<std::path::PathBuf>().display()
+        )
+    }
+
+    #[test]
+    fn a_reports_message_writes_the_home_folder_as_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let home: std::path::PathBuf = ["/", "Users", "ann"].iter().collect();
+        let place = home.join(".codex").join("auth.json");
+        let failed = Error::Credentials {
+            provider: "codex",
+            location: place.display().to_string(),
+            reason: "it is not valid JSON; run `codex login` to sign in again".into(),
+        };
+
+        assert_eq!(
+            ProviderError::made("codex", &failed.to_string(), Some(&home)).message,
+            format!(
+                "could not read the sign-in from {}: it is not valid JSON; run `codex login` to \
+                 sign in again",
+                in_home(&[".codex", "auth.json"])
+            )
+        );
+        let elsewhere: std::path::PathBuf = ["/", "Users", "anna", "auth.json"].iter().collect();
+        let warned = format!("could not look in {}.", elsewhere.display());
+        assert_eq!(
+            ProviderError::made("codex", &warned, Some(&home)).message,
+            warned,
+            "a place outside the home folder stays as it is"
+        );
+    }
+
+    #[test]
+    fn every_message_is_made_with_this_processs_home_folder() {
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let place = home.join(".codex").join("auth.json");
+
+        assert_eq!(
+            ProviderError::warning("codex", &format!("could not look in {}.", place.display()))
+                .message,
+            format!("could not look in {}.", in_home(&[".codex", "auth.json"]))
         );
     }
 

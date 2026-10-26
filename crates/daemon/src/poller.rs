@@ -1496,6 +1496,31 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn the_report_writes_the_home_folder_as_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        *claude.warnings.lock().expect("lock") = vec![format!(
+            "could not look in {}.",
+            home.join(".claude").join("work").display()
+        )];
+        let mut poller = poller(vec![Arc::clone(&claude)], history);
+
+        poller.poll_due().await;
+
+        assert_eq!(
+            poller.latest().report().errors[0].message,
+            format!(
+                "could not look in ~/{}.",
+                PathBuf::from(".claude").join("work").display()
+            )
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn what_discovery_could_not_look_at_shows_beside_the_accounts_it_found() {
         let (_dir, history) = history();
         let claude = Arc::new(Scripted::new("claude", 5));

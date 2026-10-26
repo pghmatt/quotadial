@@ -640,7 +640,7 @@
         "description": "A provider or account that produced no snapshot, for example because its sign-in could not be read, or what a provider could not look at while finding its accounts. The message names the fix.",
         "properties": {
           "message": {
-            "description": "What happened and what to do, with any token blanked out. It leaves out which provider, which `provider` says, and QuotaDial shows it after the provider's own name, as `Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: ...`. A message from an older QuotaDial begins with the provider's id and a colon.",
+            "description": "What happened and what to do, with any token blanked out and a place in the home folder written with `~`. It leaves out which provider, which `provider` says, and QuotaDial shows it after the provider's own name, as `Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: ...`. A message from an older QuotaDial begins with the provider's id and a colon, and writes a place in full.",
             "type": "string"
           },
           "provider": {

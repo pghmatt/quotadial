@@ -1435,6 +1435,44 @@ mod tests {
         }
     }
 
+    /// A provider whose sign-in, at the place it holds, cannot be read.
+    struct UnreadableAt(String);
+
+    #[async_trait]
+    impl Provider for UnreadableAt {
+        fn id(&self) -> &'static str {
+            "scripted"
+        }
+
+        fn name(&self) -> &'static str {
+            "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Err(Error::Credentials {
+                provider: "scripted",
+                location: self.0.clone(),
+                reason: "permission denied".into(),
+            })
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(snapshot(account.clone(), Source::Api))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
     fn ts(rfc3339: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(rfc3339)
             .expect("valid timestamp")
@@ -2289,6 +2327,37 @@ mod tests {
              permission denied\n"
         );
     }
+
+    #[tokio::test]
+    async fn a_place_in_the_home_folder_is_shown_with_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let place = home.join(".scripted").join("credentials.json");
+        let providers: Vec<Box<dyn Provider>> =
+            vec![Box::new(UnreadableAt(place.display().to_string()))];
+
+        let report = collect(&providers).await;
+
+        let shown = format!(
+            "~/{}",
+            std::path::Path::new(".scripted")
+                .join("credentials.json")
+                .display()
+        );
+        assert_eq!(
+            report.errors[0].message,
+            format!("could not read the sign-in from {shown}: permission denied")
+        );
+        assert_eq!(
+            render(&report, false),
+            format!(
+                "error: Scripted: could not read the sign-in from {shown}: permission denied\n"
+            )
+        );
+    }
+
     #[tokio::test]
     async fn the_report_lists_every_provider_asked_by_its_id_and_own_name() {
         let providers: Vec<Box<dyn Provider>> = vec![
