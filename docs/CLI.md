@@ -3,7 +3,9 @@
 `quotadial` (and its short alias `qd`) shows how much of each Claude and ChatGPT/Codex plan limit is
 used, when each resets, and how old every number is. It reads the sign-ins Claude Code and the Codex
 CLI already store and never writes them. A Gemini CLI account it finds signed in is listed too, with
-why it has no numbers, and its sign-in is never opened.
+why it has no numbers, and its sign-in is never opened. Antigravity's limits come from what
+Antigravity CLI's status line hands `quotadial antigravity status-line` (see Antigravity's status
+line); Antigravity's sign-in is never read.
 
 ## Commands
 
@@ -26,6 +28,7 @@ why it has no numbers, and its sign-in is never opened.
 | `quotadial licence add [<key>]` | Adds a licence key for QuotaDial Pro, or asks for one to be pasted |
 | `quotadial licence remove` | Removes the licence key |
 | `quotadial doctor` | Prints what support asks for, with nothing secret in it (see Doctor) |
+| `quotadial antigravity status-line [<command>...]` | What Antigravity CLI's status line runs: keeps the numbers it hands over, then runs the command after it, if any (see Antigravity's status line) |
 | `quotadial --version` | Prints the version |
 
 `quotadial --help` says what every command does, with examples, and `quotadial <command> --help`
@@ -52,12 +55,13 @@ test -p quotadial packaging` writes them again).
 
 ## How often providers are asked
 
-No command asks a provider more often than its own limit, counted across every QuotaDial process
-on the machine: Anthropic at most once every 5 minutes per account, and ChatGPT at most once every
-2 minutes. Nothing is asked about Gemini CLI. In between, a command shows the last numbers again, marked as coming from the cache,
-with their age. `watch` refreshes every minute, so most refreshes show cached numbers whose age
-keeps growing until the provider may be asked again. While the daemon runs, `status` and `watch`
-ask it instead of asking providers themselves.
+No command asks a provider more often than its own limit, counted across every QuotaDial process on
+the machine: Anthropic at most once every 5 minutes per account, and OpenAI at most once every 2
+minutes. Nothing is asked about Gemini CLI or Antigravity: Antigravity's numbers are the ones its
+CLI's status line last handed over, read from QuotaDial's own file. In between, a command shows the
+last numbers again, marked as coming from the cache, with their age. `watch` refreshes every minute,
+so most refreshes show cached numbers whose age keeps growing until the provider may be asked again.
+While the daemon runs, `status` and `watch` ask it instead of asking providers themselves.
 
 When a provider answers 429, QuotaDial waits as long as the `Retry-After` header says, or else 5,
 10, 20, 40 and then 60 minutes as 429s repeat, and keeps the last numbers on screen meanwhile.
@@ -94,6 +98,15 @@ one account per provider, the one the current shell would use, and names how man
   Google, that Google's terms do not let other tools use Gemini CLI's sign-in, and that `/model` in
   Gemini CLI shows each model's share used and reset; for an API key or Vertex AI, that there are
   no plan limits to show. Signed in another way, or not at all, there is no account.
+- **Antigravity.** The account whose numbers Antigravity CLI's status line last handed over, named
+  by its address, with its plan: one window for each limit, such as `5-hour (Gemini)` and
+  `Weekly (Claude and GPT)`, from the CLI's status line, with when it was handed over as its age.
+  Before any numbers come, when Antigravity CLI's folder, `~/.gemini/antigravity-cli`, is on the
+  machine, an account shows `unsupported` with the line to add to its settings; nothing in that
+  folder is opened. Numbers handed over more than two polls (10 minutes) ago show `stale`, with
+  the time they are from, and a window that has reset since is left out. A limit Antigravity CLI
+  marks turned off is left out, and one it gives an amount left for and no share of is named in
+  words with its amount and reset, never as a share. See Antigravity's status line.
 - **One row per subscription.** A subscription found in two places, such as two folders signed in
   to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
   sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
@@ -112,9 +125,40 @@ one account per provider, the one the current shell would use, and names how man
   asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
   account, as when a folder only ever signed in to MCP servers, it is left out until the item
   changes.
-- **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, each sorted by name.
+- **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, then Antigravity's, each
+  sorted by name.
 
 The daemon looks for new and removed sign-ins every minute.
+
+## Antigravity's status line
+
+Antigravity CLI runs a command named in its settings whenever its agent's state changes, with the
+session's state as JSON on standard input, and shows what the command prints below its own status
+line, as its docs' "Status line customization" page says. `quotadial antigravity status-line` is
+that command. Add it to `~/.gemini/antigravity-cli/settings.json` as
+[`INSTALL.md`](INSTALL.md#antigravity) says; QuotaDial never changes that file itself:
+
+```json
+"statusLine": { "type": "command", "command": "quotadial antigravity status-line", "stack_with_default": true }
+```
+
+- **What it keeps:** each limit's share or amount left, its reset and whether it is turned off, the
+  plan, the account's address and the time, in `antigravity.json` in the data directory, readable
+  only by you; nothing else it is handed, such as the folders, the conversation, the model or the
+  cost. It keeps them first, before anything else it does, and only when the input holds a share or
+  an amount. The account's windows are read from that file at each poll.
+- **What it prints:** nothing of its own, ever, so the status line never shows a problem of
+  QuotaDial's, such as a data directory it cannot write.
+- **A status line you already have:** the words after `status-line` are a program and its
+  arguments, such as `quotadial antigravity status-line ~/.gemini/antigravity-cli/statusline.sh`.
+  Once its numbers are kept, QuotaDial runs it with the same input and passes on what it prints, on
+  standard output and standard error, unchanged. Antigravity CLI's shell has already read the
+  words, so QuotaDial runs them with no shell of its own: a command with a `|` or `&&` in it goes in
+  `sh -c '...'`.
+- **How it ends:** with no command after it, with 0, whatever happens. With one, as that command
+  ends: with its exit status; with 127 if it cannot be found and 126 if it cannot be run, as a shell
+  ends; or with 1, and nothing printed, if it is still running after 4.5 seconds, when QuotaDial
+  stops it, since Antigravity CLI stops a status line that runs longer than 5 seconds.
 
 ## Settings
 
@@ -374,9 +418,10 @@ budget. QuotaDial Pro adds:
 
 A Free copy never hides a feature silently: where it would be, one line says what is left out, that
 it is part of QuotaDial Pro, and where Pro is, such as `The week's cost at API prices is part of
-QuotaDial Pro: quotadial.com/pro`, which comes only where there are logs to read the cost from. `status` and `watch` print those lines under the accounts and
-where the costs would be, the app shows them under its accounts, and the report carries them as
-`left_out` (see JSON output). Nothing else asks, nags or counts down.
+QuotaDial Pro: quotadial.com/pro`, which comes only where there are logs to read the cost from.
+`status` and `watch` print those lines under the accounts and where the costs would be, the app
+shows them under its accounts, and the report carries them as `left_out` (see JSON output).
+Nothing else asks, nags or counts down.
 
 The licence key decides which a copy is, and every process reads it each time it asks, so a key
 added or removed counts without a restart: at once in the app, and within a minute in a daemon
@@ -609,11 +654,11 @@ Its three tools only read:
 On QuotaDial Free the two Pro tools answer with a tool error that names the feature and says that
 `get_usage` gives every window, with its reset, on any copy.
 
-`get_usage` and `get_account_headroom` take an optional `provider`, `claude`, `codex` or `gemini`,
-that limits the answer to that provider's accounts; the tool's description names each provider as
-it names itself. Each answer comes as JSON text and, for agents that speak
-MCP 2025-06-18 or later, as structured content too. Like `status`, the server asks the daemon while
-one runs and otherwise fetches for itself, keeping every provider's floor. A wrong argument, or a
+`get_usage` and `get_account_headroom` take an optional `provider`, `claude`, `codex`, `gemini` or
+`antigravity`, that limits the answer to that provider's accounts; the tool's description names each
+provider as it names itself. Each answer comes as JSON text and, for agents that speak MCP
+2025-06-18 or later, as structured content too. Like `status`, the server asks the daemon while one
+runs and otherwise fetches for itself, keeping every provider's floor. A wrong argument, or a
 running daemon that does not answer, comes back as a tool error that names the fix.
 
 [`skills/quotadial/SKILL.md`](../skills/quotadial/SKILL.md) tells agents when to check their usage
@@ -637,9 +682,9 @@ Codex user@example.com (pro): stale
 
 - The first line of each account names the provider, the account, its plan and the snapshot's
   status: `ok`, `stale`, `rate limited`, `sign-in required` or `unsupported`.
-- Each window shows the share used, when it resets, where the number came from (`the API`, `cache`
-  or `local logs`) and how long ago it was fetched. The window closest to its limit comes first. A
-  window whose numbers predate its reset says `reset 3 min ago`.
+- Each window shows the share used, when it resets, where the number came from (`the API`, `cache`,
+  `local logs` or `the CLI's status line`) and how long ago it was fetched. The window closest to
+  its limit comes first. A window whose numbers predate its reset says `reset 3 min ago`.
 - A window that suddenly reads 0% before its reset, where it read more last time, says
   `unconfirmed until the next fetch agrees`. A provider sometimes answers 0% by mistake, so
   QuotaDial waits for a second fetch before trusting it.
@@ -661,14 +706,14 @@ Codex user@example.com (pro): stale
   and one where the costs would be says the week's cost is part of QuotaDial Pro. The week's cost
   is read from the logs of Claude Code and the Codex CLI, so that line, and the pace line's mention
   of the cost, come only with an account of a provider whose logs QuotaDial reads: not for a
-  machine with only a Gemini CLI account, nor in the example build. On Free the pace line leaves
-  the cost out, since the line under the accounts says it.
+  machine with only Gemini CLI or Antigravity accounts, nor in the example build. On Free the pace
+  line leaves the cost out, since the line under the accounts says it.
 
 `watch` clears the terminal before each refresh and ends with when it was updated and, in one
 sentence, whom QuotaDial asks and how often, and which providers it asks no one about, such as "It
-asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini CLI."
-The daemon says the same when it starts. Piped into another program, and on Windows, it prints each
-refresh after the last, without escape codes.
+asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini CLI or
+Antigravity." The daemon says the same when it starts. Piped into another program, and on Windows,
+it prints each refresh after the last, without escape codes.
 
 ## JSON output
 
@@ -729,7 +774,8 @@ refresh after the last, without escape codes.
   "providers": [
     { "id": "claude", "name": "Claude" },
     { "id": "codex", "name": "Codex" },
-    { "id": "gemini", "name": "Gemini CLI" }
+    { "id": "gemini", "name": "Gemini CLI" },
+    { "id": "antigravity", "name": "Antigravity" }
   ]
 }
 ```
@@ -746,7 +792,7 @@ refresh after the last, without escape codes.
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
 | `windows[].window_seconds` | The window's length, such as 18000 for five hours or 604800 for a week |
 | `windows[].scope_model` | For a per-model limit, the model it covers. Left out otherwise |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the CLI's own logs), or `example` (made up for pictures of the app by QuotaDial's example build, which is never released) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the CLI's own logs), `status_line` (what the CLI's status line handed over, as Antigravity CLI's does; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build, which is never released) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
 | `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
 | `windows[].pace` | How fast the window is filling, from the daemon's history: `pct_per_hour`, the share used per hour, from a straight line fitted through the window's readings since it last reset; and `runs_out_at`, when it reaches 100% at that pace, given only when that comes before it resets. Left out with no daemon running, for a window with fewer than 3 readings over 30 minutes since it reset, for a full window or an unconfirmed 0%, and for a snapshot whose status is not `ok`. A window that is not filling has a `pct_per_hour` of 0 |
@@ -771,9 +817,11 @@ Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the outpu
 | 2 | The arguments were not understood | The same |
 
 `mcp` exits with 0 when the agent closes its input, and 1 if it cannot read its input or write
-its answers. Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does. When a running
-daemon does not answer, `status` prints why on standard error; `watch` shows it in place of the
-status, or with `--json` prints it on standard error and keeps refreshing.
+its answers. Stopped with Ctrl-C, `watch` ends the way any program interrupted by Ctrl-C does.
+`quotadial antigravity status-line` ends with 0 whatever happens when no command follows it, and
+otherwise as that command ends (see Antigravity's status line). When a running daemon does not
+answer, `status` prints why on standard error; `watch` shows it in place of the status, or with
+`--json` prints it on standard error and keeps refreshing.
 
 An agent deciding whether to start a long job can read `status --json`, find the tightest window
 with `"status": "ok"` and a fresh `fetched_at`, and compare its `used_pct` and `resets_at` with the

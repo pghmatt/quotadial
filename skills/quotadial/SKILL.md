@@ -1,14 +1,15 @@
 ---
 name: quotadial
-description: Check how much of the user's Claude and ChatGPT/Codex plan limits is left, and when each limit resets, before starting a long or expensive job, or when the user asks about their usage. Uses QuotaDial's MCP tools, its CLI, or its local HTTP API on 127.0.0.1.
+description: Check how much of the user's Claude, ChatGPT/Codex and Antigravity plan limits is left, and when each limit resets, before starting a long or expensive job, or when the user asks about their usage. Uses QuotaDial's MCP tools, its CLI, or its local HTTP API on 127.0.0.1.
 ---
 
 # QuotaDial
 
-QuotaDial tracks the usage limits of the Claude and ChatGPT/Codex plans that this machine is
-signed in to. It reports each limit's share used, when it resets and how old each number is. Check
-it before you start something long, such as a multi-hour run, a large refactor or many subagents,
-so the job does not stop halfway. Also check it when the user asks how much they have left.
+QuotaDial tracks the usage limits of the Claude, ChatGPT/Codex and Antigravity plans that this
+machine is signed in to. It reports each limit's share used, when it resets and how old each number
+is. Check it before you start something long, such as a multi-hour run, a large refactor or many
+subagents, so the job does not stop halfway. Also check it when the user asks how much they have
+left.
 
 Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` ones. A machine can
 hold several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`, and QuotaDial
@@ -21,6 +22,12 @@ The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or the plain
 A `gemini` account, Gemini CLI's, has no numbers: its `status` is `unsupported`, and its `error`
 says why and, for a Google sign-in, that `/model` in Gemini CLI shows its limits.
 
+An `antigravity` account's windows, such as `5-hour (Gemini)` and `Weekly (Claude and GPT)`, are
+what Antigravity CLI's status line last handed over (`source` `status_line`), so they move only
+while Antigravity CLI runs. When they are older than 10 minutes its `status` is `stale` and its
+`error` says when they are from; trust a window only with `"status": "ok"`. Before any numbers its
+`status` is `unsupported`, and its `error` says what the user adds to Antigravity CLI's settings.
+
 ## How to ask
 
 Use the first of these that is available:
@@ -30,7 +37,7 @@ Use the first of these that is available:
    - `get_account_headroom` ranks the accounts by the room left in their tightest limit.
    - `get_usage` returns every limit.
    - `list_alerts` returns the user's alert rules and what they told in the last week.
-   - The first two take an optional `provider`, `claude`, `codex` or `gemini`.
+   - The first two take an optional `provider`, `claude`, `codex`, `gemini` or `antigravity`.
    - On QuotaDial Free, `get_account_headroom` and `list_alerts` answer with an error saying they
      are part of QuotaDial Pro. Then call `get_usage` and find the tightest window yourself, as
      "Headroom" below describes; `get_usage` works on every copy.
@@ -40,7 +47,7 @@ Use the first of these that is available:
 3. **The HTTP API**, while the daemon runs (`quotadial daemon`). See below.
 
 Ask once before a job, not in a loop. QuotaDial asks Anthropic at most every 5 minutes per account
-and ChatGPT at most every 2 minutes, so asking more often returns the same numbers.
+and OpenAI at most every 2 minutes, so asking more often returns the same numbers.
 
 ## The HTTP API
 
@@ -131,7 +138,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `windows[].kind` | `session` (5 hours), `weekly`, `model_weekly` (one model's weekly limit, named in `scope_model`), `daily`, `credits`, or `other` for a limit QuotaDial does not know yet |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the Codex CLI's own logs), or `example` (made up for pictures of the app by QuotaDial's example build; a release never sends it) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the Codex CLI's own logs), `status_line` (what Antigravity CLI's status line handed over; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build; a release never sends it) |
 | `windows[].fetched_at` | When the number was fetched, in UTC |
 | `windows[].unconfirmed` | `true` on a sudden 0% that a second fetch has not confirmed yet. Do not trust that 0% |
 | `windows[].pace` | How fast the window is filling, only while the daemon runs: `pct_per_hour`, the share used per hour since the window last reset, and `runs_out_at`, when it reaches 100% at that pace, given only if that comes before it resets. Left out until the daemon has half an hour of readings since the reset, and for a snapshot whose status is not `ok` |

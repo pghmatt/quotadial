@@ -22,7 +22,7 @@ position can and cannot do. [`SECURITY.md`](../SECURITY.md) says how to report a
 
 | Where | What | Protection |
 | --- | --- | --- |
-| The data folder (`~/Library/Application Support/quotadial`, `$XDG_DATA_HOME/quotadial`, `%APPDATA%\quotadial`) | `history.db` (readings, snapshots, alert rules, firings), `costs.db` (token counts from the logs, never their content), `token` (the local API's bearer token), `licence`, `daemon.json`, `daemon.lock` | The folder is the user's only (0700 on macOS and Linux; a per-user folder on Windows), and each file QuotaDial writes is 0600 |
+| The data folder (`~/Library/Application Support/quotadial`, `$XDG_DATA_HOME/quotadial`, `%APPDATA%\quotadial`) | `history.db` (readings, snapshots, alert rules, firings), `costs.db` (token counts from the logs, never their content), `token` (the local API's bearer token), `licence`, `daemon.json`, `daemon.lock`, and `antigravity.json` (what Antigravity CLI's status line last handed over: each limit's share or amount and reset, the plan, the account's address and the time, never a token) | The folder is the user's only (0700 on macOS and Linux; a per-user folder on Windows), and each file QuotaDial writes is 0600 |
 | `config.json` in the data folder | Settings, including webhook addresses | Written by the user; QuotaDial warns when others can read it |
 | The app's config folder | `settings.json`, `alerts.json`, `updates.json` | 0600 |
 | The cache folder (`quotadial/` in the OS cache directory) | When each account may be asked next, and its last answer | Private permissions; derived data only, never a token |
@@ -47,6 +47,18 @@ opening it, and reads one field of Gemini CLI's `settings.json`, how it signs in
 that file, which can hold other tools' secrets, is skipped without a copy, and the bytes read are
 wiped. Google's and GitHub's tokens are blanked out of any text QuotaDial shows or saves, by their
 shape, before any provider can read one (D-122).
+
+Its Antigravity provider (D-119, D-126), on in the release binaries and the app, has no network
+client either and sends nothing. It never reads Antigravity's sign-in or talks to its app's local
+server, and only checks whether Antigravity CLI's folder is there, opening nothing in it. Its
+numbers come from `quotadial antigravity status-line`, which Antigravity CLI runs with its
+session's state on standard input once the user adds it to Antigravity CLI's settings, which
+QuotaDial never edits. The command keeps only each limit's share or amount and reset, the plan,
+the account's address and the time, each checked, with any token blanked out, in
+`antigravity.json` (0600, written through a temporary file and a rename), and prints nothing of its
+own. A program named after it, the status line the user already had, is run as the user with the
+same input and no shell of QuotaDial's, and stopped after 4.5 seconds: it is the user's own command
+from the user's own settings, so QuotaDial gives it nothing it did not have.
 
 Updates are checked twice before they are installed: against the public key built into the app,
 and against the version that key's signature names, so neither a changed file nor an older release
@@ -98,8 +110,9 @@ is; both were checked live (D-103). They can delay an update by blocking it.
 
 ### Anything outside that QuotaDial reads
 
-Provider answers, status pages, the CLIs' logs, `config.json`, licence keys, release notes and what
-an agent sends the MCP server are all read as data, never run. A property test over each parser
+Provider answers, status pages, the CLIs' logs, `config.json`, licence keys, release notes, what
+Antigravity CLI's status line hands over, and what an agent sends the MCP server are all read as
+data, never run. A property test over each parser
 proves no input can make it panic, and found one overflow, now fixed (#52). Text from outside is
 cut to one line and redacted before it is shown. The app's window runs only its own code, under a
 content security policy (`default-src 'self'`), can call only the commands the app's own panels

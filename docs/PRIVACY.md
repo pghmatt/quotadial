@@ -10,6 +10,12 @@ For Gemini CLI, QuotaDial reads no sign-in. It only checks that Gemini CLI's sig
 `settings.json` beside it: the one that says whether it signs in with Google, a Gemini API key or
 Vertex AI. It asks no one about Gemini CLI and sends nothing about it.
 
+For Antigravity, QuotaDial reads no sign-in and asks no one, and only checks whether Antigravity
+CLI's folder, `~/.gemini/antigravity-cli`, is there, without opening anything in it; once you add
+`quotadial antigravity status-line` to Antigravity CLI's status line, it keeps what the status line
+hands that command, each limit's share or amount left and its reset, the plan and the account's
+address, with the time, in `antigravity.json` in QuotaDial's data folder, readable only by you.
+
 QuotaDial connects to these, and nothing else:
 
 - **api.anthropic.com**, Anthropic's, with your Claude Code sign-in, for each Claude account's
