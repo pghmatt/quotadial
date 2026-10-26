@@ -438,7 +438,7 @@ The notes below run newest first; the setup notes above them are the oldest.
   fails when one of those words goes in; the OpenAPI and Gemini CLI tests use it too. D-117's list
   test holds each build's names as its ids. The window check's fixtures gain a Gemini CLI account
   with its own sentence and, in the Free copy, a Codex account with none, as an older daemon sends
-  it: 3385 checks over 16 views pass.
+  it.
 - **Gemini on:** `gemini` in `quotadial-providers`' defaults, which the CLI and the app take; the
   CLI's own pass-through feature and CI's separate Gemini steps go; the app's lockfile gains only
   the Gemini crate. The CLI's help and quotadial(1) say a Gemini CLI account is listed with why it
@@ -466,12 +466,13 @@ The notes below run newest first; the setup notes above them are the oldest.
   for a provider to say it asks no one, a change in core; error lines keep the provider's id
   (`claude: request failed`), as each provider writes its errors; and the site's home page speaks
   of Claude and Codex only, still true, so naming Gemini CLI there is for the site's review.
-- **Tests:** in the workspace, 625 passed (1 ignored) on `main` and 652 (1 ignored) now, Gemini
-  included by default; the example build 625 (2 ignored) and 651 (2 ignored). By crate, from `main`:
-  core 104 to 116, the CLI 51 to 57 (with the Gemini binary test now in every release), the daemon
+- **Tests:** in the workspace, 625 passed (1 ignored) on `main` and 656 (1 ignored) now, Gemini
+  included by default; the example build 625 (2 ignored) and 655 (2 ignored). By crate, from `main`:
+  core 104 to 118, the CLI 51 to 59 (with the Gemini binary test now in every release), the daemon
   100 to 102, Claude 134 to 136 (and 1 ignored), Codex 61 to 63, fake 18 to 19, Gemini CLI 29 to 30,
-  `quotadial-providers` 1 to 2; API 54, cost 30, issue 6 and poll 37 unchanged. The tray app 81 to 84
-  in both builds, its scripts' tests 5, the site 90. Every new test failed first, against a stub or
+  `quotadial-providers` 1 to 2; API 54, cost 30, issue 6 and poll 37 unchanged. The tray app 81 to 85
+  in both builds, its scripts' tests 5, the site 90, and the window check 3394 checks over 16
+  views. Every new test failed first, against a stub or
   with its change left out, and each that passed at once because the code was already there failed
   under a mutation, restored after.
 - **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` on the
