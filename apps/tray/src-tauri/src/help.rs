@@ -239,7 +239,9 @@ mod tests {
             })
             .collect();
         assert_eq!(lists.len(), 1, "{shown:?}");
-        assert_eq!(lists[0].len(), 5);
+        // Anthropic, OpenAI and GitHub's Copilot endpoint, the status pages, QuotaDial's updates and
+        // the user's own webhooks.
+        assert_eq!(lists[0].len(), 6);
         assert!(
             lists[0][0]
                 .starts_with("api.anthropic.com, Anthropic's, with your Claude Code sign-in")

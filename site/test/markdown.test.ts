@@ -9,7 +9,7 @@ test("the privacy page carries docs/PRIVACY.md and every address in it", () => {
   const { title, body } = withoutTitle(repositoryFile("docs/PRIVACY.md"));
   assert.equal(title, "What QuotaDial reads and sends");
   const rendered = html(body);
-  for (const address of ["api.anthropic.com", "chatgpt.com", "status.claude.com", "status.openai.com", "github.com"]) {
+  for (const address of ["api.anthropic.com", "chatgpt.com", "api.github.com", "status.claude.com", "status.openai.com", "github.com"]) {
     assert.ok(rendered.includes(address), `the page names ${address}`);
   }
   assert.ok(!rendered.includes("<h1"), "the file's own heading is the page's H1, set once");
