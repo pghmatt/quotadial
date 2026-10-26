@@ -992,6 +992,10 @@ mod tests {
             self.name
         }
 
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             self.accounts
                 .lock()
@@ -1076,6 +1080,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Claude"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Anthropic")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {

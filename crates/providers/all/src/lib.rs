@@ -70,6 +70,56 @@ mod tests {
             .collect()
     }
 
+    /// The HTTP clients a provider that asks no one must not depend on, here or in a
+    /// dev-dependency; the local API's crate holds a client for the daemon.
+    const HTTP_CLIENTS: [&str; 9] = [
+        "reqwest",
+        "hyper",
+        "ureq",
+        "isahc",
+        "surf",
+        "curl",
+        "attohttpc",
+        "wiremock",
+        "quotadial-api",
+    ];
+
+    /// Every provider listed is held to whom it says it asks (P-021): one that asks a company has a
+    /// host QuotaDial connects to, in `privacy::HOSTS`, that the privacy text names beside that
+    /// company; one that asks no one has no HTTP client in its crate's manifest, the crate being
+    /// `crates/providers/<its id>`, as #75's test held Gemini CLI's.
+    #[test]
+    fn each_provider_is_held_to_whom_it_says_it_asks() {
+        use quotadial_core::privacy::{HOSTS, PRIVACY};
+
+        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        for provider in with_config(&Config::default(), &Licensing::new(None)) {
+            let id = provider.id();
+            match provider.asks() {
+                Some(company) => assert!(
+                    HOSTS.iter().any(|host| {
+                        PRIVACY.lines().any(|line| {
+                            line.contains(&format!("**{host}**")) && line.contains(company)
+                        })
+                    }),
+                    "{id} asks {company}: the privacy text names a host beside it"
+                ),
+                None => {
+                    let manifest = std::fs::read_to_string(crates.join(id).join("Cargo.toml"))
+                        .unwrap_or_else(|error| panic!("{id}'s manifest: {error}"));
+                    for client in HTTP_CLIENTS {
+                        assert!(
+                            !manifest
+                                .lines()
+                                .any(|line| line.trim_start().starts_with(client)),
+                            "{id} asks no one, but depends on {client}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn every_name_listed_is_a_short_name_in_plain_words() {
         for (id, name) in listed() {

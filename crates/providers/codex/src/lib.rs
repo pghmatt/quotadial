@@ -271,6 +271,10 @@ impl Provider for CodexProvider {
         NAME
     }
 
+    fn asks(&self) -> Option<&'static str> {
+        Some("OpenAI")
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         // Where the sign-in was read, as every account carries it (P-015).
         let place = self

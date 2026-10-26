@@ -15,11 +15,13 @@ use serde_json::{Value, json};
 /// Whether these tests run the example build.
 const EXAMPLE: bool = cfg!(feature = "fake");
 
-/// How the daemon and `watch` say how often each provider is asked.
+/// How the daemon and `watch` say whom QuotaDial asks and how often, and whom it asks no one about
+/// (P-021).
 const ASKS: &str = if EXAMPLE {
-    "asks Example at most every 1 min"
+    "It asks no one about Example."
 } else {
-    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
+    "It asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini \
+     CLI."
 };
 
 /// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
@@ -343,7 +345,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     assert!(output.starts_with(first), "{output}");
     assert!(
         output.ends_with(&format!(
-            "Refreshes every minute and {ASKS}. Press Ctrl-C to stop.\n"
+            "Refreshes every minute. {ASKS} Press Ctrl-C to stop.\n"
         )),
         "{output}"
     );
@@ -457,7 +459,7 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
 
     assert!(
         line.starts_with(&format!(
-            "QuotaDial daemon running. It {ASKS}, keeps history in "
+            "QuotaDial daemon running. {ASKS} It keeps history in "
         )),
         "{line}"
     );

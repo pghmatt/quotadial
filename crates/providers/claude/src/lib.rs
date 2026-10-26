@@ -717,6 +717,10 @@ impl Provider for ClaudeProvider {
         NAME
     }
 
+    fn asks(&self) -> Option<&'static str> {
+        Some("Anthropic")
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         Ok(self.locate_all()?.iter().map(Login::account).collect())
     }

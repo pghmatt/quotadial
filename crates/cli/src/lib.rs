@@ -907,7 +907,7 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
         return ExitCode::FAILURE;
     };
     runtime.block_on(async {
-        let limits = limits(&providers);
+        let asking = asking(&providers);
         let host = match Host::start(dir, providers, port).await {
             Ok(host) => host,
             Err(error @ HostError::Listen { .. }) => {
@@ -920,8 +920,8 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
             }
         };
         say(format_args!(
-            "QuotaDial daemon running. It asks {limits}, keeps history in {}, and is the only thing \
-             that polls while it runs.",
+            "QuotaDial daemon running. {asking} It keeps history in {}, and is the only thing that \
+             polls while it runs.",
             host.dir().history().display()
         ));
         say(format_args!(
@@ -1003,22 +1003,42 @@ async fn shutdown_signal() {
     }
 }
 
-/// For example `claude at most every 5 min and codex at most every 2 min`.
-fn limits<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
-    providers
-        .iter()
-        .map(|provider| {
-            let provider = provider.as_ref();
-            format!(
-                "{} at most every {}",
-                provider.name(),
+/// Whom QuotaDial asks and how often, and the providers it asks no one about, in one sentence, as
+/// each provider's [`Provider::asks`] says (P-021): "It asks Anthropic at most every 5 min and
+/// OpenAI at most every 2 min, and no one about Gemini CLI."
+fn asking<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
+    let mut asked = Vec::new();
+    let mut unasked = Vec::new();
+    for provider in providers.iter().map(AsRef::as_ref) {
+        match provider.asks() {
+            Some(company) => asked.push(format!(
+                "{company} at most every {}",
                 text::duration(
                     TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
                 )
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(" and ")
+            )),
+            None => unasked.push(provider.name().to_owned()),
+        }
+    }
+    match (asked.is_empty(), unasked.is_empty()) {
+        (false, true) => format!("It asks {}.", listed(&asked, "and")),
+        (true, false) => format!("It asks no one about {}.", listed(&unasked, "or")),
+        (false, false) => format!(
+            "It asks {}, and no one about {}.",
+            listed(&asked, "and"),
+            listed(&unasked, "or")
+        ),
+        (true, true) => "It asks no one.".to_owned(),
+    }
+}
+
+/// `items` as a sentence lists them, with `last` before the last: "A", "A and B", "A, B and C".
+fn listed(items: &[String], last: &str) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [rest @ .., final_item] => format!("{} {last} {final_item}", rest.join(", ")),
+    }
 }
 
 fn write_failed(error: &io::Error) -> ExitCode {
@@ -1060,9 +1080,9 @@ fn write_frame<P: AsRef<dyn Provider>>(
     }
     writeln!(
         out,
-        "\nUpdated {}. Refreshes every minute and asks {}. Press Ctrl-C to stop.",
+        "\nUpdated {}. Refreshes every minute. {} Press Ctrl-C to stop.",
         timestamp(now),
-        limits(providers)
+        asking(providers)
     )
 }
 
@@ -1230,6 +1250,10 @@ mod tests {
             "Scripted"
         }
 
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             if self.discovery_fails {
                 return Err(Error::Credentials {
@@ -1280,6 +1304,10 @@ mod tests {
             "Scripted"
         }
 
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![account()])
         }
@@ -1309,6 +1337,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1357,6 +1389,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Leaky"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1977,10 +2013,48 @@ mod tests {
         let redrawn = frame(true);
         assert!(redrawn.starts_with("\x1b[2J\x1b[HScripted user@example.com (max): ok\n"));
         assert!(redrawn.ends_with(
-            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and asks Scripted at most \
-             every 5 min. Press Ctrl-C to stop.\n"
+            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It asks Acme at most every 5 \
+             min. Press Ctrl-C to stop.\n"
         ));
         assert!(!frame(false).contains('\x1b'), "no escape codes when piped");
+    }
+
+    #[test]
+    fn the_line_names_whom_quotadial_asks_and_how_often_and_says_it_asks_no_one_for_the_rest() {
+        let acme: Box<dyn Provider> = Box::new(ScriptedProvider {
+            discovery_fails: false,
+            fetch_fails: false,
+            fallback: None,
+        });
+        let silent: Box<dyn Provider> = Box::new(ChattyProvider);
+        let clashing: Box<dyn Provider> = Box::new(ClashingProvider);
+
+        let lines = [
+            asking(&[acme]),
+            asking(&[Box::new(ChattyProvider) as Box<dyn Provider>]),
+            asking(&[
+                Box::new(ScriptedProvider {
+                    discovery_fails: false,
+                    fetch_fails: false,
+                    fallback: None,
+                }) as Box<dyn Provider>,
+                silent,
+                clashing,
+            ]),
+        ];
+
+        assert_eq!(
+            lines,
+            [
+                "It asks Acme at most every 5 min.",
+                "It asks no one about Chatty.",
+                "It asks Acme at most every 5 min, and no one about Chatty or Alerts.",
+            ]
+        );
+        for line in lines {
+            // #52's plain words, as every sentence people read.
+            assert_eq!(text::unplain_words(&line), Vec::<String>::new(), "{line}");
+        }
     }
 
     #[test]
@@ -2017,6 +2091,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2312,8 +2390,8 @@ mod tests {
             format!(
                 "error: the QuotaDial daemon is running, but its API at \
                  http://127.0.0.1:{port}/v1/status could not be reached; restart it with \
-                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and \
-                 asks Scripted at most every 5 min. Press Ctrl-C to stop.\n"
+                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It \
+                 asks Acme at most every 5 min. Press Ctrl-C to stop.\n"
             )
         );
     }
@@ -2333,6 +2411,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Chatty"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            None
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2382,6 +2464,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Alerts"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            None
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {

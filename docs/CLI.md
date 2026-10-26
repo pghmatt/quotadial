@@ -54,7 +54,7 @@ test -p quotadial packaging` writes them again).
 
 No command asks a provider more often than its own limit, counted across every QuotaDial process
 on the machine: Anthropic at most once every 5 minutes per account, and ChatGPT at most once every
-2 minutes. In between, a command shows the last numbers again, marked as coming from the cache,
+2 minutes. Nothing is asked about Gemini CLI. In between, a command shows the last numbers again, marked as coming from the cache,
 with their age. `watch` refreshes every minute, so most refreshes show cached numbers whose age
 keeps growing until the provider may be asked again. While the daemon runs, `status` and `watch`
 ask it instead of asking providers themselves.
@@ -661,9 +661,11 @@ Codex user@example.com (pro): stale
   and one where the costs would be says the week's cost is part of QuotaDial Pro. With no daemon
   running, the pace line then leaves out the costs.
 
-`watch` clears the terminal before each refresh and ends with when it was updated and how often
-each provider is asked. Piped into another program, and on Windows, it prints each refresh after
-the last, without escape codes.
+`watch` clears the terminal before each refresh and ends with when it was updated and, in one
+sentence, whom QuotaDial asks and how often, and which providers it asks no one about, such as "It
+asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini CLI."
+The daemon says the same when it starts. Piped into another program, and on Windows, it prints each
+refresh after the last, without escape codes.
 
 ## JSON output
 

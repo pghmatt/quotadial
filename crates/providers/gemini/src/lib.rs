@@ -166,6 +166,10 @@ impl Provider for GeminiProvider {
         NAME
     }
 
+    fn asks(&self) -> Option<&'static str> {
+        None
+    }
+
     /// The one account Gemini CLI is signed in to, if any, named for how it signs in, with where
     /// QuotaDial saw it (P-015): the sign-in file for a Google account, the settings for the rest.
     fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -603,35 +607,12 @@ mod tests {
         let account = provider.discover_accounts().expect("discovers")[0].clone();
 
         assert_eq!(provider.id(), "gemini");
+        assert_eq!(provider.asks(), None);
         assert_eq!(provider.min_poll_interval(), Duration::from_secs(300));
         assert_eq!(provider.fallback(&account), None);
         assert!(provider.log_folders().is_empty());
         assert!(provider.commands().is_empty());
         assert_eq!(provider.held_back(), 0);
         assert!(provider.discovery_warnings().is_empty());
-    }
-
-    #[test]
-    fn the_crate_depends_on_no_http_client() {
-        const MANIFEST: &str = include_str!("../Cargo.toml");
-        for client in [
-            "reqwest",
-            "hyper",
-            "ureq",
-            "isahc",
-            "surf",
-            "curl",
-            "attohttpc",
-            "wiremock",
-            // The local API's crate, which holds a client for the daemon.
-            "quotadial-api",
-        ] {
-            assert!(
-                !MANIFEST
-                    .lines()
-                    .any(|line| line.trim_start().starts_with(client)),
-                "{client} is a dependency"
-            );
-        }
     }
 }

@@ -81,10 +81,10 @@ Vertex AI. It asks no one about Gemini CLI and sends nothing about it.
 
 QuotaDial connects to these, and nothing else:
 
-- **api.anthropic.com**, with your Claude Code sign-in, for each Claude account's limits, at most
-  once every 5 minutes per account.
-- **chatgpt.com**, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most once every
-  2 minutes.
+- **api.anthropic.com**, Anthropic's, with your Claude Code sign-in, for each Claude account's
+  limits, at most once every 5 minutes per account.
+- **chatgpt.com**, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most
+  once every 2 minutes.
 - **status.claude.com** and **status.openai.com**, the providers' public status pages, every 5
   minutes while `status_pages` is on. These carry no sign-in.
 - **github.com**, where QuotaDial's releases are, once a day while the app's "Check for updates"
