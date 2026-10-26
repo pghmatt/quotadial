@@ -224,7 +224,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 | The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
-| `config.json`'s `chmod 600` command, working as written | In review (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
+| `config.json`'s `chmod 600` command, working as written | Done (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
+| Claude's sign-in command, working as written and naming no user | Built on `fix/claude-sign-in-command` (D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
+| A place holding the home folder's path beside a space or a quote | Queued (D-130, D-131) | D-130's other leftover: a place whose text holds the home folder's path beside a space, a quote or the like, such as `/Users/ann (old)/quotadial` beside the home folder `/Users/ann`, which `text::tilde_in` still rewrites, in a sentence and in the commands written from it (`config.json`'s `chmod 600`, Claude's sign-in command), so such a command fails as written; no folder QuotaDial makes is one, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -413,6 +415,128 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: Claude's sign-in command works as written and names no user (D-131)
+
+- **The ask:** the coordinator's brief of 2026-10-26: the command QuotaDial shows to sign a Claude
+  sign-in folder in again works when pasted, in a POSIX shell and in PowerShell, and never names
+  the user, even after doctor writes the home folder `~`. It is D-130's leftover, which the
+  manager's note on #84 (11:30 UTC) called "a real bug a user can hit" and put ahead of D-130's
+  other one, now a queued row of its own. Built on `fix/claude-sign-in-command` from `main` at
+  b144911 (#84).
+- **The bug, as the old code wrote it** (the new doctor test's failure against it printed both):
+  for a sign-in kept for `/Users/ann/My Claude`, the sentence said "Run
+  `CLAUDE_CONFIG_DIR='/Users/ann/My Claude' claude` to sign in again.", the user's name in it,
+  and doctor's text, after its `tilde_in` pass, "Run `CLAUDE_CONFIG_DIR='~/My Claude' claude`
+  ...". Run by sh, dash, bash, zsh and ksh with a stand-in `claude`, the second handed over
+  `~/My Claude` as written.
+- **One rule for a POSIX shell word** (`ba0d8ad`, a move with no change of behaviour):
+  `shell_word` went from `crates/daemon/src/config.rs` to `crates/core/src/text.rs`, public, with
+  its doc comment, its three tests and their `word` helper; `config.json`'s warning calls
+  `text::shell_word`, and the comment at its `tilde_in` pass names it.
+- **PowerShell** (`d0931fc`): `text::powershell_string(place, home)` beside it, with PowerShell's
+  quotation marks as two private constants, `POWERSHELL_DOUBLE_QUOTES` (`"`, `“`, `”`, `„`) and
+  `POWERSHELL_SINGLE_QUOTES` (`'`, `‘`, `’`, `‚`, `‛`). `shell_word` and it find the home folder
+  through one private helper, `after_home`: whole names, by `Path::strip_prefix`, and never a home
+  folder that is a whole disk, as `tilde_in` takes it. In the home folder `"$HOME`, the system's own
+  separator and the rest with a backtick before each backtick, `$` and double quotation mark, then
+  `"`; `"$HOME"` for the home folder itself; elsewhere the whole place in single quotes with each
+  single quotation mark written twice.
+- **Microsoft's rules, read on Microsoft Learn on 2026-10-26:** about_Quoting_Rules (PowerShell
+  7.6): a double-quoted string replaces "Variable names preceded by a dollar sign", the backtick is
+  "the PowerShell escape character", a single-quoted string is passed "exactly as you type it",
+  and PowerShell "treats smart quotation marks ... as normal quotation marks";
+  about_Automatic_Variables (7.6, and 5.1's page): `$HOME` takes `USERPROFILE` on Windows and
+  `HOME` on Unix;
+  about_Special_Characters (7.6): the escape sequences are `` `0 `` and letters, `` `e `` and
+  `` `u{x} `` added in PowerShell 6, none of which this writes; and the PowerShell Language
+  Specification 3.0, chapter 2, kept "for historical reference": 2.3.5.2 lists the four double
+  and five single quotation marks and a delimiter written twice, and 2.3.7 takes any other
+  character after a backtick as written. Rust 1.99.1's docs for `std::env::home_dir()`: on Windows
+  `USERPROFILE` when it is set and not empty, else `GetUserProfileDirectory`, so `$HOME` is the
+  folder QuotaDial stripped.
+- **The command** (`82c26a7`, `crates/providers/claude/src/login.rs`): `claude_in(dir, home,
+  windows)` takes the home folder where it took the folder already written with `~`, and is
+  `CLAUDE_CONFIG_DIR={text::shell_word} claude` or
+  `$env:CLAUDE_CONFIG_DIR = {text::powershell_string}; claude`. `Login::sign_in_command` passes its
+  environment's home folder, the one `env.tilde` writes the sentence's place from. A folder that
+  needed no quotes is quoted now too, `CLAUDE_CONFIG_DIR=~/'.claude-work' claude`, by D-130's
+  rule; `docs/CLI.md`'s example and the changelog show the new forms.
+- **The shells, by hand** (scratch scripts in the session's scratchpad, not committed), each
+  command run with `HOME` set to `ann` and then `Ann Smith` in the scratchpad and a stand-in
+  `claude` first on `PATH` that prints `CLAUDE_CONFIG_DIR`: sh (bash 3.2 as sh), dash, bash 3.2,
+  zsh 5.9 and ksh 93u+ gave the folder's own path for `~/'My Claude'`, `~/'.claude-work'`,
+  `~/'it'\''s Claude'`, `~` alone, `~/'a b/c d'`, a name holding `$HOME`, backticks, `"`, `\`, `*`
+  and `~`, and `'/Volumes/Data/My Claude'`. tcsh 6.21, having no `NAME=value command` form,
+  answered "Command not found." to every form, the old ones included, such as
+  `CLAUDE_CONFIG_DIR=~/My Claude: Command not found.` fish is not installed here.
+- **Not run in PowerShell:** neither `pwsh` nor `powershell` is installed on this Mac, so no
+  PowerShell command ran here; CI's Windows jobs run the Rust tests, which hold the PowerShell
+  form as text, and run no PowerShell either.
+- **Windows:** the tests that run there build every expected path from its parts
+  (`MAIN_SEPARATOR`, `MAIN_SEPARATOR_STR`); the `sh` test is `cfg(unix)`, with its two imports
+  inside it; the provider test expects `"$HOME\.claude-work"` on Windows, where the harness's
+  folder is in its home folder, and `~/'.claude-work'` elsewhere. No Windows target is installed
+  here, so Windows is CI's to build.
+- **Tests,** each new one failing first against a stub that kept the old command behind the new
+  signature (in core, a stub that wrote the old single-quoted string); no stub was committed:
+  - core: `a_place_in_the_home_folder_is_a_powershell_string_from_home`,
+    `what_a_double_quoted_powershell_string_reads_is_written_after_a_backtick` and
+    `a_place_outside_the_home_folder_is_a_single_quoted_powershell_string`, each string held to
+    `tilde_in` leaving it as written. The stub failed them on the pass (`'/Users/ann/.claude-work'`
+    came out `'~/.claude-work'`) and on the curly quotes it did not double.
+  - Claude's provider: `the_fix_command_for_a_folder_in_the_home_folder_never_names_the_user` and
+    `the_fix_command_for_a_folder_outside_the_home_folder_quotes_the_whole_folder` (both shells,
+    a space, a quote, PowerShell's special characters, each command held to `tilde_in`);
+    `doctor_shows_the_fix_command_as_written_in_both_shells` (doctor's text from a `Diagnostics`
+    with one account, holding `signed_out`'s sentence and each shell's command as written); and,
+    on Unix, `the_fix_command_gives_claude_code_the_folder_when_a_shell_runs_it`: the command from
+    `sign_in_command` and as doctor's pass writes it, run by `/bin/sh -c` with the environment
+    cleared, `HOME` set and `PATH` holding only a stand-in `claude` that prints the variable, for
+    five folders in the home folder and one outside it, with the home folder `ann` and then
+    `Ann Smith`, each giving the folder's own path. Against the stub the `sh` test got
+    `~/My Claude` for `CLAUDE_CONFIG_DIR='~/My Claude' claude`.
+  - Changed: `a_sign_in_from_another_folder_gets_that_folders_command` and
+    `a_folders_sign_in_is_polled_with_its_token_and_gets_its_own_fix` expect the new forms, and
+    failed on the old; removed: `the_fix_command_suits_the_shell_and_the_folder`, whose cases the
+    two new command tests hold for both shells.
+- **Counts:** the workspace 763 passed (1 ignored) on `main` at b144911 and 769 (1 ignored) now;
+  the example build 760 (2 ignored) and 766 (2 ignored). By crate: core 135 to 141 (the three
+  moved tests and three new ones), the daemon 112 to 109 (the three moved), Claude 138 to 141 (1
+  ignored; four new, one removed); the CLI 67 (64, 1 ignored, in the example build), the API 59,
+  Antigravity 64, Codex 63, cost 30, fake 19, Gemini CLI 29, issue 6, poll 37 and
+  `quotadial-providers` 4 unchanged. The tray app's `--lib` tests 87 in both builds, before and
+  after.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
+  `--locked` on the workspace and the tray app, default and `fake` (the app's `fake` run with the
+  example's CLI bundled by `npm run cli -- --fake`, then `npm run cli` to bundle the default
+  build's again); the workspace's tests, default and `fake`; the tray app's `--lib` tests, default
+  and `fake`, `tests/icon_press.rs` not run, as briefed; the release build's licence key test
+  (`only_a_debug_build_trusts_the_test_key`), core having changed; the tray app's `npm run build`;
+  the site's `npm run check`, `npm run build` and `npm test` (90), since it renders `CHANGELOG.md`
+  and `docs/CLI.md`, whose built `/changelog` and `/cli` pages show the new text;
+  `scripts/privacy.sh --check`, `scripts/public-prd.sh --check`, the 0.2.0 release notes, the
+  release scripts' tests (39, 1 skipped) and shellcheck on `scripts/`. **Not run:** a Windows or
+  Linux build, which no target here makes (CI's); PowerShell, not installed; `cargo deny`, `cargo
+  audit` and actionlint, not installed here (no dependency, lockfile or workflow changed); `npm
+  ci` and `npm audit`, no npm dependency changed; the tray app's `npm test` and
+  `npm run check:window`, its window being unchanged.
+- **Found going down #52, left for the manager or a later PR:**
+  - A form tcsh takes too, `env CLAUDE_CONFIG_DIR="$HOME"/'My Claude' claude`, gave the folder's
+    path in sh, dash, bash, zsh, ksh and tcsh alike here (fish not tried), and holds no home
+    folder path either. This PR keeps D-130's form, as briefed; switching is the manager's call.
+  - Doctor's `[user]` pass replaces every whole word that is the user's name, the command
+    included, so for a Mac user called `claude` doctor would show
+    `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`, and `~/.[user]` for `~/.claude` elsewhere in its
+    text. Doctor's copy is for support to read (D-130); a later PR could keep the command's own
+    words, such as `claude`, out of that pass.
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
+  scratchpad and no token in its environment; the new `sh` test makes its home folders and
+  stand-in in a temporary folder and runs with `PATH` holding the stand-in alone, so no other
+  `claude` can run, and the shells by hand ran the same way in the scratchpad. No vendor CLI ran,
+  no sign-in or keychain item was read, and nothing touched
+  `~/Library/Application Support/quotadial` or `~/.claude`.
 
 ### M5 queue item 12, PR D: QuotaDial Example's figures for #52
 
