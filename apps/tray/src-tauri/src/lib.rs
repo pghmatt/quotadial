@@ -278,7 +278,8 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
                 AccountChoice {
                     label: format!(
                         "{} {}",
-                        snapshot.account.provider_name, snapshot.account.display_name
+                        snapshot.account.provider_label(),
+                        snapshot.account.display_name
                     ),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
                     key,

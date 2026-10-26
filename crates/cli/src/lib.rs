@@ -705,7 +705,7 @@ fn write_history(
         if account != Some(this) {
             let name = names
                 .get(&series.provider)
-                .map_or(quotadial_core::UNNAMED_PROVIDER, String::as_str);
+                .map_or(series.provider.as_str(), String::as_str);
             writeln!(out, "{name} {}", series.account)?;
             account = Some(this);
         }
@@ -731,12 +731,14 @@ fn write_history(
 }
 
 /// What each provider calls itself, by its id, as each account's newest snapshot in `history`
-/// says (P-020): the history's series carry only the provider's id.
+/// says (P-020): the history's series carry only the provider's id. A provider whose newest
+/// snapshots all come from an older QuotaDial, which named none, keeps its id until the next poll.
 fn provider_names(history: &History) -> HashMap<String, String> {
     history
         .latest()
         .unwrap_or_default()
         .into_iter()
+        .filter(|snapshot| !snapshot.account.provider_name.is_empty())
         .map(|snapshot| (snapshot.account.provider, snapshot.account.provider_name))
         .collect()
 }
@@ -1074,7 +1076,7 @@ fn write_text(
     for snapshot in &report.snapshots {
         let account = &snapshot.account;
         // As the provider names itself (P-020).
-        write!(out, "{} {}", account.provider_name, account.display_name)?;
+        write!(out, "{} {}", account.provider_label(), account.display_name)?;
         if let Some(plan) = &account.plan {
             write!(out, " ({plan})")?;
         }
@@ -1707,6 +1709,36 @@ mod tests {
     }
 
     #[test]
+    fn history_from_an_older_quotadial_shows_the_providers_id_until_the_next_poll() {
+        let since = ts("2099-01-01T00:00:00Z");
+        let now = ts("2099-01-08T00:00:00Z");
+        let session = series("work@example.com", "Session", &[(12, 10.0)]);
+        let mut out = Vec::new();
+
+        write_history(&[session], &HashMap::new(), since, now, &mut out).expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(shown.contains("\nclaude work@example.com\n"), "{shown}");
+    }
+
+    #[test]
+    fn an_account_from_an_older_daemon_shows_its_providers_id_until_the_next_poll() {
+        let older = Account {
+            provider_name: String::new(),
+            sign_in_use: String::new(),
+            ..account()
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(older, Source::Api)],
+            ..StatusReport::default()
+        };
+
+        let shown = render(&report, false);
+
+        assert!(shown.starts_with("scripted user@example.com"), "{shown}");
+    }
+
+    #[test]
     fn each_provider_s_cost_gets_a_line_with_its_models_and_notes() {
         let model = |name: &str, usd: Option<f64>, requests: u64| quotadial_core::ModelCost {
             model: name.into(),
@@ -1953,8 +1985,8 @@ mod tests {
 
         async fn fetch(&self, account: &Account) -> Result<Snapshot> {
             let mut kept = snapshot(account.clone(), Source::Cache);
-            kept.account.provider_name = quotadial_core::UNNAMED_PROVIDER.into();
-            kept.account.sign_in_use = quotadial_core::UNSAID_SIGN_IN_USE.into();
+            kept.account.provider_name = String::new();
+            kept.account.sign_in_use = String::new();
             Ok(kept)
         }
 

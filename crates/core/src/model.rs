@@ -29,10 +29,10 @@ pub struct Account {
     /// The provider's id, such as `"claude"`.
     // As `Provider::id` gives it.
     pub provider: String,
-    /// What the provider calls itself, as people know it, such as `Claude`, `Codex` or `Gemini
-    /// CLI`, shown as given wherever the account is (P-020). An account from an older QuotaDial,
-    /// which sent none, reads as `Unnamed provider`.
-    #[serde(default = "unnamed_provider")]
+    /// The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the
+    /// provider gives it, shown as given wherever the account is (P-020). An account read back from
+    /// an older QuotaDial has none, and shows `provider` until the next poll.
+    #[serde(default)]
     pub provider_name: String,
     /// The provider's id for this account.
     pub account_id: String,
@@ -49,32 +49,27 @@ pub struct Account {
     /// ~/.claude-work)`. Never a token. Left out when unknown (P-015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sign_in: Option<String>,
-    /// One sentence, in the provider's words, saying what QuotaDial does with this account's
-    /// sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only
-    /// reads it and never changes it.`, shown as given (P-020). An account from an older QuotaDial,
-    /// which sent none, says that it did not say.
-    #[serde(default = "unsaid_sign_in_use")]
+    /// One sentence, in the provider's words and as the provider gives it, saying what QuotaDial
+    /// does with this account's sign-in, such as `QuotaDial reads this account's sign-in from
+    /// ~/.codex/auth.json. It only reads it and never changes it.`, shown as given (P-020). It never
+    /// holds a token or anything from inside a sign-in, and a place in it is written with `~` for
+    /// the home folder. An account read back from an older QuotaDial has none until the next poll.
+    #[serde(default)]
     pub sign_in_use: String,
 }
 
-/// What an account from an older QuotaDial, which did not name its provider, is shown as, rather
-/// than the provider's id: the app may hear from an older daemon, and the history holds older
-/// snapshots (P-020).
-pub const UNNAMED_PROVIDER: &str = "Unnamed provider";
-
-/// What an account from an older QuotaDial, which did not say, is shown to do with its sign-in.
-pub const UNSAID_SIGN_IN_USE: &str = "This account came from an older QuotaDial, which did not \
-                                      say what it does with the account's sign-in.";
-
-fn unnamed_provider() -> String {
-    UNNAMED_PROVIDER.to_owned()
-}
-
-fn unsaid_sign_in_use() -> String {
-    UNSAID_SIGN_IN_USE.to_owned()
-}
-
 impl Account {
+    /// The provider as people see it: its own name (P-020), or, for an account read back from an
+    /// older QuotaDial that sent none, its id until the next poll replaces it.
+    #[must_use]
+    pub fn provider_label(&self) -> &str {
+        if self.provider_name.is_empty() {
+            &self.provider
+        } else {
+            &self.provider_name
+        }
+    }
+
     /// Whether `other` is the same account: the same provider, organization and account id, the
     /// three that make an account (D-024), whatever it is called or where its sign-in was found.
     #[must_use]
@@ -235,12 +230,12 @@ impl Snapshot {
     /// stays.
     #[must_use]
     pub fn completed_from(mut self, account: &Account) -> Self {
-        if self.account.provider_name == UNNAMED_PROVIDER {
+        if self.account.provider_name.is_empty() {
             self.account
                 .provider_name
                 .clone_from(&account.provider_name);
         }
-        if self.account.sign_in_use == UNSAID_SIGN_IN_USE {
+        if self.account.sign_in_use.is_empty() {
             self.account.sign_in_use.clone_from(&account.sign_in_use);
         }
         self
@@ -440,18 +435,26 @@ mod tests {
     }
 
     #[test]
-    fn an_account_from_an_older_quotadial_reads_back_with_honest_words() {
+    fn an_account_from_an_older_quotadial_reads_back_and_shows_its_providers_id() {
         let older = json!({
             "provider": "claude",
             "account_id": "00000000-0000-0000-0000-000000000001",
             "display_name": "user@example.com"
         });
 
-        let account: Account = serde_json::from_value(older).expect("deserializes");
+        let read: Account = serde_json::from_value(older).expect("deserializes");
 
-        assert_eq!(account.provider_name, UNNAMED_PROVIDER);
-        assert_eq!(account.sign_in_use, UNSAID_SIGN_IN_USE);
-        assert_ne!(account.provider_name, account.provider, "never the id");
+        assert_eq!(
+            read.provider_name, "",
+            "a serde default, as P-015 had for sign_in"
+        );
+        assert_eq!(read.sign_in_use, "");
+        assert_eq!(
+            read.provider_label(),
+            "claude",
+            "its id until the next poll, never a name from a table"
+        );
+        assert_eq!(account().provider_label(), "Claude");
     }
 
     #[test]

@@ -355,8 +355,8 @@ impl Rule {
         occurrence: &Occurrence,
         now: DateTime<Utc>,
     ) -> (String, String) {
-        // As the provider names itself (P-020).
-        let provider = &account.provider_name;
+        // As the provider names itself (P-020), or its id for an account from an older QuotaDial.
+        let provider = account.provider_label();
         let name = &account.display_name;
         let window = occurrence.label.as_deref().unwrap_or_default();
         let used = occurrence

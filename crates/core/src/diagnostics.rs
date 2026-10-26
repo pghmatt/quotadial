@@ -70,13 +70,15 @@ impl Diagnostics {
             });
             lines.push(format!(
                 "  {} {}{plan}: {}{fetched}",
-                account.provider_name,
+                account.provider_label(),
                 account.display_name,
                 text::status_label(snapshot.status)
             ));
             // What QuotaDial does with the sign-in, in the provider's words, which name where it is
-            // when the provider knows (P-020).
-            lines.push(format!("    sign-in: {}", account.sign_in_use));
+            // when the provider knows (P-020). An account from an older QuotaDial says nothing.
+            if !account.sign_in_use.is_empty() {
+                lines.push(format!("    sign-in: {}", account.sign_in_use));
+            }
             if let Some(error) = &snapshot.error {
                 lines.push(format!("    {error}"));
             }
@@ -333,6 +335,24 @@ mod tests {
              Settings in effect:\n  \
              history_days: 30\n  \
              alert webhooks: hooks.slack.com\n"
+        );
+    }
+
+    #[test]
+    fn an_account_from_an_older_quotadial_shows_its_providers_id_and_no_sign_in_line() {
+        let mut facts = diagnostics();
+        let account = &mut facts.report.snapshots[0].account;
+        account.provider_name = String::new();
+        account.sign_in_use = String::new();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains(
+                "Accounts (1):\n  claude m***@e***.com (max): ok, fetched 3 min ago from the \
+                 API\nLeft out"
+            ),
+            "{text}"
         );
     }
 

@@ -61,8 +61,8 @@
             "type": "string"
           },
           "provider_name": {
-            "default": "Unnamed provider",
-            "description": "What the provider calls itself, as people know it, such as `Claude`, `Codex` or `Gemini CLI`, shown as given wherever the account is. An account from an older QuotaDial, which sent none, reads as `Unnamed provider`.",
+            "default": "",
+            "description": "The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it, shown as given wherever the account is. An account read back from an older QuotaDial has none, and shows `provider` until the next poll.",
             "type": "string"
           },
           "sign_in": {
@@ -73,8 +73,8 @@
             ]
           },
           "sign_in_use": {
-            "default": "This account came from an older QuotaDial, which did not say what it does with the account's sign-in.",
-            "description": "One sentence, in the provider's words, saying what QuotaDial does with this account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.`, shown as given. An account from an older QuotaDial, which sent none, says that it did not say.",
+            "default": "",
+            "description": "One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with this account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.`, shown as given. It never holds a token or anything from inside a sign-in, and a place in it is written with `~` for the home folder. An account read back from an older QuotaDial has none until the next poll.",
             "type": "string"
           }
         },

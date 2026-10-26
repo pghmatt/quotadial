@@ -963,8 +963,8 @@ mod tests {
         /// `snapshot` as an older QuotaDial kept it, when the test says so.
         fn as_kept(&self, mut snapshot: Snapshot) -> Snapshot {
             if self.older.load(Ordering::SeqCst) {
-                snapshot.account.provider_name = quotadial_core::UNNAMED_PROVIDER.to_owned();
-                snapshot.account.sign_in_use = quotadial_core::UNSAID_SIGN_IN_USE.to_owned();
+                snapshot.account.provider_name = String::new();
+                snapshot.account.sign_in_use = String::new();
             }
             snapshot
         }

@@ -105,8 +105,9 @@ pub struct AccountView {
     pub extra_usage: Option<String>,
     /// Why the status is not ok, naming the fix.
     pub note: Option<String>,
-    /// What QuotaDial does with this account's sign-in, in its provider's words, for "How QuotaDial
-    /// reads this sign-in" (P-020).
+    /// What QuotaDial does with this account's sign-in, in its provider's words, for "What
+    /// QuotaDial does with this sign-in" (P-020). Empty for an account from an older daemon, which
+    /// says none, and then the panel is left out.
     pub sign_in: String,
 }
 
@@ -177,7 +178,7 @@ impl Meter {
             meter.level = Level::of(used_pct);
             meter.headline = Some(format!(
                 "{} {}, {}",
-                snapshot.account.provider_name,
+                snapshot.account.provider_label(),
                 window.label,
                 text::resets(window.resets_at, now)
             ));
@@ -308,8 +309,10 @@ impl Meter {
 
 fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
     let account = &snapshot.account;
-    // As the provider names itself and says what QuotaDial does with the sign-in (P-020).
-    let provider = account.provider_name.clone();
+    // As the provider names itself and says what QuotaDial does with the sign-in (P-020); an
+    // account from an older daemon shows its provider's id and no sign-in panel until the next
+    // poll.
+    let provider = account.provider_label().to_owned();
     let windows = snapshot.windows_tightest_first();
     let mut summary = format!("{provider} {}", account.display_name);
     if let Some(plan) = &account.plan {
@@ -696,7 +699,7 @@ mod tests {
     }
 
     #[test]
-    fn an_account_from_an_older_daemon_is_shown_with_honest_words() {
+    fn an_account_from_an_older_daemon_shows_its_providers_id_and_no_sign_in_panel() {
         let older: Account = serde_json::from_value(serde_json::json!({
             "provider": "claude",
             "account_id": "user-1",
@@ -709,8 +712,12 @@ mod tests {
         let meter = Meter::new(Some(&report), None, None, now());
 
         let shown = &meter.accounts[0];
-        assert_eq!(shown.provider, quotadial_core::UNNAMED_PROVIDER);
-        assert_eq!(shown.sign_in, quotadial_core::UNSAID_SIGN_IN_USE);
+        assert_eq!(shown.provider, "claude", "its id until the next poll");
+        assert!(
+            shown.summary.starts_with("claude user@example.com"),
+            "{shown:?}"
+        );
+        assert_eq!(shown.sign_in, "", "nothing said, so no panel");
     }
 
     #[test]

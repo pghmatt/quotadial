@@ -184,7 +184,7 @@ pub fn label(history: &History, settings: &Settings, key: &str) -> Result<String
         .ok_or_else(share::unknown_account)?;
     let account = snapshot.account;
     Ok(share::label(
-        &account.provider_name,
+        account.provider_label(),
         settings.aliases.get(key).map(String::as_str),
         account.plan.as_deref(),
     ))
@@ -199,12 +199,10 @@ struct Newest {
 }
 
 impl Newest {
-    /// What the provider `id` calls itself, or what an account from an older QuotaDial is shown
-    /// as.
-    fn name(&self, id: &str) -> &str {
-        self.names
-            .get(id)
-            .map_or(quotadial_core::UNNAMED_PROVIDER, String::as_str)
+    /// What the provider `id` calls itself, or `id` itself while its newest snapshots all come
+    /// from an older QuotaDial, which named none, until the next poll.
+    fn name<'a>(&'a self, id: &'a str) -> &'a str {
+        self.names.get(id).map_or(id, String::as_str)
     }
 }
 
@@ -215,10 +213,11 @@ fn newest(history: &History) -> Result<Newest, String> {
         .map_err(|error| format!("QuotaDial could not read its history: {error}"))?
     {
         let account = snapshot.account;
-        // A name an older QuotaDial left out never replaces one a provider gave.
-        let name = newest.names.entry(account.provider.clone()).or_default();
-        if name.is_empty() || name == quotadial_core::UNNAMED_PROVIDER {
-            name.clone_from(&account.provider_name);
+        // An older QuotaDial named no provider.
+        if !account.provider_name.is_empty() {
+            newest
+                .names
+                .insert(account.provider.clone(), account.provider_name.clone());
         }
         if let Some(plan) = account.plan.clone() {
             newest.plans.insert(account_key(&account), plan);
@@ -624,6 +623,31 @@ mod tests {
         {
             assert!(!account.label.contains('@'), "{}", account.label);
         }
+    }
+
+    #[test]
+    fn a_history_from_an_older_quotadial_shows_the_providers_id_until_the_next_poll() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = History::open(&dir.path().join("history.db")).expect("opens");
+        let mut older = snapshot(
+            "codex",
+            &[(WindowKind::Weekly, "Weekly", 60.0)],
+            "2099-01-06T08:00:00Z",
+        );
+        older.account.provider_name = String::new();
+        history
+            .record(&older, at("2099-01-06T08:00:00Z"))
+            .expect("records");
+        let now = at("2099-01-07T00:00:00Z");
+
+        let view = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(view.accounts[0].provider, "codex");
+        assert_eq!(view.accounts[0].label, "codex");
+        assert_eq!(
+            label(&history, &Settings::default(), "codex user-1 -").as_deref(),
+            Ok("codex")
+        );
     }
 
     #[test]
