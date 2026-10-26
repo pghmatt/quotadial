@@ -82,9 +82,8 @@ queue, by its numbers:
   (PR #66); package managers, completions and manual pages (D-112), merged (PR #67); and docs, in
   three PRs: the fake provider and the example build (D-117), merged (PR #71); the release copies,
   the site's downloads and guides and the README's pictures (D-116), merged (PR #72); the install
-  check and #52's figures from Matt's copy, merged (PR #74); and the example build's figures with
-  the first-run recording (PR D, draft #80): the figures measured on 2026-10-26, the recording
-  waiting on Matt's menu bar (#51);
+  check and #52's figures from Matt's copy, merged (PR #74); the example build's figures, merged
+  (PR D, #80); and the first-run recording, PR E, waiting on Matt's menu bar (#51);
 - then M6. The fake provider #52 asks for is done: the manager decided on #49 (14:25 UTC)
   to build it with item 12 (D-117). The M6 plan is #73, approved by the manager at 20:29 UTC with
   its decisions (Gemini CLI detected and explained, then Antigravity through its status line, then
@@ -92,8 +91,8 @@ queue, by its numbers:
 The manager's 03:30 UTC check on 2026-10-25 set the order: 5, then #64's fix, 10, 11, 12, then M6.
 Items 10 and 11 merged while 5 was being built, ahead of that order (the check landed a minute after
 the builder last read #49; said so on #49 at 04:45 UTC). Item 5 merged (PRs #68 and #70) and
-#64's fix (PR #69); from here: 12 (#71, #72 and #74 merged; PR D's figures measured, its recording
-waiting on Matt),
+#64's fix (PR #69); from here: 12 (#71, #72, #74 and #80 merged; PR E, the recording, waits on
+Matt),
 then M6 (#73).
 The manager's review of #68, posted after it merged (point 1 repeated on #70 and #49 as blocking
 the 0.3.0 bump), is answered on `docs/review-fixes`, from `feat/docs`: every point, wrangler with
@@ -209,7 +208,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
-| 12, PR D: the first-run recording and the example's figures | Figures measured, in draft PR #80; the recording waits on Matt (#51) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB; the README's recording waits on Matt's menu bar |
+| 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80 |
+| 12, PR E: the first-run recording | Waiting on Matt (#51) | The README's recording of QuotaDial Example's first run, cropped to its icon and popover, under rule 4 on #49; it needs Matt's menu bar set to stay visible for about two minutes, and its run is the Graphics and Media helper's third (#80) |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
 ## M6
@@ -225,6 +225,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 | The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
 | `config.json`'s `chmod 600` command, working as written | In review (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
+| Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
 
@@ -413,7 +414,7 @@ so they became #10.
 
 The notes below run newest first; the setup notes above them are the oldest.
 
-### M5 queue item 12, PR D: QuotaDial Example's figures for #52, and the first-run recording
+### M5 queue item 12, PR D: QuotaDial Example's figures for #52
 
 - **The go-ahead:** Matt's, in Chat on 2026-10-25, for QuotaDial Example in his menu bar for the
   recording and the timings (#51). Measured on 2026-10-25 and 26 on his Mac: macOS 26.7.1, a
@@ -448,14 +449,24 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **Growth:** the daemon's footprint rose steadily in every run: 3.7 to 4.1 MiB in its hour, and
   3.5 to 4.3 MiB over 2 hours 25 minutes in a longer run of the earlier build, whose heap's
   allocated bytes went from 527 KiB to 968 KiB (`vmmap --summary`). SQLite's page cache, about 2 MB
-  per connection by default, grows like that and then stops; a ten-hour run of this build, started
-  at 02:32 UTC, says which, and its result goes on PR D. Matt's copy's tray process, read only:
+  per connection by default, grows like that and then stops. Matt's copy's tray process, read only:
   39.0, 39.9 and 37.7 MiB of footprint at 21:07, 00:01 and 03:33 UTC, after 1 day 20 hours to 2 days
   2 hours of running, so no growth is seen there.
-- **The recording** waits on Matt: his menu bar hides itself, and the recording needs it set to stay
-  visible for about two minutes. A frame from a test recording of the earlier build showed its
-  accounts as "fake Example", which is why the figures were taken again from a build with #77 and
-  #78 in it, which names them "Example" and offers no week's cost.
+- **The ten-hour run** of this build, from 02:32 to 12:32 UTC, sampled every 5 minutes: 1.05 s of
+  CPU, 0.003% of one core; footprint 5.1 MiB on average, 3.7 to 6.4 MiB; resident 11.6 MiB. The
+  footprint rose the whole time, by about a quarter of a MiB an hour, and the heap's allocated
+  bytes with it, from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes. `heap` at
+  4 hours 20 minutes found 227 blocks of the 5 KB size, SQLite's page buffers, about 1.1 MB of
+  the 1.6 MB in use; the history database ended at 1,974,272 bytes, about the size at which
+  SQLite's default cache stops taking pages. So, still rising at ten hours, the manager's rule on
+  #80 puts it in M6's queue (its row there) rather than in this PR. A 24-hour run of the same
+  build, from 06:53 UTC with the heap at 538 KiB, says whether it levels off.
+- **The recording** is PR E, by the manager's split on #80, since it was not in when the ten-hour
+  run reported: Matt's menu bar hides itself, and the recording needs it set to stay visible for
+  about two minutes. Its run is the third for the Graphics and Media helper's start. A frame from a
+  test recording of the earlier build showed its accounts as "fake Example", which is why the
+  figures were taken again from a build with #77 and #78 in it, which names them "Example" and
+  offers no week's cost.
 - **The scripts** (kept outside the repository with the builder's notes, as above): a long run's
   summary can now be written again from its saved samples, after one failed on an awk slip with the
   hour's samples intact, and the idle summary words #52's targets as D-123 does.
@@ -1125,7 +1136,7 @@ The notes below run newest first; the setup notes above them are the oldest.
 ### M5 queue item 12, PR D: the first-run recording and the example's figures
 
 - **Measured** on 2026-10-25 and 26: the figures are in "PR D: QuotaDial Example's figures for
-  #52", among the newest notes above; the recording still waits on Matt.
+  #52", among the newest notes above; the recording is PR E, waiting on Matt.
 - **Waited on** Matt's go-ahead for a few minutes with a second QuotaDial icon in his menu bar, for
   the README's recording and #52's timings (#51). The manager's review of #74 moved this here so the
   install check did not wait on it; the 0.3.0 bump does not wait on it either.
