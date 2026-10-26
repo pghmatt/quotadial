@@ -421,6 +421,23 @@ The notes below run newest first; the setup notes above them are the oldest.
 
 ### M6 PR 2: GitHub Copilot (D-127)
 
+- **The live check in one command** (2026-10-26, for Matt's "what do I need to do?"):
+  `scripts/copilot-live-check.sh`, run from this checkout, takes him through steps 1 to 11 of the
+  live check below in order. It checks first for macOS, `security`, `curl`, `python3`, `cargo` and a
+  Copilot CLI or GitHub CLI sign-in; says before the Keychain reads what macOS will show and what to
+  click (Deny the first time, Allow after that, never Always Allow) and asks after each read whether
+  macOS asked; sends the requests at least 5 minutes apart with a countdown, C only after a refusal;
+  writes the redacted fixture, stopping if `gho_|ghu_|ghp_|github_pat_|@` finds anything in it; runs
+  QuotaDial in a data folder of its own; and writes every result by step number to
+  `fixtures/copilot/raw/results.md`, logins written `<login>` and the home folder `~`. Each token
+  goes from `security ... -w` or `gh auth token` into `curl --config -` with the URL, so curl has
+  nowhere to send a request without one. `--dry-run` runs the same flow against a stand-in server on
+  127.0.0.1 with made-up sign-ins and 3-second waits, reading no Keychain or GitHub CLI and running
+  no cargo. Proved here by the dry run under macOS's own bash 3.2 and Python 3.9, by its helper's
+  checks on made-up answers, by its real mode against stand-in `security`, `gh`, `copilot` and
+  `cargo` commands in a scratch checkout (a refused first read, every read refused, no Keychain item
+  beside a refused GitHub CLI sign-in, and no sign-in at all) and by shellcheck; never run for real
+  by the builder.
 - **Moved onto #83** (`main` at 6063ad1, D-129), 2026-10-26: GitHub CLI's place in the tests is
   built as `Path::new("~").join(".config").join("gh").join("hosts.yml")`, `~` and the system's own
   separator as `text::tilde` now writes it, by one helper in `advice`'s tests that the sentences'
@@ -547,7 +564,8 @@ The notes below run newest first; the setup notes above them are the oldest.
   four requests to GitHub go at least 5 minutes apart, as QuotaDial's floor does. No token is ever
   printed or saved: each request takes the token from `security` or `gh` straight into `curl`'s
   settings on standard input, never onto a command line. Raw answers stay in
-  `fixtures/copilot/raw/`, which git ignores. From a checkout of this PR's branch:
+  `fixtures/copilot/raw/`, which git ignores. From a checkout of this PR's branch
+  (`scripts/copilot-live-check.sh` runs these steps in order):
   1. **Versions**, no request: `sw_vers -productVersion`, `gh --version`, `copilot --version`.
   2. **The Copilot CLI's Keychain item, by its attributes**, which reads no secret:
      `security find-generic-password -s copilot-cli | grep -E '"(acct|svce|mdat)"'`. Record the
