@@ -21,11 +21,11 @@ const ASKS: &str = if EXAMPLE {
     "It asks no one about Example."
 } else {
     "It asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini \
-     CLI."
+     CLI or Antigravity."
 };
 
 /// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
-/// since D-124.
+/// since D-124, and Antigravity since D-126.
 const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
     &[("fake", "Example")]
 } else {
@@ -33,6 +33,7 @@ const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
         ("claude", "Claude"),
         ("codex", "Codex"),
         ("gemini", "Gemini CLI"),
+        ("antigravity", "Antigravity"),
     ]
 };
 
@@ -243,6 +244,149 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
         )),
         "{doctor}"
     );
+}
+
+/// The block Antigravity CLI's settings take to run QuotaDial's command (D-126).
+#[cfg(not(feature = "fake"))]
+const ANTIGRAVITY_BLOCK: &str = r#""statusLine": { "type": "command", "command": "quotadial antigravity status-line", "stack_with_default": true }"#;
+
+/// Runs `quotadial antigravity status-line` with `args` after it, as Antigravity CLI's status line
+/// does, with `payload` on standard input.
+#[cfg(not(feature = "fake"))]
+fn status_line(home: &Path, args: &[&str], payload: &[u8]) -> Output {
+    let mut words = vec!["antigravity", "status-line"];
+    words.extend_from_slice(args);
+    let mut child = command(env!("CARGO_BIN_EXE_quotadial"), &words, home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the command starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(payload)
+        .expect("hands over");
+    child.wait_with_output().expect("the command ends")
+}
+
+/// Antigravity in a made-up home, through the command its CLI's status line runs (D-126): with
+/// only Antigravity CLI's folder there, an account says what to add; the command keeps a handover,
+/// printing nothing and ending with 0; then `status`, `status --json` and `doctor` show its window
+/// from the status line, and the file holds nothing else of what it was handed. Every release has
+/// it; the example build has the fake provider alone.
+#[cfg(not(feature = "fake"))]
+#[test]
+fn antigravity_s_status_line_hands_its_numbers_to_status_json_and_doctor() {
+    let home = empty_home("antigravity");
+    std::fs::create_dir_all(home.join(".gemini").join("antigravity-cli"))
+        .expect("makes its folder");
+    let settings = "~/.gemini/antigravity-cli/settings.json";
+    let waiting = format!(
+        "No numbers yet: add `{ANTIGRAVITY_BLOCK}` to {settings}, or put `quotadial antigravity \
+         status-line` in front of the status line command already there, and they come the next \
+         time Antigravity CLI runs."
+    );
+    let sign_in_use = format!(
+        "QuotaDial never reads Antigravity's sign-in. It keeps only the numbers Antigravity CLI's \
+         status line hands it once `{ANTIGRAVITY_BLOCK}` is in {settings}."
+    );
+
+    let before = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
+    assert!(before.status.success(), "exit status {:?}", before.status);
+    assert_eq!(
+        stdout(&before),
+        format!("Antigravity: unsupported\n  {waiting}\n")
+    );
+
+    let payload = json!({
+        "cwd": "/home/someone/a-secret-project",
+        "conversation_title": "A private conversation",
+        "quota": { "gemini-weekly": { "remaining_fraction": 0.25, "reset_in_seconds": 90_000 } },
+        "plan_tier": "Pro",
+        "email": "someone@example.com"
+    });
+    let handed = status_line(&home, &[], payload.to_string().as_bytes());
+    assert!(handed.status.success(), "exit status {:?}", handed.status);
+    assert!(
+        handed.stdout.is_empty() && handed.stderr.is_empty(),
+        "{handed:?}"
+    );
+    let kept = std::fs::read_to_string(home.join("data").join("antigravity.json")).expect("kept");
+    assert!(
+        !kept.contains("secret") && !kept.contains("private"),
+        "{kept}"
+    );
+
+    let text = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
+    assert!(text.status.success(), "exit status {:?}", text.status);
+    assert_eq!(
+        stdout(&text),
+        "Antigravity someone@example.com (Pro): ok\n  Weekly (Gemini): 75% used, resets in 1 d, \
+         from the CLI's status line just now\nPace needs the daemon: with the QuotaDial app or \
+         `quotadial daemon` running, each window also shows how fast it fills.\n"
+    );
+
+    let json = run(
+        env!("CARGO_BIN_EXE_quotadial"),
+        &["status", "--json"],
+        &home,
+    );
+    let report: Value = serde_json::from_str(&stdout(&json)).expect("valid JSON");
+    let snapshot = &report["snapshots"][0];
+    assert_eq!(
+        snapshot["account"],
+        json!({
+            "provider": "antigravity",
+            "provider_name": "Antigravity",
+            "account_id": "someone@example.com",
+            "display_name": "someone@example.com",
+            "plan": "Pro",
+            "sign_in_use": sign_in_use
+        })
+    );
+    assert_eq!(snapshot["status"], "ok");
+    let window = &snapshot["windows"][0];
+    assert_eq!(window["label"], "Weekly (Gemini)");
+    assert_eq!(window["kind"], "weekly");
+    assert_eq!(window["used_pct"], 75.0);
+    assert_eq!(window["source"], "status_line");
+    assert_eq!(window["scope_model"], "gemini");
+    assert_eq!(report["errors"], json!([]));
+    assert_eq!(report["providers"], providers());
+
+    let doctor = stdout(&run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home));
+    assert!(
+        doctor.contains(&format!(
+            "Accounts (1):\n  Antigravity s***@e***.com (Pro): ok, fetched just now from the CLI's \
+             status line\n    sign-in: {sign_in_use}\n"
+        )),
+        "{doctor}"
+    );
+}
+
+/// A status line the user already had, run by the real binary after QuotaDial keeps its numbers:
+/// it gets the same input, and its output and exit status come back unchanged (D-126).
+#[cfg(all(unix, not(feature = "fake")))]
+#[test]
+fn antigravity_s_status_line_runs_the_one_already_there_unchanged() {
+    let home = empty_home("antigravity-chained");
+    let payload = json!({ "quota": { "3p-5h": { "remaining_fraction": 0.5 } } }).to_string();
+
+    let ran = status_line(
+        &home,
+        &["/bin/sh", "-c", "cat; printf ' and its own line'; exit 3"],
+        payload.as_bytes(),
+    );
+
+    assert_eq!(ran.status.code(), Some(3));
+    assert_eq!(
+        String::from_utf8(ran.stdout).expect("UTF-8"),
+        format!("{payload} and its own line")
+    );
+    assert!(ran.stderr.is_empty());
+    assert!(home.join("data").join("antigravity.json").exists());
 }
 
 /// The example build's accounts, by `status`: each called Example with its plan, every window

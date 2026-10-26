@@ -227,7 +227,7 @@ esac
 (history)
 _arguments "${_arguments_options[@]}" : \
 '--since=[From how long ago\: such as 24h, 7d or 30d, or a time such as 2099-01-01T00\:00\:00Z]:SINCE:_default' \
-'--provider=[Only this provider\: claude, codex or gemini]:PROVIDER:_default' \
+'--provider=[Only this provider\: claude, codex, gemini or antigravity]:PROVIDER:_default' \
 '--account=[Only this account, by its email address or id]:ACCOUNT:_default' \
 '--window=[Only windows with this label, such as Session or Weekly]:WINDOW:_default' \
 '(--json)--csv[Print every reading as CSV, for a spreadsheet]' \
@@ -235,6 +235,55 @@ _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
+;;
+(antigravity)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_qd__subcmd__antigravity_commands" \
+"*::: :->antigravity" \
+&& ret=0
+
+    case $state in
+    (antigravity)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:qd-antigravity-command-$line[1]:"
+        case $line[1] in
+            (status-line)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::words -- Handed to the command as they are:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_qd__subcmd__antigravity__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:qd-antigravity-help-command-$line[1]:"
+        case $line[1] in
+            (status-line)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -336,6 +385,26 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(antigravity)
+_arguments "${_arguments_options[@]}" : \
+":: :_qd__subcmd__help__subcmd__antigravity_commands" \
+"*::: :->antigravity" \
+&& ret=0
+
+    case $state in
+    (antigravity)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:qd-help-antigravity-command-$line[1]:"
+        case $line[1] in
+            (status-line)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -360,6 +429,7 @@ _qd_commands() {
 'doctor:Print what support asks for, with nothing secret in it\: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app'\''s Send feedback attaches the same' \
 'licence:Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call' \
 'history:Show how each window was used over time, from the daemon'\''s history' \
+'antigravity:Commands the Antigravity provider adds' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'qd commands' commands "$@"
@@ -443,6 +513,37 @@ _qd__subcmd__alerts__subcmd__remove_commands() {
     local commands; commands=()
     _describe -t commands 'qd alerts remove commands' commands "$@"
 }
+(( $+functions[_qd__subcmd__antigravity_commands] )) ||
+_qd__subcmd__antigravity_commands() {
+    local commands; commands=(
+'status-line:Keeps the numbers Antigravity CLI'\''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'qd antigravity commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__antigravity__subcmd__help_commands] )) ||
+_qd__subcmd__antigravity__subcmd__help_commands() {
+    local commands; commands=(
+'status-line:Keeps the numbers Antigravity CLI'\''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'qd antigravity help commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__antigravity__subcmd__help__subcmd__help_commands] )) ||
+_qd__subcmd__antigravity__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'qd antigravity help help commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__antigravity__subcmd__help__subcmd__status-line_commands] )) ||
+_qd__subcmd__antigravity__subcmd__help__subcmd__status-line_commands() {
+    local commands; commands=()
+    _describe -t commands 'qd antigravity help status-line commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__antigravity__subcmd__status-line_commands] )) ||
+_qd__subcmd__antigravity__subcmd__status-line_commands() {
+    local commands; commands=()
+    _describe -t commands 'qd antigravity status-line commands' commands "$@"
+}
 (( $+functions[_qd__subcmd__daemon_commands] )) ||
 _qd__subcmd__daemon_commands() {
     local commands; commands=()
@@ -464,6 +565,7 @@ _qd__subcmd__help_commands() {
 'doctor:Print what support asks for, with nothing secret in it\: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app'\''s Send feedback attaches the same' \
 'licence:Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call' \
 'history:Show how each window was used over time, from the daemon'\''s history' \
+'antigravity:Commands the Antigravity provider adds' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'qd help commands' commands "$@"
@@ -503,6 +605,18 @@ _qd__subcmd__help__subcmd__alerts__subcmd__on_commands() {
 _qd__subcmd__help__subcmd__alerts__subcmd__remove_commands() {
     local commands; commands=()
     _describe -t commands 'qd help alerts remove commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__help__subcmd__antigravity_commands] )) ||
+_qd__subcmd__help__subcmd__antigravity_commands() {
+    local commands; commands=(
+'status-line:Keeps the numbers Antigravity CLI'\''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.' \
+    )
+    _describe -t commands 'qd help antigravity commands' commands "$@"
+}
+(( $+functions[_qd__subcmd__help__subcmd__antigravity__subcmd__status-line_commands] )) ||
+_qd__subcmd__help__subcmd__antigravity__subcmd__status-line_commands() {
+    local commands; commands=()
+    _describe -t commands 'qd help antigravity status-line commands' commands "$@"
 }
 (( $+functions[_qd__subcmd__help__subcmd__daemon_commands] )) ||
 _qd__subcmd__help__subcmd__daemon_commands() {

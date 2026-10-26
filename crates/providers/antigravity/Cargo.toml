@@ -1,0 +1,27 @@
+[package]
+name = "quotadial-provider-antigravity"
+description = "Antigravity for QuotaDial: keeps the numbers Antigravity CLI's status line hands over, and shows them. It sends nothing."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+# No HTTP client, here or in a dev-dependency: this provider asks no one (D-119, D-126), which the
+# providers' list test holds this file to (P-021).
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+quotadial-core.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+quotadial-core = { workspace = true, features = ["testing"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

@@ -11,7 +11,7 @@ publish.workspace = true
 
 [features]
 # Every provider a release ships after Claude and Codex, each behind its own feature (D-121).
-default = ["gemini"]
+default = ["gemini", "antigravity"]
 # The example build (D-117): the fake provider alone, in place of Claude and Codex, and this copy's
 # own data folder, cache folder and port (quotadial-core's `fake`). Off by default and in no binary's
 # defaults; the Release workflow checks that no CLI it ships ever names a provider `fake`.
@@ -20,6 +20,9 @@ fake = ["dep:quotadial-provider-fake", "quotadial-core/fake"]
 # PR after the one that merged it (D-122, D-124), once every provider names itself and says what
 # QuotaDial does with its sign-in (P-020). The CLI and the tray app take it with the default list.
 gemini = ["dep:quotadial-provider-gemini"]
+# Antigravity, from what its CLI's status line hands `quotadial antigravity status-line`, asking no
+# one (D-119, D-126). On by default from the PR that merges it, since it needs no live check (D-121).
+antigravity = ["dep:quotadial-provider-antigravity"]
 
 [dependencies]
 quotadial-core.workspace = true
@@ -28,6 +31,7 @@ quotadial-provider-claude.workspace = true
 quotadial-provider-codex.workspace = true
 quotadial-provider-fake = { workspace = true, optional = true }
 quotadial-provider-gemini = { workspace = true, optional = true }
+quotadial-provider-antigravity = { workspace = true, optional = true }
 
 [lints]
 workspace = true

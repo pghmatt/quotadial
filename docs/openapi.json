@@ -800,6 +800,11 @@
             "const": "example",
             "description": "Made up by QuotaDial's example build, for pictures of the app; a release never sends it.",
             "type": "string"
+          },
+          {
+            "const": "status_line",
+            "description": "Handed over by the official CLI's status line, which runs a command of QuotaDial's with its numbers, as Antigravity CLI's does. QuotaDial asked no one for them.",
+            "type": "string"
           }
         ]
       },

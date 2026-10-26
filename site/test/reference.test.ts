@@ -177,6 +177,7 @@ const GUIDE_SECTIONS = {
     "Settings",
     "Updates",
     "The quotadial command",
+    "Antigravity",
     "Build it yourself",
   ],
   cli: [
@@ -184,6 +185,7 @@ const GUIDE_SECTIONS = {
     "Completions and manual pages",
     "How often providers are asked",
     "Accounts",
+    "Antigravity's status line",
     "Settings",
     "The daemon",
     "Alerts",

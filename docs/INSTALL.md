@@ -147,9 +147,9 @@ that; Ubuntu has it on already.
 
 On QuotaDial Free the popover shows one account per provider, the one the current shell would use,
 and a line under the accounts says how many more there are and, where Claude Code's or the Codex
-CLI's logs could give it, that the week's cost is part of QuotaDial Pro. An alert rule only Pro checks says it waits for Pro, and Settings says that alerts go
-only to the system's notifications where it would name webhooks. What each tier has is in
-[`CLI.md`](CLI.md#quotadial-free-and-pro).
+CLI's logs could give it, that the week's cost is part of QuotaDial Pro. An alert rule only Pro
+checks says it waits for Pro, and Settings says that alerts go only to the system's notifications
+where it would name webhooks. What each tier has is in [`CLI.md`](CLI.md#quotadial-free-and-pro).
 
 While a provider's status page reports an incident, ⚠ appears beside the tray's number and the
 popover names the incident under it.
@@ -173,7 +173,8 @@ The popover lists every Claude subscription stored on the machine, not only the 
 signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
 folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts). A Gemini CLI
 account it finds signed in is listed too, with why it has no numbers; QuotaDial only checks that
-its sign-in is there and never opens it.
+its sign-in is there and never opens it. An Antigravity account shows its windows once you add
+QuotaDial to Antigravity CLI's status line, as [Antigravity](#antigravity) below describes.
 
 ## Updates
 
@@ -213,6 +214,46 @@ On Windows, the installer puts `quotadial.exe` beside the app, in `C:\Program Fi
 that folder to your `PATH` to type `quotadial`. On Linux, the deb installs `quotadial` in
 `/usr/bin`, so it is ready to use, with its manual pages and its completions for bash, zsh and
 fish. See [CLI.md](CLI.md) for what the command does.
+
+## Antigravity
+
+QuotaDial shows an Antigravity account's five-hour and weekly windows from what Antigravity CLI's
+status line hands it. Antigravity's terms do not let other tools use its sign-in, so QuotaDial
+never reads it, asks no one, and never changes Antigravity CLI's settings itself: you add one line.
+
+1. Antigravity CLI runs its status line with `sh -c` (`cmd /c` on Windows) and the `PATH` it was
+   started with, so `quotadial` must be on that `PATH`: install the command, or link the app's onto
+   your `PATH` as [The `quotadial` command](#the-quotadial-command) describes. Otherwise write the
+   command's whole path in place of `quotadial` below, such as
+   `/Applications/QuotaDial.app/Contents/MacOS/quotadial`.
+2. Add this to `~/.gemini/antigravity-cli/settings.json`, inside its outer braces, with a comma
+   after whatever comes before it:
+
+   ```json
+   "statusLine": { "type": "command", "command": "quotadial antigravity status-line", "stack_with_default": true }
+   ```
+
+   `stack_with_default` keeps Antigravity CLI's own status line; QuotaDial's command prints nothing
+   below it.
+3. If the file has a `statusLine` already, keep it as it is and put
+   `quotadial antigravity status-line` and a space in front of its `command`, such as
+   `"command": "quotadial antigravity status-line ~/.gemini/antigravity-cli/statusline.sh"`.
+   QuotaDial keeps its numbers, then runs your command with the same input and passes its output
+   and exit status back unchanged, so your status line shows as before. A command that is more than
+   a program and its arguments, such as one with a `|` in it, goes in `sh -c '...'`:
+   `quotadial antigravity status-line sh -c 'your command'`.
+
+The next time Antigravity CLI runs, the popover and `quotadial status` show its windows, such as
+`5-hour (Gemini)` and `Weekly (Claude and GPT)`, each from the CLI's status line with its age. They
+update while Antigravity CLI runs. Once it stops, they are marked stale with the time they are
+from, and a window that resets meanwhile is left out until Antigravity CLI runs again. Until the
+first numbers come, when Antigravity CLI is on the machine, its account shows with the line to add,
+which `quotadial doctor` prints too.
+
+QuotaDial keeps only each limit's share or amount left and its reset, the plan, the account's
+address and the time, in `antigravity.json` in its data folder ([`PRIVACY.md`](PRIVACY.md)).
+Nothing else Antigravity CLI hands over, such as your folders, your conversation or the model, is
+kept.
 
 ## Build it yourself
 
