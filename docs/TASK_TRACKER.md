@@ -463,7 +463,9 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **Left open, for the manager:** a copy without a licence still offers the week's cost to a
   machine with only a Gemini CLI account, which the cost scan cannot give (D-122); `watch` and the
   daemon say they ask "Gemini CLI at most every 5 min", though it is never asked, which needs a way
-  for a provider to say it asks no one, a change in core; error lines keep the provider's id
+  for a provider to say it asks no one, a change in core, proposed as P-021 (`Provider::asks`,
+  required, whom a provider's fetch asks or none), to settle before PR 3, since Antigravity asks
+  no one either; error lines keep the provider's id
   (`claude: request failed`), as each provider writes its errors; and the site's home page speaks
   of Claude and Codex only, still true, so naming Gemini CLI there is for the site's review.
 - **Tests:** in the workspace, 625 passed (1 ignored) on `main` and 656 (1 ignored) now, Gemini
