@@ -18,6 +18,9 @@ lists all of them. `account.sign_in` says where each one's sign-in is, such as
 The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or the plain
 `Claude Code-credentials` item (`~/.claude`) when that is not set.
 
+A `gemini` account, Gemini CLI's, has no numbers: its `status` is `unsupported`, and its `error`
+says why and, for a Google sign-in, that `/model` in Gemini CLI shows its limits.
+
 ## How to ask
 
 Use the first of these that is available:
@@ -27,7 +30,7 @@ Use the first of these that is available:
    - `get_account_headroom` ranks the accounts by the room left in their tightest limit.
    - `get_usage` returns every limit.
    - `list_alerts` returns the user's alert rules and what they told in the last week.
-   - The first two take an optional `provider`, `claude` or `codex`.
+   - The first two take an optional `provider`, `claude`, `codex` or `gemini`.
    - On QuotaDial Free, `get_account_headroom` and `list_alerts` answer with an error saying they
      are part of QuotaDial Pro. Then call `get_usage` and find the tightest window yourself, as
      "Headroom" below describes; `get_usage` works on every copy.

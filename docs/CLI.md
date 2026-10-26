@@ -609,8 +609,9 @@ Its three tools only read:
 On QuotaDial Free the two Pro tools answer with a tool error that names the feature and says that
 `get_usage` gives every window, with its reset, on any copy.
 
-`get_usage` and `get_account_headroom` take an optional `provider`, `claude` or `codex`, that limits
-the answer to that provider's accounts. Each answer comes as JSON text and, for agents that speak
+`get_usage` and `get_account_headroom` take an optional `provider`, `claude`, `codex` or `gemini`,
+that limits the answer to that provider's accounts; the tool's description names each provider as
+it names itself. Each answer comes as JSON text and, for agents that speak
 MCP 2025-06-18 or later, as structured content too. Like `status`, the server asks the daemon while
 one runs and otherwise fetches for itself, keeping every provider's floor. A wrong argument, or a
 running daemon that does not answer, comes back as a tool error that names the fix.
