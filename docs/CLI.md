@@ -89,8 +89,11 @@ one account per provider, the one the current shell would use, and names how man
   to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
   sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
   named by Anthropic's profile endpoint, once per token, before its usage is asked.
-- **Where each sign-in is.** `account.sign_in` in the JSON says where QuotaDial read it, such as
-  `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`.
+- **Where each sign-in is, and what QuotaDial does with it.** `account.sign_in` in the JSON says
+  where the sign-in is, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4"
+  (CLAUDE_CONFIG_DIR ~/.claude-work)`, and `account.sign_in_use` says, in the provider's words, what
+  QuotaDial does with it, as `doctor` and the app's "What QuotaDial does with this sign-in" show
+  it.
 - **A sign-in that expired or was rejected** shows `sign-in required`, with the command that signs
   that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/.claude-work claude` once to refresh
   it." On Windows the command is for PowerShell: `$env:CLAUDE_CONFIG_DIR = '…'; claude`. Its last
@@ -277,7 +280,7 @@ this off.
 - The report (`status --json`, `GET /v1/status`, `get_usage`) carries `status_pages`, each with the
   page's `indicator` (`none`, `maintenance`, `minor`, `major` or `critical`), its own words, its
   address, when QuotaDial first saw the current trouble (`since`), and when it last read the page.
-- `status` and `watch` add a line for a page that is not all clear, such as `codex status page:
+- `status` and `watch` add a line for a page that is not all clear, such as `Codex status page:
   Partial System Degradation since 12 min ago (https://status.openai.com)`.
 - The app puts ⚠ beside the tray's number during an incident and names it under the headline.
 - A page that cannot be read keeps its last reading. When QuotaDial first saw a trouble is kept in
@@ -305,7 +308,7 @@ accounts with, every 10 minutes, and makes no request to anyone. `"cost_scan": f
   only what was added to it. The first scan of a busy week's logs takes a while; until it ends,
   there is no cost to show. Deleting `costs.db` costs one more full read.
 - The report (`status --json`, `GET /v1/status`, `get_usage`) and `GET /v1/headroom` carry `costs`,
-  one per provider. `status` and `watch` add a line for each, such as `claude cost: $1,234 at API
+  one per provider. `status` and `watch` add a line for each, such as `Claude cost: $1,234 at API
   prices over the last 7 days, from 51,234 requests (read 3 min ago)`, then each model's part when
   there are several, and what the cost leaves out. The app shows the same under the accounts.
 - A model the price table does not have is listed with its requests and no price, and left out of
@@ -321,7 +324,7 @@ says why it shows less. `quotadial history` reads it, whether or not the daemon 
 ```text
 $ quotadial history --since 24h
 Since 2099-01-01T00:00:00Z (1 d), the highest share used in each 51 min:
-claude user@example.com
+Claude user@example.com
   Session  ▁▂▄▆█▁▁▂▃▅▆▁▁▁▂▃▅▇▁▁▂▃▄▅▆▇▃▁  latest 62% (4 min ago), highest 100%
   Weekly   ▃▃▃▃▃▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▆▆▆▆▆  latest 74% (4 min ago), highest 74%
 ```
@@ -422,10 +425,10 @@ Daemon: running, process 4242, API on 127.0.0.1:47115, started 2 h ago
 Numbers: from the daemon
 
 Accounts (2):
-  claude u***@e***.com (max): ok, fetched 3 min ago from the API
-    sign-in: the macOS Keychain item "Claude Code-credentials"
-  codex u***@e***.com (pro): ok, fetched 1 min ago from the API
-    sign-in: ~/.codex/auth.json
+  Claude u***@e***.com (max): ok, fetched 3 min ago from the API
+    sign-in: QuotaDial reads this account's sign-in from the macOS Keychain item "Claude Code-credentials". It only reads it and never changes it.
+  Codex u***@e***.com (pro): ok, fetched 1 min ago from the API
+    sign-in: QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.
 Left out on QuotaDial Free:
   The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro
 Settings in effect:
@@ -482,7 +485,7 @@ processes can list.
 {
   "accounts": [
     {
-      "account": { "provider": "claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
+      "account": { "provider": "claude", "provider_name": "Claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
       "status": "ok",
       "headroom_pct": 92.0,
       "tightest": {
@@ -610,13 +613,13 @@ and how, including the HTTP API's shape. Copy its folder into `~/.claude/skills/
 ## Text output
 
 ```text
-claude user@example.com (max): ok
+Claude user@example.com (max): ok
   Session: 72% used, resets in 2 h 10 min, from the API 4 min ago
     at 18%/h, runs out in 1 h 29 min, 40 min before it resets
   Weekly: 7% used, resets in 3 d 10 h, from the API 4 min ago
     at 0.4%/h, lasts until it resets
   Extra usage: off
-codex user@example.com (pro): stale
+Codex user@example.com (pro): stale
   Weekly: 54% used, resets in 6 d 5 h, from local logs 2 min ago
   Extra usage: on
   From the Codex CLI's session log at 2026-10-23T12:14:11Z, because ChatGPT's usage endpoint could not be read just now.
@@ -662,11 +665,13 @@ the last, without escape codes.
     {
       "account": {
         "provider": "claude",
+        "provider_name": "Claude",
         "account_id": "00000000-0000-0000-0000-000000000001",
         "display_name": "user@example.com",
         "plan": "max",
         "org": "00000000-0000-0000-0000-000000000002",
-        "sign_in": "the macOS Keychain item \"Claude Code-credentials\""
+        "sign_in": "the macOS Keychain item \"Claude Code-credentials\"",
+        "sign_in_use": "QuotaDial reads this account's sign-in from the macOS Keychain item \"Claude Code-credentials\". It only reads it and never changes it."
       },
       "windows": [
         {
@@ -705,6 +710,10 @@ the last, without escape codes.
       ],
       "prices_updated": "2026-10-23"
     }
+  ],
+  "providers": [
+    { "id": "claude", "name": "Claude" },
+    { "id": "codex", "name": "Codex" }
   ]
 }
 ```
@@ -712,8 +721,10 @@ the last, without escape codes.
 | Field | Meaning |
 | --- | --- |
 | `snapshots[]` | One per account, Claude's first, each provider's sorted by name. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
+| `account.provider_name` | The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it; `provider` is its id, for scripts. Empty for an account read back from an older QuotaDial, which is shown by its id until the next poll |
 | `account.plan`, `account.org` | Left out when the provider does not say |
-| `account.sign_in` | Where QuotaDial read the account's sign-in, written for people with `~` for the home folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in` | Where the account's sign-in is, written for people with `~` for the home folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.` Never a token; a place in it is written with `~`. Empty for an account read back from an older QuotaDial until the next poll |
 | `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily`, `credits`, or `other` for a limit QuotaDial does not know yet, shown by its provider's name with `window_seconds` 0 |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
@@ -731,6 +742,7 @@ the last, without escape codes.
 | `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
 | `left_out[]` | What this copy leaves out because it is QuotaDial Free (see QuotaDial Free and Pro): each with `feature` (`accounts` or `cost_scan`), `provider` for the accounts a provider held back, and `text`, the line that says so, such as `8 more Claude accounts are on this machine. Showing every account is part of QuotaDial Pro: quotadial.com/pro`. Left out on QuotaDial Pro |
 | `problems[]` | What is wrong with QuotaDial itself rather than a provider, each one line that names the fix or says it is dealt with, such as a history the daemon could not save (see When something goes wrong). Left out when there is none, and with no daemon running |
+| `providers[]` | Every provider this copy asks, in its order, each with its `id` and its own short `name` for itself, such as `{ "id": "claude", "name": "Claude" }`: what a status page, a cost or anything else with only a provider's id is named by |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 
