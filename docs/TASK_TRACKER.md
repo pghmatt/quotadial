@@ -106,7 +106,7 @@ commands, Google's and GitHub's tokens redacted by their shape, and the Gemini p
 change for one provider. The manager accepted P-020 on #73 for that, one change for every provider,
 as its own PR: PR 1b, merged as #77, where each provider names itself and says what QuotaDial
 does with each sign-in, and which turns Gemini CLI on (D-124). The manager then decided what #77
-left open (#73, 2026-10-26): PR 1c, on `feat/provider-asks`, has each provider say whom it asks
+left open (#73, 2026-10-26): PR 1c, #78, has each provider say whom it asks
 (P-021) and offers the week's cost only where logs could give it (D-125). The order is 1, 1b, 1c,
 3, 2: next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
 
@@ -210,7 +210,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | --- | --- | --- |
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
 | 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
-| 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Built on `feat/provider-asks`, committed, not pushed | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
+| 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | In review (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
 | 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
@@ -407,7 +407,7 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **The decision:** the manager's on #73 (2026-10-26, 01:26 UTC), on what #77 left open: P-021
   accepted as proposed, with rules (a) to (d), in a small PR of its own before PR 3; the cost offer
   fixed there as its own commit; error lines named through the report if that is one place. The
-  branch is `feat/provider-asks`, from `main` at f67a7c1 (#77), committed and not pushed.
+  branch is `feat/provider-asks`, from `main` at f67a7c1 (#77), in review as #78.
 - **P-021** (`crates/core/src/provider.rs`, each provider): `Provider::asks()`, required with no
   default, the company a provider's `fetch` sends usage requests to, never a host: "Anthropic" for
   Claude, "OpenAI" for Codex, none for Gemini CLI and the fake. `docs/PRIVACY.md` (and the README's
