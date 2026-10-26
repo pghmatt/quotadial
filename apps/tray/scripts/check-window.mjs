@@ -1431,6 +1431,14 @@ async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
       check(label, Math.abs(now.region.top - Math.round(hidden * along)) > 1.5 && `the accounts are scrolled to ${now.region.top} at ${at}, not ${Math.round(hidden * along)}`);
     }
   }
+  // A pixel short of the end hides a pixel, which rounding to the screen can leave and which is no
+  // content beneath the edge: no line.
+  if (hidden >= 3) {
+    await view.evaluate(`(() => { const scroller = ${SCROLLER}; scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 1; })()`);
+    await view.settle();
+    const almost = await view.evaluate(FRAME);
+    check(label, hairline(almost.footer.line) && "a line is drawn above the toolbar with a single pixel hidden below it, which is only rounding");
+  }
   // Scrolling is not animated: what is asked for is there at once, with less motion asked for.
   if (hidden >= 100) {
     const jumped = await view.evaluate(`(() => { const scroller = ${SCROLLER}; scroller.scrollTop = 0; scroller.scrollTop = 100; return scroller.scrollTop; })()`);
@@ -1463,12 +1471,19 @@ async function checkFit(view) {
   await view.zoom(1);
   await view.settle();
   const put = 123;
-  await view.evaluate(`(() => {
+  const added = await view.evaluate(`(() => {
+    const content = document.querySelector('main .content');
+    if (!content) return false;
     const spacer = document.createElement('div');
     spacer.id = 'check-spacer';
     spacer.style.height = '${put}px';
-    document.querySelector('main .content').append(spacer);
+    content.append(spacer);
+    return true;
   })()`);
+  if (!added) {
+    check(label, "what the window holds is not in a part of its own, to put anything into");
+    return;
+  }
   await view.settle();
   const grown = await told();
   check(label, grown.height !== first.height + put && `the app is told ${grown.height} px when ${put} px is put into the window, not ${first.height + put}`);
