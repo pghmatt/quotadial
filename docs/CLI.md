@@ -2,7 +2,8 @@
 
 `quotadial` (and its short alias `qd`) shows how much of each Claude and ChatGPT/Codex plan limit is
 used, when each resets, and how old every number is. It reads the sign-ins Claude Code and the Codex
-CLI already store and never writes them.
+CLI already store and never writes them. A Gemini CLI account it finds signed in is listed too, with
+why it has no numbers, and its sign-in is never opened.
 
 ## Commands
 
@@ -85,6 +86,14 @@ one account per provider, the one the current shell would use, and names how man
   - On Linux and Windows, `.credentials.json` in those same folders.
 - **Codex.** The sign-in the Codex CLI keeps in `auth.json`, in `~/.codex` or the folder
   `CODEX_HOME` names.
+- **Gemini CLI.** One account when Gemini CLI is signed in, in `.gemini` in the folder
+  `GEMINI_CLI_HOME` names or the home folder: "Google account" when its `oauth_creds.json` is there
+  and its `settings.json` names Google or nothing, "Gemini API key" or "Vertex AI" when the settings
+  name those. QuotaDial checks only that the sign-in file is there, without opening it, and reads
+  only the one settings field that names the way. Each shows `unsupported` with one line: for
+  Google, that Google's terms do not let other tools use Gemini CLI's sign-in, and that `/model` in
+  Gemini CLI shows each model's share used and reset; for an API key or Vertex AI, that there are
+  no plan limits to show. Signed in another way, or not at all, there is no account.
 - **One row per subscription.** A subscription found in two places, such as two folders signed in
   to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
   sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
@@ -103,7 +112,7 @@ one account per provider, the one the current shell would use, and names how man
   asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
   account, as when a folder only ever signed in to MCP servers, it is left out until the item
   changes.
-- **Order.** Claude's accounts come first, then Codex's, each sorted by name.
+- **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, each sorted by name.
 
 The daemon looks for new and removed sign-ins every minute.
 
@@ -713,7 +722,8 @@ the last, without escape codes.
   ],
   "providers": [
     { "id": "claude", "name": "Claude" },
-    { "id": "codex", "name": "Codex" }
+    { "id": "codex", "name": "Codex" },
+    { "id": "gemini", "name": "Gemini CLI" }
   ]
 }
 ```

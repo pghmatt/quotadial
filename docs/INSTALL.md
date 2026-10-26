@@ -171,7 +171,9 @@ each account was used by hour of the day, and exports the readings as CSV to the
 
 The popover lists every Claude subscription stored on the machine, not only the one Claude Code is
 signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
-folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts).
+folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts). A Gemini CLI
+account it finds signed in is listed too, with why it has no numbers; QuotaDial only checks that
+its sign-in is there and never opens it.
 
 ## Updates
 

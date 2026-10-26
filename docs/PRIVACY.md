@@ -5,6 +5,11 @@ keep, and never writes, refreshes, moves or logs them. From the CLIs' session lo
 numbers: token counts and model names for the week's cost, and the Codex CLI's own record of your
 limits. What you and the model wrote never leaves the machine, and QuotaDial never reads it.
 
+For Gemini CLI, QuotaDial reads no sign-in. It only checks that Gemini CLI's sign-in file,
+`oauth_creds.json` in `~/.gemini`, is there, without opening it, and reads one field of Gemini CLI's
+`settings.json` beside it: the one that says whether it signs in with Google, a Gemini API key or
+Vertex AI. It asks no one about Gemini CLI and sends nothing about it.
+
 QuotaDial connects to these, and nothing else:
 
 - **api.anthropic.com**, with your Claude Code sign-in, for each Claude account's limits, at most

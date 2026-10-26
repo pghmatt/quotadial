@@ -41,8 +41,8 @@ QuotaDial's example build (D-117), made with the `fake` feature for pictures of 
 released, polls no provider and reads no sign-in, so the 5-minute floor for Anthropic is untouched;
 its accounts are made up, and it keeps folders, a lock, a token and a port of its own.
 
-Its Gemini CLI provider (D-118, D-122), built with the `gemini` feature and not yet in a release,
-has no network client and sends nothing. It checks only that Gemini CLI's sign-in file is there,
+Its Gemini CLI provider (D-118, D-122), in every release since D-124, has no network client and
+sends nothing. It checks only that Gemini CLI's sign-in file is there,
 never opening it, and reads one field of Gemini CLI's `settings.json`, how it signs in; the rest of
 that file, which can hold other tools' secrets, is skipped without a copy, and the bytes read are
 wiped. Google's and GitHub's tokens are blanked out of any text QuotaDial shows or saves, by their
