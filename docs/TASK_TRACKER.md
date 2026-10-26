@@ -418,7 +418,11 @@ The notes below run newest first; the setup notes above them are the oldest.
   company has a host in `privacy::HOSTS` whose line in the privacy text names it, and one that asks
   no one has none of the HTTP clients #75 listed in its manifest, `crates/providers/<its id>`. The
   default build checks Claude, Codex and Gemini CLI, the example build the fake. Gemini CLI's own
-  manifest test moved into it. Each direction failed under a mutation: Claude saying it asks no one
+  manifest test moved into it. A client is found written as a line (`reqwest.workspace = true`) or
+  as a section header whose last dotted part names it (`[dependencies.reqwest]`,
+  `[target.'cfg(unix)'.dependencies.reqwest]`), held by a test over literal manifest lines, which
+  failed on the header form before it was read; only the provider's own manifest is read, so a
+  client reached through another crate is not seen (core has none today). Each direction failed under a mutation: Claude saying it asks no one
   ("claude asks no one, but depends on reqwest"), Gemini CLI saying it asks Google.
 - **The line** (rule (c)): `asking()` in the CLI, one sentence: "It asks Anthropic at most every 5
   min and OpenAI at most every 2 min, and no one about Gemini CLI." The daemon says it when it starts
@@ -443,9 +447,9 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **The release check** (the manager's note on #77): it still fails on the word `Example` anywhere in
   `status` or `doctor` output; this PR does not touch it, so the match is to be narrowed to the
   provider's column when it next changes.
-- **Tests:** in the workspace, 656 passed (1 ignored) on `main` and 658 (1 ignored) now; the example
-  build 655 (2 ignored) and 657 (2 ignored). By crate, from `main`: the CLI 59 to 60, the daemon 102
-  to 103, `quotadial-providers` 2 to 3, Gemini CLI 30 to 29 (its manifest test now the providers'
+- **Tests:** in the workspace, 656 passed (1 ignored) on `main` and 659 (1 ignored) now; the example
+  build 655 (2 ignored) and 658 (2 ignored). By crate, from `main`: the CLI 59 to 60, the daemon 102
+  to 103, `quotadial-providers` 2 to 4, Gemini CLI 30 to 29 (its manifest test now the providers'
   rule); core 118, API 54, cost 30, issue 6, poll 37, Claude 136 (and 1 ignored), Codex 63 and fake
   19 unchanged. The tray app 85 in both builds, its scripts' tests 5, the site 90, the window check
   3394 checks over 16 views.
