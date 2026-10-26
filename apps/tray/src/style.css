@@ -600,14 +600,16 @@ input:focus-visible {
 }
 
 /* The scrolling part, when it is a Tab stop of its own: its ring is drawn inside it, which
-   reaches the window's sides. */
-.scroll:focus-visible {
+   reaches the window's sides. When a key that scrolls gives it the focus, it is not one, and
+   draws none. */
+.scroll[tabindex="0"]:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
 /* A panel takes the focus when it opens, so the keyboard and a screen reader start in it; it is
    not a control, so it draws no ring of its own. */
+.scroll[tabindex="-1"]:focus,
 section[tabindex="-1"]:focus {
   outline: none;
 }

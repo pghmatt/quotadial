@@ -11,6 +11,9 @@ import { neededHeight, useScrolling } from "./scroll";
 import { SettingsPanel } from "./settings";
 import { UpdateStatus, useUpdate } from "./update";
 
+/** The keys that scroll a page: the arrows, Page Up and Page Down, Home, End and Space. */
+const SCROLLING_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+
 /** The popover: the tightest window's share used, every account's windows, and what is wrong. */
 export function App() {
   const [meter, setMeter] = useState<Meter | null>(null);
@@ -31,6 +34,14 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         void invoke("hide");
+      } else if (
+        SCROLLING_KEYS.has(event.key) &&
+        document.activeElement === document.body &&
+        !(event.altKey || event.ctrlKey || event.metaKey)
+      ) {
+        // With nothing focused, the keys that scroll a page scroll what scrolls here: the part
+        // takes the focus on the first of them, and the browser scrolls the part it has now.
+        main.current?.querySelector<HTMLElement>(".scroll")?.focus({ preventScroll: true });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -137,7 +148,7 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
       <div
         class="scroll"
         ref={region}
-        tabIndex={scrolling.stop ? 0 : undefined}
+        tabIndex={scrolling.stop ? 0 : -1}
         role={scrolling.stop ? "region" : undefined}
         aria-label={scrolling.stop ? VIEWS[panel] : undefined}
       >

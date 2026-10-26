@@ -1496,12 +1496,30 @@ async function checkFit(view) {
 /**
  * A person who scrolls by keyboard has what a page has: with the focus in the part that scrolls, the
  * arrows, Page Up and Page Down, Home and End scroll it, and Space too where the focus is on nothing
- * that Space presses, as it is on a panel when it opens.
+ * that Space presses, as it is on a panel when it opens; and with nothing focused, as the window is
+ * just opened, the first of those keys scrolls it, as it scrolled the page before the toolbar stayed
+ * put, and Tab then reaches the first control, as it does from a window nothing has touched.
  */
 async function checkKeys(view, panel) {
   const label = `${view.label}, scrolling by keyboard`;
   await view.zoom(1);
   await view.load(panel);
+  if (panel === "accounts" && (await view.evaluate("document.querySelector('main > .scroll') !== null"))) {
+    for (const key of ["PageDown", "Space", "ArrowDown", "End"]) {
+      await view.load(panel);
+      const room = await view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region.scrollHeight - region.clientHeight; })()");
+      if (room < 300) {
+        break;
+      }
+      await view.press(key);
+      check(label, (await view.scrolled()) <= 0.5 && `${key}, with nothing focused, does not scroll the accounts`);
+      await view.evaluate(FOCUSABLE);
+      await view.press("Tab");
+      const next = await view.evaluate(FOCUSED);
+      check(label, next.index !== 0 && `Tab after ${key}, with nothing focused before it, reached ${next.what}, not the first control`);
+    }
+    await view.load(panel);
+  }
   const hidden = await view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region ? region.scrollHeight - region.clientHeight : 0; })()");
   if (hidden < 300) {
     return;
