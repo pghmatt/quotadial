@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
+import { Said } from "./said";
 import { SettingsPanel } from "./settings";
 import { UpdateStatus, useUpdate } from "./update";
 
@@ -134,7 +135,9 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
         <section class="problems card" aria-label="Problems">
           <ul>
             {meter.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
+              <li key={problem}>
+                <Said text={problem} />
+              </li>
             ))}
           </ul>
         </section>
@@ -200,7 +203,11 @@ function AccountSection({ account, index }: { account: Account; index: number })
         </span>
         <Address account={account} />
       </h2>
-      {!account.ok && account.note && <p class="note">{account.note}</p>}
+      {!account.ok && account.note && (
+        <p class="note">
+          <Said text={account.note} />
+        </p>
+      )}
       {account.windows.length > 0 && (
         <ul class="windows">
           {account.windows.map((window, windowIndex) => (
@@ -216,7 +223,9 @@ function AccountSection({ account, index }: { account: Account; index: number })
       {account.sign_in && (
         <details class="sign-in">
           <summary>What QuotaDial does with this sign-in</summary>
-          <p>{account.sign_in}</p>
+          <p>
+            <Said text={account.sign_in} />
+          </p>
         </details>
       )}
     </section>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 
 import { usePanelFocus } from "./focus";
 import type { Settings } from "./meter";
+import { Said } from "./said";
 
 /**
  * The settings panel: opening at login, the daily check for updates, the alert rules, which
@@ -127,7 +128,7 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
         )}
         {settings.alert_problems.map((problem) => (
           <p class="note" key={problem}>
-            {problem}
+            <Said text={problem} />
           </p>
         ))}
         <form

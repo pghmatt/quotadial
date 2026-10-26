@@ -7,6 +7,9 @@
 // Gemini CLI says rather than Claude's sentence (P-020), and one Antigravity's, whose windows come
 // from its CLI's status line and whose panel carries the block to add to Antigravity CLI's
 // settings and a limit with an amount and no share, the longest text the popover shows (D-126).
+// Commands sit between backticks, as QuotaDial writes them: Claude's sign-in command in an
+// account's note, Gemini CLI's `/model`, Antigravity's block in its sign-in panel and, in Free's
+// Settings, config.json's chmod; the window shows each as code (the manager's note on #85).
 // Two copies of the app: Pro, with the
 // week's cost, a key kept and a Share image button on each account in History, and Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
@@ -127,7 +130,10 @@ const ACCOUNTS = [
     ok: false,
     windows: [],
     extra_usage: null,
-    note: "This sign-in has ended. Run claude once and QuotaDial picks up the new one.",
+    // Claude's sentence for a sign-in that expired, with the command for its folder (D-131).
+    note:
+      "This Claude Code sign-in expired at 2026-10-26T09:12:00Z. Run " +
+      "`CLAUDE_CONFIG_DIR=~/'My Claude' claude` once to refresh it.",
     sign_in: CLAUDE_SIGN_IN,
   },
   {
@@ -491,7 +497,12 @@ export const free = {
     ...SETTINGS,
     alerts: SETTINGS.alerts.map((alert) => ({ ...alert, waits: alert.id === 2 })),
     alert_targets: [],
-    alert_problems: ["config.json names a webhook that is not https; QuotaDial leaves it out."],
+    alert_problems: [
+      "config.json names a webhook that is not https; QuotaDial leaves it out.",
+      "~/Library/Application Support/quotadial/config.json holds webhook addresses, which work like " +
+        "passwords, and other users can read it; run " +
+        "`chmod 600 ~/'Library/Application Support/quotadial/config.json'`.",
+    ],
     licence: {
       text: "QuotaDial Free, with no licence key.",
       kept: false,

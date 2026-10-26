@@ -17,8 +17,8 @@ const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
 const PAIRS = [
   ["--text", ["--background"], 4.5, "text outside a card, such as a panel's"],
   ["--text", ["--background", "--card"], 4.5, "an account's name and its windows, on its card"],
-  ["--text", ["--background", "--tag"], 4.5, "a button, such as the footer's"],
-  ["--text", ["--background", "--card", "--tag"], 4.5, "a button on a card"],
+  ["--text", ["--background", "--tag"], 4.5, "a button, such as the footer's, or a command"],
+  ["--text", ["--background", "--card", "--tag"], 4.5, "a button or a command on a card"],
   ["--secondary", ["--background"], 4.5, "the line under the summary's number"],
   ["--secondary", ["--background", "--card"], 4.5, "an account's address and what it does with its sign-in"],
   ["--secondary", ["--background", "--card", "--tag"], 4.5, "a capsule, such as a plan, on a card"],

@@ -9,6 +9,8 @@
 // - each account is a card of its own, apart from the next and overlapping none, whose heading
 //   names it by the name given it or its provider's, with its address, visible inside the card,
 //   selectable and read as part of the heading, at 100% and at 200%;
+// - every command a message names between backticks, such as Claude's sign-in command, shows as
+//   code with no backtick left, and one click selects the whole command, to copy it;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -492,6 +494,29 @@ const CARDS = `(() => {
   });
 })()`;
 
+/** In the page: the messages that can name a command, and every command shown as code in them. */
+const COMMANDS = `(() => {
+  const messages = [...document.querySelectorAll('.note, .sign-in p, .problems li')];
+  return {
+    // What each message says outside its code, where no backtick may be left.
+    words: messages.map((message) => {
+      const copy = message.cloneNode(true);
+      for (const code of copy.querySelectorAll('code')) code.remove();
+      return copy.textContent;
+    }),
+    codes: [...document.querySelectorAll('main code')].map((code) => ({
+      text: code.textContent,
+      select: getComputedStyle(code).userSelect,
+      inMessage: messages.some((message) => message.contains(code)),
+    })),
+  };
+})()`;
+
+/** The commands `text` names between backticks, as the copies' messages write them. */
+function commandsIn(text) {
+  return [...(text ?? "").matchAll(/(?:^|[\s(])`([^`\s][^`]*?)`(?=$|[\s.,;:!?)])/g)].map((found) => found[1]);
+}
+
 /** A page of the window, opened on one copy of the app in one theme. */
 class View {
   constructor(tools, sessionId, label, url) {
@@ -645,6 +670,28 @@ class View {
     };
   }
 
+  /** Clicks the middle of the `index`th element `selector` finds, as a person would, and answers
+   * what is selected after, or null when there is no such element. */
+  async clickAndSelect(selector, index) {
+    const at = await this.evaluate(`(() => {
+      const element = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+      if (!element) return null;
+      element.closest('details')?.setAttribute('open', '');
+      window.getSelection().removeAllRanges();
+      element.scrollIntoView({ block: 'center' });
+      const box = element.getClientRects()[0];
+      return { x: box.left + Math.min(box.width / 2, 12), y: box.top + box.height / 2 };
+    })()`);
+    if (!at) {
+      return null;
+    }
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await this.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
+    }
+    await this.settle();
+    return this.evaluate("window.getSelection().toString()");
+  }
+
   /** What a screen reader calls the `index`th element `selector` finds, or null when there is none. */
   async called(selector, index) {
     const { result } = await this.send("Runtime.evaluate", {
@@ -737,6 +784,10 @@ async function checkView(view, panel, operate, copy) {
   }
   for (const problem of await view.evaluate(WORDS)) {
     check(label, problem);
+  }
+
+  if (panel === "accounts" || panel === "settings") {
+    await checkCommands(view, copy, panel);
   }
 
   // Nothing moves, and no text is cut off at 100% or 200%.
@@ -860,6 +911,41 @@ async function checkCards(view, copy, zoom) {
       const heard = called !== null && called.includes(title) && called.includes(account.name);
       check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
     }
+  }
+}
+
+/**
+ * The commands in what QuotaDial says (the manager's note on #85): each one a message in `panel`
+ * names between backticks, such as Claude's sign-in command in an account's note, Gemini CLI's
+ * `/model`, Antigravity's block in its sign-in panel or config.json's chmod in Settings, shows as
+ * code, whole, with no backtick left in the message's words; and a click on it selects the whole
+ * command, so it can be copied as it must be pasted.
+ */
+async function checkCommands(view, copy, panel) {
+  const label = `${view.label}, commands`;
+  const said =
+    panel === "accounts"
+      ? [
+          ...copy.meter.accounts.flatMap((account) => [account.ok ? null : account.note, account.sign_in]),
+          ...copy.meter.problems,
+        ]
+      : copy.settings.alert_problems;
+  const expected = said.flatMap(commandsIn);
+  const { words, codes } = await view.evaluate(COMMANDS);
+  for (const left of words.filter((text) => text.includes("`"))) {
+    check(label, `a message still shows a backtick: "${left.trim().slice(0, 80)}"`);
+  }
+  const shown = codes.filter((code) => code.inMessage);
+  check(label, shown.length !== expected.length && `the window shows ${shown.length} commands as code for ${expected.length}`);
+  for (const command of expected) {
+    const index = codes.findIndex((code) => code.text === command);
+    if (index < 0) {
+      check(label, `"${command}" is not shown whole as code`);
+      continue;
+    }
+    check(label, codes[index].select !== "all" && `"${command}" is not selected whole by a click (user-select: ${codes[index].select})`);
+    const selected = await view.clickAndSelect("main code", index);
+    check(label, selected !== command && `a click on "${command}" selects "${selected}", not the whole command`);
   }
 }
 
