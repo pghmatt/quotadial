@@ -94,15 +94,16 @@ fn ends_path(after: &str) -> bool {
     }
 }
 
-/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130): in the home
-/// folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes, so a
-/// space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
+/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130, D-131): in the
+/// home folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes,
+/// so a space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
 /// anywhere else, or with no home folder or one that is a whole disk, the whole place in single
 /// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
 /// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
 /// missed. In the home folder by whole names, as [`tilde`] finds it, so `/Users/anna` is not in
-/// `/Users/ann`. `~/` on every system, being for a POSIX shell: `config.json`'s warning, which uses
-/// it, cannot occur on Windows.
+/// `/Users/ann`. `~/` on every system, being for a POSIX shell: neither command that uses it is
+/// shown on Windows, where `config.json`'s warning cannot occur and a sign-in command is written
+/// for PowerShell, with [`powershell_string`].
 #[must_use]
 pub fn shell_word(place: &Path, home: Option<&Path>) -> String {
     let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));

@@ -1694,16 +1694,22 @@ async fn a_folders_sign_in_is_polled_with_its_token_and_gets_its_own_fix() {
     let rejected = provider.fetch(&work).await.expect("fetch");
 
     assert_eq!(rejected.status, Status::AuthRequired);
-    let command = login::claude_in(&folder, &harness.env().tilde(&folder), cfg!(windows));
+    let command = login::claude_in(&folder, harness.env().home.as_deref(), cfg!(windows));
     assert_eq!(
         rejected.error,
         Some(format!(
             "Anthropic rejected this Claude Code sign-in. Run `{command}` to sign in again."
         ))
     );
-    if !cfg!(windows) {
-        assert_eq!(command, "CLAUDE_CONFIG_DIR=~/.claude-work claude");
-    }
+    // The folder from the home folder, as each shell reads it (D-131).
+    assert_eq!(
+        command,
+        if cfg!(windows) {
+            r#"$env:CLAUDE_CONFIG_DIR = "$HOME\.claude-work"; claude"#
+        } else {
+            "CLAUDE_CONFIG_DIR=~/'.claude-work' claude"
+        }
+    );
     assert_eq!(rejected.windows.len(), fetched.windows.len());
     assert!(
         rejected

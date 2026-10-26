@@ -144,13 +144,13 @@ pub(crate) fn failed(status: u16, message: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path, PathBuf};
 
-    use quotadial_core::Secret;
+    use quotadial_core::{Diagnostics, Secret, Snapshot, Status, StatusReport};
 
     use super::*;
     use crate::environment::Environment;
-    use crate::login::Folder;
+    use crate::login::{Folder, claude_in};
 
     fn env() -> Environment {
         Environment {
@@ -223,11 +223,12 @@ mod tests {
             "Claude Code-credentials-1df4ed49",
             Folder::Named(PathBuf::from("/Users/example/.claude-work")),
         );
-        // PowerShell on Windows, where `~` would not be expanded.
+        // PowerShell on Windows, where `~` would not be expanded, so the folder is written from
+        // `$HOME` there (D-131).
         let command = if cfg!(windows) {
-            "`$env:CLAUDE_CONFIG_DIR = '/Users/example/.claude-work'; claude`"
+            format!("`$env:CLAUDE_CONFIG_DIR = \"$HOME{MAIN_SEPARATOR}.claude-work\"; claude`")
         } else {
-            "`CLAUDE_CONFIG_DIR=~/.claude-work claude`"
+            "`CLAUDE_CONFIG_DIR=~/'.claude-work' claude`".to_owned()
         };
         assert_eq!(
             rejected(&work),
@@ -260,6 +261,68 @@ mod tests {
              CLAUDE_CONFIG_DIR that made the Keychain item \"Claude Code-credentials-67f74348\" to \
              sign in again."
         );
+    }
+
+    /// Doctor's text for `account` with `line` under it, the home folder being `home`.
+    fn doctor(account: Account, line: &str, home: &Path) -> String {
+        Diagnostics {
+            version: "0.3.0".into(),
+            system: "macOS 26.1 (aarch64)".into(),
+            licence: "QuotaDial Free, with no licence key.".into(),
+            data_folder: home.join("quotadial").display().to_string(),
+            daemon: "not running".into(),
+            numbers_from: "a direct fetch".into(),
+            report: StatusReport {
+                snapshots: vec![Snapshot {
+                    account,
+                    windows: Vec::new(),
+                    extra_usage: None,
+                    status: Status::AuthRequired,
+                    error: Some(line.to_owned()),
+                }],
+                ..StatusReport::default()
+            },
+            settings: Vec::new(),
+        }
+        .text(DateTime::<Utc>::UNIX_EPOCH, Some(home))
+    }
+
+    #[test]
+    fn doctor_shows_the_fix_command_as_written_in_both_shells() {
+        // Doctor writes the home folder `~` over its whole text (D-129), which turned the command
+        // `CLAUDE_CONFIG_DIR='/Users/ann/My Claude' claude`, which named the user, into
+        // `CLAUDE_CONFIG_DIR='~/My Claude' claude`, whose quoted `~` no shell expands (D-131). The
+        // sentence as this system writes it, and each shell's command, come through doctor as
+        // written.
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let env = Environment {
+            home: Some(home.clone()),
+            ..Environment::default()
+        };
+        let outside: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "O'Brien's Claude"]
+            .iter()
+            .collect();
+        for dir in [
+            home.join("My Claude"),
+            home.join("it's \"$HOME\" `Claude`"),
+            outside,
+        ] {
+            let login = Login::new(
+                &env,
+                LoginSource::File(dir.join(".credentials.json")),
+                None,
+                None,
+                Folder::Named(dir.clone()),
+            );
+            for line in [
+                signed_out(&login),
+                claude_in(&dir, Some(&home), false),
+                claude_in(&dir, Some(&home), true),
+            ] {
+                let text = doctor(login.account(), &line, &home);
+                assert!(text.contains(&format!("\n    {line}\n")), "{line}\n{text}");
+            }
+        }
     }
 
     #[test]
