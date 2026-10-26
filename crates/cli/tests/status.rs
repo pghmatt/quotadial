@@ -597,11 +597,14 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
     );
     let (clean, rest) = stop_daemon(first, reader, "-INT");
 
-    assert!(
-        line.starts_with(&format!(
-            "QuotaDial daemon running. {ASKS} It keeps history in "
-        )),
-        "{line}"
+    // The data folder is in the home folder, which is written `~` (D-129).
+    assert_eq!(
+        line,
+        format!(
+            "QuotaDial daemon running. {ASKS} It keeps history in ~/{}, and is the only thing that \
+             polls while it runs.\n",
+            Path::new("data").join("history.db").display()
+        )
     );
     assert_eq!(
         costs,
@@ -638,11 +641,14 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let port = u16::try_from(runtime["port"].as_u64().expect("a port")).expect("a port");
     let token = std::fs::read_to_string(data.join("token")).expect("the token");
 
-    assert!(
-        line.starts_with(&format!(
-            "Its API is at http://127.0.0.1:{port}, for requests with the token in "
-        )),
-        "{line}"
+    let token_file = format!("~/{}", Path::new("data").join("token").display());
+    assert_eq!(
+        line,
+        format!(
+            "Its API is at http://127.0.0.1:{port}, for requests with the token in {token_file}. \
+             Press Ctrl-C to stop.\n"
+        ),
+        "the home folder written ~ (D-129)"
     );
     assert!(!line.contains(&token), "the token itself is never printed");
     #[cfg(unix)]
@@ -699,8 +705,14 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     let refused = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
     assert!(!refused.status.success());
     assert_eq!(stdout(&refused), "");
-    let stderr = String::from_utf8(refused.stderr).expect("UTF-8");
-    assert!(stderr.contains("refused the token"), "{stderr}");
+    assert_eq!(
+        String::from_utf8(refused.stderr).expect("UTF-8"),
+        format!(
+            "quotadial: the QuotaDial daemon is running, but its API at \
+             http://127.0.0.1:{port}/v1/status refused the token at {token_file}; restart it with \
+             `quotadial daemon`.\n"
+        )
+    );
     std::fs::write(data.join("token"), &token).expect("restores the token");
     let answered = run(
         env!("CARGO_BIN_EXE_quotadial"),
@@ -720,6 +732,47 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
         assert!(clean, "a service manager's stop is a clean stop");
         assert_eq!(rest, "QuotaDial daemon stopped.\n");
         assert!(!data.join("daemon.json").exists());
+    }
+}
+
+#[test]
+fn a_history_that_cannot_be_opened_is_named_with_the_home_folder_written_with_a_tilde() {
+    // #52 (D-129): `alerts` opens the history itself, here a folder in its place, in the data
+    // folder in the home folder and in one beside it, in a folder whose name starts as the home
+    // folder's does.
+    let home = empty_home("unopened-history");
+    let beside = PathBuf::from(format!("{}a", home.display()));
+    for data in [home.join("data"), beside.join("data")] {
+        std::fs::create_dir_all(data.join("history.db")).expect("a folder in the history's place");
+    }
+
+    let in_home = run(env!("CARGO_BIN_EXE_quotadial"), &["alerts"], &home);
+    let elsewhere = command(env!("CARGO_BIN_EXE_quotadial"), &["alerts"], &home)
+        .env(quotadial_core::copy::DATA_DIR_VARIABLE, beside.join("data"))
+        .output()
+        .expect("binary runs");
+
+    for (output, place) in [
+        (
+            in_home,
+            format!("~/{}", Path::new("data").join("history.db").display()),
+        ),
+        (
+            elsewhere,
+            beside.join("data").join("history.db").display().to_string(),
+        ),
+    ] {
+        assert!(!output.status.success());
+        let said = String::from_utf8(output.stderr).expect("UTF-8");
+        assert!(
+            said.starts_with(&format!(
+                "quotadial: could not open the history at {place}: "
+            )),
+            "{said}"
+        );
+    }
+    for folder in [home, beside] {
+        std::fs::remove_dir_all(folder).expect("cleans up");
     }
 }
 
