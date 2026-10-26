@@ -229,7 +229,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A place holding the home folder's path beside a space or a quote | In review (PR #87, D-133) | D-130's other leftover, done in `text::tilde_in` alone, as the manager's review of #85 asked: a folder whose name only starts as the home folder's does, such as `/Users/ann (old)` beside `/Users/ann`, is left as written in a sentence and in both commands, where it was written `~ (old)`, so `config.json`'s `chmod 600` and Claude's sign-in command failed as written; a word in single quotes is read whole as a POSIX shell and PowerShell read it, so every place outside the home folder that `shell_word` and `powershell_string` write comes through unchanged, whatever its name holds; a sentence is read by what follows the home folder: it is `~` at a separator, the end of the text or of a line, or marks and then a word that does not carry a name on (one that opens with a bracket or has a separator after a name does), and any other character joined to it is more of the name; where it must guess it leaves the name, and D-133 says what it still gets wrong; no folder QuotaDial makes is one of these, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
 | The popover redesigned (Matt's ask, 2026-10-26) | Done (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
 | Doctor's `[user]` mask and a user named `claude` | Queued (D-131) | Left a queued row by the manager's review of #85 (2026-10-26, 13:40 UTC), since "doctor's masking is its own rule and the case is rare": doctor's `[user]` pass replaces every whole word that is the user's name, a command's own words included, so for a Mac user called `claude` doctor shows `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`, and `~/.[user]` for `~/.claude` elsewhere in its text; a later PR could keep a command's own words out of that pass |
-| A line once per card for a window's source and time, when every window agrees | Queued (D-132) | The manager's review of #86 (2026-10-26, 19:28 UTC) confirmed D-132's call to keep each window's own source line (#52: each window carries its own time and origin) and put the once-per-card line, for a card whose windows all agree, on the M6 queue as a later PR |
+| A line once per card for a window's source and time, when every window agrees | In review (PR #?, D-135) | The manager's review of #86 (2026-10-26, 19:28 UTC) put it on the M6 queue, keeping each window's own line until then (#52: each window carries its own time and origin). The view model gives an account a `fetched`, such as "from the API 3 min ago", when every window was read from the same source at exactly the same moment, as the windows of one answer are, and then each window says only its reset and pace; when they differ, each says its own, as before. A card with one window says it for the card too, so the line does not jump when a limit leaves a card after its reset. The rule is `fetched_together` in `meter.rs`, not the window's script. The line is a quiet caption under the windows and above the sign-in, which opens below it, chosen from three placements shown in pictures; the window check's new `checkSources` holds it, and the site's test and pictures follow. #52 holds: the data, the API, the CLI, `doctor` and the MCP server still say it for each window |
 | A property test for the window's `codeSpans` | In review (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
@@ -419,6 +419,129 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: where and when an account's windows were read, said once for the card (D-135)
+
+- **The ask:** the manager's review of #86 (2026-10-26, 19:28 UTC) confirmed D-132's call to keep each
+  window's own source line for the time being (#52: each window carries its own time and origin) and put
+  the once-per-card line, for a card whose windows all agree, on the M6 queue. The coordinator's brief of
+  2026-10-26: say it once for the card when every window has the same source and was fetched at the same
+  moment, each window's line then saying only its reset and pace; the rule in the view model, with Rust
+  tests; the line quiet, to the bar Matt set ("make the ux something Steve Jobs would love"); the
+  placements shown in pictures before one is built. Built on `feat/card-source-line` from `main` at
+  82038b0 (#86), then rebased onto 72bc175 (#87). The brief's second item, a property test for
+  `codeSpans`, became a pull request of its own (`test/code-spans-property`) after the manager's review
+  of #87 (2026-10-26, 20:22 UTC). In review as #?.
+- **The rule** (`fetched_together`, `apps/tray/src-tauri/src/meter.rs`): an account's `fetched`, such as
+  "from the API 3 min ago", is set when every window of the account has the same `source` and exactly the
+  same `fetched_at`, and then each window's `fetched` is none; otherwise the account's is none and each
+  window's says its own, as before. A card with one window says it for the card, so the line does not jump
+  to the window when a limit leaves a card after its reset, as Antigravity's do; a card with no window says
+  nothing. `AccountView::fetched` and `WindowView::fetched` are both `Option<String>`, sent as `null`, and
+  `src/meter.ts` types them `string | null`. The window's script has no rule: it draws what it is sent.
+- **What the providers really do** (read before the rule was chosen): Claude's `usage::read` and Codex's
+  give every window of one response the one `fetched_at` they are called with, `Source::Api`; Codex's log
+  fallback (`sessions::log_windows`) stamps every window with its one event's time, `Source::LocalLog`, and
+  a snapshot is the API's or the log's, never both; Antigravity's `windows::shown` stamps every window with
+  the handover's time, `Source::StatusLine`; the fake provider takes one clock reading a fetch,
+  `Source::Example`; and every replay, stale answer and sign-in waiting for its owner takes the last good
+  snapshot's windows whole through `Snapshot::served_from_cache`, which changes the windows that came from
+  the API to the cache together and keeps `fetched_at`. So a real card's windows agree today, always; the
+  case where they differ is a guard, and a card with windows from two readings, which no provider makes, is
+  in the check's fixtures.
+- **Exact times, not the words:** two windows read 40 seconds apart say "4 min ago" at some moments and
+  "4 min ago" and "3 min ago" at others; a rule on the words would put the line up and take it down every
+  minute. A test holds that the line does not come and go across four moments, 3:30, 4:10, 4:50 and 5:20
+  after the first reading, at one of which the two lines read the same.
+- **Where it sits:** three placements drawn and shown to the coordinator, light and dark, over the README's
+  two example accounts and the window check's made-up ones (the pictures are kept outside the repository):
+  a footnote at the card's foot, which cannot sit beside the sign-in disclosure in a 360 px window (the
+  label is about 212 px, the line about 122 px, a card gives 312 px) and so took a row under it; a third
+  heading line under the address, which competes with it; and a caption under the windows and above the
+  disclosure, which the coordinator chose: the line is about the numbers, so it sits beside them, and the
+  disclosure, about the sign-in, stays the card's last thing and does not push the line away from the
+  numbers when it opens. `.source`: 11 px `--muted`, right-aligned, sentence case by `::first-letter` as the
+  windows' lines are, 10 px above it (the space between windows, so it is not read as a window's third
+  line) and the disclosure's own 10 px below it, which the coordinator kept. It costs a row a card, 25 px:
+  the two example accounts' popover is 706 px high, from 656 px.
+- **VoiceOver:** the card's line is read in order, as a paragraph after the windows and before the
+  sign-in; the card is still named by its heading, since the line is outside it, and each window is read as
+  before but for its detail line, which no longer repeats the source (its meter's words never held it).
+  Chosen over each window's accessible text carrying the line, which would repeat it as often as before.
+  Read from Chrome's accessibility tree, as the window check reads the rest; macOS's VoiceOver itself was
+  not run.
+- **The check** (`checkSources`, `check-window.mjs`): over every account of both copies in both themes at
+  100% and 200%: the line is shown once when the app sends one for the card and under each window when it
+  does not, never both and never neither; the only one in its card, inside it, outside the heading and the
+  panel, not hidden from a screen reader; no larger, bolder or louder than a window's lines and smaller
+  than the address; under the windows with the space between windows above it; above the disclosure, which
+  is the card's last thing, and still there, at the same place in its card, with the panel below it, when
+  the panel is open; and the accessibility tree has it. The copies gain a card whose windows really differ,
+  a lone window (the example account's), a card with no windows and an extra-usage line under the windows.
+- **Failed first,** against the window broken on purpose in eleven ways, by a script kept outside the
+  repository that breaks the window's markup or stylesheet, builds it, runs the check over a view of each
+  copy and puts the files back, byte for byte: no line drawn (21 checks failed); every window saying a
+  source of its own as well (34); the line inside the card's heading (70); hidden from screen readers (21);
+  under the disclosure, which is then not the card's last thing (56); above the windows (28); loud, 14 px
+  bold in the text colour (26); with no space above it (14); inside the sign-in panel (97); a window never
+  saying its own source (8); and a line drawn for a card the app sent none for (4). The check's first run
+  also showed two mistakes in the check itself, page positions that scrolling and other cards' panels move,
+  and a match on the accessibility tree's words that took no account of the stylesheet's capital; the check
+  was mended, not the window. The view model's eight new tests each failed first against a stub of the
+  rule: one that never says it (6 tests failed), one that takes every card with a window to agree (4), one
+  that needs two windows (2), one that compares the words (1) and one that speaks for a card with no window
+  (1).
+- **Counts,** `main` at 72bc175 and then this branch: the app's `--lib` tests, 91 and 99 in each build; the
+  window check, 5,019 checks over 16 views and 6,721; the tray's `npm test`, 8 and 8, the property test
+  being its own pull request; contrast pairs a theme, 21 and 21, the caption using a pair already held; the
+  window's JavaScript, 35.5 KB of 150 KB and 35.5 KB; the workspace tests, 778 passed and 1 ignored in the
+  default build and 775 and 2 in the example build, both as they were, since no crate changed; the site's
+  tests, 90 passed of 90, as they were.
+- **The notes of the review of #86:** note 1, the property test, is its own pull request. Note 2,
+  `.window .detail::first-letter`: after this change no detail line starts with text from outside, a
+  window's beginning with `text::resets`' words and the caption with "from" and one of
+  `text::source_label`'s five names; the same for the lines already there is in that pull request's note.
+- **Calls the brief left to me, and why** (D-135 weighs them):
+  - *"Agree"* is the same source and exactly the same `fetched_at`, as the brief suggested, after reading
+    what the four providers do; not the same words, which would make the line come and go as minutes tick.
+  - *A card with one window* says it for the card, which I first built the other way (nothing is said
+    twice under one window); the stress picture showed the lone-window card differing from every other, and
+    Antigravity can drop a card from two windows to one while the popover is open, so the rule has no
+    special case and the line has one place.
+  - *The words* are the view model's own, "from the API 3 min ago", the first letter capitalised by CSS as
+    the windows' lines are, not a new sentence: one place makes the words (`text::source_label`,
+    `text::ago`), the CLI's among them.
+  - *Both fields are `Option<String>`,* sent as `null`, so the window's script has no rule and cannot
+    disagree with the view model.
+  - *VoiceOver* hears the card's line in order, after the windows, and not each window's accessible text
+    carrying it, which would say it as many times as before.
+  - *Where the line sits:* the coordinator's choice, the caption above the disclosure, right-aligned. The
+    gap below it is the sign-in's own 10 px, kept at the coordinator's word where the picture shown had 4 px
+    (6 px a card more), so it is no nearer the disclosure than its numbers. It follows the extra-usage
+    line, which is one of the numbers, and comes before the sign-in.
+  - *The check's copies:* a made-up Codex account whose windows really differ, since no provider makes one;
+    an extra-usage line on Claude Work; and the stale Codex account's source corrected to what a replayed
+    snapshot says, "from cache 14 min ago", where the fixture said the API.
+  - *The site:* its home test takes the source from the card where the card says it, and holds that the
+    app says it once; the home page's picture is recorded 100 px taller (`Hero.tsx`,
+    `docs/IMAGE-MANIFEST.md`); the page's copy is unchanged (see below).
+  - *No new contrast pair:* the caption is `--muted` on a card, a pair already checked; its description
+    names it now. No dependency, image, icon font or logo was added.
+- **Left for later:**
+  - VoiceOver by hand on a Mac; the accessibility tree read here is Chrome's.
+  - The website's home page ("One row of the window, read aloud", and "Every number says where it came
+    from") describes one window's row with its age and source in one sentence, as `quotadial status`
+    writes it; the popover now says it once for the card. For the manager to say whether the page should
+    follow.
+  - A card whose windows differ has no real provider yet; the first that merges two readings will show it.
+  - The real material on Matt's Mac, as #86 left it.
+- **Checks:** `cargo fmt --check` and clippy with `-D warnings --locked`, for the workspace and the app, in
+  the default and example builds; the workspace tests and the app's `--lib` tests in both builds; the
+  tray's `npm run build` (types, size, contrast), `npm test` and `check:window`; the site's check, build
+  and tests; `scripts/privacy.sh --check`, `scripts/public-prd.sh --check`, shellcheck and the release
+  scripts' tests. Not run: Windows and Linux builds (CI), `cargo deny` and `cargo audit` and actionlint
+  (not installed here, and nothing they cover changed), `tests/icon_press.rs`, the real app, and VoiceOver
+  by hand.
 
 ### M5 queue item 12, PR E: the README's first-run recording
 

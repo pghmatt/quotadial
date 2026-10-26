@@ -39,6 +39,10 @@ support@quotadial.com.
   email address, so two accounts of one provider are told apart. The line under the number names
   the account it belongs to, and so does the tooltip of QuotaDial's icon.
 - Each limit's bar is read with its words, such as "Weekly, 91% used, resets in 2 d 4 h".
+- Where and when an account's limits were read is said once, after its last limit and before "What
+  QuotaDial does with this sign-in", such as "From the API 3 min ago", when all of them were read from
+  the same source at the same moment, as the limits of one answer are. When they were not, each
+  limit says its own, after its reset.
 - Each chart in History is read as what it shows, such as "Session: latest 18%, highest 18% in the
   last 7 days", and when an account was used is read as a line a day, such as "Mon 20: used 9:00
   to 12:00, most at 10:00 (12%)", in place of the grid of squares.
@@ -72,7 +76,10 @@ support@quotadial.com.
   what a screen reader is told of each, that a panel takes the focus and Done gives it back, that
   no text is cut off at 100% and 200%, that each account is a card of its own, apart from the next,
   with its email address shown inside it and read as part of its heading, that the line under the
-  number names the account, that each command is shown whole as code and selected by one click,
+  number names the account, that where and when an account's limits were read is said once for its
+  card, in a quiet line under them and above its sign-in, which stays above it when the sign-in
+  opens, or under each limit when they differ, and is told to a screen reader, that each command is
+  shown whole as code and selected by one click,
   that nothing moves with less motion asked for, and that the page reports no error. Each of these
   checks was first shown to fail on a window broken on purpose.
 - The same names, roles, states and focus were read from the macOS accessibility interface of the
