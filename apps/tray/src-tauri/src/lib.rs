@@ -596,11 +596,16 @@ fn export_history(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    let path = history::export(&history, &settings, days.clamp(1, 365), Utc::now(), &folder)?;
-    Ok(format!(
-        "Saved to {}.",
-        text::tilde(&path, app.path().home_dir().ok().as_deref())
-    ))
+    let home = app.path().home_dir().ok();
+    let path = history::export(
+        &history,
+        &settings,
+        days.clamp(1, 365),
+        Utc::now(),
+        &folder,
+        home.as_deref(),
+    )?;
+    Ok(format!("Saved to {}.", text::tilde(&path, home.as_deref())))
 }
 
 /// Saves a picture of an account's history to the Downloads folder, and says where (D-115). The
