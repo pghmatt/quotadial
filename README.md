@@ -63,7 +63,7 @@ If you keep several Claude subscriptions, each signed in through its own `CLAUDE
 QuotaDial shows all of them, not only the one Claude Code uses now. See
 [docs/CLI.md](docs/CLI.md#accounts) for where it looks.
 
-QuotaDial only reads these credentials. It never writes, refreshes or moves them, and it never logs
+QuotaDial only reads these sign-ins. It never writes, refreshes or moves them, and it never logs
 them. When a sign-in has expired, run `claude` or `codex` once and QuotaDial picks up the refreshed
 one.
 

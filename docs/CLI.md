@@ -497,8 +497,9 @@ Settings in effect:
 
 It takes its numbers from the daemon when one runs and fetches for itself when not, as `status`
 does, and adds what QuotaDial Free leaves out, the status pages and every problem when there are
-any. It holds nothing secret: no token, email addresses cut to their first letters, the home folder
-written `~`, no licence id, and webhooks named by their host.
+any, a provider's under its own name, as `status` shows it. It holds nothing secret: no token,
+email addresses cut to their first letters, the home folder written `~`, no licence id, and
+webhooks named by their host.
 
 ## The local API
 
@@ -700,8 +701,9 @@ Codex user@example.com (pro): stale
   ```
 - A status other than `ok` is followed by one sentence that says why and names the fix, such as
   "Run `claude` to sign in again."
-- A provider that produced nothing at all shows as `error: <provider>: <what happened>`, which also
-  names the fix or when QuotaDial tries again.
+- A provider that produced nothing at all shows as `error: <its own name>: <what happened>`, such
+  as `error: Codex: could not read the sign-in from ...`, which also names the fix or when
+  QuotaDial tries again. `doctor` and the app list the same line under their problems.
 - On QuotaDial Free, a line under the accounts says how many more a provider has on the machine,
   and one where the costs would be says the week's cost is part of QuotaDial Pro. The week's cost
   is read from the logs of Claude Code and the Codex CLI, so that line, and the pace line's mention
@@ -750,7 +752,7 @@ it prints each refresh after the last, without escape codes.
     }
   ],
   "errors": [
-    { "provider": "codex", "message": "codex: could not read credentials from ..." }
+    { "provider": "codex", "message": "could not read the sign-in from ..." }
   ],
   "costs": [
     {
@@ -799,12 +801,12 @@ it prints each refresh after the last, without escape codes.
 | `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`, or `balance`, the credits left in the provider's own units. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
-| `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts, each with a message that names the fix |
+| `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts: each with `provider`, the provider's id, and `message`, which says what happened and names the fix. The message leaves the provider out, which `provider` gives and `providers[]` names, so `status` shows it as `error: Codex: could not read the sign-in from ...`. One from an older QuotaDial begins with the provider's id and a colon |
 | `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
 | `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
 | `left_out[]` | What this copy leaves out because it is QuotaDial Free (see QuotaDial Free and Pro): each with `feature` (`accounts` or `cost_scan`), `provider` for the accounts a provider held back, and `text`, the line that says so, such as `8 more Claude accounts are on this machine. Showing every account is part of QuotaDial Pro: quotadial.com/pro`. Left out on QuotaDial Pro |
 | `problems[]` | What is wrong with QuotaDial itself rather than a provider, each one line that names the fix or says it is dealt with, such as a history the daemon could not save (see When something goes wrong). Left out when there is none, and with no daemon running |
-| `providers[]` | Every provider this copy asks, in its order, each with its `id` and its own short `name` for itself, such as `{ "id": "claude", "name": "Claude" }`: what a status page, a cost or anything else with only a provider's id is named by |
+| `providers[]` | Every provider this copy asks, in its order, each with its `id` and its own short `name` for itself, such as `{ "id": "claude", "name": "Claude" }`: what a status page, a cost, an error or anything else with only a provider's id is named by |
 
 Times are RFC 3339 in UTC. No token, cookie or API key ever appears in the output.
 

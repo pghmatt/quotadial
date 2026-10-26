@@ -145,11 +145,11 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `extra_usage` | Pay-as-you-go use beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit`, `currency`, or `balance` (credits left) |
 | `status` | `ok`; `stale` or `rate_limited` (older numbers shown again); `auth_required` (the user must sign in again); `unsupported` |
 | `error` | Why the status is not `ok`, naming the fix, such as "Run `claude` to sign in again." |
-| `errors[]` | Providers or accounts that produced nothing, and places a provider could not look in for accounts, each with a message naming the fix |
+| `errors[]` | Providers or accounts that produced nothing, and places a provider could not look in for accounts: each with `provider`, the provider's id, and `message`, naming the fix. The message leaves the provider out, so tell the user the provider's own name from `providers[]` with it, such as "Codex: could not read the sign-in from ...". From an older QuotaDial it begins with the provider's id and a colon |
 | `status_pages[]` | While the daemon runs, what each provider's status page says: `indicator` (`none`, `maintenance`, `minor`, `major`, `critical`) and `description`. A `minor` or worse incident can slow or fail requests, so mention it before a long job |
 | `costs[]` | While the daemon runs, what the last 7 days of local use of each provider would have cost at API prices: `usd`, `requests`, `tokens` and `models[]`, with `until`, when the logs were read, and `notes`, what it leaves out. An estimate at standard API prices, not a bill: the plan's price is what the user pays |
 | `problems[]` | While the daemon runs, what is wrong with QuotaDial itself, such as a history it could not save, each one line naming the fix. The numbers still hold; pass a line on to the user rather than acting on it |
-| `providers[]` | Every provider QuotaDial asks, each with its `id` and its own short `name`, such as `{ "id": "claude", "name": "Claude" }`: the name for a status page or cost, which carry only the id |
+| `providers[]` | Every provider QuotaDial asks, each with its `id` and its own short `name`, such as `{ "id": "claude", "name": "Claude" }`: the name for a status page, a cost or an error, which carry only the id |
 
 ## Headroom
 
