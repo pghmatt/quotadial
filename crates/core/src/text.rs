@@ -21,14 +21,42 @@ pub fn tilde(path: &Path, home: Option<&Path>) -> String {
 /// `text` with every path in it that starts in the home folder `home` written as [`tilde`] writes
 /// it, such as `~/.codex/auth.json`, so a sentence that names a place keeps the user's name out of
 /// it (#52): `~`, the separator the path has after the home folder, which for a path the system
-/// wrote is its own, and the rest as written. A path starts where the text does or after a
-/// character no path holds, such as a space or a quote, and starts in the home folder only where
-/// the folder's own name ends, at a separator or where the path does: with `/Users/ann` as the home
-/// folder, a path in `/Users/anna` or in `/Volumes/Backup/Users/ann` stays as it is. The home
-/// folder is matched as written, without a separator at its end. With no home folder, or one that
-/// is a whole disk, the text is left as it is. Every message QuotaDial writes that can name a
-/// place, a provider's error or one of its own, goes through it once where its text is made, and so
-/// does doctor's whole text (D-128, D-129).
+/// wrote is its own, and the rest as written. With no home folder, or one that is a whole disk, the
+/// text is left as it is. Every message QuotaDial writes that can name a place, a provider's error
+/// or one of its own, goes through it once where its text is made, and so does doctor's whole text
+/// (D-128, D-129). Written again, a text is what it was written once.
+///
+/// A path starts where the text does or after a character no path holds, such as a space or a
+/// quote, and starts in the home folder only where the folder's own name ends. The home folder is
+/// matched as written, without a separator at its end. With `/Users/ann` as the home folder, a path
+/// in `/Users/anna` or in `/Volumes/Backup/Users/ann` stays as it is, and so does one in a folder
+/// whose name goes on with any character, such as `/Users/ann (old)`, `/Users/ann's` or
+/// `/Users/ann;x` (D-133). Where a name ends is read in two ways:
+///
+/// - **A word in single quotes** is one place, read whole as the shell that wrote it reads it: a
+///   POSIX shell's `'...'`, in which `'\''` is a quote, and PowerShell's, in which a single quotation
+///   mark, curly ones too, is written twice. The text does not say which shell wrote it, so the
+///   longer reading is taken. The word is the home folder where it starts a place, not going on
+///   from a path as `'Library'` does after `~/`, and its text is the home folder's path or starts
+///   with it and a separator. Otherwise it is left exactly as it is written, whatever it holds, a
+///   space, a quote, the home folder's path again: so every place outside the home folder that
+///   [`shell_word`] and [`powershell_string`] write comes through unchanged. A quote opens a word at
+///   the start of the text or after a character that is not a letter, a digit, a quote or a
+///   backslash, as in `Ann's` and `'\''`, and a word that never ends is read as the sentence it may
+///   be.
+/// - **Anything else is a sentence**, where text cannot always tell the home folder on its own from
+///   the start of a longer name, so what follows it is read. The home folder is written `~` at a
+///   separator, at the end of the text or of a line, and at the marks a sentence puts after a path
+///   (`:`, `,`, `;`, `)`, a quote, a backtick, and a full stop before a space or the end) when
+///   nothing but marks joins it to the next space, unless the next word on the line carries the
+///   name on: a word that opens with a bracket, as `(old)` does, or has a separator after a name, as
+///   `old/quotadial` does, but not one that is a place of its own, from a root, `~` or a drive.
+///   Anything else joined to it is more of the name, as in `ann's` and `ann;x`. Where this must
+///   guess, it leaves the name: a name shown is the lesser error, and a place named that is not the
+///   one in the text is the greater. It still writes `~` for a name of several words that has no
+///   separator before its last, such as `/Users/ann old stuff/x`, or that ends a place, such as a
+///   folder `/Users/ann old`, and it leaves a name where the home folder itself is followed by a word
+///   with a separator in it, such as `/Users/ann, see docs/CLI.md`.
 #[must_use]
 pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
     let Some(home) = home.filter(|home| home.parent().is_some()) else {
@@ -36,41 +64,58 @@ pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
     };
     let home = home.display().to_string();
     let home = home.trim_end_matches(std::path::is_separator);
-    if home.is_empty() {
+    if home.is_empty() || !text.contains(home) {
         return text.to_owned();
     }
     let mut written = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(at) = rest.find(home) {
-        written.push_str(&rest[..at]);
-        let found = &rest[at..];
-        let after = &found[home.len()..];
-        let starts = written
-            .chars()
-            .next_back()
-            .is_none_or(|before| !in_path(before));
-        match after.chars().next() {
-            // As `tilde` writes it: `~`, the separator, and the rest of the path as it was
-            // written. The separator is the path's own, so a path written with `/` on Windows
-            // keeps it.
-            Some(separator) if starts && std::path::is_separator(separator) => {
-                written.push('~');
-                written.push(separator);
-                rest = &after[separator.len_utf8()..];
+    while let Some(next) = rest.chars().next() {
+        let before = written.chars().next_back();
+        if let Some(word) = single_quoted(rest, before) {
+            // One place, read whole: the home folder where its text says so, as `tilde` writes it
+            // inside the quotes, and otherwise exactly as it was written, quotes and all. A word
+            // that goes on from a path, as `'Library'` does after `~/`, is not a place of its own.
+            let starts = before.is_none_or(|before| !in_path(before));
+            let in_home = starts
+                && rest[1..word.closes]
+                    .strip_prefix(home)
+                    .is_some_and(|after| {
+                        after.is_empty() || after.starts_with(std::path::is_separator)
+                    });
+            if in_home {
+                written.push_str("'~");
+                written.push_str(&rest[1 + home.len()..word.end]);
+            } else {
+                written.push_str(&rest[..word.end]);
             }
-            _ if starts && ends_path(after) => {
-                written.push('~');
-                rest = after;
-            }
-            // Not the home folder here: keep its first character and look again after it.
-            _ => {
-                let first = found.chars().next().unwrap_or_default();
-                written.push(first);
-                rest = &found[first.len_utf8()..];
+            rest = &rest[word.end..];
+            continue;
+        }
+        if let Some(after) = rest.strip_prefix(home)
+            && before.is_none_or(|before| !in_path(before))
+        {
+            match after.chars().next() {
+                // As `tilde` writes it: `~`, the separator, and the rest of the path as it was
+                // written. The separator is the path's own, so a path written with `/` on Windows
+                // keeps it.
+                Some(separator) if std::path::is_separator(separator) => {
+                    written.push('~');
+                    written.push(separator);
+                    rest = &after[separator.len_utf8()..];
+                    continue;
+                }
+                _ if ends_path(after, home) => {
+                    written.push('~');
+                    rest = after;
+                    continue;
+                }
+                _ => {}
             }
         }
+        // Not the home folder here: keep this character and look again after it.
+        written.push(next);
+        rest = &rest[next.len_utf8()..];
     }
-    written.push_str(rest);
     written
 }
 
@@ -80,18 +125,144 @@ fn in_path(character: char) -> bool {
     character.is_alphanumeric() || matches!(character, '/' | '\\' | '.' | '_' | '-' | '~')
 }
 
-/// Whether a path a sentence names has ended where `after` starts: at the end of the text, a space,
-/// the `: ` that follows a place in QuotaDial's errors and the like, or a full stop that ends the
-/// sentence, not one inside a name such as `ann.old`.
-fn ends_path(after: &str) -> bool {
-    let mut characters = after.chars();
-    match characters.next() {
-        None => true,
-        Some('.') => characters.next().is_none_or(char::is_whitespace),
-        Some(next) => {
-            next.is_whitespace() || matches!(next, ':' | ',' | ';' | ')' | '"' | '\'' | '`')
+/// Whether a path that has run from the home folder's text ends there, `after` being what follows
+/// it, rather than going on as a longer name (D-133). It ends where the text does. A mark a
+/// sentence puts after a path ends it only if nothing but marks comes before the next space, so
+/// `ann;x` and `ann's` are longer names and `ann;` is not; a full stop is a mark only before a space
+/// or the end, so `ann.old` is a longer name. At a space the next word decides ([`name_goes_on`]).
+fn ends_path(after: &str, home: &str) -> bool {
+    let mut characters = after.char_indices();
+    while let Some((at, character)) = characters.next() {
+        if character.is_whitespace() {
+            return !name_goes_on(&after[at..], home);
+        }
+        let mark = matches!(character, ':' | ',' | ';' | ')' | '"' | '\'' | '`')
+            || (character == '.'
+                && characters
+                    .as_str()
+                    .chars()
+                    .next()
+                    .is_none_or(char::is_whitespace));
+        if !mark {
+            return false;
         }
     }
+    true
+}
+
+/// Whether the next word after `tail`'s spaces carries on a name that starts with the home folder's
+/// text `home`, so the path did not end where `tail` starts (D-133): a word that opens with a
+/// bracket, as a copy is named, `(old)` or `[1]`, or has a separator after a name, as `old/quotadial`
+/// does. A word that is a place of its own does not, and neither does a line break, which no name
+/// holds here. The home folder's own text inside the word is skipped, so that writing a second
+/// mention of it `~` does not change the answer.
+fn name_goes_on(tail: &str, home: &str) -> bool {
+    let word = tail.trim_start_matches(|character: char| {
+        character.is_whitespace() && !is_line_break(character)
+    });
+    if word.starts_with(['(', '[']) {
+        return true;
+    }
+    if starts_a_place(word) {
+        return false;
+    }
+    let mut named = false;
+    let mut rest = word;
+    while let Some(next) = rest.chars().next() {
+        if let Some(after) = rest.strip_prefix(home) {
+            rest = after;
+        } else if next.is_whitespace() {
+            break;
+        } else if std::path::is_separator(next) {
+            return named;
+        } else {
+            named |= next.is_alphanumeric() || matches!(next, '_' | '-');
+            rest = &rest[next.len_utf8()..];
+        }
+    }
+    false
+}
+
+/// Whether `word` starts a place of its own: from a root, as `/usr/bin` does, from the home
+/// folder, as `~/x` does, or from a drive, as `C:\x` does.
+fn starts_a_place(word: &str) -> bool {
+    let mut characters = word.chars();
+    match characters.next() {
+        Some(first) if std::path::is_separator(first) || first == '~' => true,
+        Some(drive) if drive.is_ascii_alphabetic() => {
+            characters.next() == Some(':') && characters.next().is_some_and(std::path::is_separator)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `character` ends a line, which no folder's name holds in a sentence.
+fn is_line_break(character: char) -> bool {
+    matches!(
+        character,
+        '\n' | '\r' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}'
+    )
+}
+
+/// A word in single quotes: where its last quote starts, and where the word ends after it, as byte
+/// positions from its first quote.
+struct Quoted {
+    closes: usize,
+    end: usize,
+}
+
+/// The word in single quotes that starts at `rest`'s first character, `before` being the character
+/// written before it, read as the shell that wrote it reads it, if there is one and it ends (D-133):
+/// a POSIX shell's, and PowerShell's, whichever reads the longer. Never one that starts after a
+/// letter or a digit, as the apostrophe in `Ann's` does, or after a quote or a backslash, which make
+/// the quote that follows part of a word.
+fn single_quoted(rest: &str, before: Option<char>) -> Option<Quoted> {
+    if !rest.starts_with('\'')
+        || before.is_some_and(|before| before.is_alphanumeric() || matches!(before, '\'' | '\\'))
+    {
+        return None;
+    }
+    [posix_quoted(rest), powershell_quoted(rest)]
+        .into_iter()
+        .flatten()
+        .max_by_key(|word| word.end)
+}
+
+/// `rest`'s word in single quotes as a POSIX shell reads it: up to the next quote, unless that is
+/// `'\''`, which closes the quotes, escapes a quote and opens them again, so the word goes on.
+fn posix_quoted(rest: &str) -> Option<Quoted> {
+    const A_QUOTE: &str = r"'\''";
+    let mut from = 1;
+    loop {
+        let closes = from + rest[from..].find('\'')?;
+        if rest[closes..].starts_with(A_QUOTE) {
+            from = closes + A_QUOTE.len();
+        } else {
+            return Some(Quoted {
+                closes,
+                end: closes + 1,
+            });
+        }
+    }
+}
+
+/// `rest`'s word in single quotes as PowerShell reads it: up to the next single quotation mark,
+/// straight or curly, unless another follows it at once, which is one in the string.
+fn powershell_quoted(rest: &str) -> Option<Quoted> {
+    let mut characters = rest.char_indices().skip(1).peekable();
+    while let Some((at, quote)) = characters.next() {
+        if POWERSHELL_SINGLE_QUOTES.contains(&quote)
+            && characters
+                .next_if(|&(_, next)| POWERSHELL_SINGLE_QUOTES.contains(&next))
+                .is_none()
+        {
+            return Some(Quoted {
+                closes: at,
+                end: at + quote.len_utf8(),
+            });
+        }
+    }
+    None
 }
 
 /// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130, D-131): in the
@@ -101,9 +272,10 @@ fn ends_path(after: &str) -> bool {
 /// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
 /// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
 /// missed. In the home folder by whole names, as [`tilde`] finds it, so `/Users/anna` is not in
-/// `/Users/ann`. `~/` on every system, being for a POSIX shell: neither command that uses it is
-/// shown on Windows, where `config.json`'s warning cannot occur and a sign-in command is written
-/// for PowerShell, with [`powershell_string`].
+/// `/Users/ann`. The word comes through [`tilde_in`] as it is written, whatever the place holds,
+/// since that reads a word in single quotes whole (D-133). `~/` on every system, being for a POSIX
+/// shell: neither command that uses it is shown on Windows, where `config.json`'s warning cannot
+/// occur and a sign-in command is written for PowerShell, with [`powershell_string`].
 #[must_use]
 pub fn shell_word(place: &Path, home: Option<&Path>) -> String {
     let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));
@@ -131,8 +303,10 @@ const POWERSHELL_SINGLE_QUOTES: [char; 5] = ['\'', '\u{2018}', '\u{2019}', '\u{2
 /// written after a backtick, which takes it as written (about_Quoting_Rules). Anywhere else, or with
 /// no home folder or one that is a whole disk, the whole place in single quotes, in which PowerShell
 /// reads nothing but the string's end, `'`, `‘`, `’`, `‚` or `‛`, so each of those is written twice.
-/// In the home folder by whole names, as [`shell_word`] finds it; like that word, the string holds
-/// the home folder's path nowhere [`tilde_in`] takes it for the home folder.
+/// In the home folder by whole names, as [`shell_word`] finds it; like that word, the string comes
+/// through [`tilde_in`] as it is written (D-133): a place outside the home folder is in single
+/// quotes, which that reads whole, and one in it starts `"$HOME`, so holds the home folder's path
+/// only where a name holds it, which a name on Windows, where this string is written, cannot.
 #[must_use]
 pub fn powershell_string(place: &Path, home: Option<&Path>) -> String {
     let Some(rest) = after_home(place, home) else {
@@ -707,6 +881,266 @@ mod tests {
         );
     }
 
+    /// The home folders the tests write places beside, each from its parts: one rooted at `/`, as
+    /// macOS and Linux write it, and one on a drive, as Windows does, which on Windows is the
+    /// system's own.
+    fn home_folders() -> [PathBuf; 2] {
+        [
+            path(&["/", "Users", "ann"]),
+            path(&["C:\\", "Users", "ann"]),
+        ]
+    }
+
+    /// A folder beside the home folder `home` whose name starts as the home folder's own and goes
+    /// on with `more`: the home folder's text and then `more`, one name, such as `/Users/ann (old)`.
+    fn longer(home: &Path, more: &str) -> PathBuf {
+        PathBuf::from(format!("{}{more}", home.display()))
+    }
+
+    /// What a folder's name can go on with after the home folder's own (D-133): a space and a
+    /// bracket, as people name a copy, a space and a word, a tab, an apostrophe, straight and
+    /// curly, each mark a sentence puts after a path when something follows it, and a quote alone.
+    /// Every one is legal in a folder's name, and none ends the home folder's own.
+    const GOES_ON: [&str; 13] = [
+        " (old)", " old", "\told", "'s", "’s", ", old", ";x", ")", ":x", "\"x\"", "`x`", ". old",
+        "'",
+    ];
+
+    #[test]
+    fn a_folder_whose_name_goes_on_from_the_home_folders_is_left_as_written_in_a_sentence() {
+        // D-130's leftover: `/Users/ann (old)/quotadial` beside the home folder `/Users/ann`,
+        // which a sentence wrote `~ (old)/quotadial`, a place that does not exist (D-133).
+        for home in home_folders() {
+            for more in GOES_ON {
+                let place = longer(&home, more).join("quotadial").join("history.db");
+                let file = place.display();
+                for sentence in [
+                    format!("could not open the history at {file}: permission denied"),
+                    format!(
+                        "could not use {file}: permission denied; check that you can write to it"
+                    ),
+                    format!("{file} holds webhook addresses, which work like passwords"),
+                    file.to_string(),
+                ] {
+                    assert_eq!(
+                        tilde_in(&sentence, Some(&home)),
+                        sentence,
+                        "{more:?} beside {}",
+                        home.display()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_folder_whose_name_goes_on_from_the_home_folders_is_quoted_whole_in_a_posix_command() {
+        // The command `config.json`'s warning and Claude's sign-in write for such a folder, held to
+        // the pass leaving it as written, whatever the name holds (D-133).
+        for home in home_folders() {
+            let config = |more: &str| longer(&home, more).join("quotadial").join("config.json");
+            let place = config(" (old)");
+            assert_eq!(
+                word(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "`chmod 600 '/Users/ann (old)/quotadial/config.json'`"
+            );
+            assert_eq!(
+                word(&config("'s"), Some(&home)),
+                format!(
+                    r"'{}'\''s{MAIN_SEPARATOR}quotadial{MAIN_SEPARATOR}config.json'",
+                    home.display()
+                ),
+                "a folder named `ann's`, its quote written `'\\''`"
+            );
+            for more in GOES_ON {
+                // The folder itself and a file in it, each in the commands as they are written.
+                for place in [longer(&home, more), config(more)] {
+                    let word = word(&place, Some(&home));
+                    for command in [
+                        format!("chmod 600 {word}"),
+                        format!("CLAUDE_CONFIG_DIR={word} claude"),
+                        format!("run `CLAUDE_CONFIG_DIR={word} claude` to sign in again."),
+                    ] {
+                        assert_eq!(tilde_in(&command, Some(&home)), command, "{more:?}");
+                    }
+                }
+                // As `config.json`'s warning words it: the file as a sentence names it, then the
+                // command.
+                let file = config(more);
+                let warning = format!(
+                    "{} holds webhook addresses, which work like passwords, and other users can \
+                     read it; run `chmod 600 {}`.",
+                    file.display(),
+                    word(&file, Some(&home))
+                );
+                assert_eq!(tilde_in(&warning, Some(&home)), warning, "{more:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_folder_whose_name_goes_on_from_the_home_folders_is_a_single_quoted_powershell_string() {
+        // The same in PowerShell, which writes each single quotation mark twice, curly ones too, so
+        // a name holding one is a string that goes on past it (D-133).
+        for home in home_folders() {
+            let config = |more: &str| longer(&home, more).join("quotadial").join("config.json");
+            let rest = format!("{MAIN_SEPARATOR}quotadial{MAIN_SEPARATOR}config.json'");
+            let place = config(" (old)");
+            assert_eq!(
+                powershell(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "`'C:\\Users\\ann (old)\\quotadial\\config.json'`"
+            );
+            assert_eq!(
+                powershell(&config("'s"), Some(&home)),
+                format!("'{}''s{rest}", home.display()),
+                "a folder named `ann's`, its quote written twice"
+            );
+            assert_eq!(
+                powershell(&config("’s"), Some(&home)),
+                format!("'{}’’s{rest}", home.display()),
+                "and its curly quote"
+            );
+            for more in GOES_ON {
+                for place in [longer(&home, more), config(more)] {
+                    let string = powershell(&place, Some(&home));
+                    for command in [
+                        format!("$env:CLAUDE_CONFIG_DIR = {string}; claude"),
+                        format!("Set-Location {string}"),
+                        format!(
+                            "run `$env:CLAUDE_CONFIG_DIR = {string}; claude` to sign in again."
+                        ),
+                    ] {
+                        assert_eq!(tilde_in(&command, Some(&home)), command, "{more:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_home_folder_on_its_own_is_told_from_a_longer_name_beside_it() {
+        for home in home_folders() {
+            let old = longer(&home, " (old)").join("quotadial");
+            // Beside each other in one sentence: the longer name as written, the home folder `~`.
+            assert_eq!(
+                tilde_in(
+                    &format!(
+                        "could not use {}: permission denied; {} is not writable",
+                        old.display(),
+                        home.display()
+                    ),
+                    Some(&home)
+                ),
+                format!(
+                    "could not use {}: permission denied; ~ is not writable",
+                    old.display()
+                )
+            );
+            // Every way the home folder on its own can end a place in a sentence: the end of the
+            // text or of a line, a full stop, a colon, a comma, a bracket, or a space and a word.
+            for ending in [
+                "",
+                ".",
+                ":",
+                ": permission denied",
+                ". Sign in.",
+                ", then try again",
+                "; try again",
+                ") and",
+                " is not writable",
+                " and ~/.codex/auth.json",
+                " /usr/local/bin",
+                " ./here/too",
+                " ../up/there",
+                " C:\\Windows\\System32",
+                " C:/Windows/System32",
+                "\nthe next line holds a/separator",
+                "  \nsome/where else",
+            ] {
+                assert_eq!(
+                    tilde_in(
+                        &format!("nothing in {}{ending}", home.display()),
+                        Some(&home)
+                    ),
+                    format!("nothing in ~{ending}"),
+                    "{ending:?}"
+                );
+            }
+            // The next word holds a second mention of the home folder, which is written `~` too.
+            // The word carries no name on, whether the mention is written yet or not, since the
+            // home folder's own separators are not a name's, so a second pass changes nothing.
+            let twice = format!("{0} x({0}) y", home.display());
+            let once = tilde_in(&twice, Some(&home));
+            assert_eq!(once, "~ x(~) y");
+            assert_eq!(tilde_in(&once, Some(&home)), once);
+        }
+    }
+
+    #[test]
+    fn a_word_in_single_quotes_is_read_whole() {
+        for home in home_folders() {
+            let at = home.display();
+            // The home folder on its own or at the start of a place in it, as without the quotes.
+            assert_eq!(tilde_in(&format!("'{at}'"), Some(&home)), "'~'");
+            assert_eq!(
+                tilde_in(
+                    &format!("said '{at}', or '{at}/a b' (see '{at}'.)"),
+                    Some(&home)
+                ),
+                "said '~', or '~/a b' (see '~'.)"
+            );
+            // A word that goes on from the home folder's text is another place, whatever follows
+            // it and however it ends: as a POSIX shell reads it, `'\''` is a quote, and as
+            // PowerShell reads it, two quotes in a row are one, curly ones too.
+            for quoted in [
+                format!("'{at} (old)'"),
+                format!("'{at}, old'"),
+                format!("'{at};x'"),
+                format!("'{at}.'"),
+                format!("'{at})'"),
+                format!(r"'{at}'\''s'"),
+                format!("'{at}''s'"),
+                format!("'{at}’’s'"),
+                format!("'{at}’s'"),
+                format!("'{at}'\\'''"),
+            ] {
+                let said = format!("cd {quoted} now");
+                assert_eq!(tilde_in(&said, Some(&home)), said);
+            }
+            // What is inside a word that does not start in the home folder is not a place of its
+            // own, so nothing in it is written `~`.
+            for quoted in [
+                format!("'/Volumes/Backup {at}/x'"),
+                format!("'a {at}'"),
+                format!("'a'\\'' {at}/b'"),
+                format!("'a''{at}/b'"),
+            ] {
+                let said = format!("cd {quoted} now");
+                assert_eq!(tilde_in(&said, Some(&home)), said);
+            }
+            // A word that goes on from a path, as the rest of a place in the home folder does after
+            // `~/`, is not a place of its own, so the home folder's text in it is left as written.
+            let after_tilde = format!("cd ~/'{at}'");
+            assert_eq!(tilde_in(&after_tilde, Some(&home)), after_tilde);
+            // A quote that opens no word is read as a sentence reads it: an apostrophe in a word,
+            // or a quote that never closes.
+            assert_eq!(
+                tilde_in(
+                    &format!("can't open {at}/x: it's gone, or '{at} is open"),
+                    Some(&home)
+                ),
+                "can't open ~/x: it's gone, or '~ is open"
+            );
+            assert_eq!(
+                tilde_in(&format!("'{at} (old)/x is open"), Some(&home)),
+                format!("'{at} (old)/x is open"),
+                "an open quote and a longer name"
+            );
+        }
+    }
+
     fn ts(rfc3339: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(rfc3339)
             .expect("valid timestamp")
@@ -954,16 +1388,63 @@ mod tests {
             .collect()
     }
 
+    /// What a sentence can put right after the home folder's text, with whether the home folder is
+    /// the home folder on its own there (D-133). On its own: the end of the text, or the marks a
+    /// sentence puts after a path (a full stop only as the last) and then the end, a space and a
+    /// plain word, or a line break. A longer name that goes on: in the same word, or after those
+    /// marks and a space, in the next word, which opens with a bracket or holds a separator after a
+    /// name.
+    fn after_the_home_folder() -> impl Strategy<Value = (String, bool)> {
+        const MARKS: &str = "[:,;)\"'`]{0,2}\\.?";
+        const MARKS_WITHOUT_A_STOP: &str = "[:,;)\"'`]{0,2}";
+        prop_oneof![
+            MARKS.prop_map(|marks| (marks, true)),
+            (MARKS, "[a-z]{1,8}", ".{0,10}")
+                .prop_map(|(marks, word, more)| (format!("{marks} {word} {more}"), true)),
+            (MARKS, ".{0,10}").prop_map(|(marks, more)| (format!("{marks}\n{more}"), true)),
+            (MARKS_WITHOUT_A_STOP, "[A-Za-z0-9_-]", "[^ \t\n]{0,6}")
+                .prop_map(|(marks, name, more)| (format!("{marks}{name}{more}"), false)),
+            (MARKS, "[ \t]{1,3}", "[(\\[]", ".{0,6}").prop_map(|(marks, space, open, more)| (
+                format!("{marks}{space}{open}{more}"),
+                false
+            )),
+            (MARKS, "[ \t]{1,3}", "[A-Za-z0-9_-]{1,6}", ".{0,6}").prop_map(
+                |(marks, space, name, more)| (format!("{marks}{space}{name}/{more}"), false)
+            ),
+        ]
+    }
+
+    /// The pieces of a text made of what a sentence or a command puts around the home folder and a
+    /// longer name beside it, `None` being the home folder's own text: marks, quotes, brackets,
+    /// spaces, line breaks and separators, any characters, words, words with a separator in them,
+    /// and the shapes a longer name and a quoted word take.
+    fn around_the_home_folder() -> impl Strategy<Value = Vec<Option<String>>> {
+        proptest::collection::vec(
+            proptest::option::weighted(
+                0.6,
+                prop_oneof![
+                    "[ \t\n./\\\\:;,)(\\[\\]'’\"`~a-z]{0,3}",
+                    ".{0,3}",
+                    "[a-z]{1,4}/[a-z]{0,4}",
+                    Just(" (old)".to_owned()),
+                    Just("'\\''".to_owned()),
+                    Just("''".to_owned()),
+                ],
+            ),
+            0..16,
+        )
+    }
+
     // `tilde_in` takes text from outside, such as a server's words in a request's error, so no
     // text and no home folder may make it panic (the manager on #82, D-129). Any string, and short
     // ones of a path's characters, so a home folder of one or two characters, and a separator, a
-    // stop or a space beside it, come up often.
+    // stop, a space, a quote or a bracket beside it, come up often.
     proptest! {
         #[test]
         fn no_text_or_home_folder_makes_writing_the_home_folder_panic(
-            home in proptest::option::of(prop_oneof![any::<String>(), "[a-z./\\\\~ ]{1,3}"]),
+            home in proptest::option::of(prop_oneof![any::<String>(), "[a-z./\\\\~ '’(]{1,3}"]),
             pieces in proptest::collection::vec(
-                proptest::option::of(prop_oneof![any::<String>(), "[ ./\\\\:a-z~]{0,2}"]),
+                proptest::option::of(prop_oneof![any::<String>(), "[ \n./\\\\:a-z~'’(\\[]{0,2}"]),
                 0..8,
             ),
         ) {
@@ -980,13 +1461,13 @@ mod tests {
             prop_assert_eq!(tilde_in(&text, Some(disk)), text.as_str(), "a whole disk");
         }
 
+        // Written once, text is written (D-129): also what a longer name, a word in quotes, a
+        // bracket and a line break make together with the home folder's own text, in any order,
+        // which the look-ahead for a longer name reads forward through (D-133).
         #[test]
         fn writing_the_home_folder_again_changes_nothing(
             home in home_folder(),
-            pieces in proptest::collection::vec(
-                proptest::option::of(prop_oneof!["[ ./\\\\:;,)('\"`~a-z]{0,3}", ".{0,3}"]),
-                0..12,
-            ),
+            pieces in around_the_home_folder(),
         ) {
             let text = pieced(&home.display().to_string(), &pieces);
 
@@ -1026,6 +1507,115 @@ mod tests {
                 inside(PathBuf::from(format!("{lead}{}", home.display()))),
             ] {
                 prop_assert_eq!(tilde_in(&naming(&place), Some(&home)), naming(&place));
+            }
+        }
+
+        // D-133: a place outside the home folder, whose text starts with the home folder's path and
+        // goes on with any character but a separator, and then with anything, the home folder's own
+        // text and every quote among it, is left as written in both commands: in a word by
+        // itself and in the sentences and commands that hold it.
+        #[test]
+        fn a_place_outside_the_home_folder_is_left_as_written_in_both_commands(
+            home in home_folder(),
+            first in "[^/\\\\]",
+            pieces in proptest::collection::vec(
+                proptest::option::of(prop_oneof![
+                    "[ \t./\\\\:;,)(\\[\\]'‘’‚‛\"`~a-z]{0,3}",
+                    ".{0,3}",
+                ]),
+                0..6,
+            ),
+        ) {
+            let written = home.display().to_string();
+            let place = PathBuf::from(format!("{written}{first}{}", pieced(&written, &pieces)));
+            prop_assume!(place.strip_prefix(&home).is_err());
+
+            for word in [
+                shell_word(&place, Some(&home)),
+                powershell_string(&place, Some(&home)),
+            ] {
+                for command in [
+                    word.clone(),
+                    format!("chmod 600 {word}"),
+                    format!("CLAUDE_CONFIG_DIR={word} claude"),
+                    format!("$env:CLAUDE_CONFIG_DIR = {word}; claude"),
+                    format!("run `chmod 600 {word}`."),
+                ] {
+                    prop_assert_eq!(tilde_in(&command, Some(&home)), command);
+                }
+            }
+        }
+
+        // The same for a place in the home folder, which a POSIX shell gets as `~/` and the rest in
+        // single quotes, whatever the rest holds.
+        #[test]
+        fn a_posix_command_for_a_place_in_the_home_folder_is_left_as_written(
+            home in home_folder(),
+            first in "[^/\\\\]",
+            pieces in proptest::collection::vec(
+                proptest::option::of(prop_oneof![
+                    "[ \t./\\\\:;,)(\\[\\]'‘’‚‛\"`~a-z]{0,3}",
+                    ".{0,3}",
+                ]),
+                0..6,
+            ),
+        ) {
+            let written = home.display().to_string();
+            let place = PathBuf::from(format!(
+                "{written}{MAIN_SEPARATOR}{first}{}",
+                pieced(&written, &pieces)
+            ));
+            prop_assume!(place.strip_prefix(&home).is_ok());
+            let word = shell_word(&place, Some(&home));
+
+            for command in [
+                word.clone(),
+                format!("chmod 600 {word}"),
+                format!("CLAUDE_CONFIG_DIR={word} claude"),
+            ] {
+                prop_assert_eq!(tilde_in(&command, Some(&home)), command);
+            }
+        }
+
+        // D-133: in a sentence, what follows the home folder's text tells the home folder on its
+        // own, written `~`, from the start of a longer name, left as written.
+        #[test]
+        fn what_follows_the_home_folder_tells_it_from_a_longer_name(
+            home in home_folder(),
+            before in "([a-z]{1,6} ){0,4}",
+            (after, alone) in after_the_home_folder(),
+        ) {
+            let written = home.display().to_string();
+            let text = format!("{before}{written}{after}");
+            let expected = if alone { format!("{before}~{after}") } else { text.clone() };
+
+            prop_assert_eq!(tilde_in(&text, Some(&home)), expected);
+        }
+
+        // D-133: a word in single quotes is one place, so it is the home folder or a place in it
+        // where its text says so, and anything else in or around it is left as written.
+        #[test]
+        fn a_word_in_single_quotes_is_read_whole_before_it_is_taken_for_the_home_folder(
+            home in home_folder(),
+            more in "[^/\\\\'][^']{0,8}",
+            inside in "[^']{0,8}",
+            ahead in "[A-Za-z0-9][^']{0,5}",
+            before in "([a-z]{1,4} ){0,2}",
+            after in "( [a-z]{1,4}){0,2}",
+        ) {
+            let written = home.display().to_string();
+            let said = |word: &str| format!("{before}'{word}'{after}");
+
+            // The home folder on its own, and a place in it, as without the quotes.
+            prop_assert_eq!(tilde_in(&said(&written), Some(&home)), said("~"));
+            prop_assert_eq!(
+                tilde_in(&said(&format!("{written}/{inside}")), Some(&home)),
+                said(&format!("~/{inside}"))
+            );
+            // A name that goes on from it, and a word that starts anywhere else, whatever else is
+            // in it.
+            for word in [format!("{written}{more}"), format!("{ahead}{written}{inside}")] {
+                prop_assert_eq!(tilde_in(&said(&word), Some(&home)), said(&word));
             }
         }
     }

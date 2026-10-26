@@ -187,11 +187,10 @@ impl Config {
         }
         // Each names config.json: the one pass its text goes through where it is made writes the
         // home folder `~` (#52, D-129). It leaves the chmod command as `text::shell_word` wrote it:
-        // the pass writes `~` only for the home folder's own path, and the command holds that path
-        // nowhere the pass takes it for the home folder, `~` standing for it already and a place
-        // outside the home folder not starting in it. D-130 has the one exception, never a folder
-        // QuotaDial makes: a place whose text holds the home folder's path beside a space, a quote
-        // or the like, such as `/Users/ann (old)` beside `/Users/ann`.
+        // the pass writes `~` only for the home folder's own path, `~` stands for it in the
+        // command already, and a place outside the home folder is a word in single quotes, which
+        // the pass reads whole and leaves as written whatever the name holds, such as
+        // `/Users/ann (old)` beside `/Users/ann` (D-133).
         for warning in &mut config.warnings {
             *warning = text::tilde_in(warning, home);
         }
@@ -291,6 +290,16 @@ mod tests {
             warnings(&elsewhere.join("config.json").display().to_string()),
             "a place outside the home folder stays as it is"
         );
+        // Folders whose names go on from the home folder's own, with a space, a quote or a comma
+        // after it, are not in it either, and stay as they are (D-133).
+        for more in [" (old)", "'s", ", old"] {
+            let beside = temp.path().join(format!("ann{more}")).join("quotadial");
+            assert_eq!(
+                warned(beside.clone()),
+                warnings(&beside.join("config.json").display().to_string()),
+                "{more:?} after the home folder's name"
+            );
+        }
     }
 
     #[test]
@@ -462,6 +471,20 @@ mod tests {
             Config::loaded(&dir, Some(&home)).warnings,
             [warning(&file, &format!("'{file}'"))]
         );
+        // A folder whose name goes on from the home folder's own, with a space or a quote after it:
+        // as it is, and the whole place quoted in the command, a quote written `'\''` (D-133).
+        for more in [" (old)", "'s"] {
+            let (dir, path) = readable(temp.path().join(format!("ann{more}")).join("quotadial"));
+            let file = path.display().to_string();
+            assert_eq!(
+                Config::loaded(&dir, Some(&home)).warnings,
+                [warning(
+                    &file,
+                    &format!("'{}'", file.replace('\'', r"'\''"))
+                )],
+                "{more:?} after the home folder's name"
+            );
+        }
     }
 
     #[cfg(unix)]
@@ -472,7 +495,8 @@ mod tests {
         // #52: every error names the fix, in one sentence a stranger can act on (D-130). The
         // command, taken from the warning as a user sees it, run by `sh` with the same home folder,
         // on a file in a folder whose name has a space, as macOS's data folder's does, then a quote
-        // too, in the home folder and outside it.
+        // too, in the home folder and outside it, and beside it, in a folder whose name goes on from
+        // the home folder's own (D-133).
         let temp = tempfile::tempdir().expect("temp dir");
         let home = temp.path().join("ann");
         for folder in [
@@ -481,6 +505,8 @@ mod tests {
                 .join("quotadial"),
             home.join("Ann's QuotaDial"),
             temp.path().join("O'Brien's data").join("quotadial"),
+            temp.path().join("ann (old)").join("quotadial"),
+            temp.path().join("ann's QuotaDial"),
         ] {
             let dir = written_in(
                 folder,

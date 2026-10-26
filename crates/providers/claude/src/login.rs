@@ -233,8 +233,9 @@ impl Login {
 /// from it, `~` for a POSIX shell and `$HOME` for PowerShell, so the command never names the user
 /// (#52), and the rest is quoted as that shell reads it, such as
 /// `CLAUDE_CONFIG_DIR=~/'My Claude' claude` or `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`;
-/// any other folder is quoted whole. Neither holds the home folder's path where the pass that writes
-/// it `~` in doctor's text, `text::tilde_in`, would take it, so doctor shows it as written too.
+/// any other folder is quoted whole. The pass that writes the home folder `~` in doctor's text,
+/// `text::tilde_in`, leaves both as written, whatever the folder's name holds, so doctor shows them
+/// as written too (D-133).
 pub(crate) fn claude_in(dir: &Path, home: Option<&Path>, windows: bool) -> String {
     if windows {
         return format!(
@@ -1044,6 +1045,9 @@ mod tests {
             place(&["Volumes", "Data", "My Claude"]),
             // Another user's folder, whose name starts as the home folder's does.
             place(&["Users", "anna", ".claude"]),
+            // A folder whose name goes on from the home folder's own, with a space after it, which
+            // doctor's pass wrote `~ (old)` before D-133.
+            place(&["Users", "ann (old)", ".claude"]),
         ] {
             assert_eq!(
                 command(&dir, &home, false),
@@ -1066,6 +1070,22 @@ mod tests {
             format!(
                 "$env:CLAUDE_CONFIG_DIR = '{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O''Brien’’s \
                  Claude'; claude"
+            )
+        );
+        // A folder named `ann's` beside the home folder `ann`, its quote written as each shell
+        // reads it, which the pass wrote `'~'\''s/.claude'` before D-133.
+        let beside = place(&["Users", "ann's", ".claude"]);
+        assert_eq!(
+            command(&beside, &home, false),
+            format!(
+                r"CLAUDE_CONFIG_DIR='{MAIN_SEPARATOR}Users{MAIN_SEPARATOR}ann'\''s{MAIN_SEPARATOR}.claude' claude"
+            )
+        );
+        assert_eq!(
+            command(&beside, &home, true),
+            format!(
+                "$env:CLAUDE_CONFIG_DIR = '{MAIN_SEPARATOR}Users{MAIN_SEPARATOR}ann''s\
+                 {MAIN_SEPARATOR}.claude'; claude"
             )
         );
     }
@@ -1096,6 +1116,9 @@ mod tests {
                 home.join("$HOME `id` \"q\" \\ * ~").join("work"),
                 home.clone(),
                 temp.path().join("O'Brien's Claude"),
+                // Beside the home folder, in a folder whose name goes on from its own (D-133).
+                PathBuf::from(format!("{} (old)", home.display())).join("claude"),
+                PathBuf::from(format!("{}'s Claude", home.display())),
             ] {
                 let login = Login::new(
                     &env_in(&home),
