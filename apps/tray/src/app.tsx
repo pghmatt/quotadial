@@ -222,6 +222,9 @@ function AccountSection({ account, index }: { account: Account; index: number })
         </ul>
       )}
       {account.extra_usage && <p class="extra">Extra usage: {account.extra_usage}</p>}
+      {/* Where and when every window was read, said once for all of them: the card's caption, under
+          the numbers it is about and above the sign-in, whose panel opens below it. */}
+      {account.fetched && <p class="source">{account.fetched}</p>}
       {account.sign_in && (
         <details class="sign-in">
           <summary>What QuotaDial does with this sign-in</summary>
@@ -286,7 +289,8 @@ function WindowRow({ window, id }: { window: Window; id: string }) {
         aria-valuetext={`${percent}% used, ${window.resets}`}
       />
       <p class="detail">
-        {window.resets}, {window.fetched}
+        {window.resets}
+        {window.fetched && `, ${window.fetched}`}
         {window.unconfirmed && (
           <>
             {" "}

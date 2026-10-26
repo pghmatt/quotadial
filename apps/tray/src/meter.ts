@@ -51,6 +51,10 @@ export interface Account {
   /** Such as "ok", "stale" or "sign-in required". */
   status: string;
   ok: boolean;
+  /** Where and when the windows were read, said once for the card, such as "from the API 3 min
+   * ago", when every one was read from the same source at the same moment; null when they differ,
+   * and with no window, and then each window says its own. */
+  fetched: string | null;
   /** Tightest first. */
   windows: Window[];
   extra_usage: string | null;
@@ -68,8 +72,9 @@ export interface Window {
   level: Level;
   /** Such as "resets in 2 h 10 min". */
   resets: string;
-  /** Such as "from the API 4 min ago". */
-  fetched: string;
+  /** Where and when it was read, such as "from the API 4 min ago"; null when the card says so once
+   * for all its windows. */
+  fetched: string | null;
   unconfirmed: boolean;
   /** Such as "at 8.5%/h, runs out in 1 h 30 min, 40 min before it resets", once there is enough
    * history to go on. */

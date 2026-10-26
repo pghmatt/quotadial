@@ -10,6 +10,10 @@
 // Commands sit between backticks, as QuotaDial writes them: Claude's sign-in command in an
 // account's note, Gemini CLI's `/model`, Antigravity's block in its sign-in panel and, in Free's
 // Settings, config.json's chmod; the window shows each as code (the manager's note on #85).
+// Where and when the windows were read is said once for a card whose windows all agree (Claude Work's,
+// the stale Codex account's from the cache, Antigravity's, the example account's one window) and under
+// each window of the one card whose windows do not (a Codex account's, which no provider makes today),
+// as the app's view model sends it (D-135).
 // Two copies of the app: Pro, with the
 // week's cost, a key kept and a Share image button on each account in History, and Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
@@ -46,13 +50,15 @@ const ACCOUNTS = [
     plan: "Max 5x",
     status: "ok",
     ok: true,
+    // Three windows of one answer, so the card says where and when once and no window does.
+    fetched: "from the API 4 min ago",
     windows: [
       {
         label: "Weekly",
         used_pct: 91.4,
         level: "high",
         resets: "resets in 2 d 4 h",
-        fetched: "from the API 4 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: "at 2.0%/h, runs out in 4 h 18 min, 1 d 23 h before it resets",
         runs_out: true,
@@ -62,7 +68,7 @@ const ACCOUNTS = [
         used_pct: 74,
         level: "warning",
         resets: "resets in 2 d 4 h",
-        fetched: "from the API 4 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: null,
         runs_out: false,
@@ -72,13 +78,14 @@ const ACCOUNTS = [
         used_pct: 38.2,
         level: "normal",
         resets: "resets in 2 h 10 min",
-        fetched: "from the API 4 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: "at 8.5%/h, lasts until it resets",
         runs_out: false,
       },
     ],
-    extra_usage: null,
+    // A line of its own under the windows, so the caption is checked under it too.
+    extra_usage: "on, 12.50 of 50.00 USD used (25%)",
     note: null,
     sign_in: CLAUDE_SIGN_IN,
   },
@@ -91,13 +98,15 @@ const ACCOUNTS = [
     plan: "Pro",
     status: "stale",
     ok: false,
+    // Its last numbers, served again from the cache with the time of the fetch.
+    fetched: "from cache 14 min ago",
     windows: [
       {
         label: "5-hour",
         used_pct: 12,
         level: "normal",
         resets: "resets in 3 h 41 min",
-        fetched: "from the API 14 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: null,
         runs_out: false,
@@ -107,7 +116,7 @@ const ACCOUNTS = [
         used_pct: 0,
         level: "normal",
         resets: "resets in 6 d 1 h",
-        fetched: "from the API 14 min ago",
+        fetched: null,
         unconfirmed: true,
         pace: null,
         runs_out: false,
@@ -128,6 +137,7 @@ const ACCOUNTS = [
     plan: null,
     status: "sign-in required",
     ok: false,
+    fetched: null,
     windows: [],
     extra_usage: null,
     // Claude's sentence for a sign-in that expired, with the command for its folder (D-131).
@@ -145,6 +155,7 @@ const ACCOUNTS = [
     plan: null,
     status: "unsupported",
     ok: false,
+    fetched: null,
     windows: [],
     extra_usage: null,
     note:
@@ -165,13 +176,15 @@ const ACCOUNTS = [
     plan: "Pro",
     status: "ok",
     ok: true,
+    // One handover from Antigravity CLI's status line, the longest source the card says.
+    fetched: "from the CLI's status line 2 min ago",
     windows: [
       {
         label: "Weekly (Claude and GPT)",
         used_pct: 64,
         level: "normal",
         resets: "resets in 3 d 2 h",
-        fetched: "from the CLI's status line 2 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: null,
         runs_out: false,
@@ -181,7 +194,7 @@ const ACCOUNTS = [
         used_pct: 25,
         level: "normal",
         resets: "resets in 3 h 30 min",
-        fetched: "from the CLI's status line 2 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: null,
         runs_out: false,
@@ -191,7 +204,7 @@ const ACCOUNTS = [
         used_pct: 6.22,
         level: "normal",
         resets: "resets in 5 d 9 h",
-        fetched: "from the CLI's status line 2 min ago",
+        fetched: null,
         unconfirmed: false,
         pace: null,
         runs_out: false,
@@ -209,6 +222,47 @@ const ACCOUNTS = [
       'for one more limit, which QuotaDial leaves out of its windows: "Credits", 120 left, ' +
       "resetting at 2026-05-01T00:00:00Z.",
   },
+  // An account whose windows were not read together: the 5-hour window from the API a minute ago,
+  // the weekly one from the Codex CLI's local logs nine minutes ago. No provider makes a card like
+  // it today, since each snapshot is one answer and its windows share their source and their
+  // time; this one holds the layout for the day one does: the card says nothing once, and each
+  // window says its own (D-135).
+  {
+    key: "codex:both@example.com",
+    alias: null,
+    summary: "Codex both@example.com (Plus): 5-hour 31%, resets in 2 h 20 min",
+    provider: "Codex",
+    name: "both@example.com",
+    plan: "Plus",
+    status: "ok",
+    ok: true,
+    fetched: null,
+    windows: [
+      {
+        label: "5-hour",
+        used_pct: 31,
+        level: "normal",
+        resets: "resets in 2 h 20 min",
+        fetched: "from the API 1 min ago",
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+      {
+        label: "Weekly",
+        used_pct: 18,
+        level: "normal",
+        resets: "resets in 4 d 6 h",
+        fetched: "from local logs 9 min ago",
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    sign_in: CODEX_SIGN_IN,
+  },
 ];
 
 /**
@@ -225,13 +279,15 @@ const EXAMPLE_ACCOUNT = {
   plan: "Claude Max 5x",
   status: "ok",
   ok: true,
+  // One window, which the card says it for as it does for any window.
+  fetched: "from the example build 1 min ago",
   windows: [
     {
       label: "Weekly",
       used_pct: 91,
       level: "high",
       resets: "resets in 2 d 4 h",
-      fetched: "from the example build 1 min ago",
+      fetched: null,
       unconfirmed: false,
       pace: null,
       runs_out: false,

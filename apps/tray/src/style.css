@@ -6,8 +6,8 @@
   --text: #1d1d1f;
   /* An account's address, its plan and the summary's line: second only to the text. */
   --secondary: #48484d;
-  /* A window's reset, source and pace, the provider after an address, the origin line and a
-     field's hint. */
+  /* A window's reset and pace, a card's line for where and when its windows were read, the
+     provider after an address, the origin line and a field's hint. */
   --muted: #58585d;
   --warning: #8f4b00;
   --high: #c41e13;
@@ -364,6 +364,21 @@ summary::before {
 details[open] > summary::before {
   margin-bottom: 3px;
   transform: rotate(45deg);
+}
+
+/* The card's caption, under its windows and above the sign-in, quiet: where and when every window
+   was read, said once for all of them. It has the space above it that the windows have between
+   them, so it is no window's third line, and it stays where it is when the sign-in below opens. */
+.source {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.source::first-letter {
+  text-transform: uppercase;
 }
 
 /* What QuotaDial does with this sign-in: quiet, at the card's foot. */

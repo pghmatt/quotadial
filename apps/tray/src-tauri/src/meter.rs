@@ -1,6 +1,7 @@
 //! What the app shows. The tray gets the share used of the tightest window across every account
 //! and how close that is to the limit; the popover gets every account and window, each number with
-//! its reset, its source and its age.
+//! its reset, its source and its age, said once for the account when its windows were all read from
+//! one source at one moment (D-135).
 
 use std::collections::BTreeMap;
 
@@ -119,6 +120,11 @@ pub struct AccountView {
     /// Such as "ok", "stale" or "sign-in required".
     pub status: String,
     pub ok: bool,
+    /// Where and when the windows were read, said once for the card, such as "from the API 3 min
+    /// ago", when every one was read from the same source at the same moment, as the windows of
+    /// one answer are (D-135). None when they differ, and with no window, and then each window
+    /// says its own, in [`WindowView::fetched`].
+    pub fetched: Option<String>,
     /// Tightest first.
     pub windows: Vec<WindowView>,
     /// Such as "on, 12.50 of 50.00 USD used (25%)".
@@ -140,8 +146,9 @@ pub struct WindowView {
     pub level: Level,
     /// Such as "resets in 2 h 10 min".
     pub resets: String,
-    /// Such as "from the API 4 min ago".
-    pub fetched: String,
+    /// Where and when it was read, such as "from the API 4 min ago"; none when the card says so
+    /// once for all its windows ([`AccountView::fetched`]).
+    pub fetched: Option<String>,
     /// A sudden 0% that a second fetch has not confirmed yet.
     pub unconfirmed: bool,
     /// How fast the window is filling, such as "at 8.5%/h, runs out in 1 h 30 min, 40 min before it
@@ -375,6 +382,8 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         .unwrap_or_default()
         .to_owned();
     let windows = snapshot.windows_tightest_first();
+    let fetched = fetched_together(&windows, now);
+    let said_by_card = fetched.is_some();
     let mut summary = text::labelled(&provider, &name);
     if let Some(plan) = &account.plan {
         summary.push_str(&format!(" ({plan})"));
@@ -398,27 +407,50 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         plan: account.plan.clone(),
         status: text::status_label(snapshot.status).to_owned(),
         ok: snapshot.status == Status::Ok,
+        fetched,
         windows: windows
             .into_iter()
-            .map(|window| window_view(window, now))
+            .map(|window| window_view(window, now, said_by_card))
             .collect(),
         extra_usage: snapshot.extra_usage.as_ref().map(text::extra_usage),
         note: snapshot.error.clone(),
     }
 }
 
-fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
+/// Where and when `window` was read, such as "from the API 4 min ago".
+fn fetched_line(window: &Window, now: DateTime<Utc>) -> String {
+    format!(
+        "from {} {}",
+        text::source_label(window.source),
+        text::ago(window.fetched_at, now)
+    )
+}
+
+/// What a card says once of where its windows were read, when every one was read from the same
+/// source at exactly the same moment, as the windows of one answer are: Claude's and Codex's from
+/// one response, Antigravity's from one handover, the example's from one clock reading, and a
+/// replay from the cache keeps each window's time (D-135). Exactly, and not to the same minute as
+/// written: the rule reads the times, not the words, so the layout stays as it is while the
+/// minutes tick. A card with one window says it for the card like any other, so the line stays
+/// where it is when a limit leaves a card after its reset, as Antigravity's do, and is in the same
+/// place on every card; a card with no window has nothing to say.
+fn fetched_together(windows: &[&Window], now: DateTime<Utc>) -> Option<String> {
+    let (first, rest) = windows.split_first()?;
+    rest.iter()
+        .all(|window| window.source == first.source && window.fetched_at == first.fetched_at)
+        .then(|| fetched_line(first, now))
+}
+
+/// `window` as the popover shows it. When its card says where every window was read
+/// (`said_by_card`), the window leaves that out.
+fn window_view(window: &Window, now: DateTime<Utc>, said_by_card: bool) -> WindowView {
     let used_pct = window.used_pct.clamp(0.0, 100.0);
     WindowView {
         label: window.label.clone(),
         used_pct,
         level: Level::of(used_pct),
         resets: text::resets(window.resets_at, now),
-        fetched: format!(
-            "from {} {}",
-            text::source_label(window.source),
-            text::ago(window.fetched_at, now)
-        ),
+        fetched: (!said_by_card).then(|| fetched_line(window, now)),
         unconfirmed: window.unconfirmed,
         pace: window
             .pace
@@ -517,6 +549,13 @@ mod tests {
                 })
                 .to_vec(),
         }
+    }
+
+    /// The meter, at `at`, for one Claude account with `windows`.
+    fn claude_meter(windows: Vec<Window>, at: DateTime<Utc>) -> Meter {
+        let mut report = two_accounts();
+        report.snapshots = vec![snapshot("claude", Some("max"), windows)];
+        Meter::new(Some(&report), None, None, at)
     }
 
     #[test]
@@ -808,6 +847,8 @@ mod tests {
         assert_eq!((claude.status.as_str(), claude.ok), ("ok", true));
         assert_eq!(claude.extra_usage.as_deref(), Some("off"));
         assert_eq!(claude.sign_in, "QuotaDial reads the claude test's sign-in.");
+        // Both windows were read from the API at one moment, so the card says so once (D-135).
+        assert_eq!(claude.fetched.as_deref(), Some("from the API 4 min ago"));
         assert_eq!(
             claude.windows,
             [
@@ -816,7 +857,7 @@ mod tests {
                     used_pct: 42.6,
                     level: Level::Normal,
                     resets: "resets in 2 h 10 min".into(),
-                    fetched: "from the API 4 min ago".into(),
+                    fetched: None,
                     unconfirmed: false,
                     pace: None,
                     runs_out: false,
@@ -826,7 +867,7 @@ mod tests {
                     used_pct: 12.0,
                     level: Level::Normal,
                     resets: "resets in 3 d".into(),
-                    fetched: "from the API 4 min ago".into(),
+                    fetched: None,
                     unconfirmed: true,
                     pace: None,
                     runs_out: false,
@@ -837,6 +878,186 @@ mod tests {
             meter.accounts[1].sign_in,
             "QuotaDial reads the codex test's sign-in."
         );
+    }
+
+    /// Claude Work's three windows as one answer gives them, each read at 00:00:00 from the API.
+    fn one_answer() -> Vec<Window> {
+        vec![
+            window("Weekly", 91.0, "2099-01-02T15:04:00Z"),
+            window("Weekly (Opus)", 74.0, "2099-01-02T15:04:00Z"),
+            window("Session", 38.0, "2099-01-01T02:14:00Z"),
+        ]
+    }
+
+    /// What each window of the first account says for itself about where it was read.
+    fn said_by_each(meter: &Meter) -> Vec<(&str, Option<&str>)> {
+        meter.accounts[0]
+            .windows
+            .iter()
+            .map(|window| (window.label.as_str(), window.fetched.as_deref()))
+            .collect()
+    }
+
+    #[test]
+    fn a_card_says_once_where_its_windows_were_read_when_every_one_agrees() {
+        let meter = claude_meter(one_answer(), now());
+
+        let claude = &meter.accounts[0];
+        assert_eq!(claude.fetched.as_deref(), Some("from the API 4 min ago"));
+        assert_eq!(
+            said_by_each(&meter),
+            [("Weekly", None), ("Weekly (Opus)", None), ("Session", None)],
+            "no window says it again"
+        );
+        // What each window still says for itself is its reset, and its pace when it has one.
+        let resets: Vec<&str> = claude.windows.iter().map(|w| w.resets.as_str()).collect();
+        assert_eq!(
+            resets,
+            [
+                "resets in 1 d 15 h",
+                "resets in 1 d 15 h",
+                "resets in 2 h 10 min"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_window_read_at_another_moment_leaves_the_card_silent_and_every_window_says_its_own() {
+        let mut windows = one_answer();
+        windows[2].fetched_at = at("2099-01-01T00:02:30Z");
+
+        let meter = claude_meter(windows, now());
+
+        assert_eq!(
+            meter.accounts[0].fetched, None,
+            "two of three agree, not all"
+        );
+        assert_eq!(
+            said_by_each(&meter),
+            [
+                ("Weekly", Some("from the API 4 min ago")),
+                ("Weekly (Opus)", Some("from the API 4 min ago")),
+                ("Session", Some("from the API 1 min ago")),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_window_read_from_another_source_leaves_the_card_silent_too() {
+        let mut windows = one_answer();
+        windows[2].source = Source::LocalLog;
+
+        let meter = claude_meter(windows, now());
+
+        assert_eq!(meter.accounts[0].fetched, None);
+        assert_eq!(
+            said_by_each(&meter),
+            [
+                ("Weekly", Some("from the API 4 min ago")),
+                ("Weekly (Opus)", Some("from the API 4 min ago")),
+                ("Session", Some("from local logs 4 min ago")),
+            ],
+            "the same moment, but not the same source"
+        );
+    }
+
+    #[test]
+    fn windows_read_moments_apart_are_never_said_once_so_the_layout_holds_as_the_minutes_tick() {
+        // Read 40 seconds apart. Said in minutes they differ at some moments ("4 min ago" and
+        // "3 min ago") and agree at others, and a card whose line came and went with them would
+        // move under the pointer every minute.
+        let mut windows = one_answer();
+        windows.truncate(2);
+        windows[1].fetched_at = at("2099-01-01T00:00:40Z");
+
+        for moment in [
+            "2099-01-01T00:03:30Z",
+            "2099-01-01T00:04:10Z",
+            "2099-01-01T00:04:50Z",
+            "2099-01-01T00:05:20Z",
+        ] {
+            let meter = claude_meter(windows.clone(), at(moment));
+            assert_eq!(meter.accounts[0].fetched, None, "at {moment}");
+            assert!(
+                said_by_each(&meter).iter().all(|(_, said)| said.is_some()),
+                "at {moment}: {:?}",
+                said_by_each(&meter)
+            );
+        }
+        let alike = claude_meter(windows, at("2099-01-01T00:04:50Z"));
+        assert_eq!(
+            said_by_each(&alike),
+            [
+                ("Weekly", Some("from the API 4 min ago")),
+                ("Weekly (Opus)", Some("from the API 4 min ago"))
+            ],
+            "the words agree at this moment, and the card still keeps to the times"
+        );
+    }
+
+    #[test]
+    fn a_card_with_one_window_says_where_it_was_read_for_the_card_like_any_other() {
+        // As a card is when a limit leaves it after its reset, as Antigravity's do, and one window
+        // is left.
+        let three = claude_meter(one_answer(), now());
+        let one = claude_meter(one_answer().into_iter().take(1).collect(), now());
+
+        assert_eq!(
+            one.accounts[0].fetched.as_deref(),
+            Some("from the API 4 min ago")
+        );
+        assert_eq!(said_by_each(&one), [("Weekly", None)]);
+        assert_eq!(
+            one.accounts[0].fetched, three.accounts[0].fetched,
+            "the line stays where it is, and does not jump to the window that is left"
+        );
+    }
+
+    #[test]
+    fn an_account_with_no_windows_has_no_line_about_where_they_were_read() {
+        let meter = claude_meter(Vec::new(), now());
+
+        assert_eq!(meter.accounts[0].fetched, None);
+        assert!(meter.accounts[0].windows.is_empty());
+    }
+
+    #[test]
+    fn a_snapshot_served_again_from_the_cache_is_still_said_once() {
+        // The gate and the providers replay the last snapshot within the polling floor: each
+        // window that came from the API now says the cache, with the time of the fetch.
+        let mut report = two_accounts();
+        report.snapshots = vec![snapshot("claude", Some("max"), one_answer()).served_from_cache()];
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        assert_eq!(
+            meter.accounts[0].fetched.as_deref(),
+            Some("from cache 4 min ago")
+        );
+        assert_eq!(
+            said_by_each(&meter),
+            [("Weekly", None), ("Weekly (Opus)", None), ("Session", None)]
+        );
+    }
+
+    #[test]
+    fn the_window_is_sent_the_line_once_for_the_card_or_under_each_window_and_never_both() {
+        let sent = |windows| serde_json::to_value(claude_meter(windows, now())).expect("JSON");
+        let mut apart = one_answer();
+        apart[0].source = Source::Cache;
+
+        let agreeing = sent(one_answer());
+        let differing = sent(apart);
+
+        let card = &agreeing["accounts"][0];
+        assert_eq!(card["fetched"], "from the API 4 min ago");
+        assert!(card["windows"].as_array().is_some_and(|windows| {
+            windows.len() == 3 && windows.iter().all(|window| window["fetched"].is_null())
+        }));
+        let card = &differing["accounts"][0];
+        assert!(card["fetched"].is_null());
+        assert_eq!(card["windows"][0]["fetched"], "from cache 4 min ago");
+        assert_eq!(card["windows"][1]["fetched"], "from the API 4 min ago");
     }
 
     #[test]
@@ -941,7 +1162,12 @@ mod tests {
             "a name the user gives still shows: {}",
             named.accounts[0].summary
         );
-        assert_eq!(shown.windows[0].fetched, "from the example build 4 min ago");
+        // One window, which the card says it for as it does for any (D-135).
+        assert_eq!(
+            shown.fetched.as_deref(),
+            Some("from the example build 4 min ago")
+        );
+        assert_eq!(shown.windows[0].fetched, None);
         assert_eq!(
             shown.sign_in,
             "An example account, made up by QuotaDial's example build for pictures of the app. It \
