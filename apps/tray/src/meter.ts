@@ -54,7 +54,8 @@ export interface Account {
   extra_usage: string | null;
   /** Why the status is not ok, naming the fix. */
   note: string | null;
-  /** What QuotaDial does with this account's sign-in, in its provider's words. */
+  /** What QuotaDial does with this account's sign-in, in its provider's words; empty for an account
+   * from an older daemon, which says none, and then the panel is left out. */
   sign_in: string;
 }
 

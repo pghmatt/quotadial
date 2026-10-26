@@ -21,8 +21,8 @@ support@quotadial.com.
 
 - Tab and Shift-Tab move through every control in the order it is shown, and each draws a blue
   ring while it has the focus.
-- Enter or Space presses a button, Space ticks or clears a box, and Enter opens or closes "How
-  QuotaDial reads this sign-in" and the other disclosures.
+- Enter or Space presses a button, Space ticks or clears a box, and Enter opens or closes "What
+  QuotaDial does with this sign-in" and the other disclosures.
 - History, Settings and Help open below the numbers and take the focus, so Tab carries on inside
   them. Done gives the focus back to the button that opened them.
 - Escape hides the window.

@@ -3,9 +3,11 @@
 // commands return, typed against src/meter.ts, so `tsc` fails here when a shape changes there. The
 // accounts are made up, on example.com, and one has a very long address and a long name given it,
 // so the check proves long text wraps rather than being cut off, and that a picture to share cuts
-// a long name short and never shows an address. Two copies of the app: Pro, with the week's cost,
-// a key kept and a Share image button on each account in History, and Free, with what Pro adds,
-// the line said in the buttons' place, and an update on offer.
+// a long name short and never shows an address. One is Gemini CLI's, whose sign-in panel says what
+// Gemini CLI says rather than Claude's sentence (P-020). Two copies of the app: Pro, with the
+// week's cost, a key kept and a Share image button on each account in History, and Free, with what
+// Pro adds, the line said in the buttons' place, an update on offer, and Codex's account as an
+// older daemon sends it, with no panel.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -125,6 +127,26 @@ const ACCOUNTS = [
     note: "This sign-in has ended. Run claude once and QuotaDial picks up the new one.",
     sign_in: CLAUDE_SIGN_IN,
   },
+  {
+    key: "gemini:google",
+    alias: null,
+    summary: "Gemini CLI Google account: unsupported",
+    provider: "Gemini CLI",
+    name: "Google account",
+    plan: null,
+    status: "unsupported",
+    ok: false,
+    windows: [],
+    extra_usage: null,
+    note:
+      "Google's terms do not let other tools use Gemini CLI's sign-in, so QuotaDial shows no " +
+      "numbers for it. In Gemini CLI, `/model` shows each model's share used and when it resets.",
+    // Not Claude's sentence: the panel shows what each provider says, and its heading is true of
+    // every account (P-020).
+    sign_in:
+      "QuotaDial only checks that Gemini CLI's sign-in is at ~/.gemini/oauth_creds.json. It never " +
+      "opens it.",
+  },
 ];
 
 /** @type {Meter} */
@@ -161,6 +183,7 @@ const SETTINGS = {
   providers: [
     { id: "claude", name: "Claude", shown: true },
     { id: "codex", name: "Codex", shown: true },
+    { id: "gemini", name: "Gemini CLI", shown: true },
   ],
   accounts: ACCOUNTS.map((account) => ({
     key: account.key,
@@ -363,6 +386,8 @@ export const pro = {
 export const free = {
   meter: {
     ...METER,
+    // Codex's account as an older daemon sends it, saying nothing of its sign-in, so no panel.
+    accounts: ACCOUNTS.map((account) => (account.provider === "Codex" ? { ...account, sign_in: "" } : account)),
     left_out: [
       "Showing every account is part of QuotaDial Pro: quotadial.com/pro",
       "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro",
