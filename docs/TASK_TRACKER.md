@@ -230,7 +230,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The popover redesigned (Matt's ask, 2026-10-26) | Done (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
 | Doctor's `[user]` mask and a user named `claude` | Queued (D-131) | Left a queued row by the manager's review of #85 (2026-10-26, 13:40 UTC), since "doctor's masking is its own rule and the case is rare": doctor's `[user]` pass replaces every whole word that is the user's name, a command's own words included, so for a Mac user called `claude` doctor shows `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`, and `~/.[user]` for `~/.claude` elsewhere in its text; a later PR could keep a command's own words out of that pass |
 | A line once per card for a window's source and time, when every window agrees | Queued (D-132) | The manager's review of #86 (2026-10-26, 19:28 UTC) confirmed D-132's call to keep each window's own source line (#52: each window carries its own time and origin) and put the once-per-card line, for a card whose windows all agree, on the M6 queue as a later PR |
-| A property test for the window's `codeSpans` | Queued (D-132) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks for a test that no input breaks a parser, while `code.test.mjs` holds its shape with three cases; add one that feeds it random strings of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, so that "nothing said is lost" holds for every input. Note 2 on #86, in the same row: `.window .detail::first-letter { text-transform: uppercase }` would also capitalise the first letter of an address or a command if one ever led a detail line; none does today, so check it whenever a detail starts with text from outside |
+| A property test for the window's `codeSpans` | In review (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -419,6 +419,48 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### Test: a property test for `codeSpans` (the manager's note 1 on #86)
+
+- **The ask:** the manager's review of #86 (2026-10-26, 19:28 UTC), note 1: `codeSpans` "is a parser of
+  text that can carry words from outside", CLAUDE.md's rule is "a test that no input breaks a
+  parser", and `code.test.mjs` held its shape with three cases, so "add one that feeds it random
+  strings of backticks, spaces, brackets and punctuation and checks only that the spans joined give
+  back the text". Made a pull request of its own by the coordinator after the manager's review of #87
+  (2026-10-26, 20:22 UTC): one pull request each, the `[user]` mask, then the once-per-card source
+  line, then this. Built on `test/code-spans-property` from `main` at 72bc175 (#87). In review as #90.
+- **The test** (`apps/tray/scripts/code.test.mjs`, the only code changed): 5,000 strings a run, half of
+  up to 11 characters and half of up to 59, each character one of 31 pieces: a backtick (four of the
+  31), a space (three), the brackets `([{}])`, a phrase's punctuation `.,;:!?`, quotes, `$`, a
+  backslash, a few letters, a line break, a tab, a no-break space, an accented letter and an emoji,
+  which takes two UTF-16 units. Each goes through `codeSpans`; the spans joined, each command between
+  its backticks again (`written`, as the three cases above use it), must be the string, and a throw
+  fails the case too. Only the join is checked, as asked: where commands are found is held by the
+  cases above it.
+- **The seed:** a new one each run, so over time the strings are many, from a small generator
+  (mulberry32, no dependency). It is in every failure with the case's number and the string as JSON,
+  and `QUOTADIAL_TEST_SEED=<seed>` runs the same strings again; a value that is not a whole number
+  below 2 ** 32 is refused.
+- **Not vacuous:** about 18% of the strings hold a command (16% at the least, over 200 seeds of 3,000
+  strings), and the test fails if fewer than 5% do, so a change to the pieces cannot leave the code
+  that finds a command unreached.
+- **Failed first,** against five copies of `codeSpans` broken on purpose, kept outside the repository:
+  a stray backtick dropped from the words; a command's text taking its closing backtick; the character
+  after a command skipped; words of only spaces between two commands dropped; and a throw on a
+  backtick at the end. Each failed, naming its seed, and the seed printed for the first ran the same
+  string again and failed again; the real file passes with it.
+- **The manager's note 2, checked:** `.window .detail::first-letter` and `.window .pace::first-letter`
+  (`text-transform: uppercase`) capitalise nothing from outside today. `WindowRow` (`src/app.tsx`) is
+  the only place either line is drawn. The detail line begins with the window's `resets`, which
+  `text::resets` writes from a time alone, as "resets in ...", "reset ... ago" or "no reset time
+  reported", then the source's words; the pace line is `text::pace`'s, and each of its five shapes
+  begins "at {rate}". A provider's own words reach a window only in its label (`Weekly (Opus)`), a
+  line of its own. Every other `.detail` (History's span, Help, the week's cost, Settings) is outside
+  `.window`, which the selector does not reach. Nothing to change; it stays something to keep in mind
+  if a detail line ever starts with an address or a command.
+- **Checks:** `npm test` in the tray, 9 tests, up from 8 (Chrome's five, the three of `codeSpans` and
+  this one). Nothing else changes: no window code, no Rust, no picture. No D, since a test settles
+  nothing the PRD left open, and no CHANGELOG line, since it changes nothing people see.
 
 ### Main's CI: the daemon's stand-in servers say they close each connection
 
