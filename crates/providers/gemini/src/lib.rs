@@ -127,24 +127,19 @@ impl SignedIn {
     }
 
     /// What QuotaDial does with the sign-in, in the provider's words (P-020): for a Google account,
-    /// that it only checks the sign-in is at `place`; otherwise what it reads from the settings at
-    /// `place`.
+    /// that it only checks the sign-in is at `place`; otherwise that it reads the one field of the
+    /// settings at `place` that names the way, and never the key (the manager's rule 2 on #73).
     fn sign_in_use(self, place: &str) -> String {
-        match self {
+        let way = match self {
             Self::Google => {
-                format!(
+                return format!(
                     "QuotaDial only checks that Gemini CLI's sign-in is at {place}. It never opens it."
-                )
+                );
             }
-            Self::ApiKey => format!(
-                "QuotaDial only reads, from {place}, that Gemini CLI uses a Gemini API key. It never \
-                 reads the key."
-            ),
-            Self::VertexAi => format!(
-                "QuotaDial only reads, from {place}, that Gemini CLI uses Vertex AI. It reads none of \
-                 its sign-in."
-            ),
-        }
+            Self::ApiKey => "it uses a Gemini API key, and never the key",
+            Self::VertexAi => "it uses Vertex AI, and never a key or sign-in",
+        };
+        format!("QuotaDial reads one field of Gemini CLI's settings, in {place}, which says {way}.")
     }
 
     /// Why there are no numbers, in one line.
@@ -425,14 +420,14 @@ mod tests {
                 "api-key",
                 "Gemini API key",
                 advice::API_KEY,
-                "uses a Gemini API key. It never reads the key.",
+                "says it uses a Gemini API key, and never the key.",
             ),
             (
                 "vertex-ai",
                 "vertex-ai",
                 "Vertex AI",
                 advice::VERTEX_AI,
-                "uses Vertex AI. It reads none of its sign-in.",
+                "says it uses Vertex AI, and never a key or sign-in.",
             ),
         ] {
             let settings = in_home(&[".gemini", "settings.json"]);
@@ -450,7 +445,10 @@ mod tests {
                         account_id,
                         name,
                         &settings,
-                        &format!("QuotaDial only reads, from {settings}, that Gemini CLI {uses}")
+                        &format!(
+                            "QuotaDial reads one field of Gemini CLI's settings, in {settings}, \
+                             which {uses}"
+                        )
                     )
                 );
                 assert_eq!(snapshot.status, Status::Unsupported);
