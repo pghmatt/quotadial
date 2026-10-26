@@ -108,7 +108,7 @@ as its own PR: PR 1b, merged as #77, where each provider names itself and says w
 does with each sign-in, and which turns Gemini CLI on (D-124). The manager then decided what #77
 left open (#73, 2026-10-26): PR 1c, merged as #78, has each provider say whom it asks
 (P-021) and offers the week's cost only where logs could give it (D-125). The order is 1, 1b, 1c,
-3, 2: PR 3, Antigravity through its CLI's status line, is built on `feat/antigravity` (D-126),
+3, 2: PR 3, Antigravity through its CLI's status line, is in review as #79 (D-126),
 with the manager's answers of 2026-10-26 (02:25 UTC) on #73 in it; then PR 2, Copilot, its merge
 held on its live check (#51).
 
@@ -217,7 +217,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
 | 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
 | 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Done (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
-| 3: Antigravity, through its status line | Built on `feat/antigravity`, for review | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
+| 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 
@@ -416,7 +416,7 @@ The notes below run newest first; the setup notes above them are the oldest.
   file written before a chained command, QuotaDial's failures shown nowhere, disabled limits left
   out with a line in the module's docs, and one sentence in `docs/PRIVACY.md`. P-022 is accepted.
   The branch is `feat/antigravity`, from 1b's a7dc15f, moved onto `main` at 0bd845f (#78) with
-  `git rebase --onto origin/main a7dc15f` before any commit.
+  `git rebase --onto origin/main a7dc15f` before any commit; in review as #79.
 - **The crate** (`crates/providers/antigravity`): `handover` (one reader for Antigravity CLI's
   JSON and QuotaDial's file, which keeps only each limit's `remaining_fraction` or
   `remaining_amount`, `reset_time`, `reset_in_seconds` and `disabled`, the `plan_tier`, the `email`
