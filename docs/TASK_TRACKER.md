@@ -109,9 +109,11 @@ as its own PR: PR 1b, merged as #77, where each provider names itself and says w
 does with each sign-in, and which turns Gemini CLI on (D-124). The manager then decided what #77
 left open (#73, 2026-10-26): PR 1c, merged as #78, has each provider say whom it asks
 (P-021) and offers the week's cost only where logs could give it (D-125). The order is 1, 1b, 1c,
-3, 2: PR 3, Antigravity through its CLI's status line, is in review as #79 (D-126),
-with the manager's answers of 2026-10-26 (02:25 UTC) on #73 in it; then PR 2, Copilot, its merge
-held on its live check (#51).
+3, 2: PR 3, Antigravity through its CLI's status line, merged as #79 (D-126), with the manager's
+answers of 2026-10-26 (02:25 UTC) on #73 in it. PR 2, GitHub Copilot, is built on `feat/copilot`
+(D-127), with `api.github.com` named first and its `copilot` feature off by default; it opens for
+review, and its merge waits on its live check on Matt's Mac (#51), whose steps are in its notes
+below.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -220,7 +222,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
 | 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Done (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
 | 3: Antigravity, through its status line | Done (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
-| 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
+| 2: Copilot | Built; its merge waits on #51's live check | D-127: `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first, beside `github.com`, the updates; `quotadial-provider-copilot` behind a `copilot` feature, off by default, which CI lints and tests; GitHub CLI's `hosts.yml` read as a file and, on macOS, the Copilot CLI's Keychain item `copilot-cli` through Claude's consent path, a refusal kept; `copilot_internal/user` at most every 5 minutes, a 403 or 429 held to `Retry-After` or `x-ratelimit-reset`; the month's AI credits as a `credits` window, premium requests, Free's chat and completions, unlimited and no allowance in words; made-up fixtures for each shape; the live check's steps written for Matt (D-032's form), not run |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
 | The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
@@ -240,6 +242,165 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 4. Prepare to build | Done | CodexBar path check (below; corrections proposed as P-006); CLI login check; plan for M1 issue #1 sent to Matt |
 
 ## Implementation notes
+
+### M6 PR 2: GitHub Copilot (D-127)
+
+- **The rules:** the manager's Copilot rules on #73 (2026-10-25, 20:29 UTC), with "Feature flags,
+  once" and "Every provider", P-020's and P-021's, and the note on #79's review that `AGENTS.md`
+  should name the M6 providers. The branch is `feat/copilot`, from `origin/main` at 1789d07 (#79).
+  It is built from GitHub's docs, CodexBar's source and made-up fixtures; its merge waits on the
+  live check below (#51), and its feature stays off until then.
+- **Host first**, its own commit: `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md`, and
+  the README's copy, as Copilot's usage endpoint, GitHub's, the same item saying `github.com` is
+  only QuotaDial's updates, with a paragraph on what a Copilot build reads. A core test holds the
+  text to both hosts and P-021's test holds Copilot to the line; the app's test of the privacy list
+  counts six items, and the site's tests hold the new address.
+- **The crate** (`crates/providers/copilot`): `environment` (GitHub CLI's folder, as cli/go-gh finds
+  it), `hosts` (a reader of the YAML GitHub CLI writes, with no YAML library: the `github.com`
+  entry's `user` and `oauth_token` only, a plain file of at most 1 MB, the bytes wiped), `keychain`
+  and `process` (the Copilot CLI's item through `/usr/bin/security`, as the Claude provider reads
+  Claude Code's; copied from it rather than shared, so this PR leaves the Claude provider alone),
+  `api` (the request, its headers, and which 403 or 429 is a limit), `usage` (the windows) and
+  `advice` (every sentence, held to #52's plain words and to the redact pass). One account per
+  GitHub login, the Copilot CLI's first; GitHub CLI's file when both name one.
+- **The consent path:** discovery reads the Keychain item's attributes only; the secret is read only
+  after the poll gate lets a request go, so at most once a floor; the account's `sign_in_use` says
+  first that macOS may ask; an unanswered read gives up after 30 s with the line to answer it; a
+  refusal is kept, without a sign-in alert, until the item changes or QuotaDial starts again; an
+  item rewritten during the read is not used.
+- **The feature:** `copilot` on `quotadial-providers`, off by default, passed through by the CLI;
+  D-117's list test holds a release to Claude, Codex, Gemini CLI and Antigravity and the `copilot`
+  build to that list then Copilot. CI's check job lints and tests the provider list and the CLI
+  with it on every system. The CLI's tests point `GH_CONFIG_DIR` at each test's empty home and make
+  no Copilot account, since the binary would then ask GitHub; `scripts/no-example-provider.sh`
+  unsets the same variables. The help and quotadial(1) say Copilot is built and in no release yet;
+  `packaging/` is written again.
+- **Docs:** D-127; `docs/PRIVACY.md` and the README's copy (host first); the README's provider table
+  and a paragraph; `docs/INSTALL.md`'s new Copilot section (the build that has it, the two sign-ins,
+  what a macOS prompt means); `docs/CLI.md` (the opening, how often GitHub is asked and its limit
+  headers, the Copilot account, the order); `docs/SECURITY.md`; `fixtures/README.md`; one changelog
+  line; `AGENTS.md` naming Gemini CLI, Antigravity and Copilot among the providers, with the M6
+  crates in its layout and the `copilot` build among its commands (the manager's note on #79). The
+  site's guide test lists the install guide's new section.
+- **Tests:** in the workspace, 725 passed (1 ignored) on `main` at 1789d07 and 806 (1 ignored) now;
+  the example build 722 (2 ignored) and 803 (2 ignored); the build with `copilot` 806 (1 ignored).
+  By crate, from `main`: `quotadial-provider-copilot` 80 (advice 3, api 7, environment 1, hosts 10,
+  keychain 7, process 4, usage 14, the provider 3 and its end-to-end tests 31, against a local
+  server, a made-up Keychain, a temporary home and a manual clock), four of them property tests
+  (the answer's reader, `hosts.yml`'s reader, the classifier, the Keychain listing); core 118 to
+  119 (which GitHub host is which); `quotadial-providers` 4 in each build, its release-list test
+  giving way to the `copilot` list's in that build; the CLI 62, and 62 in the `copilot` build
+  (59, 1 ignored, in the example build, unchanged); daemon 103, API 54, cost 30, issue 6, poll 37,
+  Claude 136 (1 ignored), Codex 63, fake 19, Gemini CLI 29 and Antigravity 64 unchanged. The tray
+  app 85 in both builds, its scripts' tests 5, the site 90, the window check 4371 checks over 16
+  views, as before. Failed first: the core test with the privacy text unchanged; the `copilot`
+  build's list test and eight of the CLI's tests with Copilot left out of the list; and the crate
+  under 27 mutations, each restored after, every one caught (the `users` map or another host read,
+  a pipe opened, any token taken, another host's item taken, a refusal not told apart, every 403 a
+  limit, a reset with requests left waited for, an editor's name sent, `x-ratelimit-reset`
+  ignored, a placeholder or an unlimited allowance shown as a share, unlimited left unsaid, no
+  reset on the 1st, the wrong month's length, Free's counts before a snapshot's share, a refused
+  item asked again, one account twice, Free showing every account, another account's answer used,
+  a token read during a change used, a GitHub CLI keychain sign-in made an account, a secret read
+  at discovery, a refusal firing the sign-in alert, the unsaid beside windows, the prompt not said
+  first, GitHub CLI's folder misplaced); the test for an account with no known place against the
+  sentence it replaced.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings --locked`
+  on the workspace, default, `fake` and `copilot`, and on the tray app, default and `fake`; the
+  crate's clippy again with the macOS-only Keychain code switched off (a simulated non-macOS
+  `cfg`), as Windows and Linux CI build it; the workspace's tests, default, `fake` and `copilot`,
+  with the packaging and OpenAPI checks in them; the release-only licence key test; `cargo metadata
+  --locked` for both lockfiles at every commit; the tray app's `npm ci`, `npm run build` (34.0 KB
+  of 150, contrast), `npm test`, `npm run cli` and `npm run cli -- --fake`, its tests (`--lib`),
+  default and `fake`, and `npm run check:window` in headless Chrome; the site's `npm ci`, `npm run
+  check`, `npm run build` and `npm test`; `scripts/privacy.sh --check`, `scripts/public-prd.sh
+  --check`, shellcheck on `scripts/`, actionlint 1.7.12 (checked against its release's checksums)
+  on every workflow, `node --test scripts/*.test.mjs` (39 passed, 1 skipped), and
+  `scripts/no-example-provider.sh` on the CLI and the app's bundled CLI (both pass) and the example
+  CLI (it fails, naming both commands). **Not run:** the tray's `tests/icon_press.rs`, which puts a
+  real status item in Matt's menu bar; `cargo deny` and `cargo audit`, not installed here (no
+  third-party crate was added: the lockfile gains only the new crate); a release build of the app;
+  a real GitHub CLI or Copilot CLI, and any request to GitHub, which are #51's live check.
+- **Safety on this Mac:** every cargo and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME`, `GH_CONFIG_DIR`
+  and `XDG_CONFIG_HOME` in the scratchpad and no token in its environment (`GH_TOKEN`,
+  `GITHUB_TOKEN` and `COPILOT_GITHUB_TOKEN` unset). Before any build with Copilot ran its binary,
+  `/usr/bin/security list-keychains` with the home folder in the scratchpad showed an empty user
+  list, so the CLI's tests, which run the binary in empty homes, look for a `copilot-cli` item only
+  where none can be (the System keychain), as the Claude provider's listing already does there; no
+  item of Matt's was looked up or read. Every test made up its own `hosts.yml` and Keychain item;
+  the release checks ran in scratch homes. No vendor CLI ran (`gh` only for this repository's issues
+  and reviews), no `~/.config/gh` file, Keychain item or sign-in was read, nothing was sent to
+  GitHub's usage endpoint, and no app or daemon ran against Matt's data.
+- **The live check, for #51** (D-032's form; for Matt to run on his Mac with Copilot signed in, the
+  Copilot CLI and, if he uses it, GitHub CLI; not run by the builder). About 30 minutes, since the
+  four requests to GitHub go at least 5 minutes apart, as QuotaDial's floor does. No token is ever
+  printed or saved: each request takes the token from `security` or `gh` straight into `curl`'s
+  settings on standard input, never onto a command line. Raw answers stay in
+  `fixtures/copilot/raw/`, which git ignores. From a checkout of this PR's branch:
+  1. **Versions**, no request: `sw_vers -productVersion`, `gh --version`, `copilot --version`.
+  2. **The Copilot CLI's Keychain item, by its attributes**, which reads no secret:
+     `security find-generic-password -s copilot-cli | grep -E '"(acct|svce|mdat)"'`. Record the
+     form of `acct` (a login, `https://github.com:<login>`, or something else) and that macOS did
+     not ask.
+  3. **Whether reading it makes macOS ask**, and what a no gives:
+     `security find-generic-password -s copilot-cli -a '<acct>' -w > /dev/null; echo "exit $?"`.
+     If macOS asks, choose Deny and record the exit status; run it again, choose Allow (not Always
+     Allow, which would let any program read the item through `security`) and record it; run it a
+     third time and record whether macOS asks again. If it never asks, record that.
+  4. **Where GitHub CLI keeps its sign-in**: `gh auth status` (it prints no token without
+     `--show-token`) says keyring or `hosts.yml`; and the file's layout without its token,
+     `sed -E 's/(oauth_token:).*/\1 <removed>/' ~/.config/gh/hosts.yml`: whether `user` and
+     `oauth_token` sit directly under `github.com:`, and what `users:` holds.
+  5. **Request A, the Copilot CLI's sign-in, with QuotaDial's headers:**
+
+     ```sh
+     mkdir -p fixtures/copilot/raw
+     security find-generic-password -s copilot-cli -a '<acct>' -w \
+       | sed -e 's/^/header = "Authorization: token /' -e 's/$/"/' \
+       | curl -sS --config - --proto '=https' --max-redirs 0 \
+           -H 'Accept: application/json' -H 'X-GitHub-Api-Version: 2025-04-01' \
+           -H 'User-Agent: quotadial/0.2.0' \
+           -D fixtures/copilot/raw/a.headers -o fixtures/copilot/raw/a.json \
+           -w 'HTTP %{http_code}\n' https://api.github.com/copilot_internal/user
+     ```
+
+     Record the status.
+  6. **Request B, 5 minutes later, GitHub CLI's sign-in, the same headers:** the same command with
+     `gh auth token` in place of the `security` line and `b.headers` and `b.json` as the files.
+     Record the status.
+  7. **Request C, 5 minutes later, only if A or B was refused** (401, 403 or 404): the refused
+     sign-in again with VS Code's editor headers in place of QuotaDial's `User-Agent`:
+     `-H 'Editor-Version: vscode/1.96.2' -H 'Editor-Plugin-Version: copilot-chat/0.26.7'
+     -H 'User-Agent: GitHubCopilotChat/0.26.7'`, files `c.*`. Record the status: whether the
+     endpoint needs them.
+  8. **Request D, 5 minutes later**, a sign-in that worked, without `X-GitHub-Api-Version`, files
+     `d.*`. Record the status, and whether `jq -S 'paths(scalars) | join(".")'` lists the same
+     fields as A's or B's.
+  9. **The answer's shape, as a redacted fixture:** copy `a.json` (or `b.json`), pretty-printed with
+     `jq -S .`, to `fixtures/copilot/user-live.json`, with the login, organization names and any id
+     replaced by made-up ones (`example-user`, `example-org`) and every number and date kept; then
+     `grep -n -i -E 'gho_|ghu_|ghp_|github_pat_|@' fixtures/copilot/user-live.json` finds nothing
+     and `cargo test -p quotadial-core --test fixtures` passes. Record whether it has `login`; its
+     `copilot_plan`, `access_type_sku` and `token_based_billing`; `premium_interactions`'
+     `entitlement`, `remaining`, `percent_remaining`, `credits_used` and `quota_reset_at`, beside
+     what the Copilot CLI's `/usage` shows for the month; its reset fields; and the
+     `x-ratelimit-*` headers in `a.headers` (they hold no token).
+  10. **QuotaDial itself, 5 minutes after the last request**, in a data folder of its own:
+
+      ```sh
+      export QUOTADIAL_DATA_DIR="$(mktemp -d)"
+      cargo run -p quotadial --features copilot -- status
+      cargo run -p quotadial --features copilot -- status --json > fixtures/copilot/raw/status.json
+      cargo run -p quotadial --features copilot -- doctor
+      ```
+
+      Record each Copilot account, its windows and `sign_in_use`, and whether macOS asked. The
+      second and third commands, inside the 5 minutes, show the first one's numbers from the cache,
+      asking GitHub nothing and reading no Keychain item.
+  11. The results, by number, go on #51; the builder records them as a D, as D-032 did for Claude,
+      commits the redacted fixture with tests against it, and settles each item D-127 leaves to
+      this check.
 
 ### Step 1: project setup
 

@@ -6,12 +6,13 @@ position can and cannot do. [`SECURITY.md`](../SECURITY.md) says how to report a
 
 ## What QuotaDial is trusted with
 
-- **The sign-ins Claude Code and the Codex CLI keep.** QuotaDial reads them from the macOS Keychain,
-  `~/.claude/.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN` and the Codex CLI's `auth.json`. It never
-  writes, refreshes or moves them, and never logs them. A token is held in memory only, in a type
-  that wipes it when dropped (`quotadial_core::Secret`), and sent only to the provider it belongs
-  to, over TLS. Every error and every text from outside goes through `redact_secrets` before it is
-  shown or saved, and a property test proves no token survives it.
+- **The sign-ins Claude Code and the Codex CLI keep**, and in a build with Copilot, which no release
+  is yet, GitHub CLI's and the Copilot CLI's. QuotaDial reads them from the macOS Keychain,
+  `~/.claude/.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN`, the Codex CLI's `auth.json` and GitHub
+  CLI's `hosts.yml`. It never writes, refreshes or moves them, and never logs them. A token is held
+  in memory only, in a type that wipes it when dropped (`quotadial_core::Secret`), and sent only to
+  the provider it belongs to, over TLS. Every error and every text from outside goes through
+  `redact_secrets` before it is shown or saved, and a property test proves no token survives it.
 - **Usage numbers and history**, which are the user's, kept on the machine.
 - **Webhook and Slack addresses** in `config.json`, which work like passwords: never printed or
   logged, shown by their host only, and QuotaDial warns when other users can read the file.
@@ -33,7 +34,7 @@ A damaged history is moved aside under a dated name, never deleted, so it stays 
 
 ## What goes over the network
 
-Only what [`PRIVACY.md`](PRIVACY.md) lists, each over TLS: the two providers' usage endpoints, their
+Only what [`PRIVACY.md`](PRIVACY.md) lists, each over TLS: the providers' usage endpoints, their
 public status pages, GitHub for updates, and the webhooks the user adds, which must be `https`,
 or `http` to the machine itself. Tests hold every address in the code to that list (D-106).
 
@@ -59,6 +60,20 @@ the account's address and the time, each checked, with any token blanked out, in
 own. A program named after it, the status line the user already had, is run as the user with the
 same input and no shell of QuotaDial's, and stopped after 4.5 seconds: it is the user's own command
 from the user's own settings, so QuotaDial gives it nothing it did not have.
+
+Its Copilot provider (D-127) is built but in no release or app yet: only a build with the `copilot`
+feature has it, until a check with a real GitHub account (#51). It sends GitHub's own token, from
+GitHub CLI's `hosts.yml` or, on macOS, the Copilot CLI's Keychain item `copilot-cli`, to
+`api.github.com` alone, over TLS with no redirects and no cookies, at most once every 5 minutes per
+account, and never writes, refreshes or copies it; QuotaDial runs no sign-in of its own. GitHub
+CLI's keychain is never read, and from `hosts.yml` only the `github.com` entry's `user` and
+`oauth_token` are kept, the bytes read wiped after. The Keychain item is found by its attributes,
+which reads no secret and never makes macOS ask, and its secret is read through `/usr/bin/security`,
+as Claude Code's is (D-022), only when a request goes out; if macOS asks, it is macOS's own prompt,
+which the account's sentence has already mentioned, and a refusal is kept until the item changes or
+QuotaDial starts again. Allowing `/usr/bin/security` always, rather than once, would let any program
+on the machine read the item through it, so QuotaDial's guides never suggest it. GitHub's error text
+and every name in its answer go through redaction, which blanks GitHub's token shapes (D-122).
 
 Updates are checked twice before they are installed: against the public key built into the app,
 and against the version that key's signature names, so neither a changed file nor an older release

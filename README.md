@@ -49,6 +49,7 @@ feature would be. See [docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
 | ChatGPT / Codex | Codex CLI (`auth.json` in `$CODEX_HOME` or `~/.codex`) | Works |
 | Gemini CLI | Nothing inside the sign-in: only that Gemini CLI's `oauth_creds.json` is in `.gemini` in `$GEMINI_CLI_HOME` or your home folder, and one field of its `settings.json` | Shown, with why it has no numbers |
 | Antigravity | No sign-in: what Antigravity CLI's status line hands `quotadial antigravity status-line`, once you add it to Antigravity CLI's settings | Works while Antigravity CLI runs |
+| GitHub Copilot | GitHub CLI (`hosts.yml` in `~/.config/gh`, when it keeps its sign-in there) or, on macOS, the Copilot CLI (the Keychain item `copilot-cli`) | Built, in no release yet: waits on a check with a real account |
 
 Gemini CLI's account shows with no numbers. Signed in with Google, Google's terms do not let other
 tools use Gemini CLI's sign-in, so QuotaDial never opens it and says where Gemini CLI shows its
@@ -58,6 +59,11 @@ Antigravity's terms do not let other tools use its sign-in either, so QuotaDial 
 Antigravity CLI hands each limit's share and reset to a command named in its settings: add the
 line [docs/INSTALL.md](docs/INSTALL.md#antigravity) gives, and its five-hour and weekly windows
 show while Antigravity CLI runs, marked stale with the time they are from once it stops.
+
+GitHub Copilot's limits are built: the month's AI credits used and when they reset, premium
+requests on an annual plan, and Copilot Free's chat messages and code completions, from GitHub's
+usage endpoint at most once every 5 minutes. They are in no release yet, since they wait on a check
+with a real GitHub account; [docs/INSTALL.md](docs/INSTALL.md#copilot) says what they read.
 
 If you keep several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`,
 QuotaDial shows all of them, not only the one Claude Code uses now. See

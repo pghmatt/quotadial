@@ -37,6 +37,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - Each release's files also come under a name without the version, such as `QuotaDial_universal.dmg`, so one link always fetches the newest full release.
 - Gemini CLI: an account QuotaDial finds signed in shows with why it has no numbers, and its sign-in is never opened. The sign-in panel is now "What QuotaDial does with this sign-in", in each provider's own words, and `status`, `doctor` and the JSON name each provider as it names itself (`provider_name`, `sign_in_use`).
 - Antigravity: add `quotadial antigravity status-line` to Antigravity CLI's status line, as the install guide shows, and each of your Antigravity limits shows with its share used and reset while Antigravity CLI runs, marked stale with the time it is from once it stops. QuotaDial never reads Antigravity's sign-in, asks no one about it, and keeps your status line as it was.
+- GitHub Copilot: the month's AI credits, premium requests on an annual plan, and Copilot Free's chat messages and code completions are built, read with the sign-in GitHub CLI or the Copilot CLI keeps, but are in no release yet: they wait on a check with a real GitHub account. What QuotaDial reads and sends names `api.github.com`, GitHub's, ahead of them.
 
 ### Changed
 

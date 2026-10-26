@@ -175,6 +175,7 @@ folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts).
 account it finds signed in is listed too, with why it has no numbers; QuotaDial only checks that
 its sign-in is there and never opens it. An Antigravity account shows its windows once you add
 QuotaDial to Antigravity CLI's status line, as [Antigravity](#antigravity) below describes.
+GitHub Copilot's limits are built but in no release yet, as [Copilot](#copilot) below says.
 
 ## Updates
 
@@ -254,6 +255,35 @@ QuotaDial keeps only each limit's share or amount left and its reset, the plan, 
 address and the time, in `antigravity.json` in its data folder ([`PRIVACY.md`](PRIVACY.md)).
 Nothing else Antigravity CLI hands over, such as your folders, your conversation or the model, is
 kept.
+
+## Copilot
+
+GitHub Copilot's limits are built but in no release yet: they wait on a check with a real GitHub
+account. Until then only the command built from this repository with the `copilot` feature has
+them, with Rust installed as [Build it yourself](#build-it-yourself) says:
+
+```sh
+cargo run -p quotadial --features copilot -- status
+```
+
+It shows the month's AI credits used, resetting at 00:00 UTC on the 1st; premium requests, on an
+annual plan; and on Copilot Free, chat messages and code completions. What GitHub gives without a
+limit is said in words, never as a share.
+
+It asks GitHub at most once every 5 minutes for each account, with the sign-in GitHub CLI or the
+Copilot CLI already keeps. QuotaDial never signs in to GitHub itself, and never writes, refreshes
+or moves either sign-in:
+
+- **GitHub CLI's**, from `hosts.yml` in its folder: `~/.config/gh`, or where `GH_CONFIG_DIR` or
+  `XDG_CONFIG_HOME` puts it, or `%AppData%\GitHub CLI` on Windows. GitHub CLI keeps its sign-in
+  there only when it does not keep it in the system's keychain, which QuotaDial never reads.
+- **The Copilot CLI's**, on macOS, from the Keychain item `copilot-cli`. QuotaDial finds the item
+  by its name alone, and reads the sign-in in it only when it asks GitHub. macOS may ask whether to
+  allow that; if you deny it, QuotaDial does not ask again until the Copilot CLI signs in again or
+  QuotaDial starts again.
+
+When both hold the same GitHub account, QuotaDial uses GitHub CLI's file, which macOS never asks
+about.
 
 ## Build it yourself
 

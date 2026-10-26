@@ -179,6 +179,7 @@ const GUIDE_SECTIONS = {
     "Updates",
     "The quotadial command",
     "Antigravity",
+    "Copilot",
     "Build it yourself",
   ],
   cli: [
