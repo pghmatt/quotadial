@@ -104,9 +104,11 @@ feature (D-121). PR 1, the groundwork, merged as #75 (D-122): P-018's hook for a
 commands, Google's and GitHub's tokens redacted by their shape, and the Gemini provider behind a
 `gemini` feature, held off by default since the app could not show its account correctly without a
 change for one provider. The manager accepted P-020 on #73 for that, one change for every provider,
-as its own PR: PR 1b, #77, where each provider names itself and says what QuotaDial does with
-each sign-in, and which turns Gemini CLI on (D-124). The order is 1, 1b, 3, 2:
-next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
+as its own PR: PR 1b, merged as #77, where each provider names itself and says what QuotaDial
+does with each sign-in, and which turns Gemini CLI on (D-124). The manager then decided what #77
+left open (#73, 2026-10-26): PR 1c, on `feat/provider-asks`, has each provider say whom it asks
+(P-021) and offers the week's cost only where logs could give it (D-125). The order is 1, 1b, 1c,
+3, 2: next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -124,6 +126,8 @@ Proposals:
 - P-020 (providers name themselves and say what QuotaDial does with each sign-in) is accepted by the
   manager on #73 (2026-10-25) and in the code (D-124); the PRD edit is the manager's, with P-015,
   P-018 and P-019.
+- P-021 (each provider says whom it asks) is accepted by the manager on #73 (2026-10-26) and in the
+  code (D-125); the PRD edit is the manager's, with P-020.
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -205,7 +209,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Step | Status | Notes |
 | --- | --- | --- |
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
-| 1b: providers name themselves, and Gemini CLI on | In review (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
+| 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
+| 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Built on `feat/provider-asks`, committed, not pushed | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
 | 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
@@ -396,6 +401,71 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6 PR 1c: whom QuotaDial asks, and no cost offer where nothing could fill it (P-021, D-125)
+
+- **The decision:** the manager's on #73 (2026-10-26, 01:26 UTC), on what #77 left open: P-021
+  accepted as proposed, with rules (a) to (d), in a small PR of its own before PR 3; the cost offer
+  fixed there as its own commit; error lines named through the report if that is one place. The
+  branch is `feat/provider-asks`, from `main` at f67a7c1 (#77), committed and not pushed.
+- **P-021** (`crates/core/src/provider.rs`, each provider): `Provider::asks()`, required with no
+  default, the company a provider's `fetch` sends usage requests to, never a host: "Anthropic" for
+  Claude, "OpenAI" for Codex, none for Gemini CLI and the fake. `docs/PRIVACY.md` (and the README's
+  copy) now says "**api.anthropic.com**, Anthropic's" and "**chatgpt.com**, OpenAI's", so rule (a)'s
+  words are in the privacy text, beside their hosts; the app's Help test and the window check's
+  fixtures follow.
+- **The test** (`crates/providers/all`, rule (b)): for every provider a build lists, one that asks a
+  company has a host in `privacy::HOSTS` whose line in the privacy text names it, and one that asks
+  no one has none of the HTTP clients #75 listed in its manifest, `crates/providers/<its id>`. The
+  default build checks Claude, Codex and Gemini CLI, the example build the fake. Gemini CLI's own
+  manifest test moved into it. Each direction failed under a mutation: Claude saying it asks no one
+  ("claude asks no one, but depends on reqwest"), Gemini CLI saying it asks Google.
+- **The line** (rule (c)): `asking()` in the CLI, one sentence: "It asks Anthropic at most every 5
+  min and OpenAI at most every 2 min, and no one about Gemini CLI." The daemon says it when it starts
+  and `watch` after each refresh; the example build says "It asks no one about Example." Its test
+  covers a provider that asks, one that does not and both, each held to `unplain_words`; the
+  binary tests hold both builds' lines. `docs/CLI.md` describes it.
+- **The week's cost:** `licence::keeps_logs` (from `Provider::log_folders()`, no change to
+  `Provider`). The daemon asks each provider once, when its poller is made, and offers the cost on
+  Free only for an account of a provider that keeps logs; asking each round would wait on a
+  provider's own lock while a scan holds it, as a test that holds the logs to keep a scan reading
+  showed. The CLI's direct fetch follows the same rule, its "Pace needs the daemon" line names the
+  cost only where the daemon would add one, and `quotadial daemon` says nothing of the cost when
+  none of its providers keeps logs. Tests: a copy whose provider keeps no logs makes no offer (it
+  failed first, with the offer); the pace line with and without the cost; the example build's
+  daemon prints no cost line; a Gemini CLI-only home's `status` and `--json` carry no offer.
+- **Error lines, left for a later PR:** a provider's error is shown in three places, `status` and
+  `watch` (the CLI's `write_text`), doctor (`Diagnostics::text`) and the app's problems
+  (`meter.rs`), and its `<id>: ` comes from `quotadial_core::Error`'s text when the report is made.
+  Naming it through `StatusReport::provider_name` means each of the three cutting the id off the
+  message and putting the name in its place, or the report keeping the message without it, which
+  changes the API's `errors[].message`. More than one place, so not this PR.
+- **The release check** (the manager's note on #77): it still fails on the word `Example` anywhere in
+  `status` or `doctor` output; this PR does not touch it, so the match is to be narrowed to the
+  provider's column when it next changes.
+- **Tests:** in the workspace, 656 passed (1 ignored) on `main` and 658 (1 ignored) now; the example
+  build 655 (2 ignored) and 657 (2 ignored). By crate, from `main`: the CLI 59 to 60, the daemon 102
+  to 103, `quotadial-providers` 2 to 3, Gemini CLI 30 to 29 (its manifest test now the providers'
+  rule); core 118, API 54, cost 30, issue 6, poll 37, Claude 136 (and 1 ignored), Codex 63 and fake
+  19 unchanged. The tray app 85 in both builds, its scripts' tests 5, the site 90, the window check
+  3394 checks over 16 views.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` on the
+  workspace and the tray app, default and `fake`; the workspace's tests, default and `fake`, with
+  the packaging and OpenAPI checks in them; the release-only licence key test; `cargo metadata
+  --locked` for both lockfiles; the tray app's `npm ci`, `npm run build` (34.0 KB of 150, contrast),
+  `npm test`, `npm run cli`, its tests (`--lib`), default and `fake`, and `npm run check:window`; the
+  site's `npm ci`, wrangler's start, `npm run check`, `npm run build` and `npm test`; shellcheck,
+  `scripts/public-prd.sh --check`, `scripts/privacy.sh --check`, the 0.2.0 release notes and the
+  scripts' tests (39, 1 skipped for GNU sha256sum); actionlint on every workflow; and
+  `scripts/no-example-provider.sh` on the release CLI and the app's bundled CLI (both pass) and the
+  example CLI (it fails, naming both commands). **Not run:** the tray's `tests/icon_press.rs`, which
+  puts a real status item in Matt's menu bar; `cargo deny` and `cargo audit`, not installed here (no
+  crate was added); and a release build of the app.
+- **Safety on this Mac:** as for 1b: every cargo run with QuotaDial's folders and every sign-in
+  folder in the scratchpad and no token set; release CLIs only in empty homes, and the release check
+  on them under `sandbox-exec`; the window check's Chrome headless with a profile of its own, removed
+  after. No vendor CLI ran, no sign-in or keychain item was read, and no app or daemon ran against
+  Matt's data.
 
 ### M6 PR 1b: providers name themselves, and Gemini CLI on (P-020, D-124)
 
