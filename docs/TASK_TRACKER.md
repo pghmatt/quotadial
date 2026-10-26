@@ -104,8 +104,8 @@ feature (D-121). PR 1, the groundwork, merged as #75 (D-122): P-018's hook for a
 commands, Google's and GitHub's tokens redacted by their shape, and the Gemini provider behind a
 `gemini` feature, held off by default since the app could not show its account correctly without a
 change for one provider. The manager accepted P-020 on #73 for that, one change for every provider,
-as its own PR: PR 1b, on `feat/provider-names`, where each provider names itself and says what
-QuotaDial does with each sign-in, and which turns Gemini CLI on (D-124). The order is 1, 1b, 3, 2:
+as its own PR: PR 1b, #77, where each provider names itself and says what QuotaDial does with
+each sign-in, and which turns Gemini CLI on (D-124). The order is 1, 1b, 3, 2:
 next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
 
 Proposals:
@@ -205,7 +205,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Step | Status | Notes |
 | --- | --- | --- |
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
-| 1b: providers name themselves, and Gemini CLI on | Built on `feat/provider-names`, committed, not pushed | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
+| 1b: providers name themselves, and Gemini CLI on | In review (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
 | 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
@@ -403,7 +403,7 @@ The notes below run newest first; the setup notes above them are the oldest.
   five rules, merged #75 with Gemini held off, and gave 1b the turn-on too, so D-121's "turned on in
   the PR that merges it" holds one PR later for Gemini (D-122). The P-020 commits first built on
   #75's branch were moved onto `main` with `git rebase --onto origin/main 0261b78`, then onto
-  4d81a8a (#76); the branch is `feat/provider-names`, committed and not pushed.
+  4d81a8a (#76); the branch is `feat/provider-names`, in review as #77.
 - **Rule 1, the name:** `Provider::name()`, required, beside `id()`: "Claude", "Codex", "Gemini CLI",
   and "Example" for the example build. Each provider sets `Account.provider_name` from the same
   `NAME` on every account it builds. `ProviderName { id, name }` and `StatusReport.providers`, filled
