@@ -226,8 +226,11 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
 | `config.json`'s `chmod 600` command, working as written | Done (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
 | Claude's sign-in command, working as written and naming no user | Done (PR #85, D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
-| A place holding the home folder's path beside a space or a quote | Queued (D-130, D-131) | D-130's other leftover: a place whose text holds the home folder's path beside a space, a quote or the like, such as `/Users/ann (old)/quotadial` beside the home folder `/Users/ann`, which `text::tilde_in` still rewrites, in a sentence and in the commands written from it (`config.json`'s `chmod 600`, Claude's sign-in command), so such a command fails as written; no folder QuotaDial makes is one, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
-| The popover redesigned (Matt's ask, 2026-10-26) | In review (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
+| A place holding the home folder's path beside a space or a quote | In review (PR #?, D-133) | D-130's other leftover, done in `text::tilde_in` alone, as the manager's review of #85 asked: a folder whose name only starts as the home folder's does, such as `/Users/ann (old)` beside `/Users/ann`, is left as written in a sentence and in both commands, where it was written `~ (old)`, so `config.json`'s `chmod 600` and Claude's sign-in command failed as written; a word in single quotes is read whole as a POSIX shell and PowerShell read it, so every place outside the home folder that `shell_word` and `powershell_string` write comes through unchanged, whatever its name holds; a sentence is read by what follows the home folder: it is `~` at a separator, the end of the text or of a line, or marks and then a word that does not carry a name on (one that opens with a bracket or has a separator after a name does), and any other character joined to it is more of the name; where it must guess it leaves the name, and D-133 says what it still gets wrong; no folder QuotaDial makes is one of these, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
+| The popover redesigned (Matt's ask, 2026-10-26) | Done (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
+| Doctor's `[user]` mask and a user named `claude` | Queued (D-131) | Left a queued row by the manager's review of #85 (2026-10-26, 13:40 UTC), since "doctor's masking is its own rule and the case is rare": doctor's `[user]` pass replaces every whole word that is the user's name, a command's own words included, so for a Mac user called `claude` doctor shows `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`, and `~/.[user]` for `~/.claude` elsewhere in its text; a later PR could keep a command's own words out of that pass |
+| A line once per card for a window's source and time, when every window agrees | Queued (D-132) | The manager's review of #86 (2026-10-26, 19:28 UTC) confirmed D-132's call to keep each window's own source line (#52: each window carries its own time and origin) and put the once-per-card line, for a card whose windows all agree, on the M6 queue as a later PR |
+| A property test for the window's `codeSpans` | Queued (D-132) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks for a test that no input breaks a parser, while `code.test.mjs` holds its shape with three cases; add one that feeds it random strings of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, so that "nothing said is lost" holds for every input. Note 2 on #86, in the same row: `.window .detail::first-letter { text-transform: uppercase }` would also capitalise the first letter of an address or a command if one ever led a detail line; none does today, so check it whenever a detail starts with text from outside |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -416,6 +419,193 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: a folder whose name only starts as the home folder's is never written `~` (D-133)
+
+- **The ask:** the coordinator's brief of 2026-10-26: D-130's other leftover, now its own queued row,
+  "a place holding the home folder's path beside a space or a quote", fixed in `text::tilde_in` as
+  the manager's review of #85 (2026-10-26, 13:40 UTC) said, "the fix belongs in `tilde_in`, not in
+  either command": a folder whose name only starts as the home folder's does is left as written in
+  a sentence and in both commands, with properties that fail first and each case of the row as a
+  test. Built on `fix/home-folder-longer-names` from `main` at 284a97c (#85), with no upstream; two
+  commits, none pushed. In review as PR #?.
+- **The bug, as the old rule wrote it** (what the new tests printed against it, with the home
+  folder `/Users/ann`): "could not open the history at ~ (old)/quotadial/history.db: permission
+  denied"; `'~ (old)/quotadial/config.json'` for the `chmod 600` command (the daemon's own test:
+  "run `chmod 600 '~ (old)/quotadial/config.json'`"); `CLAUDE_CONFIG_DIR='~ (old)/.claude' claude`
+  from doctor's pass; and, run by `sh` with a stand-in `claude` that prints its folder, `~ (old)/claude`
+  where the folder's own path was meant. The properties' shrunk inputs showed two more: the home
+  folder's text inside a quoted word after a character no path holds, `'/aA\0/aA'` for a place
+  outside the home folder `/aA`, came out `'/aA\0~'`; and `/AA:-` came out `~:-`, a mark taken for
+  the end of a path though a name character follows it.
+- **Where the fix is** (`0e3f5a4`): the code in `crates/core/src/text.rs` alone: `tilde_in` and its
+  private helpers. Neither command's writer, no caller and no file-system read changed. Four comments are
+  brought in line: `shell_word`'s and `powershell_string`'s docs, the one in
+  `crates/daemon/src/config.rs` where `config.json`'s warning goes through the pass, which named
+  D-130's exception, and `claude_in`'s doc.
+- **A word in single quotes is read whole** (`single_quoted`, `posix_quoted`, `powershell_quoted`):
+  a quote opens a word at the start of the text or after a character that is not a letter, a digit,
+  a quote or a backslash, so the apostrophe in `Ann's` opens none and the quotes inside `'\''` and
+  `''` are not openers. The word is read by each shell's rules: POSIX, to the next quote unless it
+  is `'\''`; PowerShell, to the next of the five single quotation marks unless another follows it
+  at once, the same five `powershell_string` writes twice. The text does not say which shell wrote
+  it, so the longer of the two readings is taken, which never cuts a place short; a word that
+  neither reading closes is not a word and is read as the sentence it may be. A word whose text is
+  the home folder's path, or starts with it and a separator, and starts a place (a word that goes on
+  from a path, as `'Library'` does after `~/`, does not), is written `'~` and the rest as it was;
+  every other word is copied exactly, so nothing inside it is rewritten, which also takes in the
+  home folder's text after a space inside a place outside it (`'/Volumes/Backup /Users/ann/x'` was
+  written `'/Volumes/Backup ~/x'`).
+- **A sentence is read by what follows the home folder's text** (`ends_path`, `name_goes_on`,
+  `starts_a_place`, `is_line_break`): `~` at a separator, as before; at the end of the text or of a
+  line; and at the seven marks (`:`, `,`, `;`, `)`, a quote, a backtick, and a full stop before a
+  space or the end) when nothing but marks joins it to the next space, unless the next word on the
+  line carries the name on: it opens with `(` or `[`, or holds a separator after a name character
+  (a letter, a digit, `_` or `-`), and is not a place of its own (from a root, `~` or a drive,
+  `C:` and a separator). Any other character joined to the home folder is more of the name, where
+  each of the seven marks used to end the path whatever followed it. A line break ends a path.
+  The home folder's own text inside the next word is skipped when that word is read, so that
+  writing a second mention of it `~` cannot change the answer for the first (`H x(H) y`, which
+  `skip_home_in_word_off` below showed needs it).
+- **Calls the brief left to me, and why** (D-133 weighs the alternatives and says what each costs):
+  - *The sentence rule:* a look-ahead for a separator, narrowed to the next word on the line. The
+    places-passed-in alternative changes nine call sites in eight files and cannot name the places
+    in SQLite's, the operating system's or a server's words, so each would keep the user's name; it
+    stays the next step if a place that matters turns out to be one no text can tell, beside the
+    rule and not in its place. A wider window finds names of several words and keeps the home
+    folder's name wherever a later word looks like a path.
+  - *Which error is worse:* a wrong place named, which makes the sentence false and the pasted
+    command fail, over a name shown, which is what every place outside the home folder is already.
+    So the guess leaves the name where the text offers a reason to think it goes on, and writes `~`
+    only where the home folder's end is clear.
+  - *The bracket:* a next word opening with `(` or `[` keeps the name, so a leaf such as
+    `/Users/ann (old)`, with no separator after it, is read right: the shape people give an old
+    copy, `(old)`, and Windows a second one, `(2)`. Not `-`, which prose puts between a path and its
+    reason.
+  - *Marks:* the seven are the old set; they end a path only when nothing but marks is joined to
+    the next space, so `ann;x`, `ann's` and `ann)/x` are longer names (the brief's "`ann, old`,
+    `ann;x`, `ann)` and the rest of `ends_path`'s characters"), a full stop only before a space or
+    the end as before (`ann.old`, `ann..`).
+  - *Single quotes only:* the only quoting `shell_word` and `powershell_string` write around a
+    place outside the home folder. Double quotes and backticks are read as a sentence reads them.
+  - *Opacity:* a quoted word that does not start in the home folder is left whole even where the
+    home folder's text sits inside it after a space, since "no exceptions" is about every place
+    outside the home folder. The cost is a single-quoted phrase in a sentence, which keeps the home
+    folder's name after a space (D-133).
+  - *Not pinned by a test:* what the rule still gets wrong. A test that held `~ old stuff/x` would
+    hold a wrong answer in place; D-133 lists them.
+- **What it still gets wrong** (D-133 has them in full): a name of several plain words whose
+  separator comes after the second, and a folder that ends the place after a plain word, written
+  `~ old stuff/x` and "could not use ~ old: ..."; the home folder itself followed by a word with a
+  separator in it or by a bracket, left as written; its path followed by a mark and then
+  something that is not a mark or a space, such as `"}` at the end of a JSON string, left as
+  written (before this it was `~`); a name that ends in `)` or `.`, read as the home folder and a
+  mark; a name that holds a line break; a single-quoted phrase in a sentence that holds the home
+  folder after a space, and whatever follows an apostrophe used as an opening quote up to the next
+  apostrophe, both left as written; and PowerShell's `"$HOME\..."` string, read as a sentence,
+  which cannot hold the home folder's path after a space on Windows, where a name holds no `:`.
+- **Tests,** each new one failing first (below): in core, five tests and four properties.
+  - `a_folder_whose_name_goes_on_from_the_home_folders_is_left_as_written_in_a_sentence`: thirteen
+    names after the home folder's own (` (old)`, ` old`, a tab and a word, `'s`, a curly `’s`,
+    `, old`, `;x`, `)`, `:x`, `"x"`, a backtick pair, `. old`, `'`), each beside `/Users/ann` and
+    `C:\Users\ann`, in four wordings of a sentence, every expected place built from its parts.
+  - `a_folder_whose_name_goes_on_from_the_home_folders_is_quoted_whole_in_a_posix_command` and
+    `..._is_a_single_quoted_powershell_string`: the brief's own examples (`chmod 600
+    '/Users/ann (old)/quotadial/config.json'`, `'/Users/ann'\''s/...'`, PowerShell's `'...ann''s...'`
+    and its curly `’’`), then each name for the folder itself and a file in it, in `chmod 600`,
+    `CLAUDE_CONFIG_DIR=`, `$env:CLAUDE_CONFIG_DIR =` and `config.json`'s whole warning.
+  - `the_home_folder_on_its_own_is_told_from_a_longer_name_beside_it`: both in one sentence, the
+    home folder alone after seventeen endings (the end, a stop, a colon, a comma, a bracket, a space
+    and a word, another path, a relative path, a drive path, a line break) and the `H x(H) y` idempotence case.
+  - `a_word_in_single_quotes_is_read_whole`: `'~'`, `'~/a b'`; ten words that go on (with `'\''`, `''`,
+    `’’`, `.`, `)`); four that do not start in the home folder; an apostrophe and a quote that
+    never closes.
+  - Properties: `a_place_outside_the_home_folder_is_left_as_written_in_both_commands` (the brief's
+    property 1, with the home folder's text and every quote among the rest, in five places a command
+    is written); `a_posix_command_for_a_place_in_the_home_folder_is_left_as_written`;
+    `what_follows_the_home_folder_tells_it_from_a_longer_name` (property 3: the sentence rule over
+    its marks, spaces, brackets, line breaks and separators); and
+    `a_word_in_single_quotes_is_read_whole_before_it_is_taken_for_the_home_folder`.
+  - Existing, widened (property 2): `no_text_or_home_folder_makes_writing_the_home_folder_panic` takes
+    quotes and a bracket in its short alphabets, and `writing_the_home_folder_again_changes_nothing`
+    takes marks, quotes, brackets, tabs, line breaks, words with a separator, ` (old)`, `'\''` and
+    `''` among the home folder's own text. They pass against the old rule too, which is
+    idempotent, so they are the one place a new shape has no first failure.
+  - Extended, each failing first: in the daemon, `a_warning_names_config_json_with_the_home_folder_written_with_a_tilde`,
+    `a_file_with_webhooks_that_others_can_read_gets_a_warning` and
+    `the_warnings_chmod_command_works_as_written_in_a_shell` (a folder `ann (old)`, `ann's` and
+    `ann, old` beside the home folder; `sh` runs the warning's own `chmod 600` and finds the file
+    0600); in Claude's provider,
+    `the_fix_command_for_a_folder_outside_the_home_folder_quotes_the_whole_folder` and
+    `the_fix_command_gives_claude_code_the_folder_when_a_shell_runs_it` (`ann (old)/claude` and
+    `ann's Claude`, with the home folder `ann` and `Ann Smith`, as a sentence shows the command and
+    as doctor's pass writes it).
+  - *First failures:* against the original `tilde_in` block with the final tests (core), all nine
+    new tests failed and the two widened properties passed; the extended tests failed in the daemon
+    (3 of 3) and Claude's provider (2 of 2). An earlier version of the tests, run first, failed the
+    same way and printed the shrunk inputs above.
+  - *Mutations:* fifteen hand-made breaks of the new rule, each applied alone to the finished
+    file and run against core's `text::` tests: no `'\''` continuation, no PowerShell reading, a
+    word not left whole, no bracket rule, no line-break rule, no name before a separator, a mark
+    ending a path anywhere, no rule on what a quote opens after, no drive rule, no skip of the home
+    folder's text in the next word, a quoted word that is the home folder alone dropped, a quoted
+    word in the home folder with a separator dropped, `_` and `-` not name characters, a different
+    set of line breaks, and a quoted word after a path character taken for a place. Two survived the first set of tests: the drive, which a backslash
+    cannot show on Unix (`C:/Windows` does), and the skip of the home folder's text, which the
+    widened existing property found only in some runs and the new `H x(H) y` example now fails
+    every time. Each of the fifteen now fails a test.
+  - *Stress:* core's `text::` tests at 20,000 cases per property (`PROPTEST_CASES`) with failure
+    persistence off, passing in 6 seconds, then at 150,000. The first 150,000-case run found one
+    more case, `~/'C:\/A0'` (a place in a home folder `C:\/A0` as a Unix-built Windows-style home
+    makes it, whose rest has the home folder's own text): the quoted word after `~/` has the home
+    folder's text, but goes on from a path and is not a place of its own. Only a word that starts
+    a place is now checked against the home folder; `a_word_in_single_quotes_is_read_whole` pins it
+    (`cd ~/'/Users/ann'` stays as written, and the old rule wrote `~/'~'`). Three more runs at
+    150,000 cases each pass, in about 42 seconds. No `proptest-regressions` file is added.
+- **Windows:** no `#[cfg(unix)]` item is added to a test that runs there, no import, helper or
+  constant is used by Unix tests alone, and every expected place is built from its parts
+  (`MAIN_SEPARATOR`, `longer`, `home_folders`); an expected `~/` after a home folder is in a test
+  whose input names the separator itself, as D-129's does. The `sh` tests are `cfg(unix)` already.
+  No Windows target is installed here, so Windows is CI's to build, and `pwsh` is not installed
+  either: no PowerShell command ran.
+- **Counts:** the default workspace 769 passed (1 ignored) on `main` at 284a97c, measured first
+  here, and 778 (1 ignored) now. By crate: core 141 to 150, the nine new tests; the daemon 109, Claude
+  141 (1 ignored), the CLI 67, the API 59, cost 30, issue 6, poll 37, Antigravity 64, Codex 63, fake 19,
+  Gemini CLI 29 and `quotadial-providers` 4 unchanged, their extended tests the same tests. The
+  example build 766 (2 ignored) by D-131's notes, not measured again, and 775 (2 ignored) now,
+  core's nine and nothing else. The tray app's `--lib` tests 87 in both builds, before by D-131's
+  notes and after here. The site's tests 90, the release scripts' tests 39 (1 skipped).
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
+  `--locked` on the workspace and the tray app, default and `fake` (the app's `fake` run with the
+  example's CLI bundled by `npm run cli -- --fake`, then `npm run cli` to bundle the default build's
+  again); the workspace's tests, default and `fake`; the tray app's `--lib` tests, default and
+  `fake`, `tests/icon_press.rs` not run, as briefed; the release build's licence key test
+  (`only_a_debug_build_trusts_the_test_key`), core having changed; the tray app's `npm run build`
+  (34.0 KB of 150, contrast passing); the site's `npm run check`, `npm run build` and `npm test`
+  (90), since it renders `CHANGELOG.md`, whose built `/changelog` page shows the new line;
+  `scripts/privacy.sh --check`, `scripts/public-prd.sh --check`, the 0.2.0 release notes, the
+  release scripts' tests (39, 1 skipped) and shellcheck on `scripts/`. **Not run:** a Windows or
+  Linux build, which no target here makes (CI's); PowerShell, not installed; `cargo deny`, `cargo
+  audit` and actionlint, not installed here (no dependency, lockfile or workflow changed); `npm ci`
+  and `npm audit`, no npm dependency changed; the tray app's `npm test` and `npm run check:window`,
+  its window being unchanged.
+- **Found going down #52, left for the manager or a later PR:**
+  - `tilde` writes a place from its parts and is exact; `tilde_in` can only read text, so it
+    guesses where a name ends, and always will. Wherever a message knows the place it names, writing
+    it with `tilde` and leaving `tilde_in` to the outside text in it keeps the guess to what
+    cannot be known; D-129 chose one pass where a message is made, and D-133 keeps it. If a place
+    that matters turns out to be a leaf the look-ahead cannot read, such as a data folder
+    `/Users/ann old`, passing the places QuotaDial knows in is the fix, beside the rule.
+  - Doctor's `[user]` pass and a user named `claude` is now a queued row of its own (the manager's
+    review of #85 left it queued).
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR`, `CODEX_HOME`,
+  `GEMINI_CLI_HOME` and `XDG_DATA_HOME` in the session's scratchpad and no token in its environment;
+  the `sh` tests make their home folders and stand-in in a temporary folder and run with `PATH`
+  holding the stand-in alone. No vendor CLI ran, no sign-in or keychain item was read, and nothing
+  touched `~/Library/Application Support/quotadial` or `~/.claude`. No script wrote `rm`; the
+  mutation runs copied the file back from a copy in the scratchpad, and the tree holds only this
+  change (`git status`), with no `proptest-regressions` file and no changed lockfile.
 
 ### Matt's ask: the popover redesigned (D-132)
 
