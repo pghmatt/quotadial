@@ -1617,6 +1617,7 @@ version = "0.2.0"
 dependencies = [
  "quotadial-core",
  "quotadial-daemon",
+ "quotadial-provider-antigravity",
  "quotadial-provider-claude",
  "quotadial-provider-codex",
  "quotadial-provider-fake",

@@ -3,10 +3,11 @@
 //! place.
 //!
 //! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini`, on by
-//! default, adds Gemini CLI after them (D-118, D-124). The example build (the `fake` feature, D-117)
-//! lists the fake provider alone, whose made-up accounts are for pictures of the app: no sign-in is
-//! read and no provider is asked, whatever else is on. No release has `fake`, and the tests below
-//! hold each build's list.
+//! default, adds Gemini CLI after them (D-118, D-124), and `antigravity`, on by default, Antigravity
+//! after it (D-119, D-126), keeping what its CLI's status line hands over in QuotaDial's data folder.
+//! The example build (the `fake` feature, D-117) lists the fake provider alone, whose made-up
+//! accounts are for pictures of the app: no sign-in is read and no provider is asked, whatever else
+//! is on. No release has `fake`, and the tests below hold each build's list.
 
 use std::sync::Arc;
 
@@ -45,6 +46,12 @@ pub fn with_config(config: &Config, licensing: &Licensing) -> Vec<Arc<dyn Provid
         Arc::new(CodexProvider::new()),
         #[cfg(feature = "gemini")]
         Arc::new(quotadial_provider_gemini::GeminiProvider::new()),
+        // It keeps Antigravity CLI's numbers in the data folder, found as every QuotaDial process
+        // finds it; making it reads nothing.
+        #[cfg(feature = "antigravity")]
+        Arc::new(quotadial_provider_antigravity::AntigravityProvider::new(
+            DataDir::from_env().map(|dir| dir.path().to_path_buf()),
+        )),
     ]
 }
 
@@ -179,17 +186,19 @@ mod tests {
         }
     }
 
-    /// What a release ships: Claude, Codex and, since it was turned on in the PR after the one
-    /// that merged it, Gemini CLI (D-121, D-122, D-124).
+    /// What a release ships: Claude, Codex, Gemini CLI, turned on in the PR after the one that
+    /// merged it (D-121, D-122, D-124), and Antigravity, turned on in the PR that merges it, since
+    /// it needs no live check (D-121, D-126).
     #[cfg(not(feature = "fake"))]
     #[test]
-    fn a_release_lists_exactly_claude_codex_then_gemini() {
+    fn a_release_lists_exactly_claude_codex_gemini_then_antigravity() {
         assert_eq!(
             listed(),
             [
                 ("claude", "Claude"),
                 ("codex", "Codex"),
-                ("gemini", "Gemini CLI")
+                ("gemini", "Gemini CLI"),
+                ("antigravity", "Antigravity")
             ]
         );
         assert_eq!(

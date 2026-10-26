@@ -4,7 +4,10 @@
 // accounts are made up, on example.com, and one has a very long address and a long name given it,
 // so the check proves long text wraps rather than being cut off, and that a picture to share cuts
 // a long name short and never shows an address. One is Gemini CLI's, whose sign-in panel says what
-// Gemini CLI says rather than Claude's sentence (P-020). Two copies of the app: Pro, with the
+// Gemini CLI says rather than Claude's sentence (P-020), and one Antigravity's, whose windows come
+// from its CLI's status line and whose panel carries the block to add to Antigravity CLI's
+// settings and a limit with an amount and no share, the longest text the popover shows (D-126).
+// Two copies of the app: Pro, with the
 // week's cost, a key kept and a Share image button on each account in History, and Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
 // daemon sends it, with no panel, and an example account, its provider shown once.
@@ -147,6 +150,59 @@ const ACCOUNTS = [
       "QuotaDial only checks that Gemini CLI's sign-in is at ~/.gemini/oauth_creds.json. It never " +
       "opens it.",
   },
+  {
+    key: "antigravity ag@example.com -",
+    alias: null,
+    summary: "Antigravity ag@example.com (Pro): Weekly (Claude and GPT) 64%, resets in 3 d 2 h",
+    provider: "Antigravity",
+    name: "ag@example.com",
+    plan: "Pro",
+    status: "ok",
+    ok: true,
+    windows: [
+      {
+        label: "Weekly (Claude and GPT)",
+        used_pct: 64,
+        level: "normal",
+        resets: "resets in 3 d 2 h",
+        fetched: "from the CLI's status line 2 min ago",
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+      {
+        label: "5-hour (Gemini)",
+        used_pct: 25,
+        level: "normal",
+        resets: "resets in 3 h 30 min",
+        fetched: "from the CLI's status line 2 min ago",
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+      {
+        label: "Weekly (Gemini)",
+        used_pct: 6.22,
+        level: "normal",
+        resets: "resets in 5 d 9 h",
+        fetched: "from the CLI's status line 2 min ago",
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    // Its own words: QuotaDial never reads Antigravity's sign-in, the block to add, and a limit
+    // Antigravity CLI gives an amount for and no share of (D-126).
+    sign_in:
+      "QuotaDial never reads Antigravity's sign-in. It keeps only the numbers Antigravity CLI's " +
+      'status line hands it once `"statusLine": { "type": "command", "command": "quotadial ' +
+      'antigravity status-line", "stack_with_default": true }` is in ' +
+      "~/.gemini/antigravity-cli/settings.json. Antigravity CLI gives an amount left and no share " +
+      'for one more limit, which QuotaDial leaves out of its windows: "Credits", 120 left, ' +
+      "resetting at 2026-05-01T00:00:00Z.",
+  },
 ];
 
 /**
@@ -217,6 +273,7 @@ const SETTINGS = {
     { id: "claude", name: "Claude", shown: true },
     { id: "codex", name: "Codex", shown: true },
     { id: "gemini", name: "Gemini CLI", shown: true },
+    { id: "antigravity", name: "Antigravity", shown: true },
   ],
   accounts: ACCOUNTS.map((account) => ({
     key: account.key,

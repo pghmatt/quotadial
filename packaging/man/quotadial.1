@@ -4,7 +4,7 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
-quotadial \- Track Claude and ChatGPT/Codex usage limits
+quotadial \- Track Claude, ChatGPT/Codex and Antigravity usage limits
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH SYNOPSIS
@@ -12,9 +12,9 @@ quotadial \- Track Claude and ChatGPT/Codex usage limits
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH DESCRIPTION
-Track Claude and ChatGPT/Codex usage limits.
+Track Claude, ChatGPT/Codex and Antigravity usage limits.
 .PP
-QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign\-in is never opened. `qd` is the same command, shorter.
+QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign\-in is never opened. Antigravity\*(Aqs limits come from what Antigravity CLI\*(Aqs status line hands `quotadial antigravity status\-line`, and its sign\-in is never read. `qd` is the same command, shorter.
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH OPTIONS
@@ -51,6 +51,9 @@ Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its l
 .TP
 quotadial\-history(1)
 Show how each window was used over time, from the daemon\*(Aqs history
+.TP
+quotadial\-antigravity(1)
+Commands the Antigravity provider adds
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH EXAMPLES
@@ -98,7 +101,7 @@ The same, on Linux.
 \fI%APPDATA%\\quotadial\fR
 The same, on Windows.
 .SH "SEE ALSO"
-quotadial\-status(1), quotadial\-watch(1), quotadial\-daemon(1), quotadial\-mcp(1), quotadial\-alerts(1), quotadial\-doctor(1), quotadial\-licence(1), quotadial\-history(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.
+quotadial\-status(1), quotadial\-watch(1), quotadial\-daemon(1), quotadial\-mcp(1), quotadial\-alerts(1), quotadial\-doctor(1), quotadial\-licence(1), quotadial\-history(1), quotadial\-antigravity(1). The full guide is docs/CLI.md in QuotaDial\*(Aqs repository, https://github.com/pghmatt/quotadial, and quotadial.com.
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
