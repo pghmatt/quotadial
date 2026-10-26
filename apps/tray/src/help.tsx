@@ -36,7 +36,7 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
   return (
     <section class="help" aria-label="Help" tabIndex={-1} ref={panel}>
       <h2>Help</h2>
-      <section class="whats-new" aria-label={heading}>
+      <section class="whats-new card" aria-label={heading}>
         <h3>{heading}</h3>
         {help.whats_new.sections.map((section) => (
           <div key={section.heading}>
@@ -52,7 +52,7 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
           Every change
         </button>
       </section>
-      <section aria-label="Feedback and support">
+      <section class="card" aria-label="Feedback and support">
         <h3>Feedback and support</h3>
         <p class="detail">
           Send feedback opens a new GitHub issue in your browser, with what support asks for
@@ -69,7 +69,7 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
           </button>
         </div>
       </section>
-      <section aria-label="About QuotaDial">
+      <section class="card" aria-label="About QuotaDial">
         <h3>About</h3>
         <p>
           QuotaDial {help.version}. {help.licence}
@@ -84,7 +84,7 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
           quotadial.com
         </button>
       </section>
-      <section class="privacy" aria-label="What QuotaDial reads and sends">
+      <section class="privacy card" aria-label="What QuotaDial reads and sends">
         <h3>What QuotaDial reads and sends</h3>
         {help.privacy.map((block, index) =>
           block.kind === "paragraph" ? (

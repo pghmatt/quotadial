@@ -121,8 +121,11 @@ export interface AlertChoice {
 
 export interface AccountChoice {
   key: string;
-  /** Such as "Claude user@example.com". */
-  label: string;
+  /** What the provider calls itself, such as "Claude". */
+  provider: string;
+  /** The account's own name, such as its email address; empty when it says nothing beyond
+   * `provider`. */
+  name: string;
   /** The name given, or empty. */
   alias: string;
 }
@@ -151,7 +154,9 @@ export interface AccountHistory {
   key: string;
   /** Such as "Claude". */
   provider: string;
-  /** The name the user gave the account, or its email address; empty when that says nothing beyond
+  /** The name the user gave the account, if any, which titles its card. */
+  alias: string | null;
+  /** The account's own name, such as its email address; empty when that says nothing beyond
    * `provider`. */
   name: string;
   /** What a picture of this account's history calls it, such as "Claude Work" or "Claude Max":

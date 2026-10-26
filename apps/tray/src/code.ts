@@ -1,7 +1,7 @@
 /**
  * Commands in what QuotaDial says. A message names a command between backticks, as the CLI prints
- * it, such as "Run `CLAUDE_CONFIG_DIR=~/'My Claude' claude` to sign in again." The window shows each
- * one as code that a click selects whole, so it can be copied as it must be pasted.
+ * it, such as "Run `CLAUDE_CONFIG_DIR=~/'My Claude' claude` to sign in again." The window shows
+ * each one as code that a click selects whole, so it can be copied as it must be pasted.
  */
 
 /** A run of a message: words, or a command to show as code. */

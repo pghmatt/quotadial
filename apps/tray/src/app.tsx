@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { AccountHeading } from "./account";
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
@@ -192,21 +193,15 @@ function AccountSection({ account, index }: { account: Account; index: number })
   const heading = `account-${index}`;
   return (
     <section class="account card" aria-labelledby={heading}>
-      <h2 id={heading} class="card-head">
-        {/* The spaces between the parts are for a screen reader; a flex row draws none. */}
-        <span class="title-row">
-          {/* The name given the account, or the provider's own (P-020). */}
-          <span class="title">{account.alias ?? account.provider}</span>{" "}
-          {(account.plan || !account.ok) && (
-            <span class="badges">
-              {account.plan && <span class="badge">{account.plan}</span>}
-              {account.plan && !account.ok && " "}
-              {!account.ok && <span class="badge attention">{account.status}</span>}
-            </span>
-          )}
-        </span>
-        <Address account={account} />
-      </h2>
+      <AccountHeading who={account} id={heading} level={2}>
+        {(account.plan || !account.ok) && (
+          <span class="badges">
+            {account.plan && <span class="badge">{account.plan}</span>}
+            {account.plan && !account.ok && " "}
+            {!account.ok && <span class="badge attention">{account.status}</span>}
+          </span>
+        )}
+      </AccountHeading>
       {!account.ok && account.note && (
         <p class="note">
           <Said text={account.note} />
@@ -233,34 +228,6 @@ function AccountSection({ account, index }: { account: Account; index: number })
         </details>
       )}
     </section>
-  );
-}
-
-/**
- * An account's second line: its address, after its provider's name when the title is the name the
- * user gave it, as "Claude · dev@example.com". Nothing when the provider's name says it all, as
- * for the example build's accounts, which have no address (D-124). The address alone can be
- * selected, to copy it.
- */
-function Address({ account }: { account: Account }) {
-  const named = account.alias !== null;
-  if (!named && !account.name) {
-    return null;
-  }
-  return (
-    <>
-      {" "}
-      <span class="address">
-        {named && <span class="provider">{account.provider}</span>}
-        {named && account.name && (
-          <>
-            {" "}
-            <span aria-hidden="true">·</span>{" "}
-          </>
-        )}
-        {account.name && <span class="name">{account.name}</span>}
-      </span>
-    </>
   );
 }
 

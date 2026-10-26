@@ -13,6 +13,8 @@
 //   code with no backtick left, and one click selects the whole command, to copy it;
 // - the line under the summary's number shows what the app sent, and names the window and the
 //   account that set the number, by the name given it or its address;
+// - History's cards and Settings' names head each account as the popover's cards do: the name
+//   given it or its provider's, then its address, inside the card;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -791,6 +793,9 @@ async function checkView(view, panel, operate, copy) {
   if (panel === "accounts" || panel === "settings") {
     await checkCommands(view, copy, panel);
   }
+  if (panel === "history" || panel === "settings") {
+    await checkHeadings(view, copy, panel);
+  }
 
   // Nothing moves, and no text is cut off at 100% or 200%.
   for (const problem of await view.evaluate(MOVING)) {
@@ -914,6 +919,51 @@ async function checkCards(view, copy, zoom) {
       const heard = called !== null && called.includes(title) && called.includes(account.name);
       check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
     }
+  }
+}
+
+/** In the page: each account's heading in the panel, its title and second line, and whether the
+ * line is inside its card. */
+const HEADINGS = (selector) => `[...document.querySelectorAll(${JSON.stringify(selector)})].map((part) => {
+  const card = part.closest('.card');
+  const line = part.querySelector('.address');
+  const inside = (element) => {
+    if (!element || !card) return false;
+    const [inner, outer] = [element.getBoundingClientRect(), card.getBoundingClientRect()];
+    return inner.width > 0 && inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
+  };
+  return {
+    title: part.querySelector('.title')?.textContent ?? null,
+    line: line ? line.textContent.replace(/\\s+/g, ' ').trim() : null,
+    inside: !line || inside(line),
+  };
+})`;
+
+/**
+ * The same heading for an account everywhere (D-132): History's cards, in the order History lists
+ * them, are titled by the name given each account, or its provider's, with its address under it,
+ * as the popover's are; Settings' names, where the name given is typed, by the provider's name,
+ * with the address under it. Each address line is inside its card.
+ */
+async function checkHeadings(view, copy, panel) {
+  const label = `${view.label}, headings`;
+  const [selector, accounts] =
+    panel === "history"
+      ? ["section.history .account-history .card-head", copy.history[7].accounts]
+      : [".name-choice", copy.settings.accounts.map((account) => ({ ...account, alias: null }))];
+  const shown = await view.evaluate(HEADINGS(selector));
+  check(label, shown.length !== accounts.length && `${panel} heads ${shown.length} accounts, not ${accounts.length}`);
+  for (const [index, account] of accounts.entries()) {
+    const heading = shown[index];
+    if (!heading) {
+      break;
+    }
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    const title = account.alias ?? account.provider;
+    const line = account.alias === null ? account.name : [account.provider, account.name].filter(Boolean).join(" · ");
+    check(label, heading.title !== title && `${what} is titled "${heading.title}", not "${title}"`);
+    check(label, (heading.line ?? "") !== line && `${what}'s second line is "${heading.line}", not "${line}"`);
+    check(label, !heading.inside && `${what}'s second line is not inside its card`);
   }
 }
 

@@ -192,13 +192,17 @@ struct AlertChoice {
     waits: bool,
 }
 
-/// An account the user can name.
+/// An account the user can name, shown by its provider and address as the popover heads its card
+/// (D-132).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct AccountChoice {
     /// As the settings name it ([`account_key`]).
     key: String,
-    /// Such as "Claude user@example.com".
-    label: String,
+    /// What the provider calls itself, such as "Claude" (P-020).
+    provider: String,
+    /// The account's own name, such as its email address; empty when that says nothing beyond
+    /// `provider` (D-124).
+    name: String,
     /// The name given, or empty.
     alias: String,
 }
@@ -276,10 +280,12 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .map(|snapshot| {
                 let key = account_key(&snapshot.account);
                 AccountChoice {
-                    label: text::labelled(
-                        snapshot.account.provider_label(),
-                        &snapshot.account.display_name,
-                    ),
+                    provider: snapshot.account.provider_label().to_owned(),
+                    name: snapshot
+                        .account
+                        .name_beside_provider()
+                        .unwrap_or_default()
+                        .to_owned(),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
                     key,
                 }

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { AccountHeading } from "./account";
 import { usePanelFocus } from "./focus";
 import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
 import { ACCOUNT_HEADER, lookOf, shareImage } from "./share";
@@ -94,10 +95,11 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
       {view && view.accounts.length === 0 && (
         <p class="detail">No readings in the last {days} days yet.</p>
       )}
-      {view?.accounts.map((account) => (
+      {view?.accounts.map((account, index) => (
         <AccountCharts
           key={account.key}
           account={account}
+          index={index}
           onShare={view.share_left_out === null ? () => share(account) : null}
         />
       ))}
@@ -124,19 +126,20 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** One account's history, as a card headed as the popover heads the account's card (D-132). */
 function AccountCharts({
   account,
+  index,
   onShare,
 }: {
   account: AccountHistory;
+  index: number;
   onShare: (() => void) | null;
 }) {
+  const heading = `history-account-${index}`;
   return (
-    <section class="account-history" aria-label={[account.provider, account.name].filter(Boolean).join(" ")}>
-      <h3>
-        <span class="provider">{account.provider}</span>
-        {account.name && ` ${account.name}`}
-      </h3>
+    <section class="account-history card" aria-labelledby={heading}>
+      <AccountHeading who={account} id={heading} level={3} />
       {account.windows.map((chart) => (
         <Chart key={chart.label} chart={chart} />
       ))}

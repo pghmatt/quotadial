@@ -33,6 +33,7 @@ const PAIRS = [
   ["--focus", ["--background"], 3, "the focus ring"],
   ["--focus", ["--background", "--card"], 3, "the focus ring on a card"],
   ["--field", ["--background"], 3, "the edge of a text field"],
+  ["--field", ["--background", "--card"], 3, "the edge of a text field in a card, in Settings"],
 ];
 
 /** The custom properties in the first `:root` block after `from`. */
