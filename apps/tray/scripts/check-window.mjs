@@ -13,6 +13,10 @@
 //   code with no backtick left, and one click selects the whole command, to copy it;
 // - the line under the summary's number shows what the app sent, and names the window and the
 //   account that set the number, by the name given it or its address;
+// - where and when an account's windows were read is said once, in a quiet caption under its
+//   windows and above its sign-in, when the app sends one for the card, and under each window when
+//   it does not, never both and never neither; the caption stays above the sign-in when the sign-in
+//   opens, and a screen reader is told it, in order, after the windows (D-135);
 // - History's cards and Settings' names head each account as the popover's cards do: the name
 //   given it or its provider's, then its address, inside the card;
 // - one toolbar at the foot of every view: History, Settings and Help under the accounts, Done
@@ -812,6 +816,7 @@ async function checkView(view, panel, operate, copy) {
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
+      await checkSources(view, copy, zoom);
     }
   }
   await view.zoom(1);
@@ -1043,6 +1048,159 @@ async function checkSummary(view, copy, zoom) {
   check(label, Math.floor(window.used_pct) !== meter.percent && `the copy's number ${meter.percent}% is not its fullest window's`);
   check(label, !summary.text.includes(window.label) && `the line under the number does not name the window, ${window.label}`);
   check(label, !summary.text.includes(named) && `the line under the number does not name the account, "${named}"`);
+}
+
+/** The space between two windows of a card, in CSS pixels, as style.css sets it. */
+const WINDOW_GAP = 10;
+
+/**
+ * In the page: for each account's card, in order, the lines that say where and when its windows
+ * were read (the card's caption, `.source`), each window's own line, and the sign-in panel's
+ * disclosure, with where each is, how it is drawn and whether a screen reader reaches it.
+ */
+const SOURCES = `(() => {
+  const place = (element) => {
+    const { top, bottom, left, right, width, height } = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return { top, bottom, left, right, width, height, shown: element.getClientRects().length > 0 && style.visibility !== 'hidden' && Number(style.opacity) > 0 && !element.closest('.visually-hidden') };
+  };
+  const words = (element) => element.textContent.replace(/\\s+/g, ' ').trim();
+  const follows = (first, second) => !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+  return [...document.querySelectorAll('main > section.account')].map((card) => {
+    const heading = card.querySelector('h2');
+    const list = card.querySelector('ul.windows');
+    const panel = card.querySelector('details.sign-in');
+    const detail = card.querySelector('.window .detail');
+    const address = card.querySelector('.address');
+    return {
+      card: place(card),
+      lines: [...card.querySelectorAll('.source')].map((line) => {
+        const look = getComputedStyle(line);
+        const above = line.previousElementSibling;
+        return {
+          text: words(line),
+          ...place(line),
+          inHeading: !!heading?.contains(line),
+          inPanel: !!panel?.contains(line),
+          hidden: !!line.closest('[aria-hidden="true"], [hidden]'),
+          afterWindows: !!list && follows(list, line),
+          beforePanel: !panel || follows(line, panel),
+          size: parseFloat(look.fontSize),
+          weight: Number(look.fontWeight),
+          colour: look.color,
+          room: above ? line.getBoundingClientRect().top - above.getBoundingClientRect().bottom : null,
+        };
+      }),
+      windows: [...card.querySelectorAll('.window')].map((window) => {
+        const copy = window.querySelector('.detail').cloneNode(true);
+        for (const badge of copy.querySelectorAll('.badge')) badge.remove();
+        const { top, bottom } = window.getBoundingClientRect();
+        return { detail: words(copy), top, bottom };
+      }),
+      detail: detail ? { size: parseFloat(getComputedStyle(detail).fontSize), colour: getComputedStyle(detail).color } : null,
+      addressSize: address ? parseFloat(getComputedStyle(address).fontSize) : null,
+      panel: panel ? { summary: place(panel.querySelector('summary')), text: panel.querySelector('p') ? place(panel.querySelector('p')) : null, last: !panel.nextElementSibling } : null,
+    };
+  });
+})()`;
+
+/**
+ * Where and when each account's windows were read (#52: nothing reaches a person without its age
+ * and origin; D-135): said once for the card, in a caption of its own, when the app sends one, and
+ * under each window, as before, when the app sends none, never both and never neither. The caption
+ * is the card's alone: visible, inside the card, quiet (no larger and no bolder than a window's
+ * lines, in their colour, and smaller than the address), under the windows with the space between
+ * windows above it, and above the sign-in's disclosure, where it stays when the panel opens, so a
+ * screen reader reads the windows, then where they were read, then the sign-in. It is outside the
+ * card's heading, which names the card, and it is not hidden from a screen reader.
+ */
+async function checkSources(view, copy, zoom) {
+  const label = `${view.label}, where the windows were read at ${zoom * 100}%`;
+  const accounts = copy.meter.accounts;
+  const closed = await view.evaluate(SOURCES);
+  check(label, closed.length !== accounts.length && `the window shows ${closed.length} account cards for ${accounts.length} accounts`);
+  // The sign-in panels open, to see that the caption stays where it is, and shut again.
+  const was = await view.evaluate("[...document.querySelectorAll('details.sign-in')].map((panel) => panel.open)");
+  await view.evaluate("document.querySelectorAll('details.sign-in').forEach((panel) => { panel.open = true; })");
+  await view.settle();
+  const opened = await view.evaluate(SOURCES);
+  await view.evaluate(`${JSON.stringify(was)}.forEach((open, index) => { document.querySelectorAll('details.sign-in')[index].open = open; })`);
+  await view.settle();
+  for (const [index, account] of accounts.entries()) {
+    const card = closed[index];
+    if (!card) {
+      break;
+    }
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    const own = account.windows.filter((window) => window.fetched !== null);
+    check(label, account.fetched !== null && own.length > 0 && `the copy gives ${what} a line for its card and one for ${own.length} of its windows, which the app never sends`);
+    check(label, account.fetched !== null && account.windows.length === 0 && `the copy gives ${what} a line for where its windows were read and no windows`);
+    check(label, card.windows.length !== account.windows.length && `${what}'s card shows ${card.windows.length} windows for ${account.windows.length}`);
+    // A window says its own where and when only when the card does not.
+    for (const [position, window] of account.windows.entries()) {
+      const expected = window.fetched === null ? window.resets : `${window.resets}, ${window.fetched}`;
+      const shown = card.windows[position]?.detail;
+      check(label, shown !== expected && `${what}'s ${window.label} says "${shown}", not "${expected}"`);
+    }
+    if (account.fetched === null) {
+      check(label, card.lines.length > 0 && `${what}'s card says "${card.lines[0].text}" for where its windows were read, though the app sent no line for the card`);
+      continue;
+    }
+    check(label, card.lines.length !== 1 && `${what}'s card says where its windows were read ${card.lines.length} times, not once`);
+    const [line] = card.lines;
+    if (!line) {
+      continue;
+    }
+    check(label, line.text !== account.fetched && `${what}'s card says "${line.text}", not "${account.fetched}"`);
+    check(label, (!line.shown || line.width <= 0 || line.height <= 0) && `${what}'s line for where its windows were read is not visible`);
+    const outside = line.left < card.card.left - 0.5 || line.right > card.card.right + 0.5 || line.top < card.card.top - 0.5 || line.bottom > card.card.bottom + 0.5;
+    check(label, outside && `${what}'s line for where its windows were read is not inside its card`);
+    check(label, (line.inHeading || line.inPanel) && `${what}'s line for where its windows were read is inside its card's ${line.inHeading ? "heading, which names the card" : "sign-in panel"}`);
+    check(label, line.hidden && `${what}'s line for where its windows were read is hidden from screen readers`);
+    // Quiet: no larger, bolder or louder than a window's lines, and smaller than the address.
+    const quiet = card.detail && line.size <= card.detail.size + 0.1 && line.weight <= 400 && line.colour === card.detail.colour;
+    check(label, !quiet && `${what}'s line for where its windows were read is not as quiet as a window's lines (${line.size} px, weight ${line.weight}, ${line.colour})`);
+    check(label, card.addressSize !== null && line.size >= card.addressSize && `${what}'s line for where its windows were read is not smaller than its address (${line.size} px, ${card.addressSize} px)`);
+    // Under its windows, with the space between windows above it.
+    const last = card.windows.at(-1);
+    check(label, (!line.afterWindows || (last && line.top < last.bottom - 0.5)) && `${what}'s line for where its windows were read is not under its windows`);
+    const gap = card.windows.length > 1 ? card.windows[1].top - card.windows[0].bottom : WINDOW_GAP;
+    check(label, line.room !== null && Math.abs(line.room - gap) > 0.5 && `${what}'s line for where its windows were read has ${line.room.toFixed(1)} px above it, not the ${gap.toFixed(1)} px between windows`);
+    // Above the sign-in's disclosure, which is the card's last thing, and still there when the panel is open.
+    if (card.panel) {
+      check(label, !card.panel.last && `${what}'s sign-in disclosure is not the last thing in its card`);
+      check(label, (!line.beforePanel || line.bottom > card.panel.summary.top + 0.5) && `${what}'s line for where its windows were read is not above the sign-in disclosure`);
+      const [after] = opened[index]?.lines ?? [];
+      const open = opened[index]?.panel;
+      if (!after || !open) {
+        check(label, `${what}'s line for where its windows were read is gone when the sign-in panel opens`);
+        continue;
+      }
+      // Measured from its card's top, which scrolling, and the panels of the cards above opening, move as a whole.
+      const [from, now] = [line.top - card.card.top, after.top - opened[index].card.top];
+      check(label, Math.abs(now - from) > 0.5 && `${what}'s line for where its windows were read moves ${(now - from).toFixed(1)} px within its card when the sign-in panel opens`);
+      check(label, after.bottom > open.summary.top + 0.5 && `${what}'s line for where its windows were read is not above the sign-in disclosure when its panel is open`);
+      check(label, open.text && open.text.top < after.bottom - 0.5 && `${what}'s open sign-in panel is not below the line for where its windows were read`);
+    }
+  }
+  // A screen reader is told each caption, in the order of the card: the windows, where they were
+  // read, the sign-in. The order is the markup's, which the line's place after the windows and
+  // before the panel has already shown; this checks that the accessibility tree has the words.
+  if (zoom === 1) {
+    const { nodes } = await view.send("Accessibility.getFullAXTree");
+    // The tree has the words as drawn, the first letter capitalised by the stylesheet.
+    const told = (text) =>
+      nodes.filter((node) => !node.ignored && node.role?.value === "StaticText" && String(node.name?.value ?? "").trim().toLowerCase() === text.toLowerCase()).length;
+    const wanted = new Map();
+    for (const account of accounts) {
+      if (account.fetched !== null && account.windows.length > 0) {
+        wanted.set(account.fetched, (wanted.get(account.fetched) ?? 0) + 1);
+      }
+    }
+    for (const [text, cards] of wanted) {
+      check(label, told(text) < cards && `a screen reader is told "${text}" ${told(text)} times for ${cards} cards`);
+    }
+  }
 }
 
 /**
