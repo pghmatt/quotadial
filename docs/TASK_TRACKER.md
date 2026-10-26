@@ -421,6 +421,16 @@ The notes below run newest first; the setup notes above them are the oldest.
 
 ### M6 PR 2: GitHub Copilot (D-127)
 
+- **Moved onto #83** (`main` at 6063ad1, D-129), 2026-10-26: GitHub CLI's place in the tests is
+  built as `Path::new("~").join(".config").join("gh").join("hosts.yml")`, `~` and the system's own
+  separator as `text::tilde` now writes it, by one helper in `advice`'s tests that the sentences'
+  and plain-words tests take too, in place of the `~/` they wrote by hand; the provider is
+  unchanged. Every test ran once with `tilde` and `tilde_in` forced to write `~\`: in each workspace
+  build the six end-to-end tests that expect the place failed beside the 32 that #83 found the same
+  way, and in the tray app only its export test; the forcing was undone. After it, the workspace 842
+  passed (1 ignored), the example build 839 (2 ignored) and the `copilot` build 842 (1 ignored), the
+  crate 82, the tray app 87 in both builds, the site 90 and the window check 4371 checks over 16
+  views, with every check below run again and passing.
 - **Moved onto #82** (`main` at 52265b6, D-128), 2026-10-26: the two discovery warnings leave the
   provider out where they are written, as Claude's do, a lookup that stops reads the sign-in "from
   this machine", and the eight assertions on the old error text hold the new, with two tests added;
