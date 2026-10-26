@@ -113,9 +113,9 @@ one account per provider, the one the current shell would use, and names how man
   named by Anthropic's profile endpoint, once per token, before its usage is asked.
 - **Where each sign-in is, and what QuotaDial does with it.** `account.sign_in` in the JSON says
   where the sign-in is, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4"
-  (CLAUDE_CONFIG_DIR ~/.claude-work)`, and `account.sign_in_use` says, in the provider's words, what
-  QuotaDial does with it, as `doctor` and the app's "What QuotaDial does with this sign-in" show
-  it.
+  (CLAUDE_CONFIG_DIR ~/.claude-work)`, with `~\` on Windows, and `account.sign_in_use` says, in
+  the provider's words, what QuotaDial does with it, as `doctor` and the app's "What QuotaDial
+  does with this sign-in" show it.
 - **A sign-in that expired or was rejected** shows `sign-in required`, with the command that signs
   that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/.claude-work claude` once to refresh
   it." On Windows the command is for PowerShell: `$env:CLAUDE_CONFIG_DIR = '…'; claude`. Its last
@@ -213,8 +213,8 @@ same daemon itself when none is running, so with the app open there is no need t
   first poll.
 - It serves the local API on `127.0.0.1:47115`, or the port given with `--port`, and starts by
   printing where it keeps history, where the API is and where its token is kept, with your home
-  folder written `~`, never the token itself. If the port is taken, it says so and exits with
-  status 1.
+  folder written `~`, `~\` on Windows, never the token itself. If the port is taken, it says so
+  and exits with status 1.
 - `status` and `watch` find it through `daemon.json` in the same folder, which holds its process id
   and port while it runs. With no daemon running they fetch for themselves. If a daemon is running
   but its API does not answer, they say so and name the fix rather than polling in its place. A
@@ -248,8 +248,9 @@ The daemon keeps going, and says what is wrong in one line in the report's `prob
 
 Every message that names a place, a provider's error or QuotaDial's own, such as a history it could
 not open, a warning about `config.json` or why a running daemon did not answer, writes your home
-folder as `~`. A place outside it, such as a data folder `QUOTADIAL_DATA_DIR` puts elsewhere, is
-written in full.
+folder as `~` and then your system's own separator: `~/.codex/auth.json`, or on Windows
+`~\AppData\Roaming\quotadial\history.db`. A place outside it, such as a data folder
+`QUOTADIAL_DATA_DIR` puts elsewhere, is written in full.
 
 ## Alerts
 
@@ -504,8 +505,8 @@ Settings in effect:
 It takes its numbers from the daemon when one runs and fetches for itself when not, as `status`
 does, and adds what QuotaDial Free leaves out, the status pages and every problem when there are
 any, a provider's under its own name, as `status` shows it. It holds nothing secret: no token,
-email addresses cut to their first letters, the home folder written `~`, no licence id, and
-webhooks named by their host.
+email addresses cut to their first letters, the home folder written `~` (`~\` on Windows), no
+licence id, and webhooks named by their host.
 
 ## The local API
 
@@ -709,8 +710,8 @@ Codex user@example.com (pro): stale
   "Run `claude` to sign in again."
 - A provider that produced nothing at all shows as `error: <its own name>: <what happened>`, such
   as `error: Codex: could not read the sign-in from ~/.codex/auth.json: ...`, which also names the
-  fix or when QuotaDial tries again, and writes your home folder as `~`. `doctor` and the app list
-  the same line under their problems.
+  fix or when QuotaDial tries again, and writes your home folder as `~` (`~\` on Windows).
+  `doctor` and the app list the same line under their problems.
 - On QuotaDial Free, a line under the accounts says how many more a provider has on the machine,
   and one where the costs would be says the week's cost is part of QuotaDial Pro. The week's cost
   is read from the logs of Claude Code and the Codex CLI, so that line, and the pace line's mention
@@ -794,8 +795,8 @@ it prints each refresh after the last, without escape codes.
 | `snapshots[]` | One per account, Claude's first, each provider's sorted by name. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
 | `account.provider_name` | The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it; `provider` is its id, for scripts. Empty for an account read back from an older QuotaDial, which is shown by its id until the next poll |
 | `account.plan`, `account.org` | Left out when the provider does not say |
-| `account.sign_in` | Where the account's sign-in is, written for people with `~` for the home folder, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
-| `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.` Never a token; a place in it is written with `~`. Empty for an account read back from an older QuotaDial until the next poll |
+| `account.sign_in` | Where the account's sign-in is, written for people with `~` for the home folder (`~\` on Windows), such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.` Never a token; a place in it is written with `~` (`~\` on Windows). Empty for an account read back from an older QuotaDial until the next poll |
 | `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily`, `credits`, or `other` for a limit QuotaDial does not know yet, shown by its provider's name with `window_seconds` 0 |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
@@ -808,7 +809,7 @@ it prints each refresh after the last, without escape codes.
 | `extra_usage` | Pay-as-you-go usage beyond the plan: `enabled`, and when known `used_pct`, `used`, `limit` and `currency`, or `balance`, the credits left in the provider's own units. Left out when the provider does not say |
 | `status` | `ok`, `stale`, `auth_required`, `rate_limited` or `unsupported` |
 | `error` | One sentence that explains a status other than `ok` and names the fix. Left out otherwise |
-| `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts: each with `provider`, the provider's id, and `message`, which says what happened and names the fix, with a place in your home folder written with `~`. The message leaves the provider out, which `provider` gives and `providers[]` names, so `status` shows it as `error: Codex: could not read the sign-in from ~/.codex/auth.json: ...`. One from an older QuotaDial begins with the provider's id and a colon, and writes a place in full |
+| `errors[]` | Providers or accounts that produced no snapshot, and places a provider could not look in while finding its accounts: each with `provider`, the provider's id, and `message`, which says what happened and names the fix, with a place in your home folder written with `~` (`~\` on Windows). The message leaves the provider out, which `provider` gives and `providers[]` names, so `status` shows it as `error: Codex: could not read the sign-in from ~/.codex/auth.json: ...`. One from an older QuotaDial begins with the provider's id and a colon, and writes a place in full |
 | `status_pages[]` | What the providers' status pages say, while the daemon reads them (see Status pages): `provider`, `indicator`, `description`, `url`, `since` (when the current trouble was first seen; left out when all is well) and `checked_at`. Left out with no daemon running |
 | `costs[]` | What the week's local use of each provider would have cost at API prices, while the daemon reads the logs (see The week's cost): `provider`; `since` and `until`, the 7 days, ending when the logs were last read; `usd`; `requests`; `tokens` (`input`, read fresh, `output`, reasoning included, `cache_read`, `cache_write`, and `cache_write_1h`, the part of `cache_write` kept for an hour, left out when 0); `models[]`, the costliest first, each with `model`, `usd` (left out when the price table has no price for it), `requests` and `tokens`; `prices_updated`, the price table's date; and `notes`, what the cost leaves out. Left out with no daemon running |
 | `left_out[]` | What this copy leaves out because it is QuotaDial Free (see QuotaDial Free and Pro): each with `feature` (`accounts` or `cost_scan`), `provider` for the accounts a provider held back, and `text`, the line that says so, such as `8 more Claude accounts are on this machine. Showing every account is part of QuotaDial Pro: quotadial.com/pro`. Left out on QuotaDial Pro |

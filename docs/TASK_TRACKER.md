@@ -221,7 +221,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
-| The home folder written `~` in QuotaDial's own messages | In review (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; a property test of `tilde_in` beside `unplain_words`'s |
+| The home folder written `~` in QuotaDial's own messages | In review (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
 
 ## Kickoff
 
@@ -441,11 +441,27 @@ The notes below run newest first; the setup notes above them are the oldest.
 - **Doctor** (`crates/core/src/diagnostics.rs`): `Diagnostics::text` writes its whole text through
   `tilde_in`; its plain replace is gone. Its new test failed first against the replace, which wrote
   `/Users/anna/.codex/auth.json` as `~a/.codex/auth.json` and `/Volumes/Backup/Users/ann/...` as
-  `/Volumes/Backup~/...`. On Windows doctor now writes `~/data` where it wrote `~\data`, which the
-  manager called the better paste from Windows on #57: `tilde` and every message have written `~/`
-  since D-128, so the API's and the CLI's doctor tests now expect `~/` on every system. Keeping the
-  system's separator after `~` would change `tilde` and `tilde_in` together, for every message: the
-  manager's to decide.
+  `/Volumes/Backup~/...`. On Windows it writes `~\data`, as its replace did and #57 wanted, now by
+  the rule every message follows (next).
+- **The separator** (the manager's decision on #83, 2026-10-26, 09:22 UTC, asked for in the first
+  round, where doctor would have written `~/data` on Windows): the home folder is written `~` and
+  then the system's own separator, so `~\AppData\Roaming\quotadial\history.db` on Windows and
+  `~/.codex/auth.json` elsewhere. `tilde` writes `std::path::MAIN_SEPARATOR` after `~`; `tilde_in`
+  writes the separator it found after the home folder, which for a path the system wrote is the
+  same, so a path written with `/` on Windows keeps it (an assertion in the Windows home folder's
+  test holds that, and only Windows can fail it). Before, both wrote `~/`, so Windows showed
+  `~/quotadial\history.db`. Every test that wrote `~/` into an expectation of either function now
+  builds it as `Path::new("~").join(...)`, the platform's separator with no `cfg(windows)` branch:
+  in core `text.rs`, `report.rs` and `diagnostics.rs`; in the daemon `config.rs`, `history.rs` (the
+  recovery line's test too) and `poller.rs`; in the API `host.rs`, `diagnostics.rs` and `tests.rs`;
+  in the CLI `lib.rs` and `tests/status.rs` (Gemini CLI's sign-in and doctor's data folder too); the
+  tray's `history.rs`; Claude's advice tests (a folder's place and a file's); and Gemini CLI's
+  `in_home`. To find them all, the whole workspace's and the app's tests ran once on this Mac with
+  both functions made to write `~\`: 33 failed, these 30 and three that pass on Windows as they are,
+  doctor's two whose places are written with `/` and so keep it, and Claude's command test, whose
+  Unix command is checked off Windows only. The window check's fixtures and the site show no Windows
+  path, and Antigravity's settings place is written as its docs write it, not by `tilde`, so they
+  stay.
 - **The property test** (`crates/core/src/text.rs`, beside `unplain_words`'s test): for any text and
   any home folder or none, with short home folders of a path's characters mixed in, `tilde_in` never
   panics and never makes the text longer, and with no home folder or a whole disk leaves it as it
@@ -469,7 +485,6 @@ The notes below run newest first; the setup notes above them are the oldest.
   - Antigravity's `status-line` writes "quotadial: <the command after it> could not be started:
     ..." on standard error, as a shell does, with the command as written; Antigravity CLI does not
     show it.
-  - Doctor's separator after `~` on Windows (above).
 - **Tests:** in the workspace, 745 passed (1 ignored) on `main` at 52265b6 and 759 (1 ignored) now;
   the example build 742 (2 ignored) and 756 (2 ignored). By crate: core 130 to 135 (`tilde_in`'s
   four properties and doctor's `/Users/anna`); the daemon 105 to 108 (`config.json`'s warnings with
@@ -484,7 +499,8 @@ The notes below run newest first; the setup notes above them are the oldest.
   properties against the stubs above, doctor's against its plain replace, the rest against a stub
   that left their text as it was, and the tests of the built binaries with the CLI's and the
   client's passes undone. The API's and the CLI's doctor tests, and the test of a file others can
-  read, are changed for the new text.
+  read, are changed for the new text. After the manager's review on #83 the counts are the same,
+  every test passing: the separator added no test, only the assertion above.
 - **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
   `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default
   and `fake`; the tray app's `--lib` tests, default and `fake` (`tests/icon_press.rs` not run, as
@@ -502,7 +518,9 @@ The notes below run newest first; the setup notes above them are the oldest.
   webhook, "warning: history_days in ~/data/config.json ..." and "warning: A webhook in
   ~/data/config.json ...". **Not run:** `cargo deny` and `cargo audit`, not installed here (no
   dependency or lockfile changed); the release-only licence key test, which no change here reaches;
-  and a release build of the CLI or the app.
+  and a release build of the CLI or the app. After the review, every check above ran again with the
+  same results, the site's because `docs/CLI.md` changed: its built `/cli` page shows `~\` in each
+  code span that names Windows.
 - **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
   `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
   scratchpad and no token in its environment; every test made up its own home and data folder, and
