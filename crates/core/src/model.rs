@@ -3,8 +3,9 @@
 //! ```text
 //! Account { provider, account_id, display_name, plan, org }
 //! Window  { kind: session | weekly | model_weekly | daily | credits | other, label, used_pct,
-//!           resets_at, window_seconds, scope_model?, source: api | local_log | cache | example,
-//!           fetched_at, unconfirmed, pace? }
+//!           resets_at, window_seconds, scope_model?,
+//!           source: api | local_log | cache | example | status_line, fetched_at, unconfirmed,
+//!           pace? }
 //! Pace    { pct_per_hour, runs_out_at? }
 //! Snapshot { account, windows[], extra_usage?, status: ok | stale | auth_required |
 //!            rate_limited | unsupported, error? }
@@ -15,6 +16,8 @@
 //! optional too: providers do not always report them (proposals P-001 and P-002 in
 //! `docs/DECISIONS.md`, approved by Matt). `Window.pace` comes from the daemon's history (P-016).
 //! The `example` source is the example build's alone (P-017, D-117): a release never sends it.
+//! `status_line` is a number an official CLI handed to QuotaDial through its status line, not one
+//! QuotaDial asked for (P-022, D-126).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -171,6 +174,9 @@ pub enum Source {
     /// Made up by QuotaDial's example build, for pictures of the app; a release never sends it.
     // The fake provider's (D-117), so no picture of an example is taken for a real account.
     Example,
+    /// Handed over by the official CLI's status line, which runs a command of QuotaDial's with its
+    /// numbers, as Antigravity CLI's does (P-022). QuotaDial asked no one for them.
+    StatusLine,
 }
 
 /// Everything QuotaDial knows about one account's usage at one moment.
@@ -603,6 +609,7 @@ mod tests {
             (Source::LocalLog, "local_log"),
             (Source::Cache, "cache"),
             (Source::Example, "example"),
+            (Source::StatusLine, "status_line"),
         ];
         for (source, expected) in sources {
             assert_eq!(

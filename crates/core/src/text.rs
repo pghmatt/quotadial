@@ -187,8 +187,9 @@ pub fn status_label(status: Status) -> &'static str {
     }
 }
 
-/// Where a number came from: `the API`, `local logs`, `cache`, or `the example build` for a number
-/// made up for pictures of the app (D-117).
+/// Where a number came from: `the API`, `local logs`, `cache`, `the example build` for a number
+/// made up for pictures of the app (D-117), or `the CLI's status line` for one the official CLI
+/// handed over (P-022), whose account names which CLI.
 #[must_use]
 pub fn source_label(source: Source) -> &'static str {
     match source {
@@ -196,6 +197,7 @@ pub fn source_label(source: Source) -> &'static str {
         Source::LocalLog => "local logs",
         Source::Cache => "cache",
         Source::Example => "the example build",
+        Source::StatusLine => "the CLI's status line",
     }
 }
 
@@ -353,6 +355,11 @@ mod tests {
             source_label(Source::Example),
             "the example build",
             "so an example is never taken for a real account's numbers"
+        );
+        assert_eq!(
+            source_label(Source::StatusLine),
+            "the CLI's status line",
+            "a number a CLI handed over, never one QuotaDial asked for (P-022)"
         );
     }
 
