@@ -15,10 +15,11 @@
 // the stale Codex account's from the cache, Antigravity's, the example account's one window) and under
 // each window of the one card whose windows do not (a Codex account's, which no provider makes today),
 // as the app's view model sends it (D-135).
-// Two copies of the app: Pro, with the
-// week's cost, a key kept and a Share image button on each account in History, and Free, with what
+// Three copies of the app: Pro, with the
+// week's cost, a key kept and a Share image button on each account in History; Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
-// daemon sends it, with no panel, and an example account, its provider shown once.
+// daemon sends it, with no panel, and an example account, its provider shown once; and Many, Pro
+// with nine accounts, which carry every view far past the window's tallest height (D-136).
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -26,7 +27,13 @@
 /** @typedef {import("../src/meter").AccountHistory} AccountHistory */
 /** @typedef {import("../src/meter").HelpView} HelpView */
 /** @typedef {import("../src/meter").UpdateView} UpdateView */
-/** @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView }} Copy */
+/**
+ * @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView, forScrolling?: boolean }} Copy
+ * `forScrolling` marks a copy made to scroll: the check puts the window's scrolling through its
+ * tests over this copy, once, in the light theme (the keys, the wheel, each view's top, the other
+ * sizes), and, since what it holds is checked on the other copies, does not press each of its
+ * controls from a window opened afresh or draw each account's picture to share over again.
+ */
 
 const LONG_NAME = "a.very.long.account.name.that.keeps.going@engineering.example.com";
 
@@ -296,6 +303,126 @@ const ACCOUNTS = [
 ];
 
 /**
+ * Three more accounts, which with the six above make nine: as many as a person with a few
+ * subscriptions each for work and for play has, and enough to carry the popover well past its
+ * tallest, so that its toolbar has to stay put while they scroll (D-136).
+ * @type {Meter["accounts"]}
+ */
+const MORE_ACCOUNTS = [
+  {
+    key: "claude:research@example.com",
+    alias: "Research",
+    summary: "Claude Research: Weekly 22%",
+    provider: "Claude",
+    name: "research@example.com",
+    plan: "Max 20x",
+    status: "ok",
+    ok: true,
+    fetched: "from the API 4 min ago",
+    windows: [
+      {
+        label: "Weekly",
+        used_pct: 22.4,
+        level: "normal",
+        resets: "resets in 5 d 7 h",
+        fetched: null,
+        unconfirmed: false,
+        pace: "at 0.2%/h, lasts until it resets",
+        runs_out: false,
+      },
+      {
+        label: "Session",
+        used_pct: 4.1,
+        level: "normal",
+        resets: "resets in 3 h 52 min",
+        fetched: null,
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    sign_in: CLAUDE_SIGN_IN,
+  },
+  {
+    key: "codex:ops@example.com",
+    alias: "Ops",
+    summary: "Codex Ops: Weekly 41%",
+    provider: "Codex",
+    name: "ops@example.com",
+    plan: "Plus",
+    status: "ok",
+    ok: true,
+    fetched: "from the API 2 min ago",
+    windows: [
+      {
+        label: "5-hour",
+        used_pct: 8,
+        level: "normal",
+        resets: "resets in 4 h 12 min",
+        fetched: null,
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+      {
+        label: "Weekly",
+        used_pct: 41,
+        level: "normal",
+        resets: "resets in 3 d 20 h",
+        fetched: null,
+        unconfirmed: false,
+        pace: "at 0.4%/h, lasts until it resets",
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    sign_in: CODEX_SIGN_IN,
+  },
+  {
+    key: "claude:sandbox@example.com",
+    alias: null,
+    summary: "Claude sandbox@example.com: Weekly 63%",
+    provider: "Claude",
+    name: "sandbox@example.com",
+    plan: "Pro",
+    status: "ok",
+    ok: true,
+    fetched: "from the API 3 min ago",
+    windows: [
+      {
+        label: "Weekly",
+        used_pct: 63,
+        level: "normal",
+        resets: "resets in 1 d 2 h",
+        fetched: null,
+        unconfirmed: false,
+        pace: "at 0.9%/h, lasts until it resets",
+        runs_out: false,
+      },
+      {
+        label: "Session",
+        used_pct: 17.5,
+        level: "normal",
+        resets: "resets in 1 h 5 min",
+        fetched: null,
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    sign_in: CLAUDE_SIGN_IN,
+  },
+];
+
+/** Nine accounts: the six above and three more. */
+const NINE = [...ACCOUNTS, ...MORE_ACCOUNTS];
+
+/**
  * An account as the example build sends it (D-117): called Example under the provider Example, so
  * the app leaves its name out and the provider shows once in its heading and summary.
  * @type {Meter["accounts"][number]}
@@ -347,6 +474,21 @@ const METER = {
   left_out: [],
 };
 
+/**
+ * What Settings lists to name, for each of `accounts`.
+ *
+ * @param {Meter["accounts"]} accounts
+ * @returns {Settings["accounts"]}
+ */
+function choices(accounts) {
+  return accounts.map((account) => ({
+    key: account.key,
+    provider: account.provider,
+    name: account.name,
+    alias: account.alias ?? "",
+  }));
+}
+
 /** @type {Settings} */
 const SETTINGS = {
   launch_at_login: true,
@@ -368,12 +510,7 @@ const SETTINGS = {
     { id: "gemini", name: "Gemini CLI", shown: true },
     { id: "antigravity", name: "Antigravity", shown: true },
   ],
-  accounts: ACCOUNTS.map((account) => ({
-    key: account.key,
-    provider: account.provider,
-    name: account.name,
-    alias: account.alias ?? "",
-  })),
+  accounts: choices(ACCOUNTS),
   licence: { text: "QuotaDial Pro, licence 1234.", kept: true, adds: [] },
   check_updates: true,
 };
@@ -485,14 +622,15 @@ function accountHistory(account, days) {
 /**
  * @param {7 | 30} days
  * @param {string | null} shareLeftOut
+ * @param {Meter["accounts"]} [accounts] the accounts it charts, those with windows
  * @returns {HistoryView}
  */
-function history(days, shareLeftOut) {
+function history(days, shareLeftOut, accounts = ACCOUNTS) {
   return {
     days,
     span: `The last ${days} days.`,
     dates: DATES[days],
-    accounts: ACCOUNTS.filter((account) => account.windows.length > 0).map((account) =>
+    accounts: accounts.filter((account) => account.windows.length > 0).map((account) =>
       accountHistory(account, days),
     ),
     share_left_out: shareLeftOut,
@@ -565,6 +703,21 @@ export const pro = {
     busy: false,
     progress: null,
   },
+};
+
+/**
+ * QuotaDial Pro with nine accounts (D-136): the popover's accounts, and each panel's, run far past
+ * the window's tallest height, so the check sees the toolbar stay at the window's foot while they
+ * scroll, from the top to the last card.
+ *
+ * @type {Copy}
+ */
+export const many = {
+  ...pro,
+  meter: { ...pro.meter, accounts: NINE },
+  settings: { ...SETTINGS, accounts: choices(NINE) },
+  history: { 7: history(7, null, NINE), 30: history(30, null, NINE) },
+  forScrolling: true,
 };
 
 /** @type {Copy} */

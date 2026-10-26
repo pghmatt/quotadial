@@ -21,6 +21,11 @@
 //   given it or its provider's, then its address, inside the card;
 // - one toolbar at the foot of every view: History, Settings and Help under the accounts, Done
 //   under a panel, which has no Done of its own, and Quit set apart at its far end;
+// - the toolbar stays at the window's foot while the accounts scroll above it, at every place along
+//   the scroll, with nothing drawn under it and a hairline over it only while content is hidden below
+//   it, scrolled by the keys, the wheel and Tab, in the order Tab and a screen reader have always
+//   had, the app told the height of the whole of what it holds, and, in a window under 300 px, as at
+//   220% zoom and more, the whole page scrolling as one (D-136);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -34,12 +39,15 @@
 //   a chart, each read from the PNG's own pixels (share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
-// QuotaDial Pro and a QuotaDial Free copy, with the made-up accounts in window-fixtures.mjs answering
-// in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
+// QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with nine accounts, with the made-up accounts
+// in window-fixtures.mjs answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
-// picture of each view, `-- --share-images <folder>` saves the picture to share of each account in
-// each copy and theme, `-- --only "pro, dark"` checks only the views named so, and
+// picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
+// pictures of each view as the window shows it, no taller than the app lets it be, at the top and
+// half way down what scrolls (`-- --window-zoom 2` at 200% zoom), `-- --share-images <folder>`
+// saves the picture to share of each
+// account in each copy and theme, `-- --only "pro, dark"` checks only the views named so, and
 // `-- --fixtures <module>` answers from another set of copies (the website's pictures use
 // `site-fixtures.mjs`). Fails, naming the view and the control, when a check does not pass.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -82,6 +90,12 @@ const KEYS = {
   Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
   Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" },
   Space: { key: " ", code: "Space", windowsVirtualKeyCode: 32, text: " " },
+  PageUp: { key: "PageUp", code: "PageUp", windowsVirtualKeyCode: 33 },
+  PageDown: { key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 },
+  End: { key: "End", code: "End", windowsVirtualKeyCode: 35 },
+  Home: { key: "Home", code: "Home", windowsVirtualKeyCode: 36 },
+  ArrowUp: { key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 },
+  ArrowDown: { key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 },
 };
 const SHIFT = 8;
 
@@ -381,7 +395,7 @@ const STATE = `JSON.stringify({
   checked: [...document.querySelectorAll('input[type=checkbox]')].map((box) => box.checked),
   pressed: [...document.querySelectorAll('[aria-pressed]')].map((button) => button.getAttribute('aria-pressed')),
   values: [...document.querySelectorAll('input[type=text]')].map((field) => field.value),
-  panels: [...document.querySelectorAll('main > section')].map((section) => section.className),
+  panels: [...document.querySelectorAll('main .content > section')].map((section) => section.className),
 })`;
 
 /**
@@ -412,7 +426,11 @@ const CUT_OFF = `(() => {
         const style = getComputedStyle(box);
         if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
         const edge = box.getBoundingClientRect();
-        if (rect.left < edge.left - 0.5 || rect.right > edge.right + 0.5 || rect.top < edge.top - 0.5 || rect.bottom > edge.bottom + 0.5) {
+        // What a box that scrolls holds beyond its top or its bottom is reached by scrolling, so it
+        // is not cut off there; beyond its sides, which never scroll, it is.
+        const scrolls = style.overflowY === 'auto' || style.overflowY === 'scroll';
+        const beyondEnds = !scrolls && (rect.top < edge.top - 0.5 || rect.bottom > edge.bottom + 0.5);
+        if (rect.left < edge.left - 0.5 || rect.right > edge.right + 0.5 || beyondEnds) {
           clipped = box;
           break;
         }
@@ -492,7 +510,7 @@ const CARDS = `(() => {
     const style = getComputedStyle(element);
     return { top, bottom, left, right, width, height, shown: element.getClientRects().length > 0 && style.visibility !== 'hidden' && Number(style.opacity) > 0 && !element.closest('.visually-hidden') };
   };
-  return [...document.querySelectorAll('main > .card')].map((card) => {
+  return [...document.querySelectorAll('main .content > .card')].map((card) => {
     const heading = card.querySelector('h2');
     const address = card.querySelector('.address');
     const name = card.querySelector('.address .name');
@@ -612,16 +630,31 @@ class View {
     );
   }
 
+  /** Where what scrolls has got to once it has stopped, since a key's or a wheel's scroll glides. */
+  async scrolled() {
+    let last = null;
+    for (let tries = 0; tries < 50; tries += 1) {
+      const now = await this.evaluate(`(${SCROLLER}).scrollTop`);
+      if (now === last) {
+        return now;
+      }
+      last = now;
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    return last;
+  }
+
   /**
    * Shows the page as the window does at `zoom`: zooming in narrows it in CSS pixels. Where scroll
    * bars take no room, as on a Mac by default, the page is narrowed by a scroll bar as well, so
-   * every system checks the room Windows and Linux leave.
+   * every system checks the room Windows and Linux leave. The window is its tallest unless
+   * `height` says, in CSS pixels, how tall it is.
    */
-  async zoom(zoom) {
+  async zoom(zoom, height = Math.round(HEIGHT / zoom)) {
     this.bar ??= (await this.evaluate(SCROLL_BAR)) > 0 ? 0 : CLASSIC_BAR;
     await this.send("Emulation.setDeviceMetricsOverride", {
       width: Math.round(WIDTH / zoom) - this.bar,
-      height: Math.round(HEIGHT / zoom),
+      height,
       deviceScaleFactor: zoom,
       mobile: false,
     });
@@ -640,15 +673,19 @@ class View {
     await this.send("Page.navigate", { url: this.url });
     await loaded;
     await this.until("!!document.querySelector('footer')", "the window showing the accounts");
-    if (panel === "accounts") {
-      return;
+    if (panel !== "accounts") {
+      await this.open(panel);
     }
+  }
+
+  /** Opens `panel` from the footer, by keyboard, from where the focus is. */
+  async open(panel) {
     for (let presses = 0; presses < 40; presses += 1) {
       await this.press("Tab");
       if ((await this.evaluate(FOCUSED)).opener === panel) {
         await this.press(OPEN_WITH[panel]);
         await this.until(
-          `!!document.querySelector('main > section.${panel} h2')`,
+          `!!document.querySelector('main .content > section.${panel} h2')`,
           `the ${panel} panel opening`,
         );
         return;
@@ -756,7 +793,7 @@ function toldProblem(tag, type, told) {
 }
 
 /** The checks over one panel of one copy in one theme. */
-async function checkView(view, panel, operate, copy) {
+async function checkView(view, panel, operate, copy, light) {
   const label = view.label;
   await view.load(panel);
   const focused = await view.evaluate(FOCUSED);
@@ -777,6 +814,8 @@ async function checkView(view, panel, operate, copy) {
       break;
     }
     check(label, !now.ring && `"${controls[index]}" does not draw the window's focus ring`);
+    const seen = await view.evaluate(FOCUS_IN_VIEW);
+    check(label, seen !== true && `"${controls[index]}" ${seen}, when Tab reaches it`);
     const [tag, type] = kinds[index];
     const told = await view.told(index);
     const problem = toldProblem(tag, tag === "input" ? type : null, told);
@@ -808,6 +847,10 @@ async function checkView(view, panel, operate, copy) {
     await checkHeadings(view, copy, panel);
   }
   await checkToolbar(view, panel);
+  // The order does not change with the theme.
+  if (light) {
+    await checkOrder(view, copy, panel);
+  }
 
   // Nothing moves, and no text is cut off at 100% or 200%.
   for (const problem of await view.evaluate(MOVING)) {
@@ -818,6 +861,7 @@ async function checkView(view, panel, operate, copy) {
     await view.settle();
     const cut = await view.evaluate(CUT_OFF);
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
+    await checkFrame(view, zoom);
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
@@ -825,6 +869,19 @@ async function checkView(view, panel, operate, copy) {
     }
   }
   await view.zoom(1);
+  // What the app is told does not change with the theme, nor does how the window scrolls: once.
+  if (light) {
+    await checkFit(view);
+  }
+  if (light && copy.forScrolling) {
+    await checkKeys(view, panel);
+    await checkWheel(view, panel);
+    if (panel === "accounts") {
+      await checkSizes(view);
+      await checkStop(view);
+      await checkTop(view);
+    }
+  }
 
   // Each control does what it says from the keyboard, each on a window opened afresh.
   if (operate) {
@@ -928,7 +985,7 @@ async function checkCards(view, copy, zoom) {
     check(label, outside && `${what}'s address is not inside its card`);
     check(label, name.select !== "text" && `${what}'s address cannot be selected to copy it (user-select: ${name.select})`);
     if (zoom === 1) {
-      const called = await view.called("main > section.account", index);
+      const called = await view.called("main .content > section.account", index);
       const heard = called !== null && called.includes(title) && called.includes(account.name);
       check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
     }
@@ -992,7 +1049,7 @@ const TOOLBAR = `({
     const { left, right, top } = button.getBoundingClientRect();
     return { text: button.textContent.trim(), left, right, top };
   }),
-  panelDone: [...document.querySelectorAll('main > section button')].filter((button) => button.textContent.trim() === 'Done').length,
+  panelDone: [...document.querySelectorAll('main .content > section button')].filter((button) => button.textContent.trim() === 'Done').length,
 })`;
 
 /**
@@ -1071,7 +1128,7 @@ const SOURCES = `(() => {
   };
   const words = (element) => element.textContent.replace(/\\s+/g, ' ').trim();
   const follows = (first, second) => !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
-  return [...document.querySelectorAll('main > section.account')].map((card) => {
+  return [...document.querySelectorAll('main .content > section.account')].map((card) => {
     const heading = card.querySelector('h2');
     const list = card.querySelector('ul.windows');
     const panel = card.querySelector('details.sign-in');
@@ -1241,6 +1298,423 @@ async function checkCommands(view, copy, panel) {
     const selected = await view.clickAndSelect("main code", index);
     check(label, selected !== command && `a click on "${command}" selects "${selected}", not the whole command`);
   }
+}
+
+/**
+ * The shortest window, in CSS pixels, in which the toolbar stays at its foot while the accounts
+ * scroll above it (`min-height` in style.css, D-136). The 640 px window is 320 CSS pixels tall at
+ * 200% zoom, where the toolbar must stay, as the manager held on #73; the app zooms on past that, to
+ * 500% and more, and in a window shorter than this the whole page scrolls as one.
+ */
+const PINNED_FROM = 300;
+
+/**
+ * The least room, in CSS pixels, that what scrolls is left in a window that keeps its toolbar at its
+ * foot, with the toolbar and the origin line at their tallest, at the check's narrowest width: a
+ * card's heading and a window. At 200% zoom it is about 200, and in the shortest window that keeps
+ * the toolbar, 300 px tall, about 170 (D-136).
+ */
+const ROOM = 160;
+
+/**
+ * In the page: how the window is held together: the window, the page's own scroll, the part that
+ * scrolls with how far it is scrolled, and the footer with where it is, the line drawn along its
+ * head and, for each button of its toolbar, where it is and whether a click at its middle would
+ * reach it. A window with no part that scrolls of its own is read as one whose whole page is that
+ * part, which is how it scrolls.
+ */
+const FRAME = `(() => {
+  const rect = (element) => {
+    const { top, bottom, left, right } = element.getBoundingClientRect();
+    return { top, bottom, left, right };
+  };
+  const main = document.querySelector('main');
+  const footer = main.querySelector('footer');
+  if (!footer) {
+    return null;
+  }
+  const region = main.querySelector(':scope > .scroll') ?? main;
+  const page = document.scrollingElement;
+  return {
+    window: { width: window.innerWidth, height: window.innerHeight },
+    page: { top: page.scrollTop, height: page.scrollHeight },
+    region: { ...rect(region), overflow: getComputedStyle(region).overflowY, top: region.scrollTop, height: region.scrollHeight, shown: region.clientHeight },
+    footer: { ...rect(footer), line: getComputedStyle(footer).boxShadow },
+    buttons: [...footer.querySelectorAll('.toolbar > button')].map((button) => {
+      const box = button.getBoundingClientRect();
+      const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { text: button.textContent.trim(), ...rect(button), reachable: !!at && (at === button || button.contains(at)) };
+    }),
+  };
+})()`;
+
+/** In the page: scrolls what scrolls to `along` of its way, 0 at its top and 1 at its end. */
+const SCROLL_TO = (along) => `(() => {
+  const scroller = ${SCROLLER};
+  scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
+})()`;
+
+/**
+ * Whether `shadow`, an element's computed `box-shadow`, is a hairline along its head: inset, with
+ * no blur and no spread, a pixel thick at most, and in a colour that shows.
+ */
+function hairline(shadow) {
+  const found = shadow.match(/^rgba?\(([^)]+)\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px\s+(-?[\d.]+)px\s+inset$/);
+  if (!found) {
+    return false;
+  }
+  const alpha = found[1].split(",").map(Number)[3] ?? 1;
+  const [across, down, blur, spread] = found.slice(2).map(Number);
+  return across === 0 && blur === 0 && spread === 0 && down >= 0.4 && down <= 1.01 && alpha >= 0.05;
+}
+
+/**
+ * The toolbar stays at the window's foot while the accounts scroll above it (D-136, from the
+ * owner's ask of 2026-10-26 to make the window more professional): in a window at least
+ * `PINNED_FROM` tall, at each of five places along the scroll from the top to the end, every button
+ * of the toolbar is inside the window and is what a click at its middle reaches, the toolbar has
+ * not moved, the part that scrolls ends where the toolbar begins, so nothing is drawn under it, the
+ * page itself does not scroll but that part does, to its very end, with no animation, and a
+ * hairline is drawn along the toolbar's head exactly while content is hidden below it; and that
+ * part is left at least `ROOM` to scroll. In a shorter window everything scrolls as one, as it did
+ * before: the toolbar is in the window at the end of the page, no line is drawn, and the part with
+ * the accounts does not scroll of itself.
+ */
+async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
+  const label = `${view.label}, the toolbar at ${Math.round(zoom * 100)}% in a window ${height} px tall`;
+  await view.zoom(zoom, height);
+  await view.settle();
+  const go = async (along) => {
+    await view.evaluate(SCROLL_TO(along));
+    await view.settle();
+    return view.evaluate(FRAME);
+  };
+  const top = await go(0);
+  if (!top) {
+    check(label, "the window has no toolbar");
+    return;
+  }
+  const pinned = height >= PINNED_FROM;
+  const scrolls = top.region.overflow !== "visible";
+  check(label, pinned && !scrolls && `the accounts do not scroll above the toolbar, so the toolbar goes with them (overflow-y is ${top.region.overflow})`);
+  check(label, !pinned && scrolls && `the toolbar is kept in place in a window under ${PINNED_FROM} px, where it takes too great a part of it`);
+
+  if (!pinned) {
+    // Everything scrolls as one: the page, to its end, with the toolbar at its foot.
+    const end = await go(1);
+    check(label, end.region.height - end.region.shown > 1 && "the accounts scroll of themselves as well as the page");
+    const range = end.page.height - end.window.height;
+    check(label, range > 1 && Math.abs(end.page.top - range) > 1.5 && `the page scrolls to ${end.page.top}, not to its end at ${range}`);
+    check(label, end.buttons.some((button) => button.top < -0.5 || button.bottom > end.window.height + 0.5) && "the toolbar is not in the window at the end of the page");
+    check(label, end.buttons.some((button) => !button.reachable) && "a click at the middle of a toolbar button at the end of the page would not reach it");
+    for (const along of [0, 1]) {
+      check(label, hairline((await go(along)).footer.line) && "a line is drawn above the toolbar though the whole page scrolls as one");
+    }
+    return;
+  }
+
+  const hidden = top.region.height - top.region.shown;
+  check(label, hidden > 1 && top.region.shown < ROOM && `only ${top.region.shown} px is left to scroll above the toolbar, under the ${ROOM} px a window this tall must leave`);
+  for (const along of [0, 0.25, 0.5, 0.75, 1]) {
+    const now = await go(along);
+    const at = `${along * 100}% of the way down`;
+    const names = now.buttons.map((button) => button.text).join(", ");
+    check(label, now.buttons.some((button) => button.top < -0.5 || button.bottom > now.window.height + 0.5) && `the toolbar (${names}) is not inside the window at ${at}`);
+    check(label, now.buttons.some((button) => !button.reachable) && `a click at the middle of a toolbar button (${names}) at ${at} would not reach it`);
+    check(label, Math.abs(now.footer.top - top.footer.top) > 0.5 && `the toolbar moves at ${at}, from ${top.footer.top} to ${now.footer.top}`);
+    check(label, now.region.bottom > now.footer.top + 0.5 && `the part that scrolls reaches ${(now.region.bottom - now.footer.top).toFixed(1)} px under the toolbar at ${at}`);
+    check(label, (now.page.top !== 0 || now.page.height > now.window.height + 1) && `the page itself scrolls at ${at}, not only the accounts`);
+    // A line along the toolbar's head exactly while content is hidden below that edge.
+    const below = hidden - now.region.top > 1.5;
+    check(label, hairline(now.footer.line) !== below && `${below ? "no line is" : "a line is"} drawn above the toolbar at ${at}, where content is ${below ? "" : "not "}hidden below it`);
+    if (hidden > 1) {
+      check(label, Math.abs(now.region.top - Math.round(hidden * along)) > 1.5 && `the accounts are scrolled to ${now.region.top} at ${at}, not ${Math.round(hidden * along)}`);
+    }
+  }
+  // Scrolling is not animated: what is asked for is there at once, with less motion asked for.
+  if (hidden >= 100) {
+    const jumped = await view.evaluate(`(() => { const scroller = ${SCROLLER}; scroller.scrollTop = 0; scroller.scrollTop = 100; return scroller.scrollTop; })()`);
+    check(label, jumped !== 100 && "scrolling is animated, with less motion asked for");
+  }
+}
+
+/**
+ * The window can be as tall as the most it may be, and the app is told how tall everything is. Once
+ * the window is capped, the popover's own height stops growing with what it holds, so unless the
+ * app is told what the part that scrolls holds beyond its edge, the window could never grow back
+ * and a window made short by a small view would stay short. The app is told what the window holds,
+ * whole, as measured with room for all of it; and told again, to the pixel, when more is put into
+ * the window, or taken out of it, while it is at its tallest.
+ */
+async function checkFit(view) {
+  const label = `${view.label}, the height the app is told`;
+  await view.zoom(1);
+  await view.settle();
+  const told = () => view.evaluate("window.__check.calls.filter((call) => call.cmd === 'fit').at(-1)?.args ?? null");
+  const first = await told();
+  if (!first) {
+    check(label, "the window never told the app how tall it needs to be");
+    return;
+  }
+  await view.zoom(1, 12000);
+  await view.settle();
+  const whole = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+  check(label, first.height !== whole && `the app is told ${first.height} px, though what the window holds is ${whole} px tall`);
+  await view.zoom(1);
+  await view.settle();
+  const put = 123;
+  await view.evaluate(`(() => {
+    const spacer = document.createElement('div');
+    spacer.id = 'check-spacer';
+    spacer.style.height = '${put}px';
+    document.querySelector('main .content').append(spacer);
+  })()`);
+  await view.settle();
+  const grown = await told();
+  check(label, grown.height !== first.height + put && `the app is told ${grown.height} px when ${put} px is put into the window, not ${first.height + put}`);
+  await view.evaluate("document.getElementById('check-spacer').remove()");
+  await view.settle();
+  const shrunk = await told();
+  check(label, shrunk.height !== first.height && `the app is told ${shrunk.height} px when what was put in is taken out, not ${first.height}`);
+}
+
+/**
+ * A person who scrolls by keyboard has what a page has: with the focus in the part that scrolls, the
+ * arrows, Page Up and Page Down, Home and End scroll it, and Space too where the focus is on nothing
+ * that Space presses, as it is on a panel when it opens.
+ */
+async function checkKeys(view, panel) {
+  const label = `${view.label}, scrolling by keyboard`;
+  await view.zoom(1);
+  await view.load(panel);
+  const hidden = await view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region ? region.scrollHeight - region.clientHeight : 0; })()");
+  if (hidden < 300) {
+    return;
+  }
+  await view.evaluate(FOCUSABLE);
+  if (panel === "accounts") {
+    await view.press("Tab");
+  }
+  let at = await view.scrolled();
+  const down = panel === "accounts" ? ["ArrowDown", "PageDown", "End"] : ["ArrowDown", "PageDown", "Space", "End"];
+  for (const key of down) {
+    await view.press(key);
+    const now = await view.scrolled();
+    check(label, at < hidden - 1 && now <= at && `${key} does not scroll the part with the accounts down (${at}, then ${now})`);
+    at = now;
+  }
+  check(label, Math.abs(at - hidden) > 1.5 && `End leaves it at ${at}, not at its end, ${hidden}`);
+  for (const key of ["ArrowUp", "PageUp", "Home"]) {
+    await view.press(key);
+    const now = await view.scrolled();
+    check(label, at > 0.5 && now >= at && `${key} does not scroll it up (${at}, then ${now})`);
+    at = now;
+  }
+  check(label, at > 0.5 && `Home leaves it at ${at}, not at its top`);
+}
+
+/**
+ * In the page: `true` when the control with the focus is in view with its focus ring, inside what
+ * shows it, or what is wrong. The ring is drawn 2 px out from a control and is 2 px thick.
+ */
+const FOCUS_IN_VIEW = `(() => {
+  const element = document.activeElement;
+  const box = element.getBoundingClientRect();
+  const ring = 4;
+  const region = document.querySelector('main > .scroll');
+  const scrolls = !!region && region.contains(element) && region !== element && getComputedStyle(region).overflowY !== 'visible';
+  const shows = scrolls ? region.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+  if (box.top - ring < shows.top - 0.5) return 'is above what shows it, or its ring is cut off by that edge';
+  if (box.bottom + ring > shows.bottom + 0.5) return 'is below what shows it, or its ring is cut off by that edge, or it is under the toolbar';
+  return true;
+})()`;
+
+/** In the page: where each control Tab reaches is, in the order Tab reaches them. */
+const STOP_PLACES = `(() => {
+  const region = document.querySelector('main > .scroll');
+  const footer = document.querySelector('main > footer');
+  return window.__focusables.map((element) => (region?.contains(element) ? 'content' : footer?.contains(element) ? 'toolbar' : 'elsewhere'));
+})()`;
+
+/**
+ * The words a screen reader meets, in the order it reads them: the accessibility tree's text and
+ * buttons, depth first.
+ */
+async function readOrder(view) {
+  const { nodes } = await view.send("Accessibility.getFullAXTree");
+  const byId = new Map(nodes.map((node) => [node.nodeId, node]));
+  const heard = [];
+  const walk = (node) => {
+    if (!node) {
+      return;
+    }
+    const name = String(node.name?.value ?? "").trim();
+    if (!node.ignored && name && ["StaticText", "button"].includes(node.role?.value)) {
+      heard.push(name);
+    }
+    for (const id of node.childIds ?? []) {
+      walk(byId.get(id));
+    }
+  };
+  walk(nodes[0]);
+  return heard;
+}
+
+/**
+ * Tab reaches what is in the scrolling part first and the toolbar after, as it always has, and a
+ * screen reader reads in the same order: the number's line, then the accounts or the panel, then
+ * the toolbar's buttons, then where the numbers come from.
+ */
+async function checkOrder(view, copy, panel) {
+  const label = `${view.label}, order`;
+  await view.evaluate(FOCUSABLE);
+  const places = (await view.evaluate(STOP_PLACES)).join(" ");
+  check(label, !/^(content )*(toolbar ?)+$/.test(places) && `Tab reaches ${places}, not the scrolling part's controls and then the toolbar's`);
+  const heard = await readOrder(view);
+  const { meter } = copy;
+  const accounts = meter.accounts;
+  const [first, last] = [accounts[0], accounts.at(-1)].map((account) => account.alias ?? account.provider);
+  const toolbar = heard.indexOf(panel === "accounts" ? "History" : "Done");
+  const quit = heard.indexOf("Quit QuotaDial");
+  check(label, toolbar < 0 && "a screen reader does not read the toolbar's first button");
+  if (meter.headline) {
+    const line = heard.indexOf(meter.headline);
+    const body = heard.indexOf(panel === "accounts" ? first : panel[0].toUpperCase() + panel.slice(1));
+    check(label, !(line >= 0 && line < body) && `a screen reader does not read the line under the number before the ${panel === "accounts" ? "first account" : "panel"}`);
+  }
+  // Nothing of the accounts or the panel is read after the toolbar begins.
+  const end = panel === "accounts" ? heard.lastIndexOf(last) : heard.lastIndexOf("Export CSV");
+  check(label, panel === "accounts" && end > toolbar && `a screen reader reads "${last}", the last account, after the toolbar`);
+  check(label, !(toolbar < quit) && "a screen reader does not read Quit QuotaDial after the toolbar's first button");
+  if (meter.origin) {
+    check(label, heard.indexOf(meter.origin) < quit && `a screen reader reads "${meter.origin}" before the toolbar`);
+  }
+}
+
+/**
+ * The part that scrolls is the one a wheel scrolls: a wheel over the accounts scrolls them and
+ * leaves the page and the toolbar where they are, and one over the toolbar scrolls nothing.
+ */
+async function checkWheel(view, panel) {
+  const label = `${view.label}, scrolling by wheel`;
+  await view.zoom(1);
+  await view.load(panel);
+  const before = await view.evaluate(FRAME);
+  if (!before || before.region.height - before.region.shown < 300) {
+    return;
+  }
+  const wheel = async (x, y) => {
+    await view.send("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: 0, deltaY: 300 });
+    await view.scrolled();
+    return view.evaluate(FRAME);
+  };
+  const over = await wheel(before.window.width / 2, (before.region.top + before.region.bottom) / 2);
+  check(label, over.region.top <= 0.5 && "a wheel over the accounts does not scroll them");
+  check(label, over.page.top !== 0 && "a wheel over the accounts scrolls the page");
+  check(label, Math.abs(over.footer.top - before.footer.top) > 0.5 && "a wheel over the accounts moves the toolbar");
+  const [button] = over.buttons;
+  const at = over.region.top;
+  const onToolbar = await wheel((button.left + button.right) / 2, (button.top + button.bottom) / 2);
+  check(label, Math.abs(onToolbar.region.top - at) > 0.5 && "a wheel over the toolbar scrolls the accounts");
+  check(label, onToolbar.page.top !== 0 && "a wheel over the toolbar scrolls the page");
+}
+
+/**
+ * A keyboard can scroll the part with the accounts even when nothing in it is a control: with no
+ * summary, button, link or field in it for Tab to reach, it is a Tab stop itself, named for a
+ * screen reader, drawing the window's ring and scrolled by the keys that scroll a page. Chrome makes
+ * such a part a Tab stop of its own accord, and WebKit, which draws the app on macOS and Linux,
+ * does not.
+ */
+async function checkStop(view) {
+  const label = `${view.label}, nothing else to reach`;
+  await view.zoom(1);
+  await view.load("accounts");
+  const emptied = await view.evaluate(`(() => {
+    const region = document.querySelector('main > .scroll');
+    if (!region) return false;
+    region.querySelectorAll('summary, button, a, input').forEach((control) => control.remove());
+    return true;
+  })()`);
+  if (!emptied) {
+    return;
+  }
+  await view.settle();
+  const found = await view.evaluate(`(() => {
+    const region = document.querySelector('main > .scroll');
+    return { tab: region.getAttribute('tabindex'), role: region.getAttribute('role'), name: region.getAttribute('aria-label'), hidden: region.scrollHeight - region.clientHeight };
+  })()`);
+  if (found.hidden <= 1) {
+    return;
+  }
+  check(label, found.tab !== "0" && "the part with the accounts is not a Tab stop though nothing else in it is one");
+  check(label, (found.role !== "region" || !found.name) && `it is not a named region for a screen reader (${found.role}, "${found.name}")`);
+  await view.evaluate(FOCUSABLE);
+  await view.press("Tab");
+  const now = await view.evaluate(FOCUSED);
+  check(label, now.what !== 'div "Accounts"' && `Tab reached ${now.what}, not the part with the accounts`);
+  check(label, !now.ring && "the part with the accounts does not draw the window's focus ring when Tab reaches it");
+  for (const key of ["Space", "PageDown"]) {
+    await view.press("Home");
+    const at = await view.scrolled();
+    await view.press(key);
+    const next = await view.scrolled();
+    check(label, next <= at && `${key} does not scroll it when it has the focus (${at}, then ${next})`);
+  }
+}
+
+/**
+ * Each view opens at its top, however far the one before it was scrolled: History, opened with the
+ * accounts scrolled to their middle, shows its own first line, and Done, pressed with History
+ * scrolled, shows the accounts from their first.
+ */
+async function checkTop(view) {
+  const label = `${view.label}, each view at its top`;
+  await view.zoom(1);
+  await view.load("accounts");
+  const room = () => view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region ? region.scrollHeight - region.clientHeight : 0; })()");
+  if ((await room()) < 300) {
+    return;
+  }
+  await view.evaluate(SCROLL_TO(0.5));
+  await view.settle();
+  await view.open("history");
+  await view.settle();
+  const opened = await view.scrolled();
+  check(label, opened > 0.5 && `History opens ${opened} px down, not at its top`);
+  if ((await room()) < 300) {
+    return;
+  }
+  await view.evaluate(SCROLL_TO(0.5));
+  await view.settle();
+  for (let presses = 0; presses < 40; presses += 1) {
+    await view.press("Tab");
+    if ((await view.evaluate(FOCUSED)).what === 'button "Done"') {
+      await view.press("Enter");
+      break;
+    }
+  }
+  await view.until("!!document.querySelector('main .content > section.account')", "the accounts coming back");
+  await view.settle();
+  const back = await view.scrolled();
+  check(label, back > 0.5 && `Done shows the accounts ${back} px down, not from their first`);
+}
+
+/**
+ * The toolbar kept in frame at the other sizes the window is shown at: zoomed to 125% and 150%, to
+ * 210%, the zoom at which the window is the shortest that keeps it, and to 220%, which a Mac's zoom
+ * keys reach in a step after 200%, and 250%, which Windows' zoom reaches, where the page scrolls as
+ * one; and, at full width, in windows a pixel either side of that height and in one tall enough to
+ * hold everything.
+ */
+async function checkSizes(view) {
+  for (const zoom of [1.25, 1.5, 2.1, HEIGHT / PINNED_FROM, 2.2, 2.5]) {
+    await checkFrame(view, zoom);
+  }
+  for (const height of [PINNED_FROM - 1, PINNED_FROM, 4000]) {
+    await checkFrame(view, 1, height);
+  }
+  await view.zoom(1);
 }
 
 /** The CRC-32 a PNG chunk ends with. */
@@ -1609,11 +2083,41 @@ function drawingVerdicts(drawn, listed, account, copy, look) {
   return verdicts;
 }
 
+/**
+ * In the page: what scrolls when a person scrolls the window: the scrolling part between the
+ * summary and the toolbar while it scrolls, and the whole page when it does not (at 200% zoom, in a
+ * short window, or in a window made before the toolbar stayed put).
+ */
+const SCROLLER = `(() => {
+  const region = document.querySelector('main > .scroll');
+  const scrolls = !!region && getComputedStyle(region).overflowY !== 'visible' && region.scrollHeight > region.clientHeight;
+  return scrolls ? region : document.scrollingElement;
+})()`;
+
+/**
+ * In the page: the height of the whole of what the window holds, in CSS pixels, which the window's
+ * own height caps once what it holds is taller than it may be: the popover's own height and what its
+ * scrolling part holds beyond its bottom edge.
+ */
+const WHOLE = `(() => {
+  const main = document.querySelector('main');
+  const region = main.querySelector(':scope > .scroll');
+  const beyond = region && getComputedStyle(region).overflowY !== 'visible' ? region.scrollHeight - region.clientHeight : 0;
+  return Math.ceil(main.getBoundingClientRect().height + beyond);
+})()`;
+
+/**
+ * A picture of the whole of the window's content, as the website and the README show it: the
+ * window as tall as what it holds, whatever the most the app lets it be.
+ */
 async function screenshot(view, panel, folder) {
   await view.load(panel);
+  await view.settle();
+  // Room to spare, so that the window is never the shorter of the two.
+  const needed = (await view.evaluate(WHOLE)) + 200;
   await view.send("Emulation.setDeviceMetricsOverride", {
     width: WIDTH,
-    height: HEIGHT,
+    height: Math.max(HEIGHT, needed),
     deviceScaleFactor: 2,
     mobile: false,
   });
@@ -1630,13 +2134,51 @@ async function screenshot(view, panel, folder) {
   await view.zoom(1);
 }
 
+/**
+ * Pictures of the window as a person sees it, zoomed in as far as `zoom` says: no taller than the
+ * most the app lets it be, with whatever scrolls at its top and half way down its length, `-top`
+ * and `-half` after the view's name. A window that does not scroll is the same in both.
+ */
+async function windowPictures(view, panel, folder, zoom) {
+  await view.load(panel);
+  // As many pixels as the window has at 2x, whatever the zoom.
+  await view.send("Emulation.setDeviceMetricsOverride", {
+    width: WIDTH / zoom,
+    height: HEIGHT / zoom,
+    deviceScaleFactor: 2 * zoom,
+    mobile: false,
+  });
+  await view.evaluate("document.activeElement.blur()");
+  for (const [place, along] of [["top", 0], ["half", 0.5]]) {
+    await view.evaluate(`(() => {
+      const scroller = ${SCROLLER};
+      scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
+    })()`);
+    await view.settle();
+    const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+    // The clip is in the page's own coordinates, so a page that is scrolled is clipped from where it is.
+    const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
+    const { data } = await view.send("Page.captureScreenshot", {
+      format: "png",
+      clip: { x: 0, y: scrolled, width: WIDTH / zoom, height: Math.min(HEIGHT / zoom, Math.max(120 / zoom, height)), scale: 1 },
+    });
+    const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
+    writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
+  }
+  await view.zoom(1);
+}
+
 async function main() {
   const at = process.argv.indexOf("--screenshots");
   const pictures = at > 0 ? resolve(process.argv[at + 1] ?? "") : null;
   const sharing = process.argv.indexOf("--share-images");
   const shares = sharing > 0 ? resolve(process.argv[sharing + 1] ?? "") : null;
+  const framing = process.argv.indexOf("--window-pictures");
+  const windows = framing > 0 ? resolve(process.argv[framing + 1] ?? "") : null;
+  const zooming = process.argv.indexOf("--window-zoom");
+  const windowZoom = zooming > 0 ? Number(process.argv[zooming + 1]) : 1;
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
-  for (const folder of [pictures, shares]) {
+  for (const folder of [pictures, shares, windows]) {
     if (folder) {
       mkdirSync(folder, { recursive: true });
     }
@@ -1667,14 +2209,18 @@ async function main() {
           }
           const view = await View.open(tools, label, url, copy, theme);
           try {
-            // Pressing each control is the same in either theme, so once is enough.
-            await checkView(view, panel, theme === "light", copy);
+            // Pressing each control is the same in either theme, so once is enough, and a copy
+            // made to scroll has its controls pressed on the others.
+            await checkView(view, panel, theme === "light" && !copy.forScrolling, copy, theme === "light");
             // The picture to share follows the theme, so it is checked in both.
-            if (panel === "history") {
+            if (panel === "history" && !copy.forScrolling) {
               await checkSharing(view, name, copy, theme, shares);
             }
             if (pictures) {
               await screenshot(view, panel, pictures);
+            }
+            if (windows) {
+              await windowPictures(view, panel, windows, windowZoom);
             }
           } finally {
             await view.close();
@@ -1690,8 +2236,9 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, reduced motion and the picture to share.` +
+          `keys, zoom to 200%, long names, reduced motion, the toolbar kept at its foot and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
+          (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
           (shares ? ` Pictures to share are in ${shares}.` : ""),
       );
     }

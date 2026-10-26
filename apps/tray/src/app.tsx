@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { AccountHeading } from "./account";
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
 import { Said } from "./said";
+import { neededHeight, useScrolling } from "./scroll";
 import { SettingsPanel } from "./settings";
 import { UpdateStatus, useUpdate } from "./update";
 
@@ -41,7 +42,10 @@ export function App() {
   }, []);
 
   // The window takes the height of what it shows, at the zoom it is shown at: zooming in (Cmd or
-  // Ctrl and +) narrows the page in CSS pixels, which tells the app how far it is zoomed.
+  // Ctrl and +) narrows the page in CSS pixels, which tells the app how far it is zoomed. Once the
+  // window is as tall as it may be, the popover's own height stops growing with what it holds, so
+  // the parts it is made of are watched too, and `neededHeight` adds up what they hold.
+  const loaded = meter !== null;
   useEffect(() => {
     const element = main.current;
     if (!element) {
@@ -49,7 +53,7 @@ export function App() {
     }
     let last = "";
     const fit = () => {
-      const height = Math.ceil(element.getBoundingClientRect().height);
+      const height = neededHeight(element);
       const width = window.innerWidth;
       if (`${height} ${width}` !== last) {
         last = `${height} ${width}`;
@@ -58,12 +62,15 @@ export function App() {
     };
     const observer = new ResizeObserver(fit);
     observer.observe(element);
+    for (const part of element.querySelectorAll(".content, footer")) {
+      observer.observe(part);
+    }
     window.addEventListener("resize", fit);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", fit);
     };
-  }, []);
+  }, [loaded]);
 
   return (
     <main class="popover" ref={main} aria-label="QuotaDial">
@@ -75,11 +82,28 @@ export function App() {
 /** What the popover shows below its number: the accounts, the settings, the history, or Help. */
 type Panel = "accounts" | "settings" | "history" | "help";
 
+/** What each is called, for the scrolling part to be named by when a keyboard has to reach it. */
+const VIEWS: Record<Panel, string> = {
+  accounts: "Accounts",
+  settings: "Settings",
+  history: "History",
+  help: "Help",
+};
+
 function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }) {
   const [panel, setPanel] = useState<Panel>("accounts");
   const accounts = panel === "accounts";
   const footer = useRef<HTMLElement>(null);
+  const region = useRef<HTMLDivElement>(null);
   const shown = useRef<Panel>("accounts");
+  const scrolling = useScrolling(region, panel);
+
+  // Each view starts at its top, as the popover opens at its top, and not where the last was left.
+  useLayoutEffect(() => {
+    if (region.current) {
+      region.current.scrollTop = 0;
+    }
+  }, [panel]);
 
   // A panel's Done gives the focus back to the button that opened it, so the keyboard carries on
   // from where it was (#52).
@@ -107,59 +131,71 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
       stopListening?.();
     };
   }, []);
+
   return (
     <>
-      <header class="summary">
-        {/* With no number yet, the dash is only for the eye; the headline says why. */}
-        <p class={`percent ${meter.level}`} aria-hidden={meter.percent === null ? "true" : undefined}>
-          {meter.percent === null ? "–" : `${meter.percent}%`}
-        </p>
-        <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
-        {meter.incidents.map((incident) => (
-          <p class="incident" key={incident} role="status">
-            {"\u26a0"} {incident}
-          </p>
-        ))}
-      </header>
-      {panel === "settings" && <SettingsPanel />}
-      {panel === "history" && <HistoryPanel />}
-      {panel === "help" && <HelpPanel update={update} />}
-      {accounts &&
-        meter.accounts.map((account, index) => (
-          <AccountSection
-            key={account.key}
-            account={account}
-            index={index}
-          />
-        ))}
-      {accounts && meter.problems.length > 0 && (
-        <section class="problems card" aria-label="Problems">
-          <ul>
-            {meter.problems.map((problem) => (
-              <li key={problem}>
-                <Said text={problem} />
-              </li>
+      <div
+        class="scroll"
+        ref={region}
+        tabIndex={scrolling.stop ? 0 : undefined}
+        role={scrolling.stop ? "region" : undefined}
+        aria-label={scrolling.stop ? VIEWS[panel] : undefined}
+      >
+        <div class="content">
+          <header class="summary">
+            {/* With no number yet, the dash is only for the eye; the headline says why. */}
+            <p class={`percent ${meter.level}`} aria-hidden={meter.percent === null ? "true" : undefined}>
+              {meter.percent === null ? "–" : `${meter.percent}%`}
+            </p>
+            <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
+            {meter.incidents.map((incident) => (
+              <p class="incident" key={incident} role="status">
+                {"\u26a0"} {incident}
+              </p>
             ))}
-          </ul>
-        </section>
-      )}
-      {accounts && meter.left_out.length > 0 && (
-        <section class="left-out" aria-label="Part of QuotaDial Pro">
-          {meter.left_out.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </section>
-      )}
-      {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
-      {accounts && update?.available && (
-        <section class="update-offer card" aria-label="Update">
-          <UpdateStatus update={update} offer />
-        </section>
-      )}
+          </header>
+          {panel === "settings" && <SettingsPanel />}
+          {panel === "history" && <HistoryPanel />}
+          {panel === "help" && <HelpPanel update={update} />}
+          {accounts &&
+            meter.accounts.map((account, index) => (
+              <AccountSection
+                key={account.key}
+                account={account}
+                index={index}
+              />
+            ))}
+          {accounts && meter.problems.length > 0 && (
+            <section class="problems card" aria-label="Problems">
+              <ul>
+                {meter.problems.map((problem) => (
+                  <li key={problem}>
+                    <Said text={problem} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {accounts && meter.left_out.length > 0 && (
+            <section class="left-out" aria-label="Part of QuotaDial Pro">
+              {meter.left_out.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </section>
+          )}
+          {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
+          {accounts && update?.available && (
+            <section class="update-offer card" aria-label="Update">
+              <UpdateStatus update={update} offer />
+            </section>
+          )}
+        </div>
+      </div>
       {/* One calm toolbar at the foot of every view, in line with the cards' text: History,
           Settings and Help under the accounts, Done under a panel, and Quit set apart at its far
-          end; under it, where the numbers come from. */}
-      <footer ref={footer}>
+          end; under it, where the numbers come from. It stays where it is while what is above it
+          scrolls. */}
+      <footer ref={footer} class={scrolling.below ? "edge" : undefined}>
         <div class="toolbar">
           {accounts ? (
             <>
