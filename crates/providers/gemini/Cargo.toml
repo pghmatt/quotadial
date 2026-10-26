@@ -9,8 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 
-# No HTTP client, here or in a dev-dependency: this provider never asks anyone (D-118). A test holds
-# this file to that.
+# No HTTP client, here or in a dev-dependency: this provider never asks anyone (D-118), as its
+# `asks()` says. quotadial-providers' tests hold every provider that asks no one to that (P-021).
 [dependencies]
 async-trait.workspace = true
 quotadial-core.workspace = true

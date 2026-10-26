@@ -67,9 +67,18 @@ impl Licensing {
     }
 }
 
+/// Whether the cost scan has logs of `provider`'s to read, as [`Provider::log_folders`] says: what
+/// the week's cost is offered on. A provider that keeps none, such as Gemini CLI or the example
+/// build's, leaves nothing for the cost to be read from (D-125).
+#[must_use]
+pub fn keeps_logs(provider: &dyn Provider) -> bool {
+    !provider.log_folders().is_empty()
+}
+
 /// What a copy with `tier` leaves out of its report, each part asked of [`Tier::allows`] for its
 /// own feature: the accounts each provider held back at its last discovery, and, when `costs` says
-/// the daemon would read logs for an account, the week's cost. Nothing on QuotaDial Pro.
+/// the daemon would read logs for an account (one of a provider that [`keeps_logs`]), the week's
+/// cost. Nothing on QuotaDial Pro.
 #[must_use]
 pub fn left_out<P: AsRef<dyn Provider>>(tier: Tier, providers: &[P], costs: bool) -> Vec<LeftOut> {
     let mut left_out = Vec::new();

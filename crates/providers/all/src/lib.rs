@@ -70,6 +70,98 @@ mod tests {
             .collect()
     }
 
+    /// The HTTP clients a provider that asks no one must not depend on, here or in a
+    /// dev-dependency; the local API's crate holds a client for the daemon.
+    const HTTP_CLIENTS: [&str; 9] = [
+        "reqwest",
+        "hyper",
+        "ureq",
+        "isahc",
+        "surf",
+        "curl",
+        "attohttpc",
+        "wiremock",
+        "quotadial-api",
+    ];
+
+    /// The HTTP clients `manifest` depends on, here or in a dev-dependency, read a line at a time:
+    /// a line that starts with a client's name (`reqwest.workspace = true`, `reqwest = ...`), or a
+    /// section header whose last dotted part is one (`[dependencies.reqwest]`,
+    /// `[target.'cfg(unix)'.dev-dependencies.reqwest]`). It reads this manifest only, so a client
+    /// reached through another crate is not seen.
+    fn http_clients_in(manifest: &str) -> Vec<&'static str> {
+        let names = |line: &str, client: &str| {
+            let line = line.trim();
+            line.starts_with(client)
+                || line
+                    .strip_prefix('[')
+                    .and_then(|header| header.strip_suffix(']'))
+                    .and_then(|header| header.rsplit('.').next())
+                    .is_some_and(|last| last.trim().trim_matches(['"', '\'']) == client)
+        };
+        HTTP_CLIENTS
+            .into_iter()
+            .filter(|client| manifest.lines().any(|line| names(line, client)))
+            .collect()
+    }
+
+    #[test]
+    fn an_http_client_is_found_however_the_manifest_writes_it() {
+        let found = |line: &str| http_clients_in(&format!("[package]\nname = \"x\"\n\n{line}\n"));
+
+        for line in [
+            "reqwest.workspace = true",
+            "reqwest = { version = \"0.13\" }",
+            "[dependencies.reqwest]",
+            "[dev-dependencies.reqwest]",
+            "[target.'cfg(unix)'.dependencies.reqwest]",
+            "[target.\"cfg(windows)\".dev-dependencies.\"reqwest\"]",
+        ] {
+            assert_eq!(found(line), ["reqwest"], "{line}");
+        }
+        for line in [
+            "[dependencies]",
+            "serde.workspace = true",
+            "[dependencies.serde]",
+            "[features]",
+        ] {
+            assert_eq!(found(line), Vec::<&str>::new(), "{line}");
+        }
+    }
+
+    /// Every provider listed is held to whom it says it asks (P-021): one that asks a company has a
+    /// host QuotaDial connects to, in `privacy::HOSTS`, that the privacy text names beside that
+    /// company; one that asks no one has no HTTP client in its crate's manifest, the crate being
+    /// `crates/providers/<its id>`, as #75's test held Gemini CLI's.
+    #[test]
+    fn each_provider_is_held_to_whom_it_says_it_asks() {
+        use quotadial_core::privacy::{HOSTS, PRIVACY};
+
+        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        for provider in with_config(&Config::default(), &Licensing::new(None)) {
+            let id = provider.id();
+            match provider.asks() {
+                Some(company) => assert!(
+                    HOSTS.iter().any(|host| {
+                        PRIVACY.lines().any(|line| {
+                            line.contains(&format!("**{host}**")) && line.contains(company)
+                        })
+                    }),
+                    "{id} asks {company}: the privacy text names a host beside it"
+                ),
+                None => {
+                    let manifest = std::fs::read_to_string(crates.join(id).join("Cargo.toml"))
+                        .unwrap_or_else(|error| panic!("{id}'s manifest: {error}"));
+                    let clients = http_clients_in(&manifest);
+                    assert!(
+                        clients.is_empty(),
+                        "{id} asks no one, but depends on {clients:?}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn every_name_listed_is_a_short_name_in_plain_words() {
         for (id, name) in listed() {

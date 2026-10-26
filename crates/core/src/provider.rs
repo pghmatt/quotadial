@@ -116,6 +116,12 @@ pub trait Provider: Send + Sync {
     /// it is, so none of them needs a list of providers' names (P-020).
     fn name(&self) -> &'static str;
 
+    /// The company this provider's [`Provider::fetch`] sends usage requests to, by name, in the
+    /// words `docs/PRIVACY.md` uses, such as `Anthropic` or `OpenAI`, never a host; or none for a
+    /// provider that asks no one, such as Gemini CLI or the example build (P-021). Required, so no
+    /// provider can leave it out and be taken for one that asks no one.
+    fn asks(&self) -> Option<&'static str>;
+
     /// Finds the accounts this machine is signed in to by reading the official CLI's stored
     /// credentials. Never writes, refreshes or copies them.
     ///
@@ -218,6 +224,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Plain"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            None
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {

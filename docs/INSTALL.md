@@ -146,8 +146,8 @@ that; Ubuntu has it on already.
   machine, with no network call, and counts at once ([`CLI.md`](CLI.md#licence)).
 
 On QuotaDial Free the popover shows one account per provider, the one the current shell would use,
-and a line under the accounts says how many more there are and that the week's cost is part of
-QuotaDial Pro. An alert rule only Pro checks says it waits for Pro, and Settings says that alerts go
+and a line under the accounts says how many more there are and, where Claude Code's or the Codex
+CLI's logs could give it, that the week's cost is part of QuotaDial Pro. An alert rule only Pro checks says it waits for Pro, and Settings says that alerts go
 only to the system's notifications where it would name webhooks. What each tier has is in
 [`CLI.md`](CLI.md#quotadial-free-and-pro).
 

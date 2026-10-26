@@ -305,6 +305,9 @@ struct StatusPages {
 /// The daemon's poller.
 pub struct Poller {
     providers: Vec<Arc<dyn Provider>>,
+    /// Whether each provider keeps logs the cost scan can read ([`licence::keeps_logs`]), asked
+    /// once, when the poller is made.
+    keeps_logs: Vec<bool>,
     history: Arc<History>,
     latest: Latest,
     /// What the copy may do, asked at every round (D-100).
@@ -383,8 +386,13 @@ impl Poller {
                 .collect();
         });
         let now = Instant::now();
+        let keeps_logs = providers
+            .iter()
+            .map(|provider| licence::keeps_logs(provider.as_ref()))
+            .collect();
         Self {
             providers,
+            keeps_logs,
             history,
             latest,
             licensing,
@@ -527,12 +535,16 @@ impl Poller {
         if now >= self.discover_at {
             self.discover(now).await;
             self.discover_at = now + DISCOVER_EVERY;
-            // The logs are read only for providers with accounts, so with none there is no cost
-            // to leave out.
+            // The logs are read only for providers with accounts, and only a provider that keeps
+            // logs has any, so with no account of one there is no cost to leave out (D-125).
+            let offered = self
+                .tracked
+                .values()
+                .any(|tracked| self.keeps_logs[tracked.provider]);
             self.latest.set_left_out(licence::left_out(
                 tier,
                 &self.providers,
-                self.costs.is_some() && !self.tracked.is_empty(),
+                self.costs.is_some() && offered,
             ));
         }
         let mut due: Vec<_> = self
@@ -992,6 +1004,10 @@ mod tests {
             self.name
         }
 
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             self.accounts
                 .lock()
@@ -1076,6 +1092,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Claude"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Anthropic")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1548,6 +1568,27 @@ mod tests {
         assert_eq!(costs[0].models[0].model, "gpt-6-astra");
         assert!(costs[0].usd > 0.0);
         assert!(poller.latest().report().left_out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn on_free_a_copy_whose_providers_keep_no_logs_makes_no_cost_offer() {
+        let (dir, history) = history();
+        // An account, as a Gemini CLI one is, of a provider with no logs to read.
+        let quiet = Arc::new(Scripted::new("codex", 2));
+        let scan = CostScan::open(&dir.path().join("costs.db")).expect("opens");
+        let data = crate::DataDir::new(dir.path().to_path_buf());
+        let mut poller =
+            poller_with(vec![quiet], history, Licensing::new(Some(&data))).with_costs(scan);
+
+        poller.poll_due().await;
+
+        let free = poller.latest().report();
+        assert_eq!(free.snapshots.len(), 1);
+        assert!(
+            free.left_out.is_empty(),
+            "nothing the week's cost could be read from: {:?}",
+            free.left_out
+        );
     }
 
     #[tokio::test]

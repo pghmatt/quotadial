@@ -124,6 +124,10 @@ impl Provider for FakeProvider {
         NAME
     }
 
+    fn asks(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Every example account, whatever the licence: they stand for the accounts a first run finds,
     /// one per provider, so none is held back.
     fn discover_accounts(&self) -> Result<Vec<Account>> {

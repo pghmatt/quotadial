@@ -15,11 +15,13 @@ use serde_json::{Value, json};
 /// Whether these tests run the example build.
 const EXAMPLE: bool = cfg!(feature = "fake");
 
-/// How the daemon and `watch` say how often each provider is asked.
+/// How the daemon and `watch` say whom QuotaDial asks and how often, and whom it asks no one about
+/// (P-021).
 const ASKS: &str = if EXAMPLE {
-    "asks Example at most every 1 min"
+    "It asks no one about Example."
 } else {
-    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
+    "It asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini \
+     CLI."
 };
 
 /// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
@@ -196,14 +198,11 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
 
     let text = run(env!("CARGO_BIN_EXE_quotadial"), &["status"], &home);
     assert!(text.status.success(), "exit status {:?}", text.status);
-    // A copy with no licence also offers the week's cost, which takes only an account; the cost
-    // scan reads no Gemini CLI logs, so Pro would show none for it (D-122).
+    // A copy with no licence offers the week's cost only where a provider keeps logs to read it
+    // from, and Gemini CLI keeps none QuotaDial reads (D-122, D-125).
     assert_eq!(
         stdout(&text),
-        format!(
-            "Gemini CLI Google account: unsupported\n  {why}\nThe week's cost at API prices is part \
-             of QuotaDial Pro: quotadial.com/pro\n"
-        )
+        format!("Gemini CLI Google account: unsupported\n  {why}\n")
     );
 
     let json = run(
@@ -232,10 +231,6 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
                 "error": why
             }],
             "errors": [],
-            "left_out": [{
-                "feature": "cost_scan",
-                "text": "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro"
-            }],
             "providers": providers()
         })
     );
@@ -343,7 +338,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     assert!(output.starts_with(first), "{output}");
     assert!(
         output.ends_with(&format!(
-            "Refreshes every minute and {ASKS}. Press Ctrl-C to stop.\n"
+            "Refreshes every minute. {ASKS} Press Ctrl-C to stop.\n"
         )),
         "{output}"
     );
@@ -363,7 +358,10 @@ fn start_daemon(home: &Path) -> (Daemon, BufReader<ChildStdout>, [String; 3]) {
     let mut reader = BufReader::new(daemon.stdout.take().expect("stdout"));
     let daemon = Daemon(Some(daemon));
     let mut lines = [String::new(), String::new(), String::new()];
-    for line in &mut lines {
+    // The third is QuotaDial Free's line for the week's cost, which only a copy whose providers
+    // keep logs prints: a release, never the example build, whose provider keeps none (D-125).
+    let printed = if EXAMPLE { 2 } else { 3 };
+    for line in lines.iter_mut().take(printed) {
         reader.read_line(line).expect("reads");
     }
     (daemon, reader, lines)
@@ -457,13 +455,18 @@ fn only_one_daemon_runs_and_it_keeps_history_in_the_data_directory() {
 
     assert!(
         line.starts_with(&format!(
-            "QuotaDial daemon running. It {ASKS}, keeps history in "
+            "QuotaDial daemon running. {ASKS} It keeps history in "
         )),
         "{line}"
     );
     assert_eq!(
-        costs, "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n",
-        "QuotaDial Free says what it leaves out"
+        costs,
+        if EXAMPLE {
+            ""
+        } else {
+            "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n"
+        },
+        "QuotaDial Free says what it leaves out, where a provider keeps logs to read it from"
     );
     assert!(home.join("data").join("history.db").exists());
     assert!(home.join("data").join("costs.db").exists());

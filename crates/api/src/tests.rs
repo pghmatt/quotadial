@@ -46,6 +46,10 @@ impl Provider for Fixed {
         "Claude"
     }
 
+    fn asks(&self) -> Option<&'static str> {
+        Some("Anthropic")
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         Ok(vec![Account {
             provider: "claude".into(),

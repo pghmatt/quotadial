@@ -37,6 +37,10 @@ app's Help shows the version it is, and a release's notes come from its section 
 - Each release's files also come under a name without the version, such as `QuotaDial_universal.dmg`, so one link always fetches the newest full release.
 - Gemini CLI: an account QuotaDial finds signed in shows with why it has no numbers, and its sign-in is never opened. The sign-in panel is now "What QuotaDial does with this sign-in", in each provider's own words, and `status`, `doctor` and the JSON name each provider as it names itself (`provider_name`, `sign_in_use`).
 
+### Changed
+
+- `quotadial watch` and `quotadial daemon` say whom QuotaDial asks and how often, Anthropic and OpenAI, and that it asks no one about Gemini CLI; QuotaDial Free offers the week's cost only where Claude Code's or the Codex CLI's logs could give it.
+
 ### Fixed
 
 - On a full disk, an alert sent to a webhook is no longer sent again every minute, and the daemon still starts.

@@ -291,7 +291,11 @@ fn runtime() -> Option<tokio::runtime::Runtime> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Origin {
     Daemon,
-    Direct,
+    /// Fetched directly, and whether the daemon would add the week's cost: on QuotaDial Pro, with
+    /// the cost scan on, for an account of a provider that keeps logs (D-125).
+    Direct {
+        costs: bool,
+    },
 }
 
 /// What the running daemon last found or, when no daemon is running, a direct fetch, which still
@@ -310,12 +314,17 @@ async fn report<P: AsRef<dyn Provider>>(
     // back, and the week's cost, which the daemon would read on QuotaDial Pro.
     let mut report = collect(providers).await;
     let cost_scan = dir.map(Config::load).unwrap_or_default().cost_scan;
-    report.left_out = licence::left_out(
-        Licensing::new(dir).tier(),
-        providers,
-        cost_scan && !report.snapshots.is_empty(),
-    );
-    Ok((report, Origin::Direct))
+    // Read, and so offered, only for an account of a provider that keeps logs (D-125).
+    let readable = cost_scan
+        && report.snapshots.iter().any(|snapshot| {
+            providers.iter().map(AsRef::as_ref).any(|provider| {
+                provider.id() == snapshot.account.provider && licence::keeps_logs(provider)
+            })
+        });
+    let tier = Licensing::new(dir).tier();
+    report.left_out = licence::left_out(tier, providers, readable);
+    let costs = readable && tier.allows(ProFeature::CostScan);
+    Ok((report, Origin::Direct { costs }))
 }
 
 fn status(providers: &[Arc<dyn Provider>], json: bool) -> ExitCode {
@@ -497,7 +506,7 @@ fn doctor(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let dir = DataDir::from_env();
     let (report, numbers_from) = match runtime.block_on(report(providers, dir.as_ref())) {
         Ok((report, Origin::Daemon)) => (report, "the daemon".to_owned()),
-        Ok((report, Origin::Direct)) => (report, "a direct fetch".to_owned()),
+        Ok((report, Origin::Direct { .. })) => (report, "a direct fetch".to_owned()),
         Err(error) => (StatusReport::default(), format!("nowhere: {error}")),
     };
     let now = Utc::now();
@@ -907,7 +916,12 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
         return ExitCode::FAILURE;
     };
     runtime.block_on(async {
-        let limits = limits(&providers);
+        let asking = asking(&providers);
+        // The week's cost is read from logs, so a copy whose providers keep none, such as the
+        // example build, says nothing of it (D-125).
+        let keeps_logs = providers
+            .iter()
+            .any(|provider| licence::keeps_logs(provider.as_ref()));
         let host = match Host::start(dir, providers, port).await {
             Ok(host) => host,
             Err(error @ HostError::Listen { .. }) => {
@@ -920,8 +934,8 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
             }
         };
         say(format_args!(
-            "QuotaDial daemon running. It asks {limits}, keeps history in {}, and is the only thing \
-             that polls while it runs.",
+            "QuotaDial daemon running. {asking} It keeps history in {}, and is the only thing that \
+             polls while it runs.",
             host.dir().history().display()
         ));
         say(format_args!(
@@ -940,7 +954,7 @@ fn daemon(providers: Vec<Arc<dyn Provider>>, port: u16) -> ExitCode {
                 say(format_args!("{}", ProFeature::AlertDelivery.line()));
             }
         }
-        if host.scans_costs() {
+        if host.scans_costs() && keeps_logs {
             if tier.allows(ProFeature::CostScan) {
                 say(format_args!(
                     "Every 10 minutes it reads the token counts in Claude Code's and the Codex \
@@ -1003,22 +1017,42 @@ async fn shutdown_signal() {
     }
 }
 
-/// For example `claude at most every 5 min and codex at most every 2 min`.
-fn limits<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
-    providers
-        .iter()
-        .map(|provider| {
-            let provider = provider.as_ref();
-            format!(
-                "{} at most every {}",
-                provider.name(),
+/// Whom QuotaDial asks and how often, and the providers it asks no one about, in one sentence, as
+/// each provider's [`Provider::asks`] says (P-021): "It asks Anthropic at most every 5 min and
+/// OpenAI at most every 2 min, and no one about Gemini CLI."
+fn asking<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
+    let mut asked = Vec::new();
+    let mut unasked = Vec::new();
+    for provider in providers.iter().map(AsRef::as_ref) {
+        match provider.asks() {
+            Some(company) => asked.push(format!(
+                "{company} at most every {}",
                 text::duration(
                     TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
                 )
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(" and ")
+            )),
+            None => unasked.push(provider.name().to_owned()),
+        }
+    }
+    match (asked.is_empty(), unasked.is_empty()) {
+        (false, true) => format!("It asks {}.", listed(&asked, "and")),
+        (true, false) => format!("It asks no one about {}.", listed(&unasked, "or")),
+        (false, false) => format!(
+            "It asks {}, and no one about {}.",
+            listed(&asked, "and"),
+            listed(&unasked, "or")
+        ),
+        (true, true) => "It asks no one.".to_owned(),
+    }
+}
+
+/// `items` as a sentence lists them, with `last` before the last: "A", "A and B", "A, B and C".
+fn listed(items: &[String], last: &str) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [rest @ .., final_item] => format!("{} {last} {final_item}", rest.join(", ")),
+    }
 }
 
 fn write_failed(error: &io::Error) -> ExitCode {
@@ -1060,9 +1094,9 @@ fn write_frame<P: AsRef<dyn Provider>>(
     }
     writeln!(
         out,
-        "\nUpdated {}. Refreshes every minute and asks {}. Press Ctrl-C to stop.",
+        "\nUpdated {}. Refreshes every minute. {} Press Ctrl-C to stop.",
         timestamp(now),
-        limits(providers)
+        asking(providers)
     )
 }
 
@@ -1170,15 +1204,14 @@ fn write_text(
         .snapshots
         .iter()
         .any(|snapshot| !snapshot.windows.is_empty());
-    if origin == Origin::Direct && windows {
-        let costs = if report
-            .left_out
-            .iter()
-            .any(|left_out| left_out.feature == ProFeature::CostScan)
-        {
-            ""
-        } else {
+    if let Origin::Direct { costs } = origin
+        && windows
+    {
+        // The week's cost only where the daemon would add it (D-125).
+        let costs = if costs {
             ", and each provider what the week would have cost at API prices"
+        } else {
+            ""
         };
         writeln!(
             out,
@@ -1228,6 +1261,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1280,6 +1317,10 @@ mod tests {
             "Scripted"
         }
 
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![account()])
         }
@@ -1309,6 +1350,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1357,6 +1402,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Leaky"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1525,11 +1574,12 @@ mod tests {
             problems: Vec::new(),
             providers: Vec::new(),
         };
-        let text = |report: &StatusReport| {
+        let text_with = |report: &StatusReport, costs| {
             let mut out = Vec::new();
-            write_text(report, Origin::Direct, now(), &mut out).expect("writes");
+            write_text(report, Origin::Direct { costs }, now(), &mut out).expect("writes");
             String::from_utf8(out).expect("UTF-8")
         };
+        let text = |report: &StatusReport| text_with(report, true);
 
         let shown = text(&report);
         assert_eq!(shown.matches("Pace needs the daemon").count(), 1);
@@ -1537,6 +1587,12 @@ mod tests {
             "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
              window also shows how fast it fills, and each provider what the week would have \
              cost at API prices.\n"
+        ));
+        // With no logs to read the week's cost from, or on QuotaDial Free, whose line already
+        // says it is Pro's, the daemon would add no cost, so none is promised (D-125).
+        assert!(text_with(&report, false).ends_with(
+            "Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each \
+             window also shows how fast it fills.\n"
         ));
 
         let expired = StatusReport {
@@ -1977,10 +2033,48 @@ mod tests {
         let redrawn = frame(true);
         assert!(redrawn.starts_with("\x1b[2J\x1b[HScripted user@example.com (max): ok\n"));
         assert!(redrawn.ends_with(
-            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and asks Scripted at most \
-             every 5 min. Press Ctrl-C to stop.\n"
+            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It asks Acme at most every 5 \
+             min. Press Ctrl-C to stop.\n"
         ));
         assert!(!frame(false).contains('\x1b'), "no escape codes when piped");
+    }
+
+    #[test]
+    fn the_line_names_whom_quotadial_asks_and_how_often_and_says_it_asks_no_one_for_the_rest() {
+        let acme: Box<dyn Provider> = Box::new(ScriptedProvider {
+            discovery_fails: false,
+            fetch_fails: false,
+            fallback: None,
+        });
+        let silent: Box<dyn Provider> = Box::new(ChattyProvider);
+        let clashing: Box<dyn Provider> = Box::new(ClashingProvider);
+
+        let lines = [
+            asking(&[acme]),
+            asking(&[Box::new(ChattyProvider) as Box<dyn Provider>]),
+            asking(&[
+                Box::new(ScriptedProvider {
+                    discovery_fails: false,
+                    fetch_fails: false,
+                    fallback: None,
+                }) as Box<dyn Provider>,
+                silent,
+                clashing,
+            ]),
+        ];
+
+        assert_eq!(
+            lines,
+            [
+                "It asks Acme at most every 5 min.",
+                "It asks no one about Chatty.",
+                "It asks Acme at most every 5 min, and no one about Chatty or Alerts.",
+            ]
+        );
+        for line in lines {
+            // #52's plain words, as every sentence people read.
+            assert_eq!(text::unplain_words(&line), Vec::<String>::new(), "{line}");
+        }
     }
 
     #[test]
@@ -2017,6 +2111,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2233,7 +2331,11 @@ mod tests {
         let providers = [Arc::clone(&cli) as Arc<dyn Provider>];
 
         let (shown, origin) = report(&providers, Some(&dir)).await.expect("fetches");
-        assert_eq!(origin, Origin::Direct);
+        assert_eq!(
+            origin,
+            Origin::Direct { costs: false },
+            "its provider keeps no logs to read the week's cost from"
+        );
         assert_eq!(shown.snapshots, vec![snapshot(account(), Source::Api)]);
         assert_eq!(cli.fetches(), 1);
 
@@ -2312,8 +2414,8 @@ mod tests {
             format!(
                 "error: the QuotaDial daemon is running, but its API at \
                  http://127.0.0.1:{port}/v1/status could not be reached; restart it with \
-                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and \
-                 asks Scripted at most every 5 min. Press Ctrl-C to stop.\n"
+                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It \
+                 asks Acme at most every 5 min. Press Ctrl-C to stop.\n"
             )
         );
     }
@@ -2333,6 +2435,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Chatty"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            None
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2382,6 +2488,10 @@ mod tests {
 
         fn name(&self) -> &'static str {
             "Alerts"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            None
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
