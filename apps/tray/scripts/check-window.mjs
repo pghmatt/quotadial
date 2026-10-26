@@ -6,6 +6,9 @@
 //   has words;
 // - a panel takes the focus when it opens, and its Done gives it back to the button that opened it;
 // - no text is cut off, at 100% and at 200% zoom, with a very long account name;
+// - each account is a card of its own, apart from the next and overlapping none, whose heading
+//   names it by the name given it or its provider's, with its address, visible inside the card,
+//   selectable and read as part of the heading, at 100% and at 200%;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -461,6 +464,34 @@ const WORDS = `(() => {
   return found;
 })()`;
 
+/**
+ * In the page: every card in the window, in order, with where it is, and for an account's card its
+ * heading's parts: its title, its address line and the address itself, where each is, whether it
+ * is shown, and whether the address can be selected.
+ */
+const CARDS = `(() => {
+  const place = (element) => {
+    const { top, bottom, left, right, width, height } = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return { top, bottom, left, right, width, height, shown: element.getClientRects().length > 0 && style.visibility !== 'hidden' && Number(style.opacity) > 0 && !element.closest('.visually-hidden') };
+  };
+  return [...document.querySelectorAll('main > .card')].map((card) => {
+    const heading = card.querySelector('h2');
+    const address = card.querySelector('.address');
+    const name = card.querySelector('.address .name');
+    return {
+      account: card.matches('section.account'),
+      what: card.getAttribute('aria-label') || heading?.textContent.trim() || card.className,
+      card: place(card),
+      labelled: card.getAttribute('aria-labelledby'),
+      heading: heading ? { id: heading.id, holds: [address, name].every((part) => !part || heading.contains(part)) } : null,
+      title: card.querySelector('.title')?.textContent ?? null,
+      address: address ? { text: address.textContent.replace(/\\s+/g, ' ').trim(), ...place(address) } : null,
+      name: name ? { text: name.textContent, select: getComputedStyle(name).userSelect, ...place(name) } : null,
+    };
+  });
+})()`;
+
 /** A page of the window, opened on one copy of the app in one theme. */
 class View {
   constructor(tools, sessionId, label, url) {
@@ -614,6 +645,21 @@ class View {
     };
   }
 
+  /** What a screen reader calls the `index`th element `selector` finds, or null when there is none. */
+  async called(selector, index) {
+    const { result } = await this.send("Runtime.evaluate", {
+      expression: `document.querySelectorAll(${JSON.stringify(selector)})[${index}]`,
+    });
+    if (!result.objectId) {
+      return null;
+    }
+    const { nodes } = await this.send("Accessibility.getPartialAXTree", {
+      objectId: result.objectId,
+      fetchRelatives: false,
+    });
+    return String(nodes[0]?.name?.value ?? "").trim();
+  }
+
   async close() {
     this.stop();
     await this.tools.send("Target.closeTarget", { targetId: this.targetId });
@@ -648,7 +694,7 @@ function toldProblem(tag, type, told) {
 }
 
 /** The checks over one panel of one copy in one theme. */
-async function checkView(view, panel, operate) {
+async function checkView(view, panel, operate, copy) {
   const label = view.label;
   await view.load(panel);
   const focused = await view.evaluate(FOCUSED);
@@ -702,6 +748,9 @@ async function checkView(view, panel, operate) {
     await view.settle();
     const cut = await view.evaluate(CUT_OFF);
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
+    if (panel === "accounts") {
+      await checkCards(view, copy, zoom);
+    }
   }
   await view.zoom(1);
 
@@ -748,6 +797,70 @@ async function checkView(view, panel, operate) {
   check(label, view.errors.length > 0 && `the page reported ${[...new Set(view.errors)].slice(0, 3).join("; ")}`);
   view.errors = [];
   return controls.length;
+}
+
+/** The space between two cards, in CSS pixels, as style.css sets it. */
+const CARD_GAP = 8;
+
+/**
+ * Each account as a card of its own, its address easy to see (Matt's ask of 2026-10-26, D-132): a
+ * card per account, in the copy's order, each at least the cards' gap from the next and none
+ * overlapping, all in one column. Its title is the name given it, or its provider's own; its
+ * second line its address, after the provider's name when the title is a name given, or nothing
+ * when its name says nothing beyond its provider (D-124). The address is visible, inside its card
+ * and its heading, and can be selected, and a screen reader calls the card by its heading, address
+ * and all.
+ */
+async function checkCards(view, copy, zoom) {
+  const label = `${view.label}, cards at ${zoom * 100}%`;
+  const cards = await view.evaluate(CARDS);
+  for (let index = 1; index < cards.length; index += 1) {
+    const [above, below] = [cards[index - 1], cards[index]];
+    const gap = below.card.top - above.card.bottom;
+    check(label, gap < CARD_GAP - 0.5 && `"${below.what}" is ${gap.toFixed(1)} px below "${above.what}", not ${CARD_GAP} or more`);
+    const aside = Math.max(Math.abs(below.card.left - above.card.left), Math.abs(below.card.right - above.card.right));
+    check(label, aside > 0.5 && `"${below.what}" is not in line with "${above.what}"`);
+  }
+  const accounts = cards.filter((card) => card.account);
+  check(label, accounts.length !== copy.meter.accounts.length && `the window shows ${accounts.length} account cards for ${copy.meter.accounts.length} accounts`);
+  for (const [index, account] of copy.meter.accounts.entries()) {
+    const card = accounts[index];
+    if (!card) {
+      break;
+    }
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    const title = account.alias ?? account.provider;
+    check(label, card.title !== title && `${what}'s card is titled "${card.title}", not "${title}"`);
+    const line = account.alias === null ? account.name : [account.provider, account.name].filter(Boolean).join(" · ");
+    if (!line) {
+      check(label, card.address !== null && `${what}'s card has the line "${card.address?.text}", though its name says nothing more`);
+      continue;
+    }
+    check(label, card.address?.text !== line && `${what}'s card's second line is "${card.address?.text}", not "${line}"`);
+    check(label, !card.heading?.holds && `${what}'s address is not in its card's heading`);
+    check(label, (!card.heading || card.labelled !== card.heading.id) && `${what}'s card is not labelled by its heading`);
+    if (!account.name) {
+      continue;
+    }
+    const name = card.name;
+    if (!name || name.text !== account.name) {
+      check(label, `${what}'s address is not shown as a part of its own, which can be selected alone`);
+      continue;
+    }
+    check(label, (!name.shown || name.width <= 0 || name.height <= 0) && `${what}'s address is not visible`);
+    const outside =
+      name.left < card.card.left - 0.5 ||
+      name.right > card.card.right + 0.5 ||
+      name.top < card.card.top - 0.5 ||
+      name.bottom > card.card.bottom + 0.5;
+    check(label, outside && `${what}'s address is not inside its card`);
+    check(label, name.select !== "text" && `${what}'s address cannot be selected to copy it (user-select: ${name.select})`);
+    if (zoom === 1) {
+      const called = await view.called("main > section.account", index);
+      const heard = called !== null && called.includes(title) && called.includes(account.name);
+      check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
+    }
+  }
 }
 
 /** The CRC-32 a PNG chunk ends with. */
@@ -1135,7 +1248,7 @@ async function main() {
           const view = await View.open(tools, label, url, copy, theme);
           try {
             // Pressing each control is the same in either theme, so once is enough.
-            await checkView(view, panel, theme === "light");
+            await checkView(view, panel, theme === "light", copy);
             // The picture to share follows the theme, so it is checked in both.
             if (panel === "history") {
               await checkSharing(view, name, copy, theme, shares);

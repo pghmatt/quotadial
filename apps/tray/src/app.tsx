@@ -131,7 +131,7 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           />
         ))}
       {accounts && meter.problems.length > 0 && (
-        <section class="problems" aria-label="Problems">
+        <section class="problems card" aria-label="Problems">
           <ul>
             {meter.problems.map((problem) => (
               <li key={problem}>{problem}</li>
@@ -148,7 +148,7 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
       )}
       {accounts && meter.costs.length > 0 && <Costs costs={meter.costs} />}
       {accounts && update?.available && (
-        <section class="update-offer" aria-label="Update">
+        <section class="update-offer card" aria-label="Update">
           <UpdateStatus update={update} offer />
         </section>
       )}
@@ -177,16 +177,28 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
   );
 }
 
+/**
+ * One account, as a card of its own: who it is in its first two lines, then each window. The
+ * heading holds both lines, so a screen reader hears the account's address with its name.
+ */
 function AccountSection({ account, index }: { account: Account; index: number }) {
   const heading = `account-${index}`;
   return (
-    <section class="account" aria-labelledby={heading}>
-      <h2 id={heading}>
-        <span class="provider">{account.provider}</span>
-        {account.alias && <span class="alias">{account.alias}</span>}
-        {account.name && <span class="name">{account.name}</span>}
-        {account.plan && <span class="tag">{account.plan}</span>}
-        {!account.ok && <span class="tag attention">{account.status}</span>}
+    <section class="account card" aria-labelledby={heading}>
+      <h2 id={heading} class="card-head">
+        {/* The spaces between the parts are for a screen reader; a flex row draws none. */}
+        <span class="title-row">
+          {/* The name given the account, or the provider's own (P-020). */}
+          <span class="title">{account.alias ?? account.provider}</span>{" "}
+          {(account.plan || !account.ok) && (
+            <span class="badges">
+              {account.plan && <span class="badge">{account.plan}</span>}
+              {account.plan && !account.ok && " "}
+              {!account.ok && <span class="badge attention">{account.status}</span>}
+            </span>
+          )}
+        </span>
+        <Address account={account} />
       </h2>
       {!account.ok && account.note && <p class="note">{account.note}</p>}
       {account.windows.length > 0 && (
@@ -211,10 +223,38 @@ function AccountSection({ account, index }: { account: Account; index: number })
   );
 }
 
+/**
+ * An account's second line: its address, after its provider's name when the title is the name the
+ * user gave it, as "Claude · dev@example.com". Nothing when the provider's name says it all, as
+ * for the example build's accounts, which have no address (D-124). The address alone can be
+ * selected, to copy it.
+ */
+function Address({ account }: { account: Account }) {
+  const named = account.alias !== null;
+  if (!named && !account.name) {
+    return null;
+  }
+  return (
+    <>
+      {" "}
+      <span class="address">
+        {named && <span class="provider">{account.provider}</span>}
+        {named && account.name && (
+          <>
+            {" "}
+            <span aria-hidden="true">·</span>{" "}
+          </>
+        )}
+        {account.name && <span class="name">{account.name}</span>}
+      </span>
+    </>
+  );
+}
+
 /** What each provider's week would have cost at API prices, from the CLIs' logs. */
 function Costs({ costs }: { costs: Cost[] }) {
   return (
-    <section class="costs" aria-label="The week at API prices">
+    <section class="costs card" aria-label="The week at API prices">
       {costs.map((cost) => (
         <div class="cost" key={cost.provider}>
           <p>
@@ -265,12 +305,15 @@ function WindowRow({ window, id }: { window: Window; id: string }) {
       <p class="detail">
         {window.resets}, {window.fetched}
         {window.unconfirmed && (
-          <span
-            class="tag"
-            title="A sudden 0% that QuotaDial holds until the next fetch agrees"
-          >
-            unconfirmed
-          </span>
+          <>
+            {" "}
+            <span
+              class="badge"
+              title="A sudden 0% that QuotaDial holds until the next fetch agrees"
+            >
+              unconfirmed
+            </span>
+          </>
         )}
       </p>
       {window.pace && (
