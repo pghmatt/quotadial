@@ -5,7 +5,7 @@ captured from the real window, and the rest are data graphics drawn in SVG by th
 
 | File | Size | Subject | Where | Made by |
 | --- | --- | --- | --- | --- |
-| `public/images/app/accounts-light.png`, `-dark.png` | 720x1312 (shown at 360 CSS px) | The window's accounts, each a card: Claude Work and Codex, the Weekly at 91% running out first | Home, the almanac plate | `scripts/app-pictures.mjs` |
+| `public/images/app/accounts-light.png`, `-dark.png` | 720x1412 (shown at 360 CSS px) | The window's accounts, each a card: Claude Work and Codex, the Weekly at 91% running out first | Home, the almanac plate | `scripts/app-pictures.mjs` |
 | `public/images/app/settings-light.png`, `-dark.png` | 720x2172 | Settings with the three example alert rules | Home, alerts | `scripts/app-pictures.mjs` |
 | `public/images/app/history-light.png`, `-dark.png` | 720x2078 | History: each window's week and when it was used | Home, available to the limits section | `scripts/app-pictures.mjs` |
 | `app/opengraph-image.png` | 1200x630 | The share card: mark, name, line, the week's curve meeting high water | Every page's share metadata | `scripts/brand.mjs` |
