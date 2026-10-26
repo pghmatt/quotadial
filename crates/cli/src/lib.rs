@@ -710,7 +710,7 @@ fn write_history(
             let name = names
                 .get(&series.provider)
                 .map_or(series.provider.as_str(), String::as_str);
-            writeln!(out, "{name} {}", series.account)?;
+            writeln!(out, "{}", text::labelled(name, &series.account))?;
             account = Some(this);
         }
         let highest = series
@@ -1080,7 +1080,12 @@ fn write_text(
     for snapshot in &report.snapshots {
         let account = &snapshot.account;
         // As the provider names itself (P-020).
-        write!(out, "{} {}", account.provider_label(), account.display_name)?;
+        // The name once when it says nothing beyond the provider's label.
+        write!(
+            out,
+            "{}",
+            text::labelled(account.provider_label(), &account.display_name)
+        )?;
         if let Some(plan) = &account.plan {
             write!(out, " ({plan})")?;
         }
@@ -1723,6 +1728,37 @@ mod tests {
 
         let shown = String::from_utf8(out).expect("UTF-8");
         assert!(shown.contains("\nclaude work@example.com\n"), "{shown}");
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once() {
+        let example = Account {
+            provider_name: "Example".into(),
+            display_name: "Example".into(),
+            ..account()
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(example, Source::Api)],
+            ..StatusReport::default()
+        };
+
+        let shown = render(&report, false);
+
+        assert!(shown.starts_with("Example (max): ok\n"), "{shown}");
+    }
+
+    #[test]
+    fn history_names_an_account_called_as_its_provider_once() {
+        let since = ts("2099-01-01T00:00:00Z");
+        let now = ts("2099-01-08T00:00:00Z");
+        let session = series("Example", "Session", &[(12, 10.0)]);
+        let names = HashMap::from([("claude".to_owned(), "Example".to_owned())]);
+        let mut out = Vec::new();
+
+        write_history(&[session], &names, since, now, &mut out).expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(shown.contains("\nExample\n  Session"), "{shown}");
     }
 
     #[test]

@@ -93,7 +93,8 @@ pub struct AccountView {
     pub summary: String,
     /// The provider's name, such as "Claude".
     pub provider: String,
-    /// The account, such as its email address.
+    /// The account, such as its email address; empty when that says nothing beyond `provider`,
+    /// as for an account called Example under the provider Example, so the provider shows once.
     pub name: String,
     pub plan: Option<String>,
     /// Such as "ok", "stale" or "sign-in required".
@@ -276,7 +277,7 @@ impl Meter {
         for account in &mut self.accounts {
             if let Some(alias) = aliases.get(&account.key) {
                 account.summary = account.summary.replacen(
-                    &format!("{} {}", account.provider, account.name),
+                    &text::labelled(&account.provider, &account.name),
                     &format!("{} {alias}", account.provider),
                     1,
                 );
@@ -313,8 +314,13 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
     // account from an older daemon shows its provider's id and no sign-in panel until the next
     // poll.
     let provider = account.provider_label().to_owned();
+    // An account called as its provider is, such as the example build's, shows the label once.
+    let name = account
+        .name_beside_provider()
+        .unwrap_or_default()
+        .to_owned();
     let windows = snapshot.windows_tightest_first();
-    let mut summary = format!("{provider} {}", account.display_name);
+    let mut summary = text::labelled(&provider, &name);
     if let Some(plan) = &account.plan {
         summary.push_str(&format!(" ({plan})"));
     }
@@ -333,7 +339,7 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         summary,
         sign_in: account.sign_in_use.clone(),
         provider,
-        name: account.display_name.clone(),
+        name,
         plan: account.plan.clone(),
         status: text::status_label(snapshot.status).to_owned(),
         ok: snapshot.status == Status::Ok,
@@ -747,8 +753,26 @@ mod tests {
         let meter = Meter::new(Some(&report), None, None, now());
         let shown = &meter.accounts[0];
 
+        // Called as its provider is, so its provider's label shows once, with no name beside it.
         assert_eq!(shown.provider, "Example");
-        assert_eq!(shown.name, "Example");
+        assert_eq!(shown.name, "");
+        assert!(
+            shown
+                .summary
+                .starts_with("Example (Claude Max 5x): Session 38%"),
+            "no doubled word and no double space: {}",
+            shown.summary
+        );
+        let named = meter
+            .clone()
+            .with_aliases(&BTreeMap::from([(shown.key.clone(), "Work".to_owned())]));
+        assert!(
+            named.accounts[0]
+                .summary
+                .starts_with("Example Work (Claude Max 5x): Session 38%"),
+            "a name the user gives still shows: {}",
+            named.accounts[0].summary
+        );
         assert_eq!(shown.windows[0].fetched, "from the example build 4 min ago");
         assert_eq!(
             shown.sign_in,

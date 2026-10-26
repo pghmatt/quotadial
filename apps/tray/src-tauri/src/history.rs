@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, TimeZone, Timelike, Utc};
-use quotadial_core::{ProFeature, Tier, WindowKind};
+use quotadial_core::{ProFeature, Tier, WindowKind, text};
 use quotadial_daemon::{History, Series, SeriesQuery, write_csv};
 use serde::Serialize;
 
@@ -42,7 +42,8 @@ pub struct AccountHistory {
     pub key: String,
     /// Such as "Claude".
     pub provider: String,
-    /// The name the user gave the account, or its email address.
+    /// The name the user gave the account, or its email address; empty when that says nothing
+    /// beyond `provider`, so the provider shows once.
     pub name: String,
     /// What the picture of this account's history calls it ([`share::label`]): its provider and
     /// the name given it, or its plan, and never its address.
@@ -257,8 +258,13 @@ fn account<Tz: TimeZone>(
     let first = group[0];
     let key = key(&first.provider, &first.account_id, first.org.as_deref());
     let alias = settings.aliases.get(&key);
-    let name = alias.cloned().unwrap_or_else(|| first.account.clone());
     let provider = newest.name(&first.provider);
+    // The name given, or the account's own when it says more than the provider's label.
+    let name = alias.cloned().unwrap_or_else(|| {
+        text::name_beside(provider, &first.account)
+            .unwrap_or_default()
+            .to_owned()
+    });
     let period = format!("in the last {days} days");
     AccountHistory {
         provider: provider.to_owned(),
@@ -647,6 +653,31 @@ mod tests {
         assert_eq!(
             label(&history, &Settings::default(), "codex user-1 -").as_deref(),
             Ok("codex")
+        );
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once_in_history() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = History::open(&dir.path().join("history.db")).expect("opens");
+        let mut example = snapshot(
+            "codex",
+            &[(WindowKind::Weekly, "Weekly", 60.0)],
+            "2099-01-06T08:00:00Z",
+        );
+        example.account.provider_name = "Example".into();
+        example.account.display_name = "Example".into();
+        history
+            .record(&example, at("2099-01-06T08:00:00Z"))
+            .expect("records");
+        let now = at("2099-01-07T00:00:00Z");
+
+        let view = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(view.accounts[0].provider, "Example");
+        assert_eq!(
+            view.accounts[0].name, "",
+            "no name beside the label it repeats"
         );
     }
 

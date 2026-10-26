@@ -70,6 +70,15 @@ impl Account {
         }
     }
 
+    /// The name to show beside [`Account::provider_label`]: the display name, or none when it says
+    /// nothing more, being empty or the label itself, whatever the case. So an account that is
+    /// called as its provider is, such as the example build's "Example" accounts (D-117), shows its
+    /// provider's label once ([`crate::text::name_beside`]).
+    #[must_use]
+    pub fn name_beside_provider(&self) -> Option<&str> {
+        crate::text::name_beside(self.provider_label(), &self.display_name)
+    }
+
     /// Whether `other` is the same account: the same provider, organization and account id, the
     /// three that make an account (D-024), whatever it is called or where its sign-in was found.
     #[must_use]
@@ -434,6 +443,35 @@ mod tests {
         );
         let read_back: Account = serde_json::from_value(value).expect("deserializes");
         assert_eq!(read_back, account());
+    }
+
+    #[test]
+    fn a_name_that_says_nothing_beyond_the_providers_label_is_not_shown_beside_it() {
+        let named = |provider_name: &str, display_name: &str| Account {
+            provider_name: provider_name.into(),
+            display_name: display_name.into(),
+            ..account()
+        };
+
+        assert_eq!(
+            named("Claude", "user@example.com").name_beside_provider(),
+            Some("user@example.com"),
+            "a real address shows"
+        );
+        assert_eq!(named("Example", "Example").name_beside_provider(), None);
+        assert_eq!(
+            named("Example", "example").name_beside_provider(),
+            None,
+            "whatever the case"
+        );
+        assert_eq!(named("Claude", "").name_beside_provider(), None, "empty");
+        assert_eq!(named("Claude", "  ").name_beside_provider(), None, "blank");
+        // An account from an older QuotaDial is labelled by its id, and keeps its address.
+        assert_eq!(
+            named("", "user@example.com").name_beside_provider(),
+            Some("user@example.com")
+        );
+        assert_eq!(named("", "claude").name_beside_provider(), None);
     }
 
     #[test]

@@ -199,6 +199,25 @@ pub fn source_label(source: Source) -> &'static str {
     }
 }
 
+/// `name`, to show beside a provider's label `label`, or none when it says nothing more: when it is
+/// empty or blank, or the label itself, whatever the case. The one rule for every account and every
+/// surface that writes a provider's label and an account's name side by side.
+#[must_use]
+pub fn name_beside<'a>(label: &str, name: &'a str) -> Option<&'a str> {
+    let said = name.trim();
+    (!said.is_empty() && said.to_lowercase() != label.trim().to_lowercase()).then_some(name)
+}
+
+/// The provider's label `label` with `name` beside it when it says more ([`name_beside`]):
+/// "Claude user@example.com", or "Example" alone for an account called Example.
+#[must_use]
+pub fn labelled(label: &str, name: &str) -> String {
+    match name_beside(label, name) {
+        Some(name) => format!("{label} {name}"),
+        None => label.to_owned(),
+    }
+}
+
 /// The words #52 keeps out of anything a user reads, "quota", "auth" and "credential" with their
 /// plurals, found in `text` outside a name, each lowercased: what tests hold every sentence people
 /// read to. A name is written as it is: anything in backticks or double quotes, and a path, a file

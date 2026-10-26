@@ -445,6 +445,15 @@ The notes below run newest first; the setup notes above them are the oldest.
   made-up signed-in folder, the CLI finds a Gemini account there only without the unset).
   `docs/PRIVACY.md` and the README's copy, the README's provider table, `docs/CLI.md`,
   `docs/INSTALL.md` and `docs/SECURITY.md` name it.
+- **One name** (asked for by the coordinator, for PR D's recording from the example build): an
+  account whose display name says nothing beyond its provider's label, being empty or the label
+  itself whatever the case, shows the label once, by one rule for every account
+  (`Account::name_beside_provider`, `text::name_beside`, `text::labelled`): `status`, `doctor` and
+  `history`, the popover's heading (its name span drawn only when there is a name), its summary and
+  tooltip, Settings and History. The example build's accounts read "Example (Claude Max 5x)", where
+  `main` shows "fake Example" and this branch had shown "Example Example"; a name given in Settings
+  still shows after the label. The window check's Free copy gains an example account: its heading
+  reads "Example" and the plan, captured and looked at here.
 - **Found on the way and fixed:** doctor's status pages still showed the id; once doctor named
   providers, the release check's doctor half no longer saw `fake` on an example build (run here:
   the old script let it through), so it now fails on `Example` too; the site's `quotadial status`
@@ -453,10 +462,8 @@ The notes below run newest first; the setup notes above them are the oldest.
   machine with only a Gemini CLI account, which the cost scan cannot give (D-122); `watch` and the
   daemon say they ask "Gemini CLI at most every 5 min", though it is never asked, which needs a way
   for a provider to say it asks no one, a change in core; error lines keep the provider's id
-  (`claude: request failed`), as each provider writes its errors; an example account reads
-  "Example Example (Claude Max 5x)", since D-117 calls every example account Example; and the
-  site's home page speaks of Claude and Codex only, still true, so naming Gemini CLI there is for
-  the site's review.
+  (`claude: request failed`), as each provider writes its errors; and the site's home page speaks
+  of Claude and Codex only, still true, so naming Gemini CLI there is for the site's review.
 - **Tests:** in the workspace, 625 passed (1 ignored) on `main` and 652 (1 ignored) now, Gemini
   included by default; the example build 625 (2 ignored) and 651 (2 ignored). By crate, from `main`:
   core 104 to 116, the CLI 51 to 57 (with the Gemini binary test now in every release), the daemon

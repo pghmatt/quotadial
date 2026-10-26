@@ -68,10 +68,10 @@ impl Diagnostics {
                     text::source_label(window.source)
                 )
             });
+            // The name once when it says nothing beyond the provider's label.
             lines.push(format!(
-                "  {} {}{plan}: {}{fetched}",
-                account.provider_label(),
-                account.display_name,
+                "  {}{plan}: {}{fetched}",
+                text::labelled(account.provider_label(), &account.display_name),
                 text::status_label(snapshot.status)
             ));
             // What QuotaDial does with the sign-in, in the provider's words, which name where it is
@@ -352,6 +352,21 @@ mod tests {
                 "Accounts (1):\n  claude m***@e***.com (max): ok, fetched 3 min ago from the \
                  API\nLeft out"
             ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once() {
+        let mut facts = diagnostics();
+        let account = &mut facts.report.snapshots[0].account;
+        account.provider_name = "Example".into();
+        account.display_name = "Example".into();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains("Accounts (1):\n  Example (max): ok, fetched 3 min ago from the API\n"),
             "{text}"
         );
     }

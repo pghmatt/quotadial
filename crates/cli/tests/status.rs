@@ -267,10 +267,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
         .collect();
     assert_eq!(
         accounts,
-        [
-            "Example Example (Claude Max 5x): ok",
-            "Example Example (ChatGPT Pro): ok"
-        ],
+        ["Example (Claude Max 5x): ok", "Example (ChatGPT Pro): ok"],
         "{text}"
     );
     let windows: Vec<&str> = text.lines().filter(|line| line.starts_with("  ")).collect();
@@ -281,7 +278,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
             "{window}"
         );
     }
-    assert!(text.starts_with("Example Example (Claude Max 5x): ok\n  Weekly: 91% used"));
+    assert!(text.starts_with("Example (Claude Max 5x): ok\n  Weekly: 91% used"));
     assert!(!text.contains('@'), "{text}");
 }
 
@@ -339,7 +336,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     let output = first_refresh(&["watch"], &home, |line| line.contains("Ctrl-C"));
 
     let first = if EXAMPLE {
-        "Example Example (Claude Max 5x): ok\n"
+        "Example (Claude Max 5x): ok\n"
     } else {
         "no accounts found\n\nUpdated "
     };
@@ -765,8 +762,8 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
     let accounts: &[&str] = if EXAMPLE {
         &[
             "Accounts (2):",
-            "  Example Example (Claude Max 5x): ok, fetched just now from the example build",
-            "  Example Example (ChatGPT Pro): ok, fetched just now from the example build",
+            "  Example (Claude Max 5x): ok, fetched just now from the example build",
+            "  Example (ChatGPT Pro): ok, fetched just now from the example build",
         ]
     } else {
         &["Accounts (0):", "  none found"]

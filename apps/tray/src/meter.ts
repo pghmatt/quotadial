@@ -43,7 +43,8 @@ export interface Account {
   summary: string;
   /** Such as "Claude". */
   provider: string;
-  /** Such as the account's email address. */
+  /** Such as the account's email address; empty when it says nothing beyond `provider`, as for an
+   * account called Example under the provider Example, so the provider shows once. */
   name: string;
   plan: string | null;
   /** Such as "ok", "stale" or "sign-in required". */
@@ -149,7 +150,8 @@ export interface AccountHistory {
   key: string;
   /** Such as "Claude". */
   provider: string;
-  /** The name the user gave the account, or its email address. */
+  /** The name the user gave the account, or its email address; empty when that says nothing beyond
+   * `provider`. */
   name: string;
   /** What a picture of this account's history calls it, such as "Claude Work" or "Claude Max":
    * its provider and the name given it, or its plan, and never its address. */

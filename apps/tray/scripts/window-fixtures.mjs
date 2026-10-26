@@ -6,8 +6,8 @@
 // a long name short and never shows an address. One is Gemini CLI's, whose sign-in panel says what
 // Gemini CLI says rather than Claude's sentence (P-020). Two copies of the app: Pro, with the
 // week's cost, a key kept and a Share image button on each account in History, and Free, with what
-// Pro adds, the line said in the buttons' place, an update on offer, and Codex's account as an
-// older daemon sends it, with no panel.
+// Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
+// daemon sends it, with no panel, and an example account, its provider shown once.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -148,6 +148,39 @@ const ACCOUNTS = [
       "opens it.",
   },
 ];
+
+/**
+ * An account as the example build sends it (D-117): called Example under the provider Example, so
+ * the app leaves its name out and the provider shows once in its heading and summary.
+ * @type {Meter["accounts"][number]}
+ */
+const EXAMPLE_ACCOUNT = {
+  key: "fake example-1 -",
+  alias: null,
+  summary: "Example (Claude Max 5x): Weekly 91%, resets in 2 d 4 h",
+  provider: "Example",
+  name: "",
+  plan: "Claude Max 5x",
+  status: "ok",
+  ok: true,
+  windows: [
+    {
+      label: "Weekly",
+      used_pct: 91,
+      level: "high",
+      resets: "resets in 2 d 4 h",
+      fetched: "from the example build 1 min ago",
+      unconfirmed: false,
+      pace: null,
+      runs_out: false,
+    },
+  ],
+  extra_usage: null,
+  note: null,
+  sign_in:
+    "An example account, made up by QuotaDial's example build for pictures of the app. It has no " +
+    "sign-in, and QuotaDial asks no one for its numbers.",
+};
 
 /** @type {Meter} */
 const METER = {
@@ -386,8 +419,12 @@ export const pro = {
 export const free = {
   meter: {
     ...METER,
-    // Codex's account as an older daemon sends it, saying nothing of its sign-in, so no panel.
-    accounts: ACCOUNTS.map((account) => (account.provider === "Codex" ? { ...account, sign_in: "" } : account)),
+    // Codex's account as an older daemon sends it, saying nothing of its sign-in, so no panel; and
+    // an example account, whose provider shows once.
+    accounts: [
+      ...ACCOUNTS.map((account) => (account.provider === "Codex" ? { ...account, sign_in: "" } : account)),
+      EXAMPLE_ACCOUNT,
+    ],
     left_out: [
       "Showing every account is part of QuotaDial Pro: quotadial.com/pro",
       "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro",

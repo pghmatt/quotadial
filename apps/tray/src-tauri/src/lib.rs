@@ -276,10 +276,9 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .map(|snapshot| {
                 let key = account_key(&snapshot.account);
                 AccountChoice {
-                    label: format!(
-                        "{} {}",
+                    label: text::labelled(
                         snapshot.account.provider_label(),
-                        snapshot.account.display_name
+                        &snapshot.account.display_name,
                     ),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
                     key,

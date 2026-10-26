@@ -184,7 +184,7 @@ function AccountSection({ account, index }: { account: Account; index: number })
       <h2 id={heading}>
         <span class="provider">{account.provider}</span>
         {account.alias && <span class="alias">{account.alias}</span>}
-        <span class="name">{account.name}</span>
+        {account.name && <span class="name">{account.name}</span>}
         {account.plan && <span class="tag">{account.plan}</span>}
         {!account.ok && <span class="tag attention">{account.status}</span>}
       </h2>
