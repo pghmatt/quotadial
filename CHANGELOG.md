@@ -55,6 +55,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A long account name or address no longer runs off the side of Settings or History, and nothing in the window is cut off at 200%.
 - The command in the warning about a `config.json` other users can read now works when pasted into a terminal, such as `chmod 600 ~/'Library/Application Support/quotadial/config.json'` on macOS, where the space in `Application Support` used to split it.
 - The command that signs a Claude Code folder in again now works when pasted, from `doctor` too, and writes a folder in your home folder from `~` or `$HOME`, never with your user name: `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, or on Windows `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`. A folder with a space in its name used to be written in full, and `doctor` showed it as `'~/My Claude'`, which no shell expands.
+- A folder whose name only starts as your home folder's does, such as `/Users/ann (old)` beside `/Users/ann`, is no longer written `~ (old)` in errors and in `doctor`, and the `chmod 600` command in the `config.json` warning and the command that signs a Claude Code folder in again work when pasted for such a folder, where the `~` made them fail.
 
 ## [0.2.0] - 2026-10-24
 
