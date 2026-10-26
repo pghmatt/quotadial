@@ -342,6 +342,247 @@ fn after_home<'a>(place: &'a Path, home: Option<&Path>) -> Option<&'a Path> {
         .and_then(|home| place.strip_prefix(home).ok())
 }
 
+/// What the user's name is written as where [`hide_user_in`] hides it.
+const HIDDEN_USER: &str = "[user]";
+
+/// The one character that stands for each name, and for each `[user]` already in the text, in the
+/// text [`hide_user_in`] reads places from, so that hiding a name cannot change what is read after
+/// it, whatever the name holds, such as the space in `Ann Smith` (D-134).
+const STAND_IN: char = 'x';
+
+/// `text` with the user's name, the last name of the home folder `home`, written `[user]` where it
+/// names the user: as a name in a place outside the home folder, such as
+/// `/Volumes/Backup/Users/ann` for the home folder `/Users/ann`, or
+/// `/private/tmp/ann-501/-Users-ann--work`, a temporary folder named from the working folder (#52,
+/// D-134). Doctor's text goes through it after [`tilde_in`] has written every place in the home
+/// folder `~`. With no home folder, or one that is a whole disk, whose name is not text or has
+/// fewer than 3 characters, which could be part of anything, the text is left as it is. Written
+/// again, a text is what it was written once.
+///
+/// The name is hidden only where it is a whole name, bounded by anything but an ASCII letter or
+/// digit, and only inside a place outside the home folder. A word that is only spelled as the name
+/// stays, in a sentence, in a command, in a web address and in a place that starts at `~` or
+/// `$HOME`, which is the user's own folder however it is written: for a user called `claude`, `run
+/// claude once`, `CLAUDE_CONFIG_DIR=~/'.claude-work' claude` and `~/.claude` stay as they are, where
+/// a plain replace of the whole word wrote `run [user] once`, `CLAUDE_CONFIG_DIR=~/'.[user]-work'
+/// [user]` and `~/.[user]`. The words in a command that names a place in the home folder are never
+/// hidden, whatever the user is called.
+///
+/// A place outside the home folder is read from the text as [`tilde_in`] reads a path, and so is a
+/// word in single quotes, one place, read whole:
+///
+/// - **It starts** where a path can start, at the start of the text or after a character no path
+///   holds, with a root: `/` or `\`, or a drive and a separator, such as `C:\` or `C:/`. Both
+///   separators count on every system, so a place written on another system is found. A `//`
+///   after `scheme:` starts a web address and not a place, except after `file:`, so
+///   `http://127.0.0.1/v1/status` is left alone for a user called `status`. A word that starts with
+///   `~`, `$` or `%` starts a place in the home folder, its variable and what follows it in one
+///   piece, as in `%USERPROFILE%\x` and `${HOME}/x`, and a relative path has no root, so neither
+///   is a place outside it.
+/// - **It goes on** to the end of its word, and past a space into the next word when that holds a
+///   separator, as in `/Volumes/My Passport/Users/ann`, and so on, up to a line break. A plain
+///   word ends it, which is where a sentence goes on after a place.
+/// - **A word in single quotes** that starts a place is read whole: a quoted place outside the home
+///   folder, as [`shell_word`] and [`powershell_string`] write it, is one place whatever it holds,
+///   and the words of the command around it are not in it. A word that goes on from a path, as
+///   `'Library'` does after `~/`, is part of that path, and PowerShell's string from `$HOME`,
+///   [`powershell_string`]'s form for a place in the home folder, is read whole too, so a command
+///   for a place in the home folder is never changed.
+///
+/// Where this must guess, it hides: a name is hidden in whatever reads as a place outside the home
+/// folder, so it also writes `[user]` for a component that is only spelled as the name, such as
+/// `/usr/bin/security` for a user called `security`, and for a word that reads as a place, such as
+/// `/model`, or one joined to a place by a separator after a space (D-134 lists them). It leaves a
+/// name it cannot tell is in a place: after a plain word in a folder's name, as in
+/// `/Volumes/Time Machine Backups/Users/ann`, and in a relative path, a sentence, or a place under
+/// `~` that holds the user's encoded folder.
+#[must_use]
+pub fn hide_user_in(text: &str, home: Option<&Path>) -> String {
+    let Some(name) = user_name(home).filter(|name| text.contains(*name)) else {
+        return text.to_owned();
+    };
+    // The text places are read from: each name and each `[user]` as one character. Where each name
+    // is in `text`, and where its character is in what is read.
+    let mut read = String::with_capacity(text.len());
+    let mut names = Vec::new();
+    let mut at = 0;
+    while let Some(next) = text[at..].chars().next() {
+        let rest = &text[at..];
+        if rest.starts_with(HIDDEN_USER) {
+            read.push(STAND_IN);
+            at += HIDDEN_USER.len();
+        } else if rest.starts_with(name) && is_whole_name(text, at, at + name.len()) {
+            names.push((at, read.len()));
+            read.push(STAND_IN);
+            at += name.len();
+        } else {
+            read.push(next);
+            at += next.len_utf8();
+        }
+    }
+    let outside = outside_the_home_folder(&read);
+    let mut hidden = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (at, stand_in) in names {
+        if outside[stand_in] {
+            hidden.push_str(&text[copied..at]);
+            hidden.push_str(HIDDEN_USER);
+            copied = at + name.len();
+        }
+    }
+    hidden.push_str(&text[copied..]);
+    hidden
+}
+
+/// The user's name: the last name of the home folder `home`, when there is one that is not a whole
+/// disk, it is text, and it has 3 or more characters.
+fn user_name(home: Option<&Path>) -> Option<&str> {
+    home.filter(|home| home.parent().is_some())
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+        .filter(|name| name.chars().count() >= 3)
+}
+
+/// Whether the name at `at..end` in `text` is a whole name: no ASCII letter or digit is beside it,
+/// and no `[user]`, which is a name already hidden. A name that touches one is left, so hiding the
+/// text again finds the same names.
+fn is_whole_name(text: &str, at: usize, end: usize) -> bool {
+    let (before, after) = (&text[..at], &text[end..]);
+    !before.ends_with(HIDDEN_USER)
+        && !after.starts_with(HIDDEN_USER)
+        && before
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_ascii_alphanumeric())
+        && after
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_ascii_alphanumeric())
+}
+
+/// Which bytes of `text` are in a place outside the home folder, read as [`hide_user_in`] says:
+/// a place starts at a root where a path can start and goes on to the end of its word, and past a
+/// space into the next word when that holds a separator, up to a line break; a word in single
+/// quotes is one place, read whole, as [`tilde_in`] reads it, and PowerShell's string from `$HOME`
+/// is one place in the home folder, read whole as [`powershell_string`] writes it (D-134).
+fn outside_the_home_folder(text: &str) -> Vec<bool> {
+    let mut outside = vec![false; text.len()];
+    let mut inside = false;
+    let mut at = 0;
+    while let Some(next) = text[at..].chars().next() {
+        let rest = &text[at..];
+        let before = text[..at].chars().next_back();
+        // What starts right after a path character goes on from that path, as `'Library'` does
+        // after `~/`: it is in the place before it, whichever that is, and starts none of its own.
+        let goes_on = before.is_some_and(continues_a_path);
+        let after_a_space = before.is_some_and(char::is_whitespace);
+        let width = if let Some(width) = home_string(rest).filter(|_| !goes_on) {
+            inside = false;
+            width
+        } else if let Some(word) = single_quoted(rest, before) {
+            if !goes_on {
+                inside = starts_at_a_root(&rest[1..word.closes]);
+            }
+            word.end
+        } else {
+            if next.is_whitespace() {
+                if is_line_break(next) {
+                    inside = false;
+                } else if inside && !after_a_space {
+                    inside = place_goes_on(&rest[next.len_utf8()..]);
+                }
+            } else if !goes_on {
+                if starts_at_a_root(rest) && !is_web_address(text, at) {
+                    inside = true;
+                } else if rest.starts_with(['~', '$', '%']) {
+                    inside = false;
+                }
+            }
+            next.len_utf8()
+        };
+        if inside {
+            outside[at..at + width].fill(true);
+        }
+        at += width;
+    }
+    outside
+}
+
+/// Whether `character` is one a path goes on with where a root follows it: one a path holds, or the
+/// end of a variable the home folder is written with, so that `%USERPROFILE%\x` and `${HOME}/x`
+/// are the home folder's, each in one piece, and not a variable and then a place of its own.
+fn continues_a_path(character: char) -> bool {
+    in_path(character) || matches!(character, '%' | '}')
+}
+
+/// Whether `separator` is one a place is written with, on any system: a place written on another
+/// system is a place too, so the name in it is hidden.
+fn is_slash(separator: char) -> bool {
+    matches!(separator, '/' | '\\')
+}
+
+/// Whether `rest` starts at a root: a separator, or a drive and a separator, as `C:\` and `C:/`.
+fn starts_at_a_root(rest: &str) -> bool {
+    let mut characters = rest.chars();
+    match characters.next() {
+        Some(first) if is_slash(first) => true,
+        Some(drive) if drive.is_ascii_alphabetic() => {
+            characters.next() == Some(':') && characters.next().is_some_and(is_slash)
+        }
+        _ => false,
+    }
+}
+
+/// Whether the `/` at `at` in `text` starts the `//` of a web address, as in `http://127.0.0.1`,
+/// which no place starts with: a scheme and a colon come before it, and the scheme is not `file`,
+/// whose address names a place. A drive written with two separators, `D://Backup`, has started a
+/// place at its letter already, whatever this says of the `//`.
+fn is_web_address(text: &str, at: usize) -> bool {
+    let Some(before) = text[..at].strip_suffix(':') else {
+        return false;
+    };
+    let scheme = &before[before.trim_end_matches(is_scheme_character).len()..];
+    text[at..].starts_with("//")
+        && scheme.starts_with(|first: char| first.is_ascii_alphabetic())
+        && !scheme.eq_ignore_ascii_case("file")
+}
+
+/// Whether `character` can be in the scheme of a web address.
+fn is_scheme_character(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.')
+}
+
+/// How far PowerShell's string from `$HOME` that starts `rest` goes, as [`powershell_string`]
+/// writes it for a place in the home folder: a backtick takes the character after it as written,
+/// and a double quotation mark of any of PowerShell's kinds ends the string. `None` where `rest`
+/// starts no such string, or it never ends.
+fn home_string(rest: &str) -> Option<usize> {
+    const START: &str = "\"$HOME";
+    let mut characters = rest.strip_prefix(START)?.char_indices();
+    while let Some((at, character)) = characters.next() {
+        if character == '`' {
+            characters.next();
+        } else if POWERSHELL_DOUBLE_QUOTES.contains(&character) {
+            return Some(START.len() + at + character.len_utf8());
+        }
+    }
+    None
+}
+
+/// Whether the place outside the home folder that ends at a space goes on, `after` being what
+/// follows the space: in the next word, after any more spaces, when that holds a separator, as
+/// `Passport/Users/ann` does after `/Volumes/My`. Not in a plain word, which is a sentence going
+/// on, nor at a line break. A word that starts a place in the home folder, with `~`, `$` or `%`,
+/// ends the place when the scan reaches it, whatever this says.
+fn place_goes_on(after: &str) -> bool {
+    let word = after.trim_start_matches(|character: char| {
+        character.is_whitespace() && !is_line_break(character)
+    });
+    word.chars()
+        .take_while(|character| !character.is_whitespace())
+        .any(is_slash)
+}
+
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
 #[must_use]
 pub fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
@@ -1141,6 +1382,447 @@ mod tests {
         }
     }
 
+    /// What a hidden name is written as, in the tests as in the code.
+    const USER: &str = "[user]";
+
+    /// `parts` joined with `/`, as a sentence of any system can write a place: `["", "Volumes"]` is
+    /// `/Volumes`. Every place the tests of [`hide_user_in`] write is made from its parts, and the
+    /// rule reads both separators on every system, so none depends on the one this runs on.
+    fn slashed(parts: &[&str]) -> String {
+        parts.join("/")
+    }
+
+    /// `parts` joined with `\`, as Windows writes a place: `["C:", "Users"]` is `C:\Users`.
+    fn backslashed(parts: &[&str]) -> String {
+        parts.join("\\")
+    }
+
+    /// `text` as doctor's pass leaves it: the home folder written `~`, then the user's name hidden.
+    fn doctor_pass(text: &str, home: &Path) -> String {
+        hide_user_in(&tilde_in(text, Some(home)), Some(home))
+    }
+
+    #[test]
+    fn a_users_name_is_hidden_in_a_place_outside_the_home_folder() {
+        // Another disk's copy of the home folder, the temporary folder Claude Code makes for a
+        // working folder (its path with `/` written `-`, and the user id after the name), a drive
+        // and a network share as Windows writes them, and a folder named after the name: the name
+        // is a component of a place that is not the home folder, whoever the user is (D-134).
+        for name in ["ann", "claude", "codex"] {
+            let home = path(&["/", "Users", name]);
+            let places = |who: &str| {
+                [
+                    slashed(&["", "Volumes", "Backup", "Users", who, ".keys", "cache.json"]),
+                    slashed(&[
+                        "",
+                        "private",
+                        "tmp",
+                        &format!("{who}-501"),
+                        &format!("-Users-{who}--work"),
+                        "data",
+                    ]),
+                    backslashed(&["D:", "Backup", "Users", who, ".keys"]),
+                    backslashed(&["", "", "server", "home", who]),
+                    slashed(&["", "home", &format!("{who}.old"), "x"]),
+                ]
+            };
+            for (place, hidden) in places(name).into_iter().zip(places(USER)) {
+                // The name hidden in the place, and kept in the sentence around it.
+                let said = |place: &str| {
+                    [
+                        format!("could not read the sign-in from {place}: it is not valid JSON"),
+                        format!("Data folder: {place}\n"),
+                        format!("settings: ({place}), {place}."),
+                        format!("{name} says: could not read {place} for {name}"),
+                        place.to_owned(),
+                    ]
+                };
+                for (said, hidden) in said(&place).into_iter().zip(said(&hidden)) {
+                    assert_eq!(doctor_pass(&said, &home), hidden, "{name}: {said}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_word_that_is_only_spelled_as_the_users_name_stays_as_it_is() {
+        // In a sentence, a setting, a provider's id and a web address, none of which names a place:
+        // for a user called `claude`, the plain replace of the whole word wrote `run [user] once`
+        // (D-134). A relative path has no root, so it is none of these either.
+        for (name, said) in [
+            ("claude", "If it stops working, run claude once."),
+            ("claude", "The command 'claude' is not on the PATH."),
+            (
+                "claude",
+                "Run `claude` with the CLAUDE_CONFIG_DIR it was made with.",
+            ),
+            ("copilot", "copilot: request failed: GitHub did not answer."),
+            ("status", "  status_pages: on"),
+            ("history", "  history_days: 30"),
+            ("daemon", "Numbers: from the daemon"),
+            (
+                "quotadial",
+                "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro",
+            ),
+            ("ann", "see ann/x and Users/ann/y, then ann"),
+        ] {
+            let home = path(&["/", "Users", name]);
+            assert_eq!(hide_user_in(said, Some(&home)), said, "{name}");
+        }
+        let home = path(&["/", "Users", "someone"]);
+        assert_eq!(
+            hide_user_in("/x/someones /y/someone_x /z/xsomeone", Some(&home)),
+            "/x/someones /y/[user]_x /z/xsomeone",
+            "a whole name only"
+        );
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_keeps_the_words_it_has_whoever_the_user_is() {
+        // `~/.claude` for a user called `claude`, `~/.codex` for `codex`, and macOS's own folders
+        // for a user called `Support` or `quotadial`: a place that starts at `~` is the user's own
+        // however it is spelled, and the plain replace wrote `~/.[user]` (D-134).
+        for name in ["claude", "codex", "gemini", "quotadial", "Support"] {
+            let home = path(&["/", "Users", name]);
+            let in_the_home = |parts: &[&str]| {
+                parts
+                    .iter()
+                    .fold(home.clone(), |place, part| place.join(part))
+            };
+            for place in [
+                in_the_home(&[".claude", ".credentials.json"]),
+                in_the_home(&[".codex", "auth.json"]),
+                in_the_home(&[".gemini", "settings.json"]),
+                in_the_home(&["Library", "Application Support", "quotadial", "config.json"]),
+                in_the_home(&[name, name]),
+            ] {
+                for said in [
+                    naming(&place),
+                    format!("Data folder: {}\n", place.display()),
+                    format!("could not use {}: permission denied", place.display()),
+                    place.display().to_string(),
+                ] {
+                    let written = tilde_in(&said, Some(&home));
+                    assert!(written.contains('~'), "{name}: {written}");
+                    assert_eq!(
+                        hide_user_in(&written, Some(&home)),
+                        written,
+                        "{name}: {said}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_command_for_a_place_in_the_home_folder_comes_through_whole_for_any_user() {
+        // The sign-in commands, in a POSIX shell and in PowerShell, and `config.json`'s `chmod 600`
+        // come through doctor's whole pass as they were written, with the user's name among their
+        // words and in the place (D-134): `CLAUDE_CONFIG_DIR=~/'.claude-work' claude` for a user
+        // called `claude` was `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`.
+        for name in ["claude", "codex", "config", "quotadial", "work"] {
+            let home = path(&["/", "Users", name]);
+            // A folder whose name ends in a space beside one named like the user: in PowerShell's
+            // string it is `"$HOME/a /claude"`, whose second word starts like a place.
+            let rests = [
+                ".claude-work".to_owned(),
+                ".claude".to_owned(),
+                "My Claude".to_owned(),
+                "Ann's Claude".to_owned(),
+                name.to_owned(),
+                "$x `y` \"z\"".to_owned(),
+                format!("a /{name}"),
+            ];
+            for rest in &rests {
+                let dir = home.join(rest);
+                let file = dir.join("config.json");
+                let (posix, shell) = (word(&dir, Some(&home)), powershell(&dir, Some(&home)));
+                let mut commands = vec![
+                    format!("CLAUDE_CONFIG_DIR={posix} claude"),
+                    format!("Run `CLAUDE_CONFIG_DIR={posix} claude` to sign in again."),
+                    format!("$env:CLAUDE_CONFIG_DIR = {shell}; claude"),
+                    format!("Run `$env:CLAUDE_CONFIG_DIR = {shell}; claude` to sign in again."),
+                    format!("chmod 600 {}", word(&file, Some(&home))),
+                ];
+                // The warning names the file as a sentence writes it, which a folder name with a
+                // quote in it, or one that ends in a space before a separator, makes a guess: the
+                // commands are what is held to be exact.
+                if !rest.contains('"') && !rest.contains(" /") {
+                    commands.push(format!(
+                        "{} holds webhook addresses, which work like passwords, and other users \
+                         can read it; run `chmod 600 {}`.",
+                        tilde(&file, Some(&home)),
+                        word(&file, Some(&home))
+                    ));
+                }
+                for command in commands {
+                    assert_eq!(doctor_pass(&command, &home), command, "{name}: {command}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_web_address_is_not_a_place() {
+        // The daemon's API in a message, and the hosts a provider is asked, for a user whose name is
+        // a word in one, such as `status`; only `file:` names a place (D-134).
+        let said = |address: &str| {
+            format!(
+                "the QuotaDial daemon is running, but its API at {address} could not be reached"
+            )
+        };
+        for (name, address) in [
+            ("status", "http://127.0.0.1:47115/v1/status"),
+            ("headroom", "http://127.0.0.1:47115/v1/headroom"),
+            ("anthropic", "https://api.anthropic.com/api/oauth/usage"),
+            ("api", "https://api.anthropic.com/api/oauth/usage"),
+            ("wham", "https://chatgpt.com/backend-api/wham/usage"),
+        ] {
+            let home = path(&["/", "Users", name]);
+            assert_eq!(
+                hide_user_in(&said(address), Some(&home)),
+                said(address),
+                "{name}"
+            );
+        }
+        let home = path(&["/", "Users", "ann"]);
+        assert_eq!(
+            hide_user_in(
+                "file:///Users/ann/.claude and file://host/Users/ann/x",
+                Some(&home)
+            ),
+            "file:///Users/[user]/.claude and file://host/Users/[user]/x"
+        );
+        // A drive written with two separators is a drive, not a scheme of one letter.
+        assert_eq!(
+            hide_user_in("D://Backup/Users/ann/x", Some(&home)),
+            "D://Backup/Users/[user]/x"
+        );
+    }
+
+    #[test]
+    fn the_words_around_a_quoted_place_outside_the_home_folder_stay() {
+        // `shell_word` and `powershell_string` write a place outside the home folder in single
+        // quotes, one place whatever it holds. The name in it is hidden, and the variable's name
+        // before it and the `claude` that runs after it are not in it (D-134).
+        let home = path(&["/", "Users", "claude"]);
+        for rest in ["My Claude", "O'Brien's data", "a b/c d"] {
+            let outside = |who: &str| path(&["/", "Volumes", "Data", who]).join(rest);
+            let (shown, hidden) = (outside("claude"), outside(USER));
+            for (shown, hidden) in [
+                (word(&shown, Some(&home)), word(&hidden, Some(&home))),
+                (
+                    powershell(&shown, Some(&home)),
+                    powershell(&hidden, Some(&home)),
+                ),
+            ] {
+                let said = |place: &str| {
+                    [
+                        format!("CLAUDE_CONFIG_DIR={place} claude"),
+                        format!("Run `$env:CLAUDE_CONFIG_DIR = {place}; claude` to sign in."),
+                        format!("chmod 600 {place}"),
+                    ]
+                };
+                for (said, hidden) in said(&shown).into_iter().zip(said(&hidden)) {
+                    assert_eq!(doctor_pass(&said, &home), hidden, "{rest}");
+                }
+            }
+        }
+        // A place on a drive, as PowerShell's single quotes hold it on Windows, where the quoted
+        // word starts at the drive and no separator comes first.
+        let on_a_drive = |who: &str| {
+            format!(
+                "$env:CLAUDE_CONFIG_DIR = '{}'; claude",
+                backslashed(&["D:", "Data", who, "My Claude"])
+            )
+        };
+        assert_eq!(doctor_pass(&on_a_drive("claude"), &home), on_a_drive(USER));
+    }
+
+    #[test]
+    fn a_quoted_word_that_goes_on_from_a_path_is_part_of_that_path() {
+        // As `tilde_in` reads it (D-133): after `~/` the word is the home folder's own, whatever
+        // it starts with, and after a place outside the home folder it is that place (D-134).
+        let home = path(&["/", "Users", "ann"]);
+        for (said, hidden) in [
+            ("cd ~/'/Volumes/ann'", "cd ~/'/Volumes/ann'"),
+            ("cd ~/'a b/ann'", "cd ~/'a b/ann'"),
+            (
+                "cd /Volumes/Backup/'Users/ann'",
+                "cd /Volumes/Backup/'Users/[user]'",
+            ),
+            (
+                "cd /Volumes/Backup/'my disk'/ann",
+                "cd /Volumes/Backup/'my disk'/[user]",
+            ),
+        ] {
+            assert_eq!(hide_user_in(said, Some(&home)), hidden, "{said}");
+        }
+    }
+
+    #[test]
+    fn a_place_goes_on_past_a_space_only_into_a_word_with_a_separator() {
+        let home = path(&["/", "Users", "ann"]);
+        // A disk or a folder named with a space: the next word holds a separator, so it is the
+        // same place, and the name in it is hidden wherever it is.
+        for (said, hidden) in [
+            (
+                slashed(&["", "Volumes", "My Passport", "Users", "ann", "x"]),
+                slashed(&["", "Volumes", "My Passport", "Users", USER, "x"]),
+            ),
+            (
+                backslashed(&["D:", "My Backup", "Users", "ann"]),
+                backslashed(&["D:", "My Backup", "Users", USER]),
+            ),
+            (
+                format!(
+                    "{} ~/ann/y",
+                    slashed(&["", "Volumes", "Backup", "Users", "ann"])
+                ),
+                format!(
+                    "{} ~/ann/y",
+                    slashed(&["", "Volumes", "Backup", "Users", USER])
+                ),
+            ),
+        ] {
+            let sentence = |place: &str| format!("could not read {place}: it is not valid JSON");
+            assert_eq!(
+                hide_user_in(&sentence(&said), Some(&home)),
+                sentence(&hidden)
+            );
+        }
+        // A plain word is the sentence going on, and a line break ends a place, so the name after
+        // them is a word of the sentence, not of the place.
+        for said in [
+            format!(
+                "could not read {} for ann",
+                slashed(&["", "opt", "x", "auth.json"])
+            ),
+            format!("{}: ann says no", slashed(&["", "opt", "x", "auth.json"])),
+            format!("{}\nann/x and Users/ann", slashed(&["", "opt", "x"])),
+        ] {
+            assert_eq!(hide_user_in(&said, Some(&home)), said);
+        }
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_ends_where_one_in_it_starts_in_the_same_word() {
+        // Places joined by `:` or `=` in a word, as a list of folders is, or a command's variable
+        // after a place: what comes after `~` or `$HOME` is the user's own, whatever it holds, and
+        // the place before it is not (D-134).
+        let home = path(&["/", "Users", "ann"]);
+        for (said, hidden) in [
+            (
+                "/Volumes/Backup/Users/ann:~/ann/y",
+                "/Volumes/Backup/Users/[user]:~/ann/y",
+            ),
+            (
+                "/Volumes/Backup/Users/ann:$HOME/ann",
+                "/Volumes/Backup/Users/[user]:$HOME/ann",
+            ),
+            (
+                "/Volumes/Backup/Users/ann:%USERPROFILE%/ann",
+                "/Volumes/Backup/Users/[user]:%USERPROFILE%/ann",
+            ),
+            (
+                "/Volumes/Backup/Users/ann:%USERPROFILE%\\ann",
+                "/Volumes/Backup/Users/[user]:%USERPROFILE%\\ann",
+            ),
+            (
+                "/Volumes/Backup/Users/ann:${HOME}/ann",
+                "/Volumes/Backup/Users/[user]:${HOME}/ann",
+            ),
+            (
+                "/Volumes/Backup/Users/ann CLAUDE_CONFIG_DIR=~/ann/y claude",
+                "/Volumes/Backup/Users/[user] CLAUDE_CONFIG_DIR=~/ann/y claude",
+            ),
+            (
+                "/Volumes/Backup/Users/ann \"$HOME/ann\"",
+                "/Volumes/Backup/Users/[user] \"$HOME/ann\"",
+            ),
+        ] {
+            assert_eq!(hide_user_in(said, Some(&home)), hidden, "{said}");
+        }
+    }
+
+    #[test]
+    fn a_name_with_a_space_in_it_is_hidden_as_one_name() {
+        // Windows names a profile folder after the person, `C:\Users\Ann Smith`, with a space in it:
+        // the name is hidden whole, where it ends a place and where it starts one, and what comes
+        // after it in the sentence is not taken for the place going on (D-134).
+        let home = path(&["C:\\", "Users", "Ann Smith"]);
+        for (said, hidden) in [
+            (
+                backslashed(&["D:", "Backup", "Ann Smith", "Documents"]),
+                backslashed(&["D:", "Backup", USER, "Documents"]),
+            ),
+            (
+                backslashed(&["D:", "Backup", "Ann Smith"]),
+                backslashed(&["D:", "Backup", USER]),
+            ),
+            (
+                backslashed(&["D:", "Backup", "Ann Smith (old)", "x"]),
+                backslashed(&["D:", "Backup", &format!("{USER} (old)"), "x"]),
+            ),
+        ] {
+            let sentence =
+                |place: &str| format!("Ann Smith: could not read {place}: it is not valid JSON");
+            assert_eq!(
+                hide_user_in(&sentence(&said), Some(&home)),
+                sentence(&hidden)
+            );
+        }
+        // The name's own space does not end a place, and what is read after one name is read the
+        // same once it is hidden: both names go in one pass, and the text is as it will be again.
+        let said = backslashed(&["D:", "a b", "Ann Smith y", "Ann Smith", "z"]);
+        let once = hide_user_in(&said, Some(&home));
+        assert_eq!(once, backslashed(&["D:", "a b", "[user] y", "[user]", "z"]));
+        assert_eq!(hide_user_in(&once, Some(&home)), once);
+    }
+
+    #[test]
+    fn a_name_that_is_not_whole_does_not_hide_a_whole_one_that_overlaps_it() {
+        // `a.a` in `xa.a.a`: the first is part of a longer name, and the second shares its last
+        // letter with it (D-134).
+        let home = path(&["/", "Users", "a.a"]);
+        let once = hide_user_in("/x/xa.a.a", Some(&home));
+
+        assert_eq!(once, "/x/xa.[user]");
+        assert_eq!(hide_user_in(&once, Some(&home)), once);
+    }
+
+    #[test]
+    fn a_name_that_is_a_word_of_the_marker_is_hidden_once() {
+        // A user called `user` is hidden as `[user]`, which holds the name as a word: it reads as
+        // hidden already, so hiding it again changes nothing (D-134).
+        let home = path(&["/", "Users", "user"]);
+        let once = hide_user_in("/Volumes/Backup/user and /opt/user/x", Some(&home));
+
+        assert_eq!(once, "/Volumes/Backup/[user] and /opt/[user]/x");
+        assert_eq!(hide_user_in(&once, Some(&home)), once);
+    }
+
+    #[test]
+    fn nothing_is_hidden_without_a_name_of_three_characters_in_the_text() {
+        let text = "/Volumes/Backup/Users/ann/x and /Volumes/Backup/Users/me/y";
+        assert_eq!(hide_user_in(text, None), text, "no home folder");
+        assert_eq!(
+            hide_user_in(text, Some(Path::new(MAIN_SEPARATOR_STR))),
+            text,
+            "a home folder that is a whole disk"
+        );
+        assert_eq!(
+            hide_user_in(text, Some(&path(&["/", "Users", "me"]))),
+            text,
+            "too short to be sure"
+        );
+        assert_eq!(
+            hide_user_in(text, Some(&path(&["/", "Users", "bob"]))),
+            text,
+            "a name the text does not hold"
+        );
+    }
+
     fn ts(rfc3339: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(rfc3339)
             .expect("valid timestamp")
@@ -1616,6 +2298,197 @@ mod tests {
             // in it.
             for word in [format!("{written}{more}"), format!("{ahead}{written}{inside}")] {
                 prop_assert_eq!(tilde_in(&said(&word), Some(&home)), said(&word));
+            }
+        }
+    }
+
+    /// A user's name as a system names one, of 3 to 11 characters: letters, digits, `.`, `_`, `-`
+    /// and spaces inside, such as `ann` or `Ann Smith`.
+    fn user_name() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9_-][A-Za-z0-9 ._-]{1,8}[A-Za-z0-9]"
+    }
+
+    /// The pieces of a text made of what a sentence, a command or a place puts around a user's
+    /// name, `None` being the name itself: marks, quotes, brackets, spaces, line breaks and
+    /// separators, any characters, words with a separator in them, roots and drives, web
+    /// addresses, the home folder's own `~` and `$HOME`, a `[user]` already there, and the shapes a
+    /// quoted word takes.
+    fn around_the_name() -> impl Strategy<Value = Vec<Option<String>>> {
+        proptest::collection::vec(
+            proptest::option::weighted(
+                0.6,
+                prop_oneof![
+                    "[ \t\n./\\\\:;,)(\\[\\]'’\"`~$%=a-z]{0,3}",
+                    ".{0,3}",
+                    "[a-z]{1,4}/[a-z]{0,4}",
+                    proptest::sample::select(vec![
+                        "C:\\",
+                        "C:/",
+                        "//",
+                        "http://",
+                        "file:///",
+                        "[user]",
+                        "'\\''",
+                        "''",
+                        "\"$HOME\\",
+                        "~/'",
+                    ])
+                    .prop_map(String::from),
+                ],
+            ),
+            0..16,
+        )
+    }
+
+    // `hide_user_in` takes text from outside, such as a server's words and a place the system
+    // names, so no text and no home folder may make it panic (D-134), the same as `tilde_in`
+    // (D-129). Any string, and short ones of a path's characters, so a short home folder and a
+    // separator, a quote or a bracket beside the name come up often.
+    proptest! {
+        #[test]
+        fn no_text_or_home_folder_makes_hiding_the_user_panic(
+            home in proptest::option::of(
+                prop_oneof![any::<String>(), "[a-z./\\\\~ '’(\\[\\]x]{1,5}"]
+            ),
+            pieces in proptest::collection::vec(
+                proptest::option::of(
+                    prop_oneof![any::<String>(), "[ \n./\\\\:a-z~'’(\\[\\]$%\"`]{0,3}"]
+                ),
+                0..8,
+            ),
+        ) {
+            let home = home.map(PathBuf::from);
+            let name = home
+                .as_deref()
+                .and_then(Path::file_name)
+                .and_then(std::ffi::OsStr::to_str)
+                .unwrap_or_default();
+            let text = pieced(name, &pieces);
+
+            let _ = hide_user_in(&text, home.as_deref());
+
+            prop_assert_eq!(hide_user_in(&text, None), text.as_str(), "no home folder");
+            let disk = Path::new(MAIN_SEPARATOR_STR);
+            prop_assert_eq!(hide_user_in(&text, Some(disk)), text.as_str(), "a whole disk");
+        }
+
+        // D-134: hidden once, a text is what it was hidden as, for a name with a space in it, for
+        // one that is a word of `[user]`, and for any name at all, among every shape of the text
+        // around it: the places and the quoted words are read the same before and after.
+        #[test]
+        fn hiding_the_user_again_changes_nothing(
+            name in prop_oneof![user_name(), Just("user".to_owned()), "\\PC{3,10}"],
+            pieces in around_the_name(),
+        ) {
+            let home = PathBuf::from("/Users").join(&name);
+            let text = pieced(&name, &pieces);
+
+            let once = hide_user_in(&text, Some(&home));
+
+            prop_assert_eq!(hide_user_in(&once, Some(&home)), once);
+        }
+
+        // Read back as the name, a text that has the name hidden is the text it was: nothing but
+        // the name is ever hidden.
+        #[test]
+        fn hiding_the_user_hides_nothing_but_the_name(
+            name in user_name(),
+            pieces in around_the_name(),
+        ) {
+            let home = path(&["/", "Users", &name]);
+            let text = pieced(&name, &pieces);
+
+            let hidden = hide_user_in(&text, Some(&home));
+
+            prop_assert_eq!(hidden.replace(USER, &name), text.replace(USER, &name));
+        }
+
+        // D-134, the rule: the name never survives as a component of a place outside the home
+        // folder, or as a part of one set off by `-` or `.`, whatever the root, the separator and
+        // the words around the place, in a sentence, in quotes, after `=` and in brackets. The
+        // fixed parts are upper case, and the name lower case, so nothing but the name can be hidden,
+        // and every expected place is made from its parts.
+        #[test]
+        fn the_users_name_never_survives_in_a_place_outside_the_home_folder(
+            name in "[a-z0-9_-][a-z0-9 ._-]{1,8}[a-z0-9]",
+            root in prop_oneof![
+                Just("/"),
+                Just("C:/"),
+                Just("C:\\"),
+                Just("//SERVER/"),
+                Just("\\\\SERVER\\"),
+            ],
+            separator in prop_oneof![Just("/"), Just("\\")],
+            before in proptest::collection::vec("[A-Z]{1,5}", 0..3),
+            (prefix, suffix) in prop_oneof![
+                Just(("", "")),
+                Just(("", "-OLD")),
+                Just(("-Users-", "--WORK")),
+                Just(("OLD.", "")),
+            ],
+            after in proptest::collection::vec("[A-Z]{1,5}", 0..3),
+            lead in "([a-z]{1,6} ){0,2}",
+            tail in "( [a-z]{1,6}){0,2}",
+            form in 0usize..5,
+        ) {
+            let home = path(&["/", "Users", &name]);
+            let place = |who: &str| {
+                let named = format!("{prefix}{who}{suffix}");
+                let parts: Vec<&str> = before
+                    .iter()
+                    .map(String::as_str)
+                    .chain(std::iter::once(named.as_str()))
+                    .chain(after.iter().map(String::as_str))
+                    .collect();
+                format!("{root}{}", parts.join(separator))
+            };
+            // The name is a word of the sentence around the place too, before and after it, where it
+            // stays: only the place is read for it.
+            let (lead, tail) = (format!("{name} {lead}"), format!("{tail} {name}"));
+            let sentence = |place: &str| match form {
+                0 => format!("{lead}{place}"),
+                1 => format!("{lead}{place}: it is not valid{tail}"),
+                2 => format!("{lead}'{place}'{tail}"),
+                3 => format!("CLAUDE_CONFIG_DIR={place}{tail}"),
+                _ => format!("{lead}({place}).{tail}"),
+            };
+
+            prop_assert_eq!(
+                hide_user_in(&sentence(&place(&name)), Some(&home)),
+                sentence(&place(USER))
+            );
+        }
+
+        // D-134, the commands: for any user name, the commands for a place in the home folder, a
+        // POSIX shell's and PowerShell's, whatever the place holds, come through doctor's whole
+        // pass as they were written, and the name is among their words and in the place.
+        #[test]
+        fn the_commands_for_a_place_in_the_home_folder_come_through_whole_for_any_user(
+            name in user_name(),
+            root in prop_oneof![Just("/"), Just("C:\\")],
+            rest in proptest::collection::vec(
+                proptest::option::of("\\.?[A-Za-z0-9_-][A-Za-z0-9 ._'\"$`-]{0,8}"),
+                0..4,
+            ),
+        ) {
+            let home = path(&[root, "Users", &name]);
+            let place = rest.iter().fold(home.clone(), |place, part| {
+                place.join(part.as_deref().unwrap_or(&name))
+            });
+            let (posix, shell) = (
+                shell_word(&place, Some(&home)),
+                powershell_string(&place, Some(&home)),
+            );
+
+            for command in [
+                posix.clone(),
+                format!("chmod 600 {posix}"),
+                format!("CLAUDE_CONFIG_DIR={posix} claude"),
+                format!("run `CLAUDE_CONFIG_DIR={posix} claude` to sign in again."),
+                format!("$env:CLAUDE_CONFIG_DIR = {shell}; claude"),
+                format!("run `$env:CLAUDE_CONFIG_DIR = {shell}; claude` to sign in again."),
+            ] {
+                prop_assert_eq!(doctor_pass(&command, &home), command.clone());
             }
         }
     }

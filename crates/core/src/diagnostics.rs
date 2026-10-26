@@ -2,10 +2,11 @@
 //! it and the app's Send feedback attaches it, so a report reads the same from either. Whoever
 //! gathers the facts fills in [`Diagnostics`]; the text is built only here.
 //!
-//! The text holds no token, no email address in full, no home folder by name, no licence id and
-//! no webhook address: tokens are redacted, email addresses are cut to their first letters, the
-//! home folder is written `~` by [`text::tilde_in`], the rule every message follows, and webhooks
-//! are named by their host.
+//! The text holds no token, no email address in full, no home folder by name, no user name where it
+//! names the user, no licence id and no webhook address: tokens are redacted, email addresses are
+//! cut to their first letters, the home folder is written `~` by [`text::tilde_in`], the rule every
+//! message follows, the user's name is written `[user]` where it is part of a place outside the
+//! home folder by [`text::hide_user_in`], and webhooks are named by their host.
 
 use std::path::Path;
 
@@ -36,7 +37,9 @@ pub struct Diagnostics {
 
 impl Diagnostics {
     /// The text, at `now`, with every place in the home folder `home` written `~`, as
-    /// [`text::tilde_in`] writes it for every message.
+    /// [`text::tilde_in`] writes it for every message, and the user's name, the home folder's own,
+    /// hidden in a place outside it, as [`text::hide_user_in`] does and nowhere else: a command or a
+    /// place in the home folder keeps the words it has, whatever the user is called (D-134).
     #[must_use]
     pub fn text(&self, now: DateTime<Utc>, home: Option<&Path>) -> String {
         let mut lines = vec![
@@ -136,42 +139,13 @@ impl Diagnostics {
         // folder whose name only starts as the home folder's does, such as `/Users/anna` beside
         // `/Users/ann`, keeps its name (D-129).
         text = mask_emails(&redact_secrets(&text::tilde_in(&text, home)));
-        // The account's name can be in a path outside the home folder too, such as a data folder
-        // that QUOTADIAL_DATA_DIR puts in a temporary folder named after it. Email addresses are
-        // cut first, so one that starts with the name is still cut to its first letters.
-        if let Some(user) = home
-            .and_then(Path::file_name)
-            .and_then(|name| name.to_str())
-        {
-            text = without_word(&text, user, "[user]");
-        }
-        text
+        // The user's name can be in a place outside the home folder too, such as a data folder that
+        // QUOTADIAL_DATA_DIR puts in a temporary folder named after it. It is hidden there and
+        // nowhere else, not in a command or a sentence that only spells it, as `claude` does for a
+        // user called `claude` (D-134). Email addresses are cut first, so one that starts with the
+        // name is still cut to its first letters.
+        text::hide_user_in(&text, home)
     }
-}
-
-/// `text` with every whole-word `word` replaced by `with`, where a word is bounded by anything but
-/// ASCII letters and digits. A word of fewer than 3 characters is left alone, since it could be
-/// part of anything.
-fn without_word(text: &str, word: &str, with: &str) -> String {
-    if word.chars().count() < 3 {
-        return text.to_owned();
-    }
-    let bounded = |c: Option<char>| c.is_none_or(|c| !c.is_ascii_alphanumeric());
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(at) = rest.find(word) {
-        let before = rest[..at].chars().next_back();
-        let after = rest[at + word.len()..].chars().next();
-        out.push_str(&rest[..at]);
-        if bounded(before) && bounded(after) {
-            out.push_str(with);
-        } else {
-            out.push_str(word);
-        }
-        rest = &rest[at + word.len()..];
-    }
-    out.push_str(rest);
-    out
 }
 
 /// `text` with every email address cut to the first letter of its name and of its domain, and the
@@ -226,7 +200,7 @@ pub fn mask_emails(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{MAIN_SEPARATOR_STR, PathBuf};
 
     use proptest::prelude::*;
 
@@ -443,15 +417,169 @@ mod tests {
             "{text}"
         );
         assert!(!text.contains("someone"), "{text}");
-        assert_eq!(
-            without_word("someones someone_x xsomeone", "someone", "[user]"),
-            "someones [user]_x xsomeone"
-        );
-        assert_eq!(
-            without_word("me at home", "me", "[user]"),
-            "me at home",
-            "too short to be sure"
-        );
+    }
+
+    /// Doctor's text for a user called `name`, with every place and command in it written for that
+    /// user's home folder, as a provider writes them: a place in it is `~`, a command is the shell's
+    /// form for it, and the rest is sentences. Nothing in it is outside the home folder, so what
+    /// the user is called can change nothing in it (D-134).
+    fn text_for_user(name: &str) -> String {
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", name].iter().collect();
+        let in_home = |parts: &[&str]| {
+            parts
+                .iter()
+                .fold(home.clone(), |place, part| place.join(part))
+        };
+        let work = in_home(&[".claude-work"]);
+        let config = in_home(&["Library", "Application Support", "quotadial", "config.json"]);
+        let mut facts = diagnostics();
+        facts.data_folder = in_home(&["Library", "Application Support", "quotadial"])
+            .display()
+            .to_string();
+        facts.numbers_from = "nowhere: the QuotaDial daemon is running, but its API at \
+                              http://127.0.0.1:47115/v1/status could not be reached; restart it \
+                              with `quotadial daemon`."
+            .into();
+        let snapshot = &mut facts.report.snapshots[0];
+        snapshot.account.sign_in_use = text::sign_in_read_from(&text::tilde(
+            &in_home(&[".claude", ".credentials.json"]),
+            Some(&home),
+        ));
+        snapshot.error = Some(format!(
+            "Anthropic rejected this Claude Code sign-in. Run `CLAUDE_CONFIG_DIR={} claude` to \
+             sign in again.",
+            text::shell_word(&work, Some(&home))
+        ));
+        facts.report.errors = [(".codex", "auth.json"), (".gemini", "settings.json")]
+            .into_iter()
+            .map(|(folder, file)| ProviderError {
+                provider: folder.trim_start_matches('.').into(),
+                message: format!(
+                    "could not read the sign-in from {}",
+                    in_home(&[folder, file]).display()
+                ),
+            })
+            .collect();
+        facts.report.problems = vec![format!(
+            "Run `$env:CLAUDE_CONFIG_DIR = {}; claude` to sign in again.",
+            text::powershell_string(&work, Some(&home))
+        )];
+        facts.settings = vec![
+            (
+                "extra_config_dirs".into(),
+                format!("{}, ~/claude-accounts/*", work.display()),
+            ),
+            ("history_days".into(), "30".into()),
+            ("status_pages".into(), "on".into()),
+            (
+                "warnings".into(),
+                format!(
+                    "{} holds webhook addresses, which work like passwords, and other users can \
+                     read it; run `chmod 600 {}`.",
+                    config.display(),
+                    text::shell_word(&config, Some(&home))
+                ),
+            ),
+        ];
+        facts.text(at("2099-01-01T00:03:00Z"), Some(&home))
+    }
+
+    #[test]
+    fn a_user_called_as_a_word_in_the_text_sees_every_command_and_place_as_written() {
+        // A user whose name is a word doctor writes: one of a command (`claude`), a folder it names
+        // (`codex`, `gemini`, `quotadial`, and macOS's `Support`), a setting (`history`, `status`,
+        // `config`) or its daemon. Every place the text names is in the home folder, `~`, and the
+        // rest is commands and sentences, so it is the text any other user sees (D-134). The plain
+        // replace of the whole word wrote `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` for `claude`.
+        let neutral = text_for_user("ann");
+        for name in [
+            "claude",
+            "codex",
+            "gemini",
+            "daemon",
+            "history",
+            "status",
+            "config",
+            "quotadial",
+            "Support",
+        ] {
+            assert_eq!(text_for_user(name), neutral, "a user called {name}");
+        }
+        for held in [
+            "CLAUDE_CONFIG_DIR=~/'.claude-work' claude",
+            "http://127.0.0.1:47115/v1/status",
+            "quotadial.com/pro",
+            "status_pages: on",
+            "history_days: 30",
+        ] {
+            assert!(neutral.contains(held), "{held}\n{neutral}");
+        }
+    }
+
+    #[test]
+    fn the_users_name_is_hidden_in_a_place_outside_the_home_folder_whoever_the_user_is() {
+        // Where it is a component of a place that is not in the home folder, as the temporary folder
+        // Claude Code makes for a working folder is, its name written with `/` as `-`, or another
+        // disk's copy of the home folder, even for a user called `claude` or `codex` (D-134). Every
+        // place is made from its parts.
+        for name in ["ann", "claude", "codex"] {
+            let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", name].iter().collect();
+            let places = |who: &str| -> (PathBuf, PathBuf) {
+                let temporary = [
+                    MAIN_SEPARATOR_STR.to_owned(),
+                    "private".to_owned(),
+                    "tmp".to_owned(),
+                    format!("{who}-501"),
+                    format!("-Users-{who}--work"),
+                    "data".to_owned(),
+                ];
+                let backup = [MAIN_SEPARATOR_STR, "Volumes", "Backup", "Users", who];
+                (
+                    temporary.iter().collect(),
+                    backup
+                        .iter()
+                        .collect::<PathBuf>()
+                        .join(".keys")
+                        .join("cache.json"),
+                )
+            };
+            let (temporary, backup) = places(name);
+            let (temporary_hidden, backup_hidden) = places("[user]");
+            let mut facts = diagnostics();
+            facts.data_folder = temporary.display().to_string();
+            facts.report.errors = vec![ProviderError {
+                provider: "codex".into(),
+                message: format!("could not read the sign-in from {}", backup.display()),
+            }];
+            // And a sentence that only spells the name, which stays.
+            facts.report.problems = vec![format!("run {name} once")];
+
+            let text = facts.text(at("2099-01-01T00:03:00Z"), Some(&home));
+            assert!(
+                text.contains(&format!("\n  run {name} once\n")),
+                "{name}\n{text}"
+            );
+
+            assert!(
+                text.contains(&format!("Data folder: {}\n", temporary_hidden.display())),
+                "{name}\n{text}"
+            );
+            assert!(
+                text.contains(&format!(
+                    "Codex: could not read the sign-in from {}\n",
+                    backup_hidden.display()
+                )),
+                "{name}\n{text}"
+            );
+            assert!(
+                !text.contains(&temporary.display().to_string()),
+                "{name}\n{text}"
+            );
+            assert!(
+                !text.contains(&backup.display().to_string()),
+                "{name}\n{text}"
+            );
+        }
     }
 
     #[test]
