@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
-import { Address } from "./account";
 import { usePanelFocus } from "./focus";
 import type { Settings } from "./meter";
 import { Said } from "./said";
@@ -185,15 +184,20 @@ export function SettingsPanel() {
           <div class="card">
             {settings.accounts.map((account) => (
               <label class="name-choice" key={account.key}>
-                {/* Who the account is, as the popover heads its card, but by its provider's name,
-                    since the field below is where the name given goes. */}
+                {/* Which account it is, since naming it is about that: its address, with its
+                    provider under it, or its provider alone when it has no address. */}
                 <span class="card-head">
                   <span class="title-row">
-                    <span class="title">{account.provider}</span>
+                    <span class="title">{account.name || account.provider}</span>
                   </span>
-                  <Address
-                    who={{ provider: account.provider, alias: null, name: account.name }}
-                  />
+                  {account.name && (
+                    <>
+                      {" "}
+                      <span class="address">
+                        <span class="provider">{account.provider}</span>
+                      </span>
+                    </>
+                  )}
                 </span>
                 <input
                   type="text"

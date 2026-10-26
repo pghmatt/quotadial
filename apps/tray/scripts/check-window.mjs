@@ -893,7 +893,7 @@ async function checkCards(view, copy, zoom) {
     const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
     const title = account.alias ?? account.provider;
     check(label, card.title !== title && `${what}'s card is titled "${card.title}", not "${title}"`);
-    const line = account.alias === null ? account.name : [account.provider, account.name].filter(Boolean).join(" · ");
+    const line = account.alias === null ? account.name : [account.name, account.provider].filter(Boolean).join(" · ");
     if (!line) {
       check(label, card.address !== null && `${what}'s card has the line "${card.address?.text}", though its name says nothing more`);
       continue;
@@ -944,16 +944,18 @@ const HEADINGS = (selector) => `[...document.querySelectorAll(${JSON.stringify(s
 
 /**
  * The same heading for an account everywhere (D-132): History's cards, in the order History lists
- * them, are titled by the name given each account, or its provider's, with its address under it,
- * as the popover's are; Settings' names, where the name given is typed, by the provider's name,
- * with the address under it. Each address line is inside its card.
+ * them, are titled by the name given each account, or its provider's, with its address, and then
+ * the provider under a name given, on the line under it, as the popover's are. Settings' names,
+ * where the name to give is typed, are headed by which account it is: its address, with its
+ * provider under it, or the provider alone when it has no address. Each second line is inside its
+ * card.
  */
 async function checkHeadings(view, copy, panel) {
   const label = `${view.label}, headings`;
   const [selector, accounts] =
     panel === "history"
       ? ["section.history .account-history .card-head", copy.history[7].accounts]
-      : [".name-choice", copy.settings.accounts.map((account) => ({ ...account, alias: null }))];
+      : [".name-choice", copy.settings.accounts];
   const shown = await view.evaluate(HEADINGS(selector));
   check(label, shown.length !== accounts.length && `${panel} heads ${shown.length} accounts, not ${accounts.length}`);
   for (const [index, account] of accounts.entries()) {
@@ -962,8 +964,11 @@ async function checkHeadings(view, copy, panel) {
       break;
     }
     const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
-    const title = account.alias ?? account.provider;
-    const line = account.alias === null ? account.name : [account.provider, account.name].filter(Boolean).join(" · ");
+    let [title, line] = [account.name || account.provider, account.name ? account.provider : ""];
+    if (panel === "history") {
+      title = account.alias ?? account.provider;
+      line = account.alias === null ? account.name : [account.name, account.provider].filter(Boolean).join(" · ");
+    }
     check(label, heading.title !== title && `${what} is titled "${heading.title}", not "${title}"`);
     check(label, (heading.line ?? "") !== line && `${what}'s second line is "${heading.line}", not "${line}"`);
     check(label, !heading.inside && `${what}'s second line is not inside its card`);

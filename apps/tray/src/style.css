@@ -1,21 +1,24 @@
 :root {
   color-scheme: light dark;
   /* Text, from the strongest to the quietest. Each text colour has 4.5:1 against every ground it
-     can sit on: the background, a card, and a capsule, button or command on either, checked from
-     this file by scripts/check-contrast.mjs (#52). */
+     can sit on: the page, which stands in for the macOS material, a card, and a capsule, button or
+     command on either, checked from this file by scripts/check-contrast.mjs (#52). */
   --text: #1d1d1f;
   /* An account's address, its plan and the summary's line: second only to the text. */
   --secondary: #48484d;
-  /* A window's reset, source and pace, the origin line and legends. */
-  --muted: #5f5f64;
+  /* A window's reset, source and pace, the provider after an address, the origin line and a
+     field's hint. */
+  --muted: #58585d;
   --warning: #8f4b00;
   --high: #c41e13;
-  /* The grounds. On macOS the system draws the popover material behind a transparent page, which
-     the background stands in for in the contrast check. */
-  --background: #fbfbfd;
-  /* A card: an account, the problems, the week's cost or an update, a quiet platter on the
-     ground, as macOS groups its own controls, with a hairline edge in light. */
-  --card: rgb(0 0 0 / 4%);
+  /* The page: on macOS the system draws the popover material behind a transparent page, and the
+     painted page elsewhere, and in the pictures, is a grey like it, which the contrast check takes
+     for both. */
+  --background: #ececec;
+  /* A card: an account, the problems, the week's cost or an update, a platter raised on the
+     ground in both themes, as Control Centre's modules sit on the material and Windows 11's cards
+     on a window, with a hairline edge in light. */
+  --card: rgb(255 255 255 / 70%);
   --card-edge: rgb(0 0 0 / 7%);
   /* A capsule, a button or a command, on whatever ground is behind it. */
   --tag: rgb(0 0 0 / 6%);
@@ -27,15 +30,16 @@
   --segment-shadow: 0 1px 2px rgb(0 0 0 / 14%), 0 0 0 0.5px rgb(0 0 0 / 6%);
   --rule: rgb(0 0 0 / 10%);
   --bar: rgb(0 0 0 / 9%);
-  --bar-normal: #0a84ff;
+  /* macOS's own blue, as the system draws it in each theme; 3:1 on a card, as a chart's line. */
+  --bar-normal: #007aff;
   --bar-warning: #ff9f0a;
   --bar-high: #ff3b30;
   /* A chart's hairline at 0%, and its faint line at 100%. */
   --chart-base: rgb(0 0 0 / 22%);
   --chart-top: rgb(0 0 0 / 8%);
-  --focus: #0a84ff;
-  /* The edge of a text field, 3:1 against the background and a card. */
-  --field: #8a8a8e;
+  --focus: #0071e3;
+  /* The edge of a text field, 3:1 against the ground and a card. */
+  --field: #78787d;
   /* A card's corners. */
   --radius: 10px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -49,10 +53,10 @@
   :root {
     --text: #f5f5f7;
     --secondary: #c7c7cc;
-    --muted: #a8a8ad;
-    --warning: #ffa733;
-    --high: #ff6961;
-    --background: #1f1f21;
+    --muted: #b0b0b5;
+    --warning: #ffb340;
+    --high: #ff7f78;
+    --background: #2c2c2e;
     --card: rgb(255 255 255 / 6%);
     --card-edge: rgb(255 255 255 / 0%);
     --tag: rgb(255 255 255 / 10%);
@@ -62,9 +66,11 @@
     --segment-shadow: 0 1px 2px rgb(0 0 0 / 35%);
     --rule: rgb(255 255 255 / 12%);
     --bar: rgb(255 255 255 / 14%);
+    --bar-normal: #0a84ff;
     --chart-base: rgb(255 255 255 / 25%);
     --chart-top: rgb(255 255 255 / 9%);
-    --field: #7f7f84;
+    --focus: #0a84ff;
+    --field: #8e8e93;
   }
 }
 
@@ -211,10 +217,15 @@ h2 {
   font-weight: 400;
 }
 
-/* The address alone can be selected, to copy it. */
+/* The address alone can be selected, to copy it. The provider after it, under a name given, is
+   quieter, so the addresses read down the cards as one column. */
 .address .name {
   user-select: text;
   cursor: text;
+}
+
+.address .provider {
+  color: var(--muted);
 }
 
 .note {
@@ -343,7 +354,7 @@ summary::before {
   display: inline-block;
   width: 5px;
   height: 5px;
-  margin: 0 8px 1px 1px;
+  margin: 0 8px 1px -1px;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
@@ -612,6 +623,17 @@ fieldset > .card {
   user-select: text;
 }
 
+/* A field's hint, in a colour that keeps 4.5:1 on a card, not the browser's own grey. */
+input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/* Off the Mac, a box takes the bars' blue; on a Mac it keeps the system's own accent colour. */
+html.solid input[type="checkbox"] {
+  accent-color: var(--bar-normal);
+}
+
 /* Remove sits beside its rule, or under it when the window is too narrow, as at 200%. */
 .alert-choice {
   display: flex;
@@ -631,7 +653,7 @@ fieldset > .card {
 .alert-choice .read-as {
   flex-basis: 100%;
   margin: 0;
-  padding-left: 22px;
+  padding-left: 21px;
   color: var(--muted);
   font-size: 12px;
 }
