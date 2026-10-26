@@ -583,7 +583,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "gemini: unexpected response: someone-else is not one of the ways Gemini CLI signs in \
+            "unexpected response: someone-else is not one of the ways Gemini CLI signs in \
              that QuotaDial shows"
         );
     }

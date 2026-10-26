@@ -109,10 +109,9 @@ impl Diagnostics {
             ),
             (
                 "Problems",
+                // A provider's under its own name, as every surface shows it (D-128).
                 report
-                    .errors
-                    .iter()
-                    .map(|error| error.message.clone())
+                    .error_lines()
                     .chain(report.problems.iter().cloned())
                     .collect(),
             ),
@@ -286,7 +285,7 @@ mod tests {
                 }],
                 errors: vec![ProviderError {
                     provider: "codex".into(),
-                    message: "codex: the sign-in in /home/someone/.codex/auth.json for someone@corp.example.org could not be read; token sk-ant-oat01-abcdefghijklmnopqrstuvwxyz0123456789"
+                    message: "the sign-in in /home/someone/.codex/auth.json for someone@corp.example.org could not be read; token sk-ant-oat01-abcdefghijklmnopqrstuvwxyz0123456789"
                         .into(),
                 }],
                 status_pages: Vec::new(),
@@ -331,7 +330,7 @@ mod tests {
              Left out on QuotaDial Free:\n  \
              The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n\
              Problems:\n  \
-             codex: the sign-in in ~/.codex/auth.json for s***@c***.org could not be read; token [redacted token]\n\
+             Codex: the sign-in in ~/.codex/auth.json for s***@c***.org could not be read; token [redacted token]\n\
              Settings in effect:\n  \
              history_days: 30\n  \
              alert webhooks: hooks.slack.com\n"
@@ -387,6 +386,46 @@ mod tests {
 
         assert!(
             text.contains("Status pages:\n  Claude: Partially Degraded Service\n"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_providers_problem_is_named_as_the_provider_names_itself() {
+        let mut facts = diagnostics();
+        facts.report.providers.push(ProviderName {
+            id: "gemini".into(),
+            name: "Gemini CLI".into(),
+        });
+        facts.report.errors = vec![
+            ProviderError {
+                provider: "gemini".into(),
+                message: "could not read the sign-in from /home/someone/.gemini/settings.json: it \
+                          is not a plain file"
+                    .into(),
+            },
+            ProviderError {
+                provider: "copilot".into(),
+                message: "request failed: GitHub did not answer.".into(),
+            },
+            // From a daemon older than D-128, which began each message with its provider's id.
+            ProviderError {
+                provider: "codex".into(),
+                message: "codex: request failed: Could not reach ChatGPT.".into(),
+            },
+        ];
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains(
+                "Problems:\n  \
+                 Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is not a \
+                 plain file\n  \
+                 copilot: request failed: GitHub did not answer.\n  \
+                 Codex: request failed: Could not reach ChatGPT.\n\
+                 Settings in effect:"
+            ),
             "{text}"
         );
     }

@@ -707,7 +707,7 @@ impl Poller {
                 .unwrap_or_else(|_| {
                     Err(quotadial_core::Error::Credentials {
                         provider: provider.id(),
-                        location: "the sign-in".to_owned(),
+                        location: "this machine".to_owned(),
                         reason: "looking it up stopped unexpectedly; QuotaDial tries again in a \
                                  minute"
                             .to_owned(),
@@ -950,6 +950,8 @@ mod tests {
         /// Whether its answers are ones an older QuotaDial kept, whose accounts name no provider
         /// and say nothing of the sign-in.
         older: std::sync::atomic::AtomicBool,
+        /// Whether looking for its accounts stops unexpectedly, as a panic in it would.
+        stops: std::sync::atomic::AtomicBool,
     }
 
     impl Scripted {
@@ -969,6 +971,7 @@ mod tests {
                 held: AtomicUsize::new(0),
                 stale: std::sync::atomic::AtomicBool::new(false),
                 older: std::sync::atomic::AtomicBool::new(false),
+                stops: std::sync::atomic::AtomicBool::new(false),
             }
         }
 
@@ -1009,13 +1012,16 @@ mod tests {
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
+            if self.stops.load(Ordering::SeqCst) {
+                panic!("the lookup stopped unexpectedly");
+            }
             self.accounts
                 .lock()
                 .expect("lock")
                 .clone()
                 .map_err(|reason| Error::Credentials {
                     provider: self.id,
-                    location: "the sign-in".into(),
+                    location: "~/.claude/.credentials.json".into(),
                     reason,
                 })
         }
@@ -1391,7 +1397,7 @@ mod tests {
             report.errors,
             vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: request failed: Could not reach ChatGPT.".into(),
+                message: "request failed: Could not reach ChatGPT.".into(),
             }]
         );
     }
@@ -1443,8 +1449,8 @@ mod tests {
         );
         assert_eq!(
             report.errors[0].message,
-            "claude: could not read credentials from the sign-in: permission denied; check that \
-             you can read it"
+            "could not read the sign-in from ~/.claude/.credentials.json: permission denied; check \
+             that you can read it"
         );
 
         claude.set_accounts(Ok(Vec::new()));
@@ -1464,11 +1470,62 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn a_lookup_that_stops_unexpectedly_says_so_in_plain_words() {
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        claude.stops.store(true, Ordering::SeqCst);
+        let mut poller = poller(vec![Arc::clone(&claude)], history);
+
+        poller.poll_due().await;
+        let report = poller.latest().report();
+
+        assert_eq!(
+            report.errors,
+            [ProviderError {
+                provider: "claude".into(),
+                message: "could not read the sign-in from this machine: looking it up stopped \
+                          unexpectedly; QuotaDial tries again in a minute"
+                    .into(),
+            }]
+        );
+        // #52's plain words: never "quota", "auth" or "credential" outside a name.
+        assert_eq!(
+            quotadial_core::text::unplain_words(&report.errors[0].message),
+            Vec::<String>::new()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_report_writes_the_home_folder_as_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let (_dir, history) = history();
+        let claude = Arc::new(Scripted::new("claude", 5));
+        *claude.warnings.lock().expect("lock") = vec![format!(
+            "could not look in {}.",
+            home.join(".claude").join("work").display()
+        )];
+        let mut poller = poller(vec![Arc::clone(&claude)], history);
+
+        poller.poll_due().await;
+
+        assert_eq!(
+            poller.latest().report().errors[0].message,
+            format!(
+                "could not look in ~/{}.",
+                PathBuf::from(".claude").join("work").display()
+            )
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn what_discovery_could_not_look_at_shows_beside_the_accounts_it_found() {
         let (_dir, history) = history();
         let claude = Arc::new(Scripted::new("claude", 5));
         *claude.warnings.lock().expect("lock") =
-            vec!["claude: could not list the Claude Code items in the macOS Keychain.".into()];
+            vec!["could not list the Claude Code items in the macOS Keychain.".into()];
         let mut poller = poller(vec![Arc::clone(&claude)], history);
 
         poller.poll_due().await;
@@ -1478,8 +1535,7 @@ mod tests {
             report.errors,
             [ProviderError {
                 provider: "claude".into(),
-                message: "claude: could not list the Claude Code items in the macOS Keychain."
-                    .into(),
+                message: "could not list the Claude Code items in the macOS Keychain.".into(),
             }]
         );
 

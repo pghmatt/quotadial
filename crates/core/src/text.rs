@@ -17,6 +17,76 @@ pub fn tilde(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
+/// `text` with every path in it that starts in the home folder `home` written as [`tilde`] writes
+/// it, such as `~/.codex/auth.json`, so a sentence that names a place keeps the user's name out of
+/// it (#52). A path starts where the text does or after a character no path holds, such as a space
+/// or a quote, and starts in the home folder only where the folder's own name ends, at a separator
+/// or where the path does: with `/Users/ann` as the home folder, a path in `/Users/anna` or in
+/// `/Volumes/Backup/Users/ann` stays as it is. The home folder is matched as written, without a
+/// separator at its end. With no home folder, or one that is a whole disk, the text is left as it
+/// is.
+#[must_use]
+pub fn tilde_in(text: &str, home: Option<&Path>) -> String {
+    let Some(home) = home.filter(|home| home.parent().is_some()) else {
+        return text.to_owned();
+    };
+    let home = home.display().to_string();
+    let home = home.trim_end_matches(std::path::is_separator);
+    if home.is_empty() {
+        return text.to_owned();
+    }
+    let mut written = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(home) {
+        written.push_str(&rest[..at]);
+        let found = &rest[at..];
+        let after = &found[home.len()..];
+        let starts = written
+            .chars()
+            .next_back()
+            .is_none_or(|before| !in_path(before));
+        match after.chars().next() {
+            // As `tilde` writes it: `~/` and the rest of the path as it was written.
+            Some(separator) if starts && std::path::is_separator(separator) => {
+                written.push_str("~/");
+                rest = &after[separator.len_utf8()..];
+            }
+            _ if starts && ends_path(after) => {
+                written.push('~');
+                rest = after;
+            }
+            // Not the home folder here: keep its first character and look again after it.
+            _ => {
+                let first = found.chars().next().unwrap_or_default();
+                written.push(first);
+                rest = &found[first.len_utf8()..];
+            }
+        }
+    }
+    written.push_str(rest);
+    written
+}
+
+/// Whether `character` can be part of a path where a sentence names one, so that a home folder
+/// right after it is inside a longer path.
+fn in_path(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, '/' | '\\' | '.' | '_' | '-' | '~')
+}
+
+/// Whether a path a sentence names has ended where `after` starts: at the end of the text, a space,
+/// the `: ` that follows a place in QuotaDial's errors and the like, or a full stop that ends the
+/// sentence, not one inside a name such as `ann.old`.
+fn ends_path(after: &str) -> bool {
+    let mut characters = after.chars();
+    match characters.next() {
+        None => true,
+        Some('.') => characters.next().is_none_or(char::is_whitespace),
+        Some(next) => {
+            next.is_whitespace() || matches!(next, ':' | ',' | ';' | ')' | '"' | '\'' | '`')
+        }
+    }
+}
+
 /// For example `resets in 2 h 10 min`, or `reset 3 min ago` when the numbers predate a reset.
 #[must_use]
 pub fn resets(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
@@ -264,6 +334,129 @@ mod tests {
         assert_eq!(tilde(&home, Some(&home)), "~");
         assert_eq!(tilde(Path::new("/etc/x"), Some(&home)), "/etc/x");
         assert_eq!(tilde(Path::new("/etc/x"), None), "/etc/x");
+    }
+
+    /// A path from its parts, joined with this system's separator.
+    fn path(parts: &[&str]) -> PathBuf {
+        parts.iter().collect()
+    }
+
+    /// `parts` in the home folder, as [`tilde`] writes it: `~/.codex/auth.json` on macOS and Linux,
+    /// with Windows' own separator after the `~/` there.
+    fn in_home(parts: &[&str]) -> String {
+        format!("~/{}", path(parts).display())
+    }
+
+    /// A sentence naming `place`, as a provider's error does.
+    fn naming(place: &Path) -> String {
+        format!(
+            "could not read the sign-in from {}: it is not valid JSON",
+            place.display()
+        )
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_is_written_with_a_tilde_in_any_text() {
+        let home = path(&["/", "Users", "ann"]);
+        let place = home.join(".codex").join("auth.json");
+
+        assert_eq!(
+            tilde_in(&naming(&place), Some(&home)),
+            format!(
+                "could not read the sign-in from {}: it is not valid JSON",
+                in_home(&[".codex", "auth.json"])
+            )
+        );
+        assert_eq!(
+            tilde_in(&place.display().to_string(), Some(&home)),
+            tilde(&place, Some(&home)),
+            "the same as a path on its own"
+        );
+        assert_eq!(
+            tilde_in(
+                &format!("{} and {}", place.display(), home.display()),
+                Some(&home)
+            ),
+            format!("{} and ~", in_home(&[".codex", "auth.json"])),
+            "every place in the text, and the home folder itself"
+        );
+        assert_eq!(
+            tilde_in(
+                &format!("nothing in {}. Sign in.", home.display()),
+                Some(&home)
+            ),
+            "nothing in ~. Sign in.",
+            "the home folder at the end of a sentence"
+        );
+        let old = home.with_file_name("ann.old");
+        assert_eq!(
+            tilde_in(&format!("nothing in {}.", old.display()), Some(&home)),
+            format!("nothing in {}.", old.display()),
+            "a full stop inside a name"
+        );
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_stays_as_it_is() {
+        let home = path(&["/", "Users", "ann"]);
+        for place in [
+            path(&["/", "opt", "codex", "auth.json"]),
+            // Another user's folder, whose name starts as the home folder's does.
+            path(&["/", "Users", "anna", ".codex", "auth.json"]),
+            // The home folder's own words inside a longer path.
+            path(&[
+                "/",
+                "Volumes",
+                "Backup",
+                "Users",
+                "ann",
+                ".codex",
+                "auth.json",
+            ]),
+        ] {
+            assert_eq!(
+                tilde_in(&naming(&place), Some(&home)),
+                naming(&place),
+                "{}",
+                place.display()
+            );
+            assert_eq!(
+                tilde(&place, Some(&home)),
+                place.display().to_string(),
+                "as a path on its own"
+            );
+        }
+        let place = home.join(".codex").join("auth.json");
+        assert_eq!(tilde_in(&naming(&place), None), naming(&place), "no home");
+        assert_eq!(
+            tilde_in(&naming(&place), Some(&path(&["/"]))),
+            naming(&place),
+            "a home folder that is the whole disk would make every path start with ~"
+        );
+    }
+
+    #[test]
+    fn a_windows_home_folder_is_written_with_a_tilde_too() {
+        // As Windows writes it, from its parts with this system's separator, so on Windows the
+        // text is `C:\Users\ann\.codex\auth.json`.
+        let home = path(&["C:\\", "Users", "ann"]);
+        let place = home.join(".codex").join("auth.json");
+
+        assert_eq!(
+            tilde_in(&naming(&place), Some(&home)),
+            format!(
+                "could not read the sign-in from {}: it is not valid JSON",
+                in_home(&[".codex", "auth.json"])
+            )
+        );
+        let other = path(&["C:\\", "Users", "anna", ".codex", "auth.json"]);
+        assert_eq!(tilde_in(&naming(&other), Some(&home)), naming(&other));
+        // A home folder written with a separator at its end names the same folder.
+        let ended = PathBuf::from(format!("{}{}", home.display(), std::path::MAIN_SEPARATOR));
+        assert_eq!(
+            tilde_in(&naming(&place), Some(&ended)),
+            tilde_in(&naming(&place), Some(&home))
+        );
     }
 
     fn ts(rfc3339: &str) -> DateTime<Utc> {

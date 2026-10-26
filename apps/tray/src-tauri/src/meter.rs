@@ -189,9 +189,8 @@ impl Meter {
             .iter()
             .map(|snapshot| account_view(snapshot, now))
             .collect();
-        meter
-            .problems
-            .extend(report.errors.iter().map(|error| error.message.clone()));
+        // A provider's under its own name, as every surface shows it (D-128).
+        meter.problems.extend(report.error_lines());
         // What is wrong with QuotaDial itself, such as a history it could not save (D-107).
         meter.problems.extend(report.problems.iter().cloned());
         meter.incidents = report
@@ -822,7 +821,7 @@ mod tests {
             snapshots: vec![expired],
             errors: vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: could not read credentials from ~/.codex/auth.json".into(),
+                message: "could not read the sign-in from ~/.codex/auth.json".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
@@ -841,7 +840,60 @@ mod tests {
         assert_eq!(
             meter.tooltip(),
             "QuotaDial\nClaude user@example.com (max): sign-in required\nRun `claude` to sign in \
-             again.\ncodex: could not read credentials from ~/.codex/auth.json"
+             again.\ncodex: could not read the sign-in from ~/.codex/auth.json"
+        );
+    }
+
+    #[test]
+    fn a_providers_problem_is_named_as_the_provider_names_itself() {
+        let error = |provider: &str, message: &str| ProviderError {
+            provider: provider.into(),
+            message: message.into(),
+        };
+        let report = StatusReport {
+            snapshots: Vec::new(),
+            errors: vec![
+                error(
+                    "gemini",
+                    "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                     file",
+                ),
+                error("copilot", "request failed: GitHub did not answer."),
+                // From a daemon older than D-128, which began each message with its provider's id.
+                error(
+                    "claude",
+                    "claude: request failed: Could not reach Anthropic.",
+                ),
+            ],
+            status_pages: Vec::new(),
+            costs: Vec::new(),
+            left_out: Vec::new(),
+            problems: vec!["The history could not be saved: the disk is full.".into()],
+            providers: [("claude", "Claude"), ("gemini", "Gemini CLI")]
+                .map(|(id, name)| quotadial_core::ProviderName {
+                    id: id.into(),
+                    name: name.into(),
+                })
+                .to_vec(),
+        };
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        let shown = [
+            "Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is not a \
+             plain file",
+            "copilot: request failed: GitHub did not answer.",
+            "Claude: request failed: Could not reach Anthropic.",
+            "The history could not be saved: the disk is full.",
+        ];
+        assert_eq!(
+            meter.problems, shown,
+            "a provider the report does not list keeps its id; QuotaDial's own problems follow"
+        );
+        assert_eq!(
+            meter.tooltip(),
+            format!("QuotaDial\n{}", shown.join("\n")),
+            "the tray's menu and tooltip say the same"
         );
     }
 

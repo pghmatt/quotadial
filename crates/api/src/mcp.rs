@@ -396,8 +396,11 @@ fn tools(providers: &[ProviderName]) -> Value {
                             runs out before it resets). While the daemon runs, costs gives what \
                             the week's local use of each provider would have cost at API prices \
                             (usd, requests, tokens and models), on QuotaDial Pro; on QuotaDial \
-                            Free, left_out names what the copy leaves out. The same JSON as \
-                            `quotadial status --json`.",
+                            Free, left_out names what the copy leaves out. errors lists each \
+                            provider or account that gave no numbers: provider is the provider's \
+                            id, and message says what happened and what to do and leaves the \
+                            provider out, since providers gives each provider's own name for its \
+                            id. The same JSON as `quotadial status --json`.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -406,10 +409,10 @@ fn tools(providers: &[ProviderName]) -> Value {
             "description": "The accounts ranked by headroom, the room left in each account's \
                             tightest window: headroom_pct is 100 minus that window's share used, \
                             and tightest is the window, with when it resets and its pace. The most \
-                            headroom comes first, and costs is the week's cost of each provider at \
-                            API prices, while the daemon runs. Use it before a long job to check \
-                            that an account has room left. Part of QuotaDial Pro; on QuotaDial \
-                            Free use get_usage.",
+                            headroom comes first; costs is the week's cost of each provider at API \
+                            prices, while the daemon runs; and errors is what gave no numbers, as \
+                            in get_usage. Use it before a long job to check that an account has \
+                            room left. Part of QuotaDial Pro; on QuotaDial Free use get_usage.",
             "inputSchema": narrowed,
             "annotations": read_only,
         },
@@ -488,7 +491,7 @@ mod tests {
             ],
             errors: vec![ProviderError {
                 provider: "codex".into(),
-                message: "codex: request failed: Could not reach ChatGPT.".into(),
+                message: "request failed: Could not reach ChatGPT.".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),
@@ -633,6 +636,49 @@ mod tests {
             "Only this provider's accounts, by its id: claude for Claude, codex for Codex.",
             "each provider as it names itself (P-020)"
         );
+    }
+
+    #[tokio::test]
+    async fn the_tools_say_an_errors_message_leaves_its_provider_out() {
+        let replies = exchange(&[
+            initialize("2025-11-25"),
+            request(1, "tools/list", json!({})),
+        ])
+        .await;
+        let tools = replies[1]["result"]["tools"].as_array().expect("tools");
+        let described = |name: &str| {
+            tools
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .and_then(|tool| tool["description"].as_str())
+                .expect("a described tool")
+                .to_owned()
+        };
+
+        // The provider is in `provider`, by its id, and `providers` names it (D-128).
+        let usage = described("get_usage");
+        for words in [
+            "errors lists",
+            "provider is the provider's id",
+            "message says what happened and what to do and leaves the provider out",
+            "providers gives each provider's own name",
+        ] {
+            assert!(usage.contains(words), "{words:?} in {usage}");
+        }
+        let headroom = described("get_account_headroom");
+        assert!(
+            headroom.contains("errors is what gave no numbers, as in get_usage"),
+            "{headroom}"
+        );
+        for tool in tools {
+            let description = tool["description"].as_str().expect("a description");
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(description),
+                Vec::<String>::new(),
+                "{description}"
+            );
+        }
     }
 
     #[tokio::test]

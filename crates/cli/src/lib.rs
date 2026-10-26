@@ -1196,8 +1196,9 @@ fn write_text(
     for left_out in others {
         writeln!(out, "{}", left_out.text)?;
     }
-    for error in &report.errors {
-        writeln!(out, "error: {}", error.message)?;
+    // Under the provider's own name, as every surface shows it (D-128).
+    for line in report.error_lines() {
+        writeln!(out, "error: {line}")?;
     }
     for problem in &report.problems {
         writeln!(out, "{problem}")?;
@@ -1423,6 +1424,44 @@ mod tests {
                 });
             }
             Ok(Snapshot::auth_required(account.clone(), message))
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
+    /// A provider whose sign-in, at the place it holds, cannot be read.
+    struct UnreadableAt(String);
+
+    #[async_trait]
+    impl Provider for UnreadableAt {
+        fn id(&self) -> &'static str {
+            "scripted"
+        }
+
+        fn name(&self) -> &'static str {
+            "Scripted"
+        }
+
+        fn asks(&self) -> Option<&'static str> {
+            Some("Acme")
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Err(Error::Credentials {
+                provider: "scripted",
+                location: self.0.clone(),
+                reason: "permission denied".into(),
+            })
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            Ok(snapshot(account.clone(), Source::Api))
         }
 
         fn fallback(&self, _account: &Account) -> Option<Snapshot> {
@@ -1929,6 +1968,45 @@ mod tests {
     }
 
     #[test]
+    fn a_providers_error_is_shown_under_the_providers_own_name() {
+        let error = |provider: &str, message: &str| quotadial_core::ProviderError {
+            provider: provider.into(),
+            message: message.into(),
+        };
+        let report = StatusReport {
+            errors: vec![
+                error(
+                    "gemini",
+                    "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                     file",
+                ),
+                error("copilot", "request failed: GitHub did not answer."),
+                // From a daemon older than D-128, which began each message with its provider's id.
+                error(
+                    "claude",
+                    "claude: request failed: Could not reach Anthropic.",
+                ),
+            ],
+            providers: [("claude", "Claude"), ("gemini", "Gemini CLI")]
+                .map(|(id, name)| ProviderName {
+                    id: id.into(),
+                    name: name.into(),
+                })
+                .to_vec(),
+            ..StatusReport::default()
+        };
+
+        assert_eq!(
+            render(&report, false),
+            "error: Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is \
+             not a plain file\n\
+             error: copilot: request failed: GitHub did not answer.\n\
+             error: Claude: request failed: Could not reach Anthropic.\n",
+            "a provider the report does not list keeps its id"
+        );
+    }
+
+    #[test]
     fn text_marks_an_unconfirmed_zero() {
         let mut snapshot = snapshot(account(), Source::Api);
         snapshot.windows[0].used_pct = 0.0;
@@ -2173,9 +2251,10 @@ mod tests {
         assert_eq!(
             report.errors[0].message,
             format!(
-                "scripted: could not list every sign-in, near the token {}.",
+                "could not list every sign-in, near the token {}.",
                 quotadial_core::REDACTED
-            )
+            ),
+            "the provider's id in front, as every warning had before D-128, is left off"
         );
     }
 
@@ -2207,7 +2286,7 @@ mod tests {
         assert_eq!(report.errors[0].provider, "scripted");
         assert_eq!(
             report.errors[0].message,
-            "scripted: request failed: connection refused"
+            "request failed: connection refused"
         );
     }
 
@@ -2233,7 +2312,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unreadable_credentials_are_reported_with_their_location() {
+    async fn an_unreadable_sign_in_is_reported_with_where_it_is() {
         let providers: Vec<Box<dyn Provider>> = vec![Box::new(ScriptedProvider {
             discovery_fails: true,
             fetch_fails: false,
@@ -2244,10 +2323,41 @@ mod tests {
         assert!(report.snapshots.is_empty());
         assert_eq!(
             render(&report, false),
-            "error: scripted: could not read credentials from /nonexistent/credentials.json: \
+            "error: Scripted: could not read the sign-in from /nonexistent/credentials.json: \
              permission denied\n"
         );
     }
+
+    #[tokio::test]
+    async fn a_place_in_the_home_folder_is_shown_with_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let place = home.join(".scripted").join("credentials.json");
+        let providers: Vec<Box<dyn Provider>> =
+            vec![Box::new(UnreadableAt(place.display().to_string()))];
+
+        let report = collect(&providers).await;
+
+        let shown = format!(
+            "~/{}",
+            std::path::Path::new(".scripted")
+                .join("credentials.json")
+                .display()
+        );
+        assert_eq!(
+            report.errors[0].message,
+            format!("could not read the sign-in from {shown}: permission denied")
+        );
+        assert_eq!(
+            render(&report, false),
+            format!(
+                "error: Scripted: could not read the sign-in from {shown}: permission denied\n"
+            )
+        );
+    }
+
     #[tokio::test]
     async fn the_report_lists_every_provider_asked_by_its_id_and_own_name() {
         let providers: Vec<Box<dyn Provider>> = vec![

@@ -719,7 +719,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "antigravity: unexpected response: an account of gemini is not one of Antigravity's"
+            "unexpected response: an account of gemini is not one of Antigravity's"
         );
     }
 

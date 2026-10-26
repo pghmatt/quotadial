@@ -918,7 +918,7 @@ fn changed_while_read(state: &AccountState, account: Account, login: &Login) -> 
 fn stopped() -> Error {
     Error::Credentials {
         provider: ID,
-        location: "Claude Code's sign-in".to_owned(),
+        location: "this machine".to_owned(),
         reason: "looking it up stopped unexpectedly; try again".to_owned(),
     }
 }

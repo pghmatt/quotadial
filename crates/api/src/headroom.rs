@@ -201,7 +201,7 @@ mod tests {
             ],
             errors: vec![ProviderError {
                 provider: "other".into(),
-                message: "other: could not read credentials".into(),
+                message: "could not read the sign-in".into(),
             }],
             status_pages: Vec::new(),
             costs: Vec::new(),

@@ -356,7 +356,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "fake: unexpected response: example-9 is not one of the example accounts"
+            "unexpected response: example-9 is not one of the example accounts"
         );
     }
 
@@ -401,11 +401,12 @@ mod tests {
         assert_eq!(report.errors.len(), 1);
         assert_eq!(report.errors[0].provider, "fake");
         let message = &report.errors[0].message;
+        // A place in the home folder is written with `~`, as a temporary folder is on Windows.
         assert!(
             message.starts_with(&format!(
-                "fake: unexpected response: the example accounts in {} cannot be used: it is not \
+                "unexpected response: the example accounts in {} cannot be used: it is not \
                  the example accounts' JSON (invalid type: string \"none\"",
-                path.display()
+                quotadial_core::text::tilde(&path, std::env::home_dir().as_deref())
             )),
             "{message}"
         );

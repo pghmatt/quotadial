@@ -32,8 +32,9 @@ pub struct StatusReport {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub problems: Vec<String>,
     /// Every provider this copy asks, by its id and its own name for itself, in the order it asks
-    /// them (P-020): what a status page, a cost or anything else that has only a provider's id is
-    /// named by. A report from an older QuotaDial lists none, and its ids are shown.
+    /// them (P-020): what a status page, a cost, an error or anything else that has only a
+    /// provider's id is named by. A report from an older QuotaDial lists none, and its ids are
+    /// shown.
     #[serde(default)]
     pub providers: Vec<ProviderName>,
 }
@@ -134,10 +135,16 @@ impl Indicator {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderError {
-    /// The provider's id, such as `claude`.
+    /// The provider's id, such as `claude`. The status report's `providers` give the provider's own
+    /// name for it.
     // As `Provider::id` gives it.
     pub provider: String,
-    /// What happened and what to do, with any token blanked out.
+    /// What happened and what to do, with any token blanked out and a place in the home folder
+    /// written with `~`. It leaves out which provider, which `provider` says, and QuotaDial shows it
+    /// after the provider's own name, as `Gemini CLI: could not read the sign-in from
+    /// ~/.gemini/settings.json: ...` (D-128). A message from an older QuotaDial begins with the
+    /// provider's id and a colon, and writes a place in full.
+    // Never begins with the id, and writes the home `~`: `new` and `warning` see to it.
     pub message: String,
 }
 
@@ -148,6 +155,21 @@ impl StatusReport {
     #[must_use]
     pub fn provider_name<'a>(&'a self, id: &'a str) -> &'a str {
         ProviderName::find(&self.providers, id)
+    }
+
+    /// Every provider's error in the report as every surface shows it, `status` and `watch`,
+    /// doctor and the app's problems alike: "{the provider's own name}: {what happened and what to
+    /// do}", the name from [`StatusReport::provider_name`], so it is never taken from a table and
+    /// the surfaces cannot drift apart (D-128). A message from an older QuotaDial, which began with
+    /// its provider's id, loses the id, so the provider is named once.
+    pub fn error_lines(&self) -> impl Iterator<Item = String> + '_ {
+        self.errors.iter().map(|error| {
+            format!(
+                "{}: {}",
+                self.provider_name(&error.provider),
+                without_id(&error.provider, &error.message)
+            )
+        })
     }
 
     /// The report as every consumer shows it: one snapshot per account (D-024), in an order that
@@ -208,19 +230,42 @@ fn better(candidate: &Snapshot, known: &Snapshot) -> bool {
     }
 }
 
+/// `message` without the `<provider id>: ` that every provider's error began with before D-128:
+/// exactly the id, as written, then a colon and a space.
+fn without_id<'a>(provider: &str, message: &'a str) -> &'a str {
+    message
+        .strip_prefix(provider)
+        .and_then(|rest| rest.strip_prefix(": "))
+        .filter(|_| !provider.is_empty())
+        .unwrap_or(message)
+}
+
 impl ProviderError {
-    /// `error` from the provider `provider`, with any token blanked out of its text.
+    /// `error` from the provider `provider`, with any token blanked out of its text, which leaves the
+    /// provider out as [`Error`]'s text does.
     #[must_use]
     pub fn new(provider: &str, error: &Error) -> Self {
         Self::warning(provider, &error.to_string())
     }
 
-    /// `message`, about what `provider` could not look at, with any token blanked out of it.
+    /// `message`, about what `provider` could not look at, as people may read it. It is the one
+    /// pass every provider's error goes through on its way to the report, the API, doctor and the
+    /// app: any token is blanked out; this process's home folder is written `~`, as `text::tilde`
+    /// writes it, so a place in it never shows the user's name (#52); and a message that begins
+    /// with the provider's id, as every one did before D-128, loses it, so the API's `message`
+    /// never begins with it, whichever provider wrote it. The home folder is the one the providers
+    /// in this process find their folders in, `std::env::home_dir()`, in the CLI and the daemon
+    /// alike.
     #[must_use]
     pub fn warning(provider: &str, message: &str) -> Self {
+        Self::made(provider, message, std::env::home_dir().as_deref())
+    }
+
+    /// [`ProviderError::warning`], with `home` as the home folder.
+    fn made(provider: &str, message: &str, home: Option<&std::path::Path>) -> Self {
         Self {
             provider: provider.to_owned(),
-            message: redact_secrets(message).into_owned(),
+            message: crate::text::tilde_in(&redact_secrets(without_id(provider, message)), home),
         }
     }
 }
@@ -380,6 +425,177 @@ mod tests {
             report.provider_name("codex"),
             "codex",
             "a provider the report does not list, as from an older QuotaDial, keeps its id"
+        );
+    }
+
+    /// Claude's and Gemini CLI's ids and names, as a report lists the providers it asked.
+    fn claude_and_gemini() -> Vec<ProviderName> {
+        [("claude", "Claude"), ("gemini", "Gemini CLI")]
+            .map(|(id, name)| ProviderName {
+                id: id.into(),
+                name: name.into(),
+            })
+            .to_vec()
+    }
+
+    fn error(provider: &str, message: &str) -> ProviderError {
+        ProviderError {
+            provider: provider.into(),
+            message: message.into(),
+        }
+    }
+
+    #[test]
+    fn a_providers_error_is_shown_under_the_providers_own_name() {
+        let report = StatusReport {
+            errors: vec![
+                error(
+                    "gemini",
+                    "could not read the sign-in from ~/.gemini/settings.json: it is not a plain \
+                     file",
+                ),
+                error("copilot", "request failed: GitHub did not answer."),
+            ],
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+
+        assert_eq!(
+            report.error_lines().collect::<Vec<_>>(),
+            [
+                "Gemini CLI: could not read the sign-in from ~/.gemini/settings.json: it is not a \
+                 plain file",
+                "copilot: request failed: GitHub did not answer.",
+            ],
+            "a provider the report does not list keeps its id"
+        );
+    }
+
+    #[test]
+    fn an_older_quotadials_error_names_its_provider_once() {
+        // Before D-128 every message began with its provider's id.
+        let named = StatusReport {
+            errors: vec![error(
+                "claude",
+                "claude: request failed: Could not reach Anthropic.",
+            )],
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+        assert_eq!(
+            named.error_lines().collect::<Vec<_>>(),
+            ["Claude: request failed: Could not reach Anthropic."]
+        );
+
+        // One older than P-020 lists no providers either, so the id shows, once.
+        let unnamed = StatusReport {
+            providers: Vec::new(),
+            ..named
+        };
+        assert_eq!(
+            unnamed.error_lines().collect::<Vec<_>>(),
+            ["claude: request failed: Could not reach Anthropic."]
+        );
+
+        // Only the provider's own id, as it was written, followed by a colon and a space.
+        let others = StatusReport {
+            errors: [
+                "claudes: a word that starts like the id.",
+                "gemini: another provider's id.",
+                "claude:no space.",
+            ]
+            .map(|message| error("claude", message))
+            .to_vec(),
+            providers: claude_and_gemini(),
+            ..StatusReport::default()
+        };
+        assert_eq!(
+            others.error_lines().collect::<Vec<_>>(),
+            [
+                "Claude: claudes: a word that starts like the id.",
+                "Claude: gemini: another provider's id.",
+                "Claude: claude:no space.",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_reports_message_leaves_its_provider_to_provider() {
+        // `provider` says whose it is, and the report's `providers` its name (D-128).
+        let failed = Error::Request {
+            provider: "codex",
+            reason: "Could not reach ChatGPT.".into(),
+        };
+        assert_eq!(
+            ProviderError::new("codex", &failed),
+            error("codex", "request failed: Could not reach ChatGPT.")
+        );
+
+        // A warning a provider still writes with its id in front, as every one did before.
+        assert_eq!(
+            ProviderError::warning(
+                "claude",
+                "claude: could not list the Claude Code items in the macOS Keychain."
+            ),
+            error(
+                "claude",
+                "could not list the Claude Code items in the macOS Keychain."
+            )
+        );
+        assert_eq!(
+            ProviderError::warning("claude", "claudes: a word that starts like the id.").message,
+            "claudes: a word that starts like the id."
+        );
+    }
+
+    /// `parts` in the home folder, as `text::tilde` writes it: `~/.codex/auth.json` on macOS and
+    /// Linux, with Windows' own separator after the `~/` there.
+    fn in_home(parts: &[&str]) -> String {
+        format!(
+            "~/{}",
+            parts.iter().collect::<std::path::PathBuf>().display()
+        )
+    }
+
+    #[test]
+    fn a_reports_message_writes_the_home_folder_as_a_tilde() {
+        // #52: no error shows a path with the user's name in it (D-128).
+        let home: std::path::PathBuf = ["/", "Users", "ann"].iter().collect();
+        let place = home.join(".codex").join("auth.json");
+        let failed = Error::Credentials {
+            provider: "codex",
+            location: place.display().to_string(),
+            reason: "it is not valid JSON; run `codex login` to sign in again".into(),
+        };
+
+        assert_eq!(
+            ProviderError::made("codex", &failed.to_string(), Some(&home)).message,
+            format!(
+                "could not read the sign-in from {}: it is not valid JSON; run `codex login` to \
+                 sign in again",
+                in_home(&[".codex", "auth.json"])
+            )
+        );
+        let elsewhere: std::path::PathBuf = ["/", "Users", "anna", "auth.json"].iter().collect();
+        let warned = format!("could not look in {}.", elsewhere.display());
+        assert_eq!(
+            ProviderError::made("codex", &warned, Some(&home)).message,
+            warned,
+            "a place outside the home folder stays as it is"
+        );
+    }
+
+    #[test]
+    fn every_message_is_made_with_this_processs_home_folder() {
+        let Some(home) = std::env::home_dir().filter(|home| home.parent().is_some()) else {
+            return;
+        };
+        let place = home.join(".codex").join("auth.json");
+
+        assert_eq!(
+            ProviderError::warning("codex", &format!("could not look in {}.", place.display()))
+                .message,
+            format!("could not look in {}.", in_home(&[".codex", "auth.json"]))
         );
     }
 
