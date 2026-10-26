@@ -184,7 +184,7 @@ function AccountSection({ account, index }: { account: Account; index: number })
       <h2 id={heading}>
         <span class="provider">{account.provider}</span>
         {account.alias && <span class="alias">{account.alias}</span>}
-        <span class="name">{account.name}</span>
+        {account.name && <span class="name">{account.name}</span>}
         {account.plan && <span class="tag">{account.plan}</span>}
         {!account.ok && <span class="tag attention">{account.status}</span>}
       </h2>
@@ -201,10 +201,12 @@ function AccountSection({ account, index }: { account: Account; index: number })
         </ul>
       )}
       {account.extra_usage && <p class="extra">Extra usage: {account.extra_usage}</p>}
-      <details class="sign-in">
-        <summary>How QuotaDial reads this sign-in</summary>
-        <p>{account.sign_in}</p>
-      </details>
+      {account.sign_in && (
+        <details class="sign-in">
+          <summary>What QuotaDial does with this sign-in</summary>
+          <p>{account.sign_in}</p>
+        </details>
+      )}
     </section>
   );
 }

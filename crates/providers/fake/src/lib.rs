@@ -27,6 +27,14 @@ use crate::examples::Examples;
 /// The provider id used in [`Account::provider`].
 pub const ID: &str = "fake";
 
+/// What the provider calls itself, so no picture of it is taken for a real provider (P-020).
+pub const NAME: &str = "Example";
+
+/// What QuotaDial does with an example account's sign-in: there is none (P-020).
+pub const SIGN_IN_USE: &str = "An example account, made up by QuotaDial's example build for \
+                               pictures of the app. It has no sign-in, and QuotaDial asks no one \
+                               for its numbers.";
+
 /// The environment variable naming a JSON file of example accounts to show in place of the
 /// built-in ones, in the form of `fixtures/fake/example.json`.
 pub const ACCOUNTS_VARIABLE: &str = "QUOTADIAL_FAKE_ACCOUNTS";
@@ -112,6 +120,10 @@ impl Provider for FakeProvider {
         ID
     }
 
+    fn name(&self) -> &'static str {
+        NAME
+    }
+
     /// Every example account, whatever the licence: they stand for the accounts a first run finds,
     /// one per provider, so none is held back.
     fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -122,11 +134,13 @@ impl Provider for FakeProvider {
             .enumerate()
             .map(|(index, example)| Account {
                 provider: ID.to_owned(),
+                provider_name: NAME.to_owned(),
                 account_id: account_id(index),
                 display_name: DISPLAY_NAME.to_owned(),
                 plan: Some(example.plan.clone()),
                 org: None,
                 sign_in: None,
+                sign_in_use: SIGN_IN_USE.to_owned(),
             })
             .collect())
     }
@@ -185,6 +199,18 @@ mod tests {
             .with_timezone(&Utc)
     }
 
+    #[test]
+    fn its_name_and_what_it_says_of_a_sign_in_keep_to_plain_words() {
+        for words in [NAME, SIGN_IN_USE] {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
     /// A clock that stays where the test puts it.
     fn clock(start: &str) -> (Clock, Arc<Mutex<DateTime<Utc>>>) {
         let now = Arc::new(Mutex::new(at(start)));
@@ -205,24 +231,32 @@ mod tests {
         let accounts = provider.discover_accounts().expect("the built-in examples");
 
         assert_eq!(provider.id(), "fake");
+        assert_eq!(provider.name(), "Example");
+        let no_sign_in = "An example account, made up by QuotaDial's example build for pictures \
+                          of the app. It has no sign-in, and QuotaDial asks no one for its \
+                          numbers.";
         assert_eq!(
             accounts,
             [
                 Account {
                     provider: "fake".into(),
+                    provider_name: "Example".into(),
                     account_id: "example-1".into(),
                     display_name: "Example".into(),
                     plan: Some("Claude Max 5x".into()),
                     org: None,
                     sign_in: None,
+                    sign_in_use: no_sign_in.into(),
                 },
                 Account {
                     provider: "fake".into(),
+                    provider_name: "Example".into(),
                     account_id: "example-2".into(),
                     display_name: "Example".into(),
                     plan: Some("ChatGPT Pro".into()),
                     org: None,
                     sign_in: None,
+                    sign_in_use: no_sign_in.into(),
                 },
             ]
         );

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Fails when a built `quotadial` names a provider `fake`: the example build's (D-117), whose made-up
-# accounts are for pictures of the app and must never reach a user. The Release workflow runs it on
+# Fails when a built `quotadial` names the example build's provider (D-117), whose made-up accounts
+# are for pictures of the app and must never reach a user: by its id, `fake`, as JSON names a
+# provider, or by its own name, `Example`, as text does (P-020). The Release workflow runs it on
 # every CLI it ships. The CLI runs in a scratch home and data folder, where it finds no sign-in and so
 # asks no one; a missing sign-in is fine here, since only what the CLI names is checked. Each run is
 # stopped after a minute rather than left to hang.
@@ -32,10 +33,11 @@ home="$(native "$scratch/home")"
 data="$(native "$scratch/data")"
 
 # Runs the CLI with "$@", its output in $scratch/out and $scratch/err, where no sign-in can be
-# found: a scratch home, no token in the environment, and either build's data folder in scratch.
+# found: a scratch home, no token in the environment, Gemini CLI's folder in that home rather than
+# where GEMINI_CLI_HOME may point, and either build's data folder in scratch.
 run() {
   env -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_SECURESTORAGE_CONFIG_DIR -u ANTHROPIC_API_KEY \
-    -u OPENAI_API_KEY -u QUOTADIAL_FAKE_ACCOUNTS \
+    -u OPENAI_API_KEY -u QUOTADIAL_FAKE_ACCOUNTS -u GEMINI_CLI_HOME \
     HOME="$home" USERPROFILE="$home" \
     XDG_DATA_HOME="$home" XDG_CACHE_HOME="$home" XDG_CONFIG_HOME="$home" \
     CLAUDE_CONFIG_DIR="$(native "$scratch/home/.claude")" \
@@ -57,7 +59,10 @@ run() {
   wait "$pid" || true
 }
 
-# Checks what `quotadial $1` printed: something that starts as $2 says, and no provider `fake`.
+# The example build's provider, by its id or its name.
+example='fake|Example'
+
+# Checks what `quotadial $1` printed: something that starts as $2 says, and no example provider.
 check() {
   local command="$1" printed="$2"
   if ! grep -q "$printed" "$scratch/out"; then
@@ -65,12 +70,12 @@ check() {
     cat "$scratch/err" >&2
     return 1
   fi
-  if grep -qw fake "$scratch/out" "$scratch/err"; then
-    echo "error: \`quotadial $command\` names the example build's provider, fake (D-117):" >&2
-    grep -hw fake "$scratch/out" "$scratch/err" >&2
+  if grep -qwE "$example" "$scratch/out" "$scratch/err"; then
+    echo "error: \`quotadial $command\` names the example build's provider, fake or Example (D-117):" >&2
+    grep -hwE "$example" "$scratch/out" "$scratch/err" >&2
     return 1
   fi
-  echo "\`quotadial $command\` names no provider fake."
+  echo "\`quotadial $command\` names no example provider."
 }
 
 failed=0

@@ -112,11 +112,13 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: format!("The {provider} provider"),
                 account_id: format!("{provider}-user"),
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: windows
                 .iter()
@@ -157,6 +159,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -204,6 +207,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -238,6 +242,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);
@@ -263,6 +268,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(rank(&report).accounts[0].headroom_pct, Some(0.0));
@@ -288,6 +294,7 @@ mod tests {
             costs: vec![cost.clone()],
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let ranked = rank(&report);

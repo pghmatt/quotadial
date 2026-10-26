@@ -484,29 +484,12 @@ fn descriptions_use_quotadials_words() {
     let mut descriptions = Vec::new();
     collect_descriptions(&spec(), &mut descriptions);
     for description in descriptions {
-        let words = prose(&description).to_lowercase();
-        for word in words.split(|char: char| !char.is_alphanumeric()) {
-            assert!(
-                !["quota", "quotas", "auth", "credential", "credentials"].contains(&word),
-                "say a window, a reset or a sign-in in place of \"{word}\": {description}"
-            );
-        }
+        assert_eq!(
+            quotadial_core::text::unplain_words(&description),
+            Vec::<String>::new(),
+            "say a window, a reset or a sign-in in their place: {description}"
+        );
     }
-}
-
-/// `text` without what it puts in backticks or double quotes.
-fn prose(text: &str) -> String {
-    let mut words = String::with_capacity(text.len());
-    let mut inside = None;
-    for char in text.chars() {
-        match inside {
-            Some(close) if char == close => inside = None,
-            Some(_) => {}
-            None if char == '`' || char == '"' => inside = Some(char),
-            None => words.push(char),
-        }
-    }
-    words
 }
 
 fn collect_descriptions(value: &Value, found: &mut Vec<String>) {

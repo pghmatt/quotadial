@@ -198,11 +198,13 @@ mod tests {
             snapshots: vec![Snapshot {
                 account: Account {
                     provider: "claude".into(),
+                    provider_name: "Claude".into(),
                     account_id: "user-1".into(),
                     display_name: "user@example.com".into(),
                     plan: None,
                     org: Some("org-1".into()),
                     sign_in: Some("the macOS Keychain item \"Claude Code-credentials\"".into()),
+                    sign_in_use: "QuotaDial reads this test's sign-in.".into(),
                 },
                 windows: vec![Window {
                     kind: WindowKind::Weekly,
@@ -225,6 +227,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         assert_eq!(
             history

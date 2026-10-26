@@ -49,14 +49,14 @@ pub fn pace(pace: &Pace, resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -
     }
 }
 
-/// The name people know a provider by, such as `Claude` for `claude`.
+/// What QuotaDial does with a sign-in it reads from `place`, as a provider that reads one says it
+/// (P-020): such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads
+/// it and never changes it.`
 #[must_use]
-pub fn provider_name(id: &str) -> &str {
-    match id {
-        "claude" => "Claude",
-        "codex" => "Codex",
-        other => other,
-    }
+pub fn sign_in_read_from(place: &str) -> String {
+    format!(
+        "QuotaDial reads this account's sign-in from {place}. It only reads it and never changes it."
+    )
 }
 
 /// A share as people write it: `80` for 80.0 and `80.5` for 80.5, to a tenth.
@@ -199,6 +199,53 @@ pub fn source_label(source: Source) -> &'static str {
     }
 }
 
+/// `name`, to show beside a provider's label `label`, or none when it says nothing more: when it is
+/// empty or blank, or the label itself, whatever the case. The one rule for every account and every
+/// surface that writes a provider's label and an account's name side by side.
+#[must_use]
+pub fn name_beside<'a>(label: &str, name: &'a str) -> Option<&'a str> {
+    let said = name.trim();
+    (!said.is_empty() && said.to_lowercase() != label.trim().to_lowercase()).then_some(name)
+}
+
+/// The provider's label `label` with `name` beside it when it says more ([`name_beside`]):
+/// "Claude user@example.com", or "Example" alone for an account called Example.
+#[must_use]
+pub fn labelled(label: &str, name: &str) -> String {
+    match name_beside(label, name) {
+        Some(name) => format!("{label} {name}"),
+        None => label.to_owned(),
+    }
+}
+
+/// The words #52 keeps out of anything a user reads, "quota", "auth" and "credential" with their
+/// plurals, found in `text` outside a name, each lowercased: what tests hold every sentence people
+/// read to. A name is written as it is: anything in backticks or double quotes, and a path, a file
+/// or a variable, a word holding `/`, `\`, `~`, `_` or a `.` inside it, such as
+/// `~/.codex/auth.json`, `.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`.
+#[must_use]
+pub fn unplain_words(text: &str) -> Vec<String> {
+    const KEPT_OUT: [&str; 5] = ["quota", "quotas", "auth", "credential", "credentials"];
+    let mut prose = String::with_capacity(text.len());
+    let mut inside = None;
+    for char in text.chars() {
+        match inside {
+            Some(close) if char == close => inside = None,
+            Some(_) => {}
+            None if char == '`' || char == '"' => inside = Some(char),
+            None => prose.push(char),
+        }
+    }
+    prose
+        .split_whitespace()
+        .map(|word| word.trim_matches(|char: char| !char.is_alphanumeric()))
+        .filter(|word| !word.contains(['/', '\\', '~', '_', '.']))
+        .flat_map(|word| word.split(|char: char| !char.is_alphanumeric()))
+        .map(str::to_lowercase)
+        .filter(|word| KEPT_OUT.contains(&word.as_str()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -310,10 +357,16 @@ mod tests {
     }
 
     #[test]
-    fn providers_and_shares_are_named_as_people_write_them() {
-        assert_eq!(provider_name("claude"), "Claude");
-        assert_eq!(provider_name("codex"), "Codex");
-        assert_eq!(provider_name("other"), "other");
+    fn a_sign_in_read_from_a_place_says_so_and_that_it_is_never_changed() {
+        assert_eq!(
+            sign_in_read_from("~/.codex/auth.json"),
+            "QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and \
+             never changes it."
+        );
+    }
+
+    #[test]
+    fn shares_are_written_as_people_write_them() {
         assert_eq!(percent(80.0), "80");
         assert_eq!(percent(80.5), "80.5");
         assert_eq!(percent(33.333), "33.3");
@@ -403,5 +456,29 @@ mod tests {
         model.usd = None;
         model.requests = 1;
         assert_eq!(model_cost(&model), "claude-opus-5-5: no price, 1 request");
+    }
+
+    #[test]
+    fn the_words_people_never_read_are_found_outside_names_only() {
+        // #52's plain words: a window, a reset, a sign-in, never these.
+        assert_eq!(
+            unplain_words("Your quota resets soon; check your Auth and Credentials."),
+            ["quota", "auth", "credentials"]
+        );
+        assert_eq!(
+            unplain_words("A credential-free quotas page."),
+            ["credential", "quotas"]
+        );
+        // A name is written as it is: in backticks or quotes, or a path, file or variable.
+        for named in [
+            "QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it.",
+            "QuotaDial reads the sign-in Codex keeps in auth.json, in ~/.codex.",
+            "the macOS Keychain item \"Claude Code-credentials\", then .credentials.json.",
+            "the CLAUDE_CODE_OAUTH_TOKEN variable, or `quota` in a command.",
+            "QuotaDial only checks that Gemini CLI's sign-in is at ~/.gemini/oauth_creds.json.",
+            "C:\\Users\\someone\\.codex\\auth.json, as Windows writes it.",
+        ] {
+            assert_eq!(unplain_words(named), Vec::<String>::new(), "{named}");
+        }
     }
 }

@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use chrono::{Local, Utc};
-use quotadial_core::{ProFeature, StatusReport, text};
+use quotadial_core::{ProFeature, ProviderName, StatusReport, text};
 use quotadial_daemon::{AddError, Config, DataDir, History, Licensing, licence, needs_pro};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
@@ -229,6 +229,12 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
     if !sends && !config.webhooks.is_empty() {
         alert_problems.push(ProFeature::AlertDelivery.line());
     }
+    // Each provider as it names itself, for the list to show or hide and for a rule narrowed to
+    // one (P-020).
+    let providers: Vec<ProviderName> = quotadial_providers::all()
+        .iter()
+        .map(|provider| ProviderName::of(provider.as_ref()))
+        .collect();
     SettingsView {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
         check_updates: settings.check_updates,
@@ -246,18 +252,18 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .flat_map(|history| history.rules().unwrap_or_default())
             .map(|rule| AlertChoice {
                 id: rule.id,
-                read_as: rule.rule.to_string(),
+                read_as: rule.rule.read_as(&providers),
                 waits: needs_pro(&rule.rule.condition) && !tier.allows(ProFeature::AlertRules),
                 written: rule.written,
                 enabled: rule.enabled,
             })
             .collect(),
-        providers: quotadial_providers::all()
+        providers: providers
             .iter()
             .map(|provider| ProviderChoice {
-                id: provider.id().to_owned(),
-                name: text::provider_name(provider.id()).to_owned(),
-                shown: settings.shows(provider.id()),
+                id: provider.id.clone(),
+                name: provider.name.clone(),
+                shown: settings.shows(&provider.id),
             })
             .collect(),
         accounts: state
@@ -270,10 +276,9 @@ fn settings(app: AppHandle, state: tauri::State<'_, AppState>) -> SettingsView {
             .map(|snapshot| {
                 let key = account_key(&snapshot.account);
                 AccountChoice {
-                    label: format!(
-                        "{} {}",
-                        text::provider_name(&snapshot.account.provider),
-                        snapshot.account.display_name
+                    label: text::labelled(
+                        snapshot.account.provider_label(),
+                        &snapshot.account.display_name,
                     ),
                     alias: settings.aliases.get(&key).cloned().unwrap_or_default(),
                     key,

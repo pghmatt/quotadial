@@ -46,6 +46,11 @@ feature would be. See [docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
 | --- | --- | --- |
 | Claude | Claude Code (the macOS Keychain, `~/.claude/.credentials.json`, or `CLAUDE_CODE_OAUTH_TOKEN`), for every `CLAUDE_CONFIG_DIR` it finds | Works, with every stored subscription |
 | ChatGPT / Codex | Codex CLI (`auth.json` in `$CODEX_HOME` or `~/.codex`) | Works |
+| Gemini CLI | Nothing inside the sign-in: only that Gemini CLI's `oauth_creds.json` is in `.gemini` in `$GEMINI_CLI_HOME` or your home folder, and one field of its `settings.json` | Shown, with why it has no numbers |
+
+Gemini CLI's account shows with no numbers. Signed in with Google, Google's terms do not let other
+tools use Gemini CLI's sign-in, so QuotaDial never opens it and says where Gemini CLI shows its
+limits (`/model`). A Gemini API key or Vertex AI has no plan limits to show.
 
 If you keep several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`,
 QuotaDial shows all of them, not only the one Claude Code uses now. See
@@ -68,6 +73,11 @@ QuotaDial runs on your machine. It reads the sign-ins that Claude Code and the C
 keep, and never writes, refreshes, moves or logs them. From the CLIs' session logs it reads only
 numbers: token counts and model names for the week's cost, and the Codex CLI's own record of your
 limits. What you and the model wrote never leaves the machine, and QuotaDial never reads it.
+
+For Gemini CLI, QuotaDial reads no sign-in. It only checks that Gemini CLI's sign-in file,
+`oauth_creds.json` in `~/.gemini`, is there, without opening it, and reads one field of Gemini CLI's
+`settings.json` beside it: the one that says whether it signs in with Google, a Gemini API key or
+Vertex AI. It asks no one about Gemini CLI and sends nothing about it.
 
 QuotaDial connects to these, and nothing else:
 

@@ -42,14 +42,20 @@ impl Provider for Fixed {
         "claude"
     }
 
+    fn name(&self) -> &'static str {
+        "Claude"
+    }
+
     fn discover_accounts(&self) -> Result<Vec<Account>> {
         Ok(vec![Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "user-1".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: None,
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }])
     }
 

@@ -100,12 +100,13 @@ an undici override (notes below).
 M6, the next providers: the manager approved the plan on #73 on 2026-10-25 with decisions (a) to
 (d): Gemini CLI detected and explained, never read (D-118); Antigravity through its CLI's status
 line only (D-119); no Cursor provider (D-120); and the order 1, 3, 2, each provider behind its own
-feature (D-121). PR 1, the groundwork, is built on `feat/m6-groundwork` (D-122): P-018's hook for a
-provider's own commands, Google's and GitHub's tokens redacted by their shape, and the Gemini
-provider behind a `gemini` feature. Gemini is held off by default, since the app cannot show its
-account correctly without a change for one provider (its name, and its sign-in panel's sentence);
-that is the manager's to decide. Next: PR 3, Antigravity, then PR 2, Copilot, its merge held on its
-live check (#51).
+feature (D-121). PR 1, the groundwork, merged as #75 (D-122): P-018's hook for a provider's own
+commands, Google's and GitHub's tokens redacted by their shape, and the Gemini provider behind a
+`gemini` feature, held off by default since the app could not show its account correctly without a
+change for one provider. The manager accepted P-020 on #73 for that, one change for every provider,
+as its own PR: PR 1b, #77, where each provider names itself and says what QuotaDial does with
+each sign-in, and which turns Gemini CLI on (D-124). The order is 1, 1b, 3, 2:
+next, PR 3, Antigravity, then PR 2, Copilot, its merge held on its live check (#51).
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
@@ -120,6 +121,9 @@ Proposals:
 - P-018 (a provider's own commands) is accepted in principle on #73 and in the code (D-122).
 - P-019 (the deferred-provider rows) is asked for by the manager on #73; the PRD edit is the
   manager's.
+- P-020 (providers name themselves and say what QuotaDial does with each sign-in) is accepted by the
+  manager on #73 (2026-10-25) and in the code (D-124); the PRD edit is the manager's, with P-015,
+  P-018 and P-019.
 
 The manager's instructions arrive as GitHub issues, PR reviews and comments, checked every turn.
 
@@ -200,7 +204,8 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 
 | Step | Status | Notes |
 | --- | --- | --- |
-| 1: the groundwork, and Gemini CLI | Built on `feat/m6-groundwork`; Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
+| 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
+| 1b: providers name themselves, and Gemini CLI on | In review (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
 | 3: Antigravity, through its status line | Next | D-119's five rules: a command through P-018 that keeps each window's share and reset in one 0600 file, read by the provider at the next poll; `status_line` as its source; offline from made-up status-line JSON |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
@@ -390,6 +395,108 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
+The notes below run newest first; the setup notes above them are the oldest.
+
+### M6 PR 1b: providers name themselves, and Gemini CLI on (P-020, D-124)
+
+- **The decision:** the manager accepted P-020 on #73 (2026-10-25, 22:25 UTC) as its own PR, with
+  five rules, merged #75 with Gemini held off, and gave 1b the turn-on too, so D-121's "turned on in
+  the PR that merges it" holds one PR later for Gemini (D-122). The P-020 commits first built on
+  #75's branch were moved onto `main` with `git rebase --onto origin/main 0261b78`, then onto
+  4d81a8a (#76); the branch is `feat/provider-names`, in review as #77.
+- **Rule 1, the name:** `Provider::name()`, required, beside `id()`: "Claude", "Codex", "Gemini CLI",
+  and "Example" for the example build. Each provider sets `Account.provider_name` from the same
+  `NAME` on every account it builds. `ProviderName { id, name }` and `StatusReport.providers`, filled
+  by `collect` and by the daemon's report from its providers before any account is found, name
+  status pages, costs, incidents and doctor's status pages (`StatusReport::provider_name`, the id
+  for a provider it does not list). `Rule::read_as(&[ProviderName])` replaces the rule's Display, so
+  a rule narrowed to a provider reads back with the provider's own name in `quotadial alerts` and
+  Settings. Free's line for held-back accounts takes `Provider::name`; MCP's `provider` argument is
+  described from the names ("claude for Claude, codex for Codex, gemini for Gemini CLI"), where it
+  kept words of its own for Claude and Codex; a provider's own commands are listed under its name.
+  `text::provider_name` is gone, and the app's strings name no provider.
+- **Rule 2, the sentence:** `Account.sign_in_use`, in the provider's words: Claude's and Codex's are
+  the popover's old sentences (`text::sign_in_read_from`, or each one's fallback); Gemini CLI's say
+  it only checks the sign-in file is there, or that it reads one field of the settings, which says
+  how Gemini CLI signs in, and then, in a sentence of its own so it cannot be read as what the
+  field says, "It never reads the key." ("It never reads a key or sign-in." for Vertex AI); the
+  example's says it has no sign-in. `Snapshot::without_secrets` now blanks a token out
+  of `sign_in` and `sign_in_use` too. The panel is "What QuotaDial does with this sign-in", and the
+  site's two pictures of the accounts were captured again with it (`node scripts/app-pictures.mjs`;
+  the settings pictures came out byte for byte the same, and the unused history pictures were left).
+- **Rule 3, older data:** both fields are always sent and so required in `docs/openapi.json`; read
+  back from before P-020 they take serde's empty default. `Account::provider_label` shows the id
+  until the next poll, doctor leaves out the sign-in line and the popover the panel, and
+  `Snapshot::completed_from` fills a replayed snapshot's empty fields from the account discovery
+  found. History names a provider from its newest snapshot that names it.
+- **Rule 4, docs:** `docs/openapi.json` rewritten (`QUOTADIAL_WRITE_OPENAPI=1`), its descriptions
+  saying both fields come from the provider as given; `docs/CLI.md` and `skills/quotadial/SKILL.md`
+  show both fields and `providers[]`; `docs/ACCESSIBILITY.md` names the panel; one changelog line.
+- **Rule 5, tests:** `text::unplain_words` is the one check for #52's plain words ("quota", "auth",
+  "credential" outside a name; a name is anything in backticks or quotes, or a path, file or
+  variable). Each provider's tests hold its name and every sentence it can produce to it, and each
+  fails when one of those words goes in; the OpenAPI and Gemini CLI tests use it too. D-117's list
+  test holds each build's names as its ids. The window check's fixtures gain a Gemini CLI account
+  with its own sentence and, in the Free copy, a Codex account with none, as an older daemon sends
+  it.
+- **Gemini on:** `gemini` in `quotadial-providers`' defaults, which the CLI and the app take; the
+  CLI's own pass-through feature and CI's separate Gemini steps go; the app's lockfile gains only
+  the Gemini crate. The CLI's help and quotadial(1) say a Gemini CLI account is listed with why it
+  has no numbers; `history --provider` names gemini; ENVIRONMENT names GEMINI_CLI_HOME, which a test
+  holds. `scripts/no-example-provider.sh` unsets GEMINI_CLI_HOME (checked: with GEMINI_CLI_HOME on a
+  made-up signed-in folder, the CLI finds a Gemini account there only without the unset).
+  `docs/PRIVACY.md` and the README's copy, the README's provider table, `docs/CLI.md`,
+  `docs/INSTALL.md` and `docs/SECURITY.md` name it.
+- **One name** (asked for by the coordinator, for PR D's recording from the example build): an
+  account whose display name says nothing beyond its provider's label, being empty or the label
+  itself whatever the case, shows the label once, by one rule for every account
+  (`Account::name_beside_provider`, `text::name_beside`, `text::labelled`): `status`, `doctor` and
+  `history`, the popover's heading (its name span drawn only when there is a name), its summary and
+  tooltip, Settings and History. The example build's accounts read "Example (Claude Max 5x)", where
+  `main` shows "fake Example" and this branch had shown "Example Example"; a name given in Settings
+  still shows after the label. The window check's Free copy gains an example account: its heading
+  reads "Example" and the plan, captured and looked at here.
+- **Found on the way and fixed:** doctor's status pages still showed the id; once doctor named
+  providers, the release check's doctor half no longer saw `fake` on an example build (run here:
+  the old script let it through), so it now fails on `Example` too; the site's `quotadial status`
+  sample wrote ids, as its test held it to.
+- **Left open, for the manager:** a copy without a licence still offers the week's cost to a
+  machine with only a Gemini CLI account, which the cost scan cannot give (D-122); `watch` and the
+  daemon say they ask "Gemini CLI at most every 5 min", though it is never asked, which needs a way
+  for a provider to say it asks no one, a change in core, proposed as P-021 (`Provider::asks`,
+  required, whom a provider's fetch asks or none), to settle before PR 3, since Antigravity asks
+  no one either; error lines keep the provider's id
+  (`claude: request failed`), as each provider writes its errors; and the site's home page speaks
+  of Claude and Codex only, still true, so naming Gemini CLI there is for the site's review.
+- **Tests:** in the workspace, 625 passed (1 ignored) on `main` and 656 (1 ignored) now, Gemini
+  included by default; the example build 625 (2 ignored) and 655 (2 ignored). By crate, from `main`:
+  core 104 to 118, the CLI 51 to 59 (with the Gemini binary test now in every release), the daemon
+  100 to 102, Claude 134 to 136 (and 1 ignored), Codex 61 to 63, fake 18 to 19, Gemini CLI 29 to 30,
+  `quotadial-providers` 1 to 2; API 54, cost 30, issue 6 and poll 37 unchanged. The tray app 81 to 85
+  in both builds, its scripts' tests 5, the site 90, and the window check 3394 checks over 16
+  views. Every new test failed first, against a stub or
+  with its change left out, and each that passed at once because the code was already there failed
+  under a mutation, restored after.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` on the
+  workspace, default and `fake`, and on the tray app, default and `fake`; the workspace's tests,
+  default and `fake`, with the packaging and OpenAPI checks in them; the release-only licence key
+  test; `cargo metadata --locked` for both lockfiles; the tray app's `npm ci`, `npm run build` (34.0
+  KB of 150, contrast), `npm test`, `npm run cli`, its tests (`--lib`), default and `fake`, and
+  `npm run check:window` in headless Chrome with a profile of its own, removed after; the site's
+  `npm ci`, wrangler's start, `npm run check`, `npm run build` and `npm test`; shellcheck,
+  `scripts/public-prd.sh --check`, `scripts/privacy.sh --check`, the 0.2.0 release notes and the
+  scripts' tests (39, 1 skipped for GNU sha256sum); actionlint on every workflow; and
+  `scripts/no-example-provider.sh` on the release CLI and the app's bundled CLI (both pass) and the
+  example CLI (it fails, naming both commands). **Not run:** the tray's `tests/icon_press.rs`, which
+  puts a real status item in Matt's menu bar; `cargo deny` and `cargo audit`, not installed here
+  (no third-party crate was added); and a release build of the app.
+- **Safety on this Mac:** every cargo run had `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`,
+  `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad and no token in its
+  environment; the release CLIs ran only in empty homes, and the release check on them under
+  `sandbox-exec` with a profile that refuses `/usr/bin/security`, `~/Library/Keychains`, every
+  `~/.claude*`, `~/.codex*` and `~/.gemini*` path, Matt's QuotaDial folders and the network. No
+  vendor CLI ran, no sign-in or keychain item was read, and no app or daemon ran against Matt's data.
+
 ### CI: the window check gives Chrome a minute to start
 
 - **What happened:** main's CI failed on #74's merge (run 40236269486, 21:38 UTC on 2026-10-25) in
@@ -413,8 +520,8 @@ so they became #10.
 
 - **The decisions:** the manager's on #73 (2026-10-25, 20:29 UTC), taken as decided at 20:32 UTC:
   (a) to (d) are D-118 to D-121, the deferred-provider rows are P-019, and P-018 is the one change
-  M6 makes in core. The branch is `feat/m6-groundwork`, from `main` at a5cda9e, committed and not
-  pushed.
+  M6 makes in core. The branch is `feat/m6-groundwork`, from `main` at a5cda9e, rebased on `main` at
+  ddcb456 once #74 merged, and merged as #75 (ec3163e) with Gemini held off, as the manager asked.
 - **P-018** (`crates/core/src/provider.rs`, `crates/cli/src/lib.rs`): `ProviderCommand { name,
   about, run }`, whose `run` takes an `Invocation { args, stdin, stdout, stderr }` and gives an
   `ExitCode`, and `Provider::commands`, empty by default. The CLI's `command()` adds, after its own

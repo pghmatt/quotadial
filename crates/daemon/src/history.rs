@@ -612,11 +612,13 @@ mod tests {
     fn account(org: &str) -> Account {
         Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some(org.into()),
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
     }
 

@@ -132,9 +132,10 @@ function AccountCharts({
   onShare: (() => void) | null;
 }) {
   return (
-    <section class="account-history" aria-label={`${account.provider} ${account.name}`}>
+    <section class="account-history" aria-label={[account.provider, account.name].filter(Boolean).join(" ")}>
       <h3>
-        <span class="provider">{account.provider}</span> {account.name}
+        <span class="provider">{account.provider}</span>
+        {account.name && ` ${account.name}`}
       </h3>
       {account.windows.map((chart) => (
         <Chart key={chart.label} chart={chart} />

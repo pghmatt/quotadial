@@ -13,9 +13,13 @@ so the job does not stop halfway. Also check it when the user asks how much they
 Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` ones. A machine can
 hold several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`, and QuotaDial
 lists all of them. `account.sign_in` says where each one's sign-in is, such as
-`the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`.
+`the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`, and
+`account.provider_name` what the provider calls itself, such as `Claude`.
 The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or the plain
 `Claude Code-credentials` item (`~/.claude`) when that is not set.
+
+A `gemini` account, Gemini CLI's, has no numbers: its `status` is `unsupported`, and its `error`
+says why and, for a Google sign-in, that `/model` in Gemini CLI shows its limits.
 
 ## How to ask
 
@@ -26,7 +30,7 @@ Use the first of these that is available:
    - `get_account_headroom` ranks the accounts by the room left in their tightest limit.
    - `get_usage` returns every limit.
    - `list_alerts` returns the user's alert rules and what they told in the last week.
-   - The first two take an optional `provider`, `claude` or `codex`.
+   - The first two take an optional `provider`, `claude`, `codex` or `gemini`.
    - On QuotaDial Free, `get_account_headroom` and `list_alerts` answer with an error saying they
      are part of QuotaDial Pro. Then call `get_usage` and find the tightest window yourself, as
      "Headroom" below describes; `get_usage` works on every copy.
@@ -97,7 +101,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 {
   "snapshots": [
     {
-      "account": { "provider": "claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
+      "account": { "provider": "claude", "provider_name": "Claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
       "windows": [
         {
           "kind": "session",
@@ -121,7 +125,9 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | Field | Meaning |
 | --- | --- |
 | `snapshots[]` | One per account: a provider, its organization or workspace (`org`), and an account id |
-| `account.sign_in` | Where QuotaDial read the account's sign-in, such as a Keychain item and its `CLAUDE_CONFIG_DIR`, or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.provider_name` | The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it; `account.provider` is its id. Empty for an account from an older QuotaDial until the next poll: then use the id |
+| `account.sign_in` | Where the account's sign-in is, such as a Keychain item and its `CLAUDE_CONFIG_DIR`, or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the sign-in. Never a token. Empty for an account from an older QuotaDial until the next poll |
 | `windows[].kind` | `session` (5 hours), `weekly`, `model_weekly` (one model's weekly limit, named in `scope_model`), `daily`, `credits`, or `other` for a limit QuotaDial does not know yet |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
@@ -136,6 +142,7 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | `status_pages[]` | While the daemon runs, what each provider's status page says: `indicator` (`none`, `maintenance`, `minor`, `major`, `critical`) and `description`. A `minor` or worse incident can slow or fail requests, so mention it before a long job |
 | `costs[]` | While the daemon runs, what the last 7 days of local use of each provider would have cost at API prices: `usd`, `requests`, `tokens` and `models[]`, with `until`, when the logs were read, and `notes`, what it leaves out. An estimate at standard API prices, not a bill: the plan's price is what the user pays |
 | `problems[]` | While the daemon runs, what is wrong with QuotaDial itself, such as a history it could not save, each one line naming the fix. The numbers still hold; pass a line on to the user rather than acting on it |
+| `providers[]` | Every provider QuotaDial asks, each with its `id` and its own short `name`, such as `{ "id": "claude", "name": "Claude" }`: the name for a status page or cost, which carry only the id |
 
 ## Headroom
 
@@ -145,7 +152,7 @@ The ranking from `GET /v1/headroom` and `get_account_headroom`:
 {
   "accounts": [
     {
-      "account": { "provider": "claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
+      "account": { "provider": "claude", "provider_name": "Claude", "account_id": "...", "display_name": "user@example.com", "plan": "max" },
       "status": "ok",
       "headroom_pct": 58.0,
       "tightest": { "kind": "session", "label": "Session", "used_pct": 42.0, "resets_at": "2099-01-01T05:00:00Z", "window_seconds": 18000, "source": "api", "fetched_at": "2099-01-01T00:00:00Z" }

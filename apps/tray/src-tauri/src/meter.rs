@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{Account, Snapshot, Source, Status, StatusReport, Window, text};
+use quotadial_core::{Snapshot, Status, StatusReport, Window, text};
 use serde::Serialize;
 
 use crate::feed::Role;
@@ -93,7 +93,8 @@ pub struct AccountView {
     pub summary: String,
     /// The provider's name, such as "Claude".
     pub provider: String,
-    /// The account, such as its email address.
+    /// The account, such as its email address; empty when that says nothing beyond `provider`,
+    /// as for an account called Example under the provider Example, so the provider shows once.
     pub name: String,
     pub plan: Option<String>,
     /// Such as "ok", "stale" or "sign-in required".
@@ -105,7 +106,9 @@ pub struct AccountView {
     pub extra_usage: Option<String>,
     /// Why the status is not ok, naming the fix.
     pub note: Option<String>,
-    /// Where QuotaDial reads this account's sign-in, for "How QuotaDial reads this".
+    /// What QuotaDial does with this account's sign-in, in its provider's words, for "What
+    /// QuotaDial does with this sign-in" (P-020). Empty for an account from an older daemon, which
+    /// says none, and then the panel is left out.
     pub sign_in: String,
 }
 
@@ -176,7 +179,7 @@ impl Meter {
             meter.level = Level::of(used_pct);
             meter.headline = Some(format!(
                 "{} {}, {}",
-                text::provider_name(&snapshot.account.provider),
+                snapshot.account.provider_label(),
                 window.label,
                 text::resets(window.resets_at, now)
             ));
@@ -198,7 +201,7 @@ impl Meter {
             .map(|page| {
                 format!(
                     "{}: {}",
-                    text::provider_name(&page.provider),
+                    report.provider_name(&page.provider),
                     page.description
                 )
             })
@@ -212,7 +215,7 @@ impl Meter {
             .costs
             .iter()
             .map(|cost| CostView {
-                provider: text::provider_name(&cost.provider).to_owned(),
+                provider: report.provider_name(&cost.provider).to_owned(),
                 summary: text::cost(cost),
                 detail: format!(
                     "Read {}, at the prices of {}",
@@ -274,7 +277,7 @@ impl Meter {
         for account in &mut self.accounts {
             if let Some(alias) = aliases.get(&account.key) {
                 account.summary = account.summary.replacen(
-                    &format!("{} {}", account.provider, account.name),
+                    &text::labelled(&account.provider, &account.name),
                     &format!("{} {alias}", account.provider),
                     1,
                 );
@@ -307,9 +310,17 @@ impl Meter {
 
 fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
     let account = &snapshot.account;
-    let provider = text::provider_name(&account.provider).to_owned();
+    // As the provider names itself and says what QuotaDial does with the sign-in (P-020); an
+    // account from an older daemon shows its provider's id and no sign-in panel until the next
+    // poll.
+    let provider = account.provider_label().to_owned();
+    // An account called as its provider is, such as the example build's, shows the label once.
+    let name = account
+        .name_beside_provider()
+        .unwrap_or_default()
+        .to_owned();
     let windows = snapshot.windows_tightest_first();
-    let mut summary = format!("{provider} {}", account.display_name);
+    let mut summary = text::labelled(&provider, &name);
     if let Some(plan) = &account.plan {
         summary.push_str(&format!(" ({plan})"));
     }
@@ -326,13 +337,9 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         key: account_key(account),
         alias: None,
         summary,
-        sign_in: if is_example(snapshot) {
-            EXAMPLE_SIGN_IN.to_owned()
-        } else {
-            sign_in(account)
-        },
+        sign_in: account.sign_in_use.clone(),
         provider,
-        name: account.display_name.clone(),
+        name,
         plan: account.plan.clone(),
         status: text::status_label(snapshot.status).to_owned(),
         ok: snapshot.status == Status::Ok,
@@ -369,52 +376,6 @@ fn window_view(window: &Window, now: DateTime<Utc>) -> WindowView {
     }
 }
 
-/// What the popover says of an account the example build made up (D-117), where it would say how
-/// the sign-in is read: there is none.
-const EXAMPLE_SIGN_IN: &str = "An example account, made up by QuotaDial's example build for \
-                               pictures of the app. It has no sign-in, and QuotaDial asks no one \
-                               for its numbers.";
-
-/// Whether every number of `snapshot` was made up by the example build.
-fn is_example(snapshot: &Snapshot) -> bool {
-    !snapshot.windows.is_empty()
-        && snapshot
-            .windows
-            .iter()
-            .all(|window| window.source == Source::Example)
-}
-
-/// Where QuotaDial reads the account's sign-in (P-015), or, if the provider did not say, where it
-/// looks.
-fn sign_in(account: &Account) -> String {
-    if let Some(place) = &account.sign_in {
-        return format!(
-            "QuotaDial reads this account's sign-in from {place}. It only reads it and never \
-             changes it."
-        );
-    }
-    match account.provider.as_str() {
-        "claude" => {
-            let keychain = if cfg!(target_os = "macos") {
-                "then the macOS Keychain item \"Claude Code-credentials\", "
-            } else {
-                ""
-            };
-            format!(
-                "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN \
-                 environment variable when it is set, {keychain}then .credentials.json in \
-                 ~/.claude or the folder CLAUDE_CONFIG_DIR names. It only reads the sign-in and \
-                 never changes it. If it stops working, run claude once."
-            )
-        }
-        "codex" => "QuotaDial reads the sign-in the Codex CLI keeps in auth.json, in ~/.codex or \
-                    the folder CODEX_HOME names. It only reads the sign-in and never changes it. \
-                    If it stops working, run codex once."
-            .to_owned(),
-        _ => "QuotaDial reads this provider's own sign-in and never changes it.".to_owned(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use quotadial_core::{Account, ExtraUsage, Pace, ProviderError, Source, WindowKind};
@@ -446,15 +407,24 @@ mod tests {
         }
     }
 
+    /// A snapshot of an account of `provider`, which names itself as its id capitalised and says
+    /// what QuotaDial does with the sign-in, as every provider does (P-020).
     fn snapshot(provider: &str, plan: Option<&str>, windows: Vec<Window>) -> Snapshot {
+        let mut letters = provider.chars();
+        let name: String = letters
+            .next()
+            .map(|first| first.to_uppercase().chain(letters).collect())
+            .unwrap_or_default();
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: name,
                 account_id: "user-1".into(),
                 display_name: "user@example.com".into(),
                 plan: plan.map(str::to_owned),
                 org: None,
                 sign_in: None,
+                sign_in_use: format!("QuotaDial reads the {provider} test's sign-in."),
             },
             windows,
             extra_usage: None,
@@ -485,6 +455,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: [("claude", "Claude"), ("codex", "Codex")]
+                .map(|(id, name)| quotadial_core::ProviderName {
+                    id: id.into(),
+                    name: name.into(),
+                })
+                .to_vec(),
         }
     }
 
@@ -604,6 +580,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -662,7 +639,7 @@ mod tests {
         assert_eq!(claude.plan.as_deref(), Some("max"));
         assert_eq!((claude.status.as_str(), claude.ok), ("ok", true));
         assert_eq!(claude.extra_usage.as_deref(), Some("off"));
-        assert!(claude.sign_in.contains("CLAUDE_CODE_OAUTH_TOKEN"));
+        assert_eq!(claude.sign_in, "QuotaDial reads the claude test's sign-in.");
         assert_eq!(
             claude.windows,
             [
@@ -688,7 +665,65 @@ mod tests {
                 },
             ]
         );
-        assert!(meter.accounts[1].sign_in.contains("auth.json"));
+        assert_eq!(
+            meter.accounts[1].sign_in,
+            "QuotaDial reads the codex test's sign-in."
+        );
+    }
+
+    #[test]
+    fn a_provider_the_app_has_never_heard_of_is_shown_as_it_names_itself() {
+        let mut report = two_accounts();
+        report.snapshots[0] = snapshot(
+            "copilot",
+            None,
+            vec![window("Credits", 97.0, "2099-01-04T00:04:00Z")],
+        );
+        report.snapshots[0].account.provider_name = "GitHub Copilot".into();
+        report.snapshots[0].account.sign_in_use =
+            "QuotaDial reads the sign-in the Copilot CLI keeps. It never changes it.".into();
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        let shown = &meter.accounts[0];
+        assert_eq!(shown.provider, "GitHub Copilot");
+        assert_eq!(
+            shown.sign_in,
+            "QuotaDial reads the sign-in the Copilot CLI keeps. It never changes it."
+        );
+        assert_eq!(
+            meter.headline.as_deref(),
+            Some("GitHub Copilot Credits, resets in 3 d")
+        );
+        assert!(
+            meter
+                .tooltip()
+                .contains("GitHub Copilot user@example.com: Credits 97%"),
+            "{}",
+            meter.tooltip()
+        );
+    }
+
+    #[test]
+    fn an_account_from_an_older_daemon_shows_its_providers_id_and_no_sign_in_panel() {
+        let older: Account = serde_json::from_value(serde_json::json!({
+            "provider": "claude",
+            "account_id": "user-1",
+            "display_name": "user@example.com"
+        }))
+        .expect("an account an older daemon sent");
+        let mut report = two_accounts();
+        report.snapshots[0].account = older;
+
+        let meter = Meter::new(Some(&report), None, None, now());
+
+        let shown = &meter.accounts[0];
+        assert_eq!(shown.provider, "claude", "its id until the next poll");
+        assert!(
+            shown.summary.starts_with("claude user@example.com"),
+            "{shown:?}"
+        );
+        assert_eq!(shown.sign_in, "", "nothing said, so no panel");
     }
 
     #[test]
@@ -701,11 +736,16 @@ mod tests {
         report.snapshots[0] = Snapshot {
             account: Account {
                 provider: "fake".into(),
+                provider_name: "Example".into(),
                 account_id: "example-1".into(),
                 display_name: "Example".into(),
                 plan: Some("Claude Max 5x".into()),
                 org: None,
                 sign_in: None,
+                sign_in_use: "An example account, made up by QuotaDial's example build for \
+                              pictures of the app. It has no sign-in, and QuotaDial asks no one \
+                              for its numbers."
+                    .into(),
             },
             ..snapshot("fake", None, vec![example(Source::Example)])
         };
@@ -713,24 +753,35 @@ mod tests {
         let meter = Meter::new(Some(&report), None, None, now());
         let shown = &meter.accounts[0];
 
-        assert_eq!(shown.provider, "fake");
-        assert_eq!(shown.name, "Example");
+        // Called as its provider is, so its provider's label shows once, with no name beside it.
+        assert_eq!(shown.provider, "Example");
+        assert_eq!(shown.name, "");
+        assert!(
+            shown
+                .summary
+                .starts_with("Example (Claude Max 5x): Session 38%"),
+            "no doubled word and no double space: {}",
+            shown.summary
+        );
+        let named = meter
+            .clone()
+            .with_aliases(&BTreeMap::from([(shown.key.clone(), "Work".to_owned())]));
+        assert!(
+            named.accounts[0]
+                .summary
+                .starts_with("Example Work (Claude Max 5x): Session 38%"),
+            "a name the user gives still shows: {}",
+            named.accounts[0].summary
+        );
         assert_eq!(shown.windows[0].fetched, "from the example build 4 min ago");
         assert_eq!(
             shown.sign_in,
             "An example account, made up by QuotaDial's example build for pictures of the app. It \
              has no sign-in, and QuotaDial asks no one for its numbers."
         );
-        assert!(
-            meter.accounts[1].sign_in.contains("auth.json"),
-            "a real account still says where its sign-in is read"
-        );
-
-        report.snapshots[0].windows.push(example(Source::Api));
-        let mixed = Meter::new(Some(&report), None, None, now());
-        assert!(
-            mixed.accounts[0].sign_in.starts_with("QuotaDial reads"),
-            "an account is an example only when every number is"
+        assert_eq!(
+            meter.accounts[1].sign_in, "QuotaDial reads the codex test's sign-in.",
+            "a real account says what its provider says"
         );
     }
 
@@ -748,6 +799,7 @@ mod tests {
                 costs: Vec::new(),
                 left_out: Vec::new(),
                 problems: Vec::new(),
+                providers: Vec::new(),
             };
             let meter = Meter::new(Some(&report), None, None, now());
             assert_eq!(meter.accounts[0].windows[0].level, meter.level);
@@ -776,6 +828,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -805,6 +858,11 @@ mod tests {
              ~/.claude-work)"
                 .into(),
         );
+        expired.account.sign_in_use = "QuotaDial reads this account's sign-in from the macOS \
+                                       Keychain item \"Claude Code-credentials-1df4ed49\" \
+                                       (CLAUDE_CONFIG_DIR ~/.claude-work). It only reads it and \
+                                       never changes it."
+            .into();
         let report = StatusReport {
             snapshots: vec![
                 expired,
@@ -819,6 +877,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         let meter = Meter::new(Some(&report), None, None, now());
@@ -932,7 +991,7 @@ mod tests {
     fn what_free_leaves_out_is_a_line_each_under_the_accounts() {
         let report = StatusReport {
             left_out: vec![
-                quotadial_core::LeftOut::accounts("claude", 8),
+                quotadial_core::LeftOut::accounts("claude", "Claude", 8),
                 quotadial_core::LeftOut::feature(quotadial_core::ProFeature::CostScan),
             ],
             ..StatusReport::default()

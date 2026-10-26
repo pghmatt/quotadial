@@ -15,7 +15,7 @@
 
 use std::io;
 
-use quotadial_core::{ProFeature, StatusReport};
+use quotadial_core::{ProFeature, ProviderName, StatusReport};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
@@ -47,9 +47,10 @@ const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGP
     reaches 100% if that comes before it resets. Providers are never asked more often than their \
     limits allow, so a number can be a few minutes old; its fetched_at says when it was fetched.";
 
-/// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the provider
-/// ids an agent may narrow an answer to; `report` gets the numbers, and `alerts` the alert rules
-/// and what they told, or why it could not; `licensing` says whether the Pro tools answer.
+/// Answers MCP requests from `input` on `output` until `input` ends. `providers` are the providers
+/// an agent may narrow an answer to, by id, each described by its own name (P-020); `report` gets
+/// the numbers, and `alerts` the alert rules and what they told, or why it could not; `licensing`
+/// says whether the Pro tools answer.
 ///
 /// # Errors
 ///
@@ -57,7 +58,7 @@ const INSTRUCTIONS: &str = "QuotaDial reports how much of each Claude and ChatGP
 pub async fn serve<R, W, F, A>(
     input: R,
     mut output: W,
-    providers: &[&str],
+    providers: &[ProviderName],
     report: F,
     alerts: A,
     licensing: Licensing,
@@ -99,7 +100,7 @@ struct Sources<F, A> {
 }
 
 struct Server<'a> {
-    providers: &'a [&'a str],
+    providers: &'a [ProviderName],
     /// The revision agreed at `initialize`.
     version: Option<&'static str>,
     /// Whether the copy has the Pro tools.
@@ -283,12 +284,18 @@ impl Server<'_> {
         }
         match arguments.get("provider") {
             None | Some(Value::Null) => Ok(None),
-            Some(Value::String(provider)) if self.providers.contains(&provider.as_str()) => {
+            Some(Value::String(provider))
+                if self.providers.iter().any(|named| named.id == *provider) =>
+            {
                 Ok(Some(provider.as_str()))
             }
             Some(other) => Err(format!(
                 "provider must be one of {}, not {other}.",
-                self.providers.join(", ")
+                self.providers
+                    .iter()
+                    .map(|named| named.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )),
         }
     }
@@ -349,19 +356,30 @@ fn only(report: StatusReport, provider: Option<&str>) -> StatusReport {
             .filter(|left_out| left_out.provider.as_deref().is_none_or(|of| of == provider))
             .collect(),
         problems: report.problems,
+        providers: report
+            .providers
+            .into_iter()
+            .filter(|named| named.id == provider)
+            .collect(),
     }
 }
 
-/// The three tools, for `tools/list`.
-fn tools(providers: &[&str]) -> Value {
+/// The three tools, for `tools/list`. The `provider` argument takes each provider's id, described
+/// by the provider's own name, so no table of names is kept here (P-020).
+fn tools(providers: &[ProviderName]) -> Value {
+    let ids: Vec<&str> = providers.iter().map(|named| named.id.as_str()).collect();
+    let each = providers
+        .iter()
+        .map(|named| format!("{} for {}", named.id, named.name))
+        .collect::<Vec<_>>()
+        .join(", ");
     let narrowed = json!({
         "type": "object",
         "properties": {
             "provider": {
                 "type": "string",
-                "enum": providers,
-                "description": "Only this provider's accounts: claude for Claude plans, codex for \
-                                ChatGPT plans used through the Codex CLI.",
+                "enum": ids,
+                "description": format!("Only this provider's accounts, by its id: {each}."),
             },
         },
         "additionalProperties": false,
@@ -436,11 +454,13 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: format!("The {provider} provider"),
                 account_id: format!("{provider}-user"),
                 display_name: "user@example.com".into(),
                 plan: None,
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: vec![Window {
                 kind: WindowKind::Weekly,
@@ -474,6 +494,14 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: vec![provider("claude", "Claude"), provider("codex", "Codex")],
+        }
+    }
+
+    fn provider(id: &str, name: &str) -> quotadial_core::ProviderName {
+        quotadial_core::ProviderName {
+            id: id.into(),
+            name: name.into(),
         }
     }
 
@@ -500,7 +528,7 @@ mod tests {
         serve(
             input.as_bytes(),
             &mut output,
-            &["claude", "codex"],
+            &[provider("claude", "Claude"), provider("codex", "Codex")],
             async || answer.clone(),
             async || Ok(alerts()),
             licensing,
@@ -600,6 +628,11 @@ mod tests {
             tools[0]["inputSchema"]["properties"]["provider"]["enum"],
             json!(["claude", "codex"])
         );
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["provider"]["description"],
+            "Only this provider's accounts, by its id: claude for Claude, codex for Codex.",
+            "each provider as it names itself (P-020)"
+        );
     }
 
     #[tokio::test]
@@ -616,7 +649,9 @@ mod tests {
             expected
         );
         assert!(
-            text.starts_with(r#"{"snapshots":[{"account":{"provider":"claude","account_id""#),
+            text.starts_with(
+                r#"{"snapshots":[{"account":{"provider":"claude","provider_name":"The claude provider","account_id""#
+            ),
             "the text keeps the order `quotadial status --json` prints: {text}"
         );
     }
@@ -696,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn narrowing_to_a_provider_keeps_its_status_page_and_cost_only() {
+    fn narrowing_to_a_provider_keeps_its_status_page_cost_and_name_only() {
         let mut report = report();
         let page = |provider: &str| quotadial_core::StatusPage {
             provider: provider.into(),
@@ -724,6 +759,7 @@ mod tests {
 
         assert_eq!(narrowed.status_pages, [page("codex")]);
         assert_eq!(narrowed.costs, [cost("codex")]);
+        assert_eq!(narrowed.providers, [provider("codex", "Codex")]);
     }
 
     #[tokio::test]
@@ -859,7 +895,7 @@ mod tests {
         serve(
             input.as_slice(),
             &mut output,
-            &["claude"],
+            &[provider("claude", "Claude")],
             async || Ok(report()),
             async || Ok(alerts()),
             Licensing::default(),
@@ -952,7 +988,7 @@ mod tests {
                 .block_on(serve(
                     input.as_slice(),
                     &mut output,
-                    &["claude"],
+                    &[provider("claude", "Claude")],
                     async || Ok(report()),
                     async || Ok(alerts()),
                     Licensing::default(),

@@ -3,6 +3,7 @@
 // Printing results is this crate's job.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+use std::collections::HashMap;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -13,7 +14,8 @@ use clap::{Arg, ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
 use quotadial_api::client::Unanswered;
 use quotadial_api::{DEFAULT_PORT, Host, HostError};
 use quotadial_core::{
-    Indicator, Invocation, ProFeature, Provider, ProviderCommand, StatusReport, Tier, collect, text,
+    Indicator, Invocation, ProFeature, Provider, ProviderCommand, ProviderName, StatusReport, Tier,
+    collect, text,
 };
 use quotadial_daemon::{
     AddError, Alerts, Config, DataDir, History, HistoryError, KEEP_DAYS, Licensing, Series,
@@ -24,7 +26,8 @@ use quotadial_daemon::{
 ///
 /// QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets,
 /// and how old every number is. It reads the sign-ins Claude Code and the Codex CLI already store,
-/// and never writes them. `qd` is the same command, shorter.
+/// and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no
+/// numbers, and its sign-in is never opened. `qd` is the same command, shorter.
 #[derive(Debug, Parser)]
 #[command(name = "quotadial", version, after_long_help = EXAMPLES)]
 struct Cli {
@@ -87,7 +90,7 @@ enum Command {
         /// From how long ago: such as 24h, 7d or 30d, or a time such as 2099-01-01T00:00:00Z.
         #[arg(long, default_value = "7d")]
         since: String,
-        /// Only this provider: claude or codex.
+        /// Only this provider: claude, codex or gemini.
         #[arg(long)]
         provider: Option<String>,
         /// Only this account, by its email address or id.
@@ -179,7 +182,10 @@ pub fn run() -> ExitCode {
         Command::Watch { json } => watch(&providers, json),
         Command::Daemon { port } => daemon(providers, port),
         Command::Mcp => mcp(&providers),
-        Command::Alerts { action } => alerts(action.unwrap_or(AlertsAction::List { json: false })),
+        Command::Alerts { action } => alerts(
+            &providers,
+            action.unwrap_or(AlertsAction::List { json: false }),
+        ),
         Command::Doctor => doctor(&providers),
         Command::Licence { action } => {
             licence(action.unwrap_or(LicenceAction::Show { json: false }))
@@ -210,7 +216,7 @@ fn command<P: AsRef<dyn Provider>>(providers: &[P]) -> clap::Command {
         }
         cli.subcommand(
             clap::Command::new(provider.id())
-                .about(format!("Commands the {} provider adds", provider.id()))
+                .about(format!("Commands the {} provider adds", provider.name()))
                 .subcommand_required(true)
                 .arg_required_else_help(true)
                 .subcommands(commands.iter().map(|own| {
@@ -379,12 +385,15 @@ fn mcp(providers: &[Arc<dyn Provider>]) -> ExitCode {
     let Some(runtime) = runtime() else {
         return ExitCode::FAILURE;
     };
-    let ids: Vec<&str> = providers.iter().map(|provider| provider.id()).collect();
+    let names: Vec<ProviderName> = providers
+        .iter()
+        .map(|provider| ProviderName::of(provider.as_ref()))
+        .collect();
     let dir = DataDir::from_env();
     let served = runtime.block_on(quotadial_api::mcp::serve(
         tokio::io::BufReader::new(tokio::io::stdin()),
         tokio::io::stdout(),
-        &ids,
+        &names,
         async || {
             report(providers, dir.as_ref())
                 .await
@@ -414,8 +423,13 @@ fn mcp(providers: &[Arc<dyn Provider>]) -> ExitCode {
 }
 
 /// Lists or changes the alert rules. They live in the daemon's history, which a running daemon
-/// reads again at every check, so a change counts within a minute whether or not one runs.
-fn alerts(action: AlertsAction) -> ExitCode {
+/// reads again at every check, so a change counts within a minute whether or not one runs. A rule
+/// narrowed to a provider is read back with the name `providers` give it (P-020).
+fn alerts<P: AsRef<dyn Provider>>(providers: &[P], action: AlertsAction) -> ExitCode {
+    let names: Vec<ProviderName> = providers
+        .iter()
+        .map(|provider| ProviderName::of(provider.as_ref()))
+        .collect();
     let history = match open_history() {
         Ok(history) => history,
         Err(error) => {
@@ -433,14 +447,15 @@ fn alerts(action: AlertsAction) -> ExitCode {
     let written = match action {
         AlertsAction::List { json } => match history.alerts(now, tier) {
             Ok(alerts) if json => write_json(&alerts, &mut stdout),
-            Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &mut stdout),
+            Ok(alerts) => write_alerts(&alerts, &config(), tier, now, &names, &mut stdout),
             Err(error) => return history_failed(&error),
         },
         AlertsAction::Add { rule } => match history.add_rule(&rule.join(" "), now, tier) {
             Ok(added) => writeln!(
                 stdout,
                 "Added alert rule {}. QuotaDial reads it as: {}.",
-                added.id, added.rule
+                added.id,
+                added.rule.read_as(&names)
             ),
             Err(error @ (AddError::Unread(_) | AddError::Pro)) => {
                 eprintln!("quotadial: {error}");
@@ -631,7 +646,7 @@ fn history(
     } else if csv {
         quotadial_daemon::write_csv(&series, &mut stdout)
     } else {
-        write_history(&series, since, now, &mut stdout).and_then(|()| {
+        write_history(&series, &provider_names(&history), since, now, &mut stdout).and_then(|()| {
             // QuotaDial Free keeps 30 days, so a longer period says why it is shorter.
             let free =
                 !Licensing::new(DataDir::from_env().as_ref()).allows(ProFeature::LongHistory);
@@ -668,6 +683,7 @@ fn since_time(since: &str, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
 /// highest.
 fn write_history(
     series: &[Series],
+    names: &HashMap<String, String>,
     since: DateTime<Utc>,
     now: DateTime<Utc>,
     out: &mut impl Write,
@@ -691,7 +707,10 @@ fn write_history(
     for series in series {
         let this = (series.provider.as_str(), series.account.as_str());
         if account != Some(this) {
-            writeln!(out, "{} {}", series.provider, series.account)?;
+            let name = names
+                .get(&series.provider)
+                .map_or(series.provider.as_str(), String::as_str);
+            writeln!(out, "{}", text::labelled(name, &series.account))?;
             account = Some(this);
         }
         let highest = series
@@ -713,6 +732,19 @@ fn write_history(
         )?;
     }
     Ok(())
+}
+
+/// What each provider calls itself, by its id, as each account's newest snapshot in `history`
+/// says (P-020): the history's series carry only the provider's id. A provider whose newest
+/// snapshots all come from an older QuotaDial, which named none, keeps its id until the next poll.
+fn provider_names(history: &History) -> HashMap<String, String> {
+    history
+        .latest()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|snapshot| !snapshot.account.provider_name.is_empty())
+        .map(|snapshot| (snapshot.account.provider, snapshot.account.provider_name))
+        .collect()
 }
 
 /// How many marks a history chart has.
@@ -790,14 +822,16 @@ fn fix_for(error: &HistoryError) -> &'static str {
      moves it aside and starts a new one with your alert rules"
 }
 
-/// The alert rules, each with what QuotaDial read it as, where they are sent besides the app, and
-/// what they told lately, with where each went. On QuotaDial Free a kind of rule only Pro checks is
-/// marked as waiting, as [`History::alerts`] says, and webhooks are named as Pro's.
+/// The alert rules, each with what QuotaDial read it as, a provider named as `providers` name it,
+/// where they are sent besides the app, and what they told lately, with where each went. On
+/// QuotaDial Free a kind of rule only Pro checks is marked as waiting, as [`History::alerts`] says,
+/// and webhooks are named as Pro's.
 fn write_alerts(
     alerts: &Alerts,
     config: &Config,
     tier: Tier,
     now: DateTime<Utc>,
+    providers: &[ProviderName],
     out: &mut impl Write,
 ) -> io::Result<()> {
     if alerts.rules.is_empty() {
@@ -811,7 +845,11 @@ fn write_alerts(
             let state = if rule.enabled { "on " } else { "off" };
             let waiting = if rule.waits { " (waits for Pro)" } else { "" };
             writeln!(out, "  {:>3}  {state}  {}{waiting}", rule.id, rule.written)?;
-            writeln!(out, "             read as: {}", rule.rule)?;
+            writeln!(
+                out,
+                "             read as: {}",
+                rule.rule.read_as(providers)
+            )?;
         }
         if alerts.rules.iter().any(|rule| rule.waits) {
             writeln!(out, "{}", ProFeature::AlertRules.line())?;
@@ -973,7 +1011,7 @@ fn limits<P: AsRef<dyn Provider>>(providers: &[P]) -> String {
             let provider = provider.as_ref();
             format!(
                 "{} at most every {}",
-                provider.id(),
+                provider.name(),
                 text::duration(
                     TimeDelta::from_std(provider.min_poll_interval()).unwrap_or(TimeDelta::MAX)
                 )
@@ -1041,7 +1079,13 @@ fn write_text(
     }
     for snapshot in &report.snapshots {
         let account = &snapshot.account;
-        write!(out, "{} {}", account.provider, account.display_name)?;
+        // As the provider names itself (P-020).
+        // The name once when it says nothing beyond the provider's label.
+        write!(
+            out,
+            "{}",
+            text::labelled(account.provider_label(), &account.display_name)
+        )?;
         if let Some(plan) = &account.plan {
             write!(out, " ({plan})")?;
         }
@@ -1091,14 +1135,16 @@ fn write_text(
         writeln!(
             out,
             "{} status page: {}{since} ({})",
-            page.provider, page.description, page.url
+            report.provider_name(&page.provider),
+            page.description,
+            page.url
         )?;
     }
     for cost in &report.costs {
         writeln!(
             out,
             "{} cost: {} (read {})",
-            cost.provider,
+            report.provider_name(&cost.provider),
             text::cost(cost),
             text::ago(cost.until, now)
         )?;
@@ -1180,6 +1226,10 @@ mod tests {
             "scripted"
         }
 
+        fn name(&self) -> &'static str {
+            "Scripted"
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             if self.discovery_fails {
                 return Err(Error::Credentials {
@@ -1226,6 +1276,10 @@ mod tests {
             "scripted"
         }
 
+        fn name(&self) -> &'static str {
+            "Scripted"
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![account()])
         }
@@ -1251,6 +1305,10 @@ mod tests {
     impl Provider for PartlyLookedProvider {
         fn id(&self) -> &'static str {
             "scripted"
+        }
+
+        fn name(&self) -> &'static str {
+            "Scripted"
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -1297,6 +1355,10 @@ mod tests {
             "leaky"
         }
 
+        fn name(&self) -> &'static str {
+            "Leaky"
+        }
+
         fn discover_accounts(&self) -> Result<Vec<Account>> {
             Ok(vec![account()])
         }
@@ -1330,12 +1392,24 @@ mod tests {
     fn account() -> Account {
         Account {
             provider: "scripted".into(),
+            provider_name: "Scripted".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
+    }
+
+    /// Claude's and Codex's ids and names, as a release's report lists them.
+    fn names() -> Vec<ProviderName> {
+        [("claude", "Claude"), ("codex", "Codex")]
+            .map(|(id, name)| ProviderName {
+                id: id.into(),
+                name: name.into(),
+            })
+            .to_vec()
     }
 
     fn snapshot(account: Account, source: Source) -> Snapshot {
@@ -1387,7 +1461,10 @@ mod tests {
         let value: Value =
             serde_json::from_str(&render(&StatusReport::default(), true)).expect("valid JSON");
 
-        assert_eq!(value, json!({ "snapshots": [], "errors": [] }));
+        assert_eq!(
+            value,
+            json!({ "snapshots": [], "errors": [], "providers": [] })
+        );
     }
 
     #[test]
@@ -1399,11 +1476,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
+            "Scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
              from the API 4 min ago\n"
         );
     }
@@ -1422,11 +1500,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
+            "Scripted user@example.com (max): ok\n  Session: 12% used, resets in 4 h 56 min, \
              from the API 4 min ago\n    at 30%/h, runs out in 2 h 55 min, 2 h 1 min before it \
              resets\n"
         );
@@ -1444,6 +1523,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let text = |report: &StatusReport| {
             let mut out = Vec::new();
@@ -1469,6 +1549,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         assert!(
             !text(&expired).contains("Pace"),
@@ -1520,7 +1601,7 @@ mod tests {
         };
         let mut out = Vec::new();
 
-        write_alerts(&alerts, &config, Tier::Pro, now(), &mut out).expect("writes");
+        write_alerts(&alerts, &config, Tier::Pro, now(), &[], &mut out).expect("writes");
 
         let shown = String::from_utf8(out).expect("UTF-8");
         let expected = [
@@ -1538,6 +1619,42 @@ mod tests {
         ];
         assert_eq!(shown, expected.join("\n"));
         assert!(!shown.contains("XXXXXXXX"));
+    }
+
+    #[test]
+    fn a_rule_narrowed_to_a_provider_is_read_with_the_providers_own_name() {
+        let alerts = Alerts {
+            rules: vec![quotadial_daemon::StoredRule {
+                id: 1,
+                written: "tell me when codex resets".into(),
+                enabled: true,
+                rule: quotadial_core::Rule::parse("tell me when codex resets").expect("reads"),
+                created_at: ts("2099-01-01T00:00:00Z"),
+                waits: false,
+            }],
+            firings: Vec::new(),
+        };
+        let names = [ProviderName {
+            id: "codex".into(),
+            name: "OpenAI Codex".into(),
+        }];
+        let mut out = Vec::new();
+
+        write_alerts(
+            &alerts,
+            &Config::default(),
+            Tier::Pro,
+            now(),
+            &names,
+            &mut out,
+        )
+        .expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(
+            shown.contains("    1  on   tell me when codex resets\n             read as: when any OpenAI Codex window resets\n"),
+            "{shown}"
+        );
     }
 
     fn series(account: &str, window: &str, points: &[(i64, f64)]) -> Series {
@@ -1588,15 +1705,77 @@ mod tests {
         );
         let mut out = Vec::new();
 
-        write_history(&[session], since, now, &mut out).expect("writes");
+        let names = std::collections::HashMap::from([("claude".to_owned(), "Claude".to_owned())]);
+        write_history(&[session], &names, since, now, &mut out).expect("writes");
 
         let expected = [
             "Since 2099-01-01T00:00:00Z (7 d), the highest share used in each 6 h:",
-            "claude work@example.com",
+            "Claude work@example.com",
             "  Session    \u{2582}   \u{2588}   \u{2585}                \u{2583}  latest 30% (1 h ago), highest 100%",
             "",
         ];
         assert_eq!(String::from_utf8(out).expect("UTF-8"), expected.join("\n"));
+    }
+
+    #[test]
+    fn history_from_an_older_quotadial_shows_the_providers_id_until_the_next_poll() {
+        let since = ts("2099-01-01T00:00:00Z");
+        let now = ts("2099-01-08T00:00:00Z");
+        let session = series("work@example.com", "Session", &[(12, 10.0)]);
+        let mut out = Vec::new();
+
+        write_history(&[session], &HashMap::new(), since, now, &mut out).expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(shown.contains("\nclaude work@example.com\n"), "{shown}");
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once() {
+        let example = Account {
+            provider_name: "Example".into(),
+            display_name: "Example".into(),
+            ..account()
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(example, Source::Api)],
+            ..StatusReport::default()
+        };
+
+        let shown = render(&report, false);
+
+        assert!(shown.starts_with("Example (max): ok\n"), "{shown}");
+    }
+
+    #[test]
+    fn history_names_an_account_called_as_its_provider_once() {
+        let since = ts("2099-01-01T00:00:00Z");
+        let now = ts("2099-01-08T00:00:00Z");
+        let session = series("Example", "Session", &[(12, 10.0)]);
+        let names = HashMap::from([("claude".to_owned(), "Example".to_owned())]);
+        let mut out = Vec::new();
+
+        write_history(&[session], &names, since, now, &mut out).expect("writes");
+
+        let shown = String::from_utf8(out).expect("UTF-8");
+        assert!(shown.contains("\nExample\n  Session"), "{shown}");
+    }
+
+    #[test]
+    fn an_account_from_an_older_daemon_shows_its_providers_id_until_the_next_poll() {
+        let older = Account {
+            provider_name: String::new(),
+            sign_in_use: String::new(),
+            ..account()
+        };
+        let report = StatusReport {
+            snapshots: vec![snapshot(older, Source::Api)],
+            ..StatusReport::default()
+        };
+
+        let shown = render(&report, false);
+
+        assert!(shown.starts_with("scripted user@example.com"), "{shown}");
     }
 
     #[test]
@@ -1641,13 +1820,14 @@ mod tests {
             ],
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: names(),
         };
 
         let shown = render(&report, false);
 
         let expected = [
-            "claude cost: $1,000 at API prices over the last 7 days, from 41,000 requests (read 3 min ago)",
-            "codex cost: $23.50 at API prices over the last 7 days, from 901 requests (read 3 min ago)",
+            "Claude cost: $1,000 at API prices over the last 7 days, from 41,000 requests (read 3 min ago)",
+            "Codex cost: $23.50 at API prices over the last 7 days, from 901 requests (read 3 min ago)",
             "  gpt-6-astra: $23.50, 900 requests",
             "  unknown: no price, 1 request",
             "  1 request named no model, so it is left out.",
@@ -1676,17 +1856,18 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: names(),
         };
 
         let shown = render(&report, false);
         assert!(
             shown.ends_with(
-                "\ncodex status page: Partial System Degradation since 4 min ago \
+                "\nCodex status page: Partial System Degradation since 4 min ago \
                  (https://status.codex.example)\n"
             ),
             "{shown}"
         );
-        assert!(!shown.contains("claude status page"), "all is well there");
+        assert!(!shown.contains("Claude status page"), "all is well there");
     }
 
     #[test]
@@ -1701,11 +1882,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): ok\n  Session: 0% used, unconfirmed until the next \
+            "Scripted user@example.com (max): ok\n  Session: 0% used, unconfirmed until the next \
              fetch agrees, resets in 4 h 56 min, from the API 4 min ago\n"
         );
     }
@@ -1722,11 +1904,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com: ok\n  Session: 12% used, no reset time reported, from \
+            "Scripted user@example.com: ok\n  Session: 12% used, no reset time reported, from \
              cache 4 min ago\n"
         );
     }
@@ -1751,11 +1934,12 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
 
         assert_eq!(
             render(&report, false),
-            "scripted user@example.com (max): rate limited\n  Session: 12% used, resets in 4 h \
+            "Scripted user@example.com (max): rate limited\n  Session: 12% used, resets in 4 h \
              56 min, from cache 4 min ago\n  Extra usage: on, 12.50 of 50.00 USD used (25%)\n  \
              Anthropic is rate-limiting usage requests.\n"
         );
@@ -1775,6 +1959,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let frame = |redraw| {
             let mut out = Vec::new();
@@ -1790,9 +1975,9 @@ mod tests {
         };
 
         let redrawn = frame(true);
-        assert!(redrawn.starts_with("\x1b[2J\x1b[Hscripted user@example.com (max): ok\n"));
+        assert!(redrawn.starts_with("\x1b[2J\x1b[HScripted user@example.com (max): ok\n"));
         assert!(redrawn.ends_with(
-            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and asks scripted at most \
+            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and asks Scripted at most \
              every 5 min. Press Ctrl-C to stop.\n"
         ));
         assert!(!frame(false).contains('\x1b'), "no escape codes when piped");
@@ -1807,6 +1992,7 @@ mod tests {
             costs: Vec::new(),
             left_out: Vec::new(),
             problems: Vec::new(),
+            providers: Vec::new(),
         };
         let mut out = Vec::new();
         write_json_line(&report, &mut out).expect("writes");
@@ -1817,6 +2003,49 @@ mod tests {
         let parsed: Value = serde_json::from_str(&line).expect("valid JSON");
         let pretty: Value = serde_json::from_str(&render(&report, true)).expect("valid JSON");
         assert_eq!(parsed, pretty);
+    }
+
+    /// A provider whose answer is one an older QuotaDial kept in its cache: its account names no
+    /// provider and says nothing of the sign-in.
+    struct KeptProvider;
+
+    #[async_trait]
+    impl Provider for KeptProvider {
+        fn id(&self) -> &'static str {
+            "scripted"
+        }
+
+        fn name(&self) -> &'static str {
+            "Scripted"
+        }
+
+        fn discover_accounts(&self) -> Result<Vec<Account>> {
+            Ok(vec![account()])
+        }
+
+        async fn fetch(&self, account: &Account) -> Result<Snapshot> {
+            let mut kept = snapshot(account.clone(), Source::Cache);
+            kept.account.provider_name = String::new();
+            kept.account.sign_in_use = String::new();
+            Ok(kept)
+        }
+
+        fn fallback(&self, _account: &Account) -> Option<Snapshot> {
+            None
+        }
+
+        fn min_poll_interval(&self) -> Duration {
+            Duration::from_secs(300)
+        }
+    }
+
+    #[tokio::test]
+    async fn a_snapshot_an_older_quotadial_kept_is_completed_from_the_account_found() {
+        let report = collect(&[Arc::new(KeptProvider) as Arc<dyn Provider>]).await;
+
+        let shown = &report.snapshots[0].account;
+        assert_eq!(shown.provider_name, "Scripted");
+        assert_eq!(shown.sign_in_use, account().sign_in_use);
     }
 
     #[tokio::test]
@@ -1919,6 +2148,35 @@ mod tests {
              permission denied\n"
         );
     }
+    #[tokio::test]
+    async fn the_report_lists_every_provider_asked_by_its_id_and_own_name() {
+        let providers: Vec<Box<dyn Provider>> = vec![
+            Box::new(ScriptedProvider {
+                discovery_fails: true,
+                fetch_fails: false,
+                fallback: None,
+            }),
+            Box::new(LeakyProvider { fetch_fails: false }),
+        ];
+
+        let report = collect(&providers).await;
+
+        assert_eq!(
+            report.providers,
+            [
+                ProviderName {
+                    id: "scripted".into(),
+                    name: "Scripted".into(),
+                },
+                ProviderName {
+                    id: "leaky".into(),
+                    name: "Leaky".into(),
+                },
+            ],
+            "one whose discovery failed too"
+        );
+    }
+
     #[tokio::test]
     async fn while_a_daemon_runs_the_cli_asks_it_instead_of_polling() {
         let (_temp, dir) = data_dir();
@@ -2055,7 +2313,7 @@ mod tests {
                 "error: the QuotaDial daemon is running, but its API at \
                  http://127.0.0.1:{port}/v1/status could not be reached; restart it with \
                  `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute and \
-                 asks scripted at most every 5 min. Press Ctrl-C to stop.\n"
+                 asks Scripted at most every 5 min. Press Ctrl-C to stop.\n"
             )
         );
     }
@@ -2071,6 +2329,10 @@ mod tests {
     impl Provider for ChattyProvider {
         fn id(&self) -> &'static str {
             "chatty"
+        }
+
+        fn name(&self) -> &'static str {
+            "Chatty"
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2116,6 +2378,10 @@ mod tests {
     impl Provider for ClashingProvider {
         fn id(&self) -> &'static str {
             "alerts"
+        }
+
+        fn name(&self) -> &'static str {
+            "Alerts"
         }
 
         fn discover_accounts(&self) -> Result<Vec<Account>> {
@@ -2208,6 +2474,11 @@ mod tests {
             .clone();
         let help = group.render_long_help().to_string();
         assert!(help.contains("echo") && help.contains(ECHO_ABOUT), "{help}");
+        assert_eq!(
+            group.get_about().map(ToString::to_string).as_deref(),
+            Some("Commands the Chatty provider adds"),
+            "named as the provider names itself (P-020)"
+        );
     }
 
     #[test]

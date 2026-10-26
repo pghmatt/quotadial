@@ -17,12 +17,30 @@ const EXAMPLE: bool = cfg!(feature = "fake");
 
 /// How the daemon and `watch` say how often each provider is asked.
 const ASKS: &str = if EXAMPLE {
-    "asks fake at most every 1 min"
-} else if cfg!(feature = "gemini") {
-    "asks claude at most every 5 min and codex at most every 2 min and gemini at most every 5 min"
+    "asks Example at most every 1 min"
 } else {
-    "asks claude at most every 5 min and codex at most every 2 min"
+    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
 };
+
+/// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
+/// since D-124.
+const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
+    &[("fake", "Example")]
+} else {
+    &[
+        ("claude", "Claude"),
+        ("codex", "Codex"),
+        ("gemini", "Gemini CLI"),
+    ]
+};
+
+/// [`PROVIDERS`] as a report lists them.
+fn providers() -> Value {
+    PROVIDERS
+        .iter()
+        .map(|(id, name)| json!({ "id": id, "name": name }))
+        .collect()
+}
 
 /// An empty directory used as the home directory, so no stored login on the machine is found.
 fn empty_home(test: &str) -> PathBuf {
@@ -102,10 +120,14 @@ fn stdout(output: &Output) -> String {
 /// window an example with its age and its reset.
 fn assert_empty_home_report(report: &Value) {
     if !EXAMPLE {
-        assert_eq!(report, &json!({ "snapshots": [], "errors": [] }));
+        assert_eq!(
+            report,
+            &json!({ "snapshots": [], "errors": [], "providers": providers() })
+        );
         return;
     }
     assert_eq!(report["errors"], json!([]), "{report}");
+    assert_eq!(report["providers"], providers(), "{report}");
     let snapshots = report["snapshots"].as_array().expect("snapshots");
     let plans: Vec<&str> = snapshots
         .iter()
@@ -151,8 +173,8 @@ fn status_says_no_accounts_found() {
 
 /// Gemini CLI signed in with Google in a made-up home: one account, which says why there are no
 /// numbers and where QuotaDial saw the sign-in, in `status`, `status --json` and `doctor` alike
-/// (D-118). Only a build with Gemini has it.
-#[cfg(all(feature = "gemini", not(feature = "fake")))]
+/// (D-118). Every release has it (D-124); the example build has the fake provider alone.
+#[cfg(not(feature = "fake"))]
 #[test]
 fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
     let home = empty_home("gemini");
@@ -179,8 +201,8 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
     assert_eq!(
         stdout(&text),
         format!(
-            "gemini Google account: unsupported\n  {why}\nThe week's cost at API prices is part of \
-             QuotaDial Pro: quotadial.com/pro\n"
+            "Gemini CLI Google account: unsupported\n  {why}\nThe week's cost at API prices is part \
+             of QuotaDial Pro: quotadial.com/pro\n"
         )
     );
 
@@ -196,9 +218,14 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
             "snapshots": [{
                 "account": {
                     "provider": "gemini",
+                    "provider_name": "Gemini CLI",
                     "account_id": "google",
                     "display_name": "Google account",
-                    "sign_in": sign_in
+                    "sign_in": sign_in,
+                    "sign_in_use": format!(
+                        "QuotaDial only checks that Gemini CLI's sign-in is at {sign_in}. It never \
+                         opens it."
+                    )
                 },
                 "windows": [],
                 "status": "unsupported",
@@ -208,15 +235,16 @@ fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
             "left_out": [{
                 "feature": "cost_scan",
                 "text": "The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro"
-            }]
+            }],
+            "providers": providers()
         })
     );
 
     let doctor = stdout(&run(env!("CARGO_BIN_EXE_quotadial"), &["doctor"], &home));
     assert!(
         doctor.contains(&format!(
-            "Accounts (1):\n  gemini Google account: unsupported\n    sign-in: {sign_in}\n    \
-             {why}\n"
+            "Accounts (1):\n  Gemini CLI Google account: unsupported\n    sign-in: QuotaDial only \
+             checks that Gemini CLI's sign-in is at {sign_in}. It never opens it.\n    {why}\n"
         )),
         "{doctor}"
     );
@@ -239,10 +267,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
         .collect();
     assert_eq!(
         accounts,
-        [
-            "fake Example (Claude Max 5x): ok",
-            "fake Example (ChatGPT Pro): ok"
-        ],
+        ["Example (Claude Max 5x): ok", "Example (ChatGPT Pro): ok"],
         "{text}"
     );
     let windows: Vec<&str> = text.lines().filter(|line| line.starts_with("  ")).collect();
@@ -253,7 +278,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
             "{window}"
         );
     }
-    assert!(text.starts_with("fake Example (Claude Max 5x): ok\n  Weekly: 91% used"));
+    assert!(text.starts_with("Example (Claude Max 5x): ok\n  Weekly: 91% used"));
     assert!(!text.contains('@'), "{text}");
 }
 
@@ -311,7 +336,7 @@ fn watch_prints_the_status_and_when_it_refreshes() {
     let output = first_refresh(&["watch"], &home, |line| line.contains("Ctrl-C"));
 
     let first = if EXAMPLE {
-        "fake Example (Claude Max 5x): ok\n"
+        "Example (Claude Max 5x): ok\n"
     } else {
         "no accounts found\n\nUpdated "
     };
@@ -490,7 +515,11 @@ fn the_daemon_serves_its_api_on_127_0_0_1_to_requests_with_its_token() {
     assert!(!body.contains("snapshots"));
     let report = polled_status(port, &token);
     // QuotaDial Free says what it leaves out; the accounts are what an empty home holds.
-    let accounts = json!({ "snapshots": report["snapshots"], "errors": report["errors"] });
+    let accounts = json!({
+        "snapshots": report["snapshots"],
+        "errors": report["errors"],
+        "providers": report["providers"],
+    });
     assert_empty_home_report(&accounts);
     let (status, body) = get(port, "/v1/headroom", Some(&token));
     assert_eq!(
@@ -595,9 +624,11 @@ fn mcp_answers_an_agent_on_standard_input_and_output() {
         .collect();
     assert_eq!(tools, ["get_usage", "get_account_headroom", "list_alerts"]);
     let usage = &replies[2]["result"]["structuredContent"];
-    assert_empty_home_report(
-        &json!({ "snapshots": usage["snapshots"], "errors": usage["errors"] }),
-    );
+    assert_empty_home_report(&json!({
+        "snapshots": usage["snapshots"],
+        "errors": usage["errors"],
+        "providers": usage["providers"],
+    }));
     assert_eq!(
         replies[3]["result"]["isError"], true,
         "headroom is QuotaDial Pro's"
@@ -731,8 +762,8 @@ fn doctor_prints_what_support_asks_for_with_nothing_secret_in_it() {
     let accounts: &[&str] = if EXAMPLE {
         &[
             "Accounts (2):",
-            "  fake Example (Claude Max 5x): ok, fetched just now from the example build",
-            "  fake Example (ChatGPT Pro): ok, fetched just now from the example build",
+            "  Example (Claude Max 5x): ok, fetched just now from the example build",
+            "  Example (ChatGPT Pro): ok, fetched just now from the example build",
         ]
     } else {
         &["Accounts (0):", "  none found"]

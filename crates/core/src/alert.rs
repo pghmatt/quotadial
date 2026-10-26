@@ -12,7 +12,7 @@ use std::fmt;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{Account, Pace, Snapshot, Status, StatusPage, Window, WindowKind, text};
+use crate::{Account, Pace, ProviderName, Snapshot, Status, StatusPage, Window, WindowKind, text};
 
 /// The forms the grammar reads, offered when it cannot read a rule.
 pub const EXAMPLES: [&str; 3] = [
@@ -355,7 +355,8 @@ impl Rule {
         occurrence: &Occurrence,
         now: DateTime<Utc>,
     ) -> (String, String) {
-        let provider = text::provider_name(&account.provider);
+        // As the provider names itself (P-020), or its id for an account from an older QuotaDial.
+        let provider = account.provider_label();
         let name = &account.display_name;
         let window = occurrence.label.as_deref().unwrap_or_default();
         let used = occurrence
@@ -406,13 +407,18 @@ impl Rule {
             ),
         }
     }
-}
 
-/// What QuotaDial read a rule as, such as `when a Claude session window reaches 80%`, so people can
-/// check the grammar read what they meant.
-impl fmt::Display for Rule {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let provider = self.scope.provider.as_deref().map(text::provider_name);
+    /// What QuotaDial read the rule as, such as `when a Claude session window reaches 80%`, so
+    /// people can check the grammar read what they meant. A provider the rule is narrowed to is
+    /// named as `providers` name it, each as it names itself (P-020), or by its id when none of
+    /// them is it.
+    #[must_use]
+    pub fn read_as(&self, providers: &[ProviderName]) -> String {
+        let provider = self
+            .scope
+            .provider
+            .as_deref()
+            .map(|id| ProviderName::find(providers, id));
         let window = match (provider, self.scope.window.as_deref()) {
             (None, None) => "any window".to_owned(),
             (Some(provider), None) => format!("any {provider} window"),
@@ -430,36 +436,27 @@ impl fmt::Display for Rule {
         };
         match &self.condition {
             Condition::Threshold { pct } => {
-                write!(formatter, "when {window} reaches {}%", text::percent(*pct))
+                format!("when {window} reaches {}%", text::percent(*pct))
             }
-            Condition::Reset => write!(formatter, "when {window} resets"),
-            Condition::RunsOut => {
-                write!(formatter, "when {window} will run out before it resets")
-            }
+            Condition::Reset => format!("when {window} resets"),
+            Condition::RunsOut => format!("when {window} will run out before it resets"),
             Condition::BeforeReset { minutes, above_pct } => {
                 let before = text::duration(TimeDelta::minutes(i64::from(*minutes)));
-                write!(formatter, "{before} before {window} resets")?;
                 match above_pct {
-                    Some(pct) => write!(formatter, ", if it is above {}%", text::percent(*pct)),
-                    None => Ok(()),
+                    Some(pct) => format!(
+                        "{before} before {window} resets, if it is above {}%",
+                        text::percent(*pct)
+                    ),
+                    None => format!("{before} before {window} resets"),
                 }
             }
             Condition::SignIn => match provider {
-                Some(provider) => write!(
-                    formatter,
-                    "when a {provider} account needs to sign in again"
-                ),
-                None => write!(formatter, "when an account needs to sign in again"),
+                Some(provider) => format!("when a {provider} account needs to sign in again"),
+                None => "when an account needs to sign in again".to_owned(),
             },
             Condition::Incident => match provider {
-                Some(provider) => write!(
-                    formatter,
-                    "when {provider}'s status page reports an incident"
-                ),
-                None => write!(
-                    formatter,
-                    "when a provider's status page reports an incident"
-                ),
+                Some(provider) => format!("when {provider}'s status page reports an incident"),
+                None => "when a provider's status page reports an incident".to_owned(),
             },
         }
     }
@@ -793,7 +790,7 @@ mod tests {
         assert!(Rule::parse("tell me when the session has an outage").is_err());
         assert!(Rule::parse("tell me about outages and when I need to sign in").is_err());
         assert_eq!(
-            rule("tell me when codex is down").to_string(),
+            rule("tell me when codex is down").read_as(&names()),
             "when Codex's status page reports an incident"
         );
 
@@ -881,9 +878,19 @@ mod tests {
         );
     }
 
+    /// Claude's and Codex's ids and names, as a release's report lists them.
+    fn names() -> Vec<ProviderName> {
+        [("claude", "Claude"), ("codex", "Codex")]
+            .map(|(id, name)| ProviderName {
+                id: id.into(),
+                name: name.into(),
+            })
+            .to_vec()
+    }
+
     #[test]
     fn a_rule_says_what_it_was_read_as() {
-        let read = |written: &str| rule(written).to_string();
+        let read = |written: &str| rule(written).read_as(&names());
 
         assert_eq!(read("warn me at 80%"), "when any window reaches 80%");
         assert_eq!(
@@ -909,6 +916,29 @@ mod tests {
         assert_eq!(
             read("tell me when my chatgpt login expires"),
             "when a Codex account needs to sign in again"
+        );
+    }
+
+    #[test]
+    fn a_rule_narrowed_to_a_provider_names_it_as_the_provider_names_itself() {
+        let incident = rule("tell me when claude has an incident");
+        let named = [ProviderName {
+            id: "claude".into(),
+            name: "Claude Code".into(),
+        }];
+
+        assert_eq!(
+            incident.read_as(&named),
+            "when Claude Code's status page reports an incident"
+        );
+        assert_eq!(
+            rule("tell me when my claude login expires").read_as(&named),
+            "when a Claude Code account needs to sign in again"
+        );
+        assert_eq!(
+            incident.read_as(&[]),
+            "when claude's status page reports an incident",
+            "a provider no list names keeps its id"
         );
     }
 
@@ -944,14 +974,17 @@ mod tests {
             + TimeDelta::minutes(minutes)
     }
 
+    /// An account of `provider`, named as its provider names itself: `Claude` for `claude`.
     fn account(provider: &str) -> Account {
         Account {
             provider: provider.into(),
+            provider_name: capitalized(provider),
             account_id: "user-1".into(),
             display_name: "user@example.com".into(),
             plan: None,
             org: None,
             sign_in: None,
+            sign_in_use: "QuotaDial reads this test's sign-in.".into(),
         }
     }
 
@@ -1168,6 +1201,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_notification_names_the_provider_as_the_provider_names_itself() {
+        let account = Account {
+            provider_name: "Gemini CLI".into(),
+            ..account("gemini")
+        };
+        let occurrence = Occurrence {
+            label: Some("Daily".into()),
+            scope_model: None,
+            instance: Some(at(3000)),
+            used_pct: Some(85.0),
+            resets_at: None,
+            pace: None,
+            note: None,
+        };
+
+        assert_eq!(
+            rule("warn me at 80%")
+                .message(&account, &occurrence, at(0))
+                .0,
+            "Gemini CLI Daily passed 80%"
+        );
+    }
+
     /// The words the grammar reads, so arbitrary sentences of them reach far into it.
     const WORDS: &[&str] = &[
         "warn",
@@ -1238,7 +1295,7 @@ mod tests {
             words in proptest::collection::vec(proptest::sample::select(WORDS), 0..14),
         ) {
             if let Ok(rule) = Rule::parse(&words.join(" ")) {
-                let _ = rule.to_string();
+                let _ = rule.read_as(&names());
             }
         }
     }

@@ -36,11 +36,11 @@ function timeLeft(hours: number): string {
   return days > 0 ? `${days} d ${rest} h` : `${rest} h`;
 }
 
-/** docs/CLI.md's "Text output", written from the pictures' own accounts. */
+/** docs/CLI.md's "Text output", written from the pictures' own accounts, each under its provider's own name (P-020). */
 test("the quotadial status sample is the example accounts in the command's text format", () => {
   const lines: string[] = [];
   for (const account of site.meter.accounts) {
-    lines.push(`${account.provider.toLowerCase()} ${account.name} (${(account.plan ?? "").split(" ")[0].toLowerCase()}): ${account.status}`);
+    lines.push(`${account.provider} ${account.name} (${(account.plan ?? "").split(" ")[0].toLowerCase()}): ${account.status}`);
     // The window closest to its limit comes first.
     for (const window of [...account.windows].sort((a, b) => b.used_pct - a.used_pct)) {
       lines.push(`  ${window.label}: ${window.used_pct}% used, ${window.resets}, ${window.fetched}`);

@@ -15,10 +15,10 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use quotadial_core::{Account, Error, Result, Secret};
 
-use crate::ID;
 use crate::environment::{Environment, KEYCHAIN_SERVICE, sha256_hex};
 use crate::identity::{self, Identity};
 use crate::keychain::{Item, Keychain, NoKeychain};
+use crate::{ID, NAME};
 
 /// Where a sign-in's token lives.
 #[derive(Debug, Clone)]
@@ -185,16 +185,19 @@ impl Login {
                 let (account_id, display_name) = self.source.stand_in();
                 Account {
                     provider: ID.to_owned(),
+                    provider_name: NAME.to_owned(),
                     account_id,
                     display_name,
                     plan: None,
                     org: None,
                     sign_in: None,
+                    sign_in_use: sign_in_use(None),
                 }
             }
         };
         Account {
             sign_in: Some(self.place.clone()),
+            sign_in_use: sign_in_use(Some(&self.place)),
             ..account
         }
     }
@@ -242,9 +245,29 @@ pub(crate) fn claude_in(dir: &Path, shown: &str, windows: bool) -> String {
     }
 }
 
+/// What QuotaDial does with a sign-in found at `place`, in Claude's words (P-020): where it read
+/// it, or, with no place known, every place Claude Code keeps one, as the popover used to say.
+pub(crate) fn sign_in_use(place: Option<&str>) -> String {
+    if let Some(place) = place {
+        return quotadial_core::text::sign_in_read_from(place);
+    }
+    let keychain = if cfg!(target_os = "macos") {
+        "then the macOS Keychain item \"Claude Code-credentials\", "
+    } else {
+        ""
+    };
+    format!(
+        "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN environment \
+         variable when it is set, {keychain}then .credentials.json in ~/.claude or the folder \
+         CLAUDE_CONFIG_DIR names. It only reads the sign-in and never changes it. If it stops \
+         working, run claude once."
+    )
+}
+
 pub(crate) fn account_for(identity: &Identity) -> Account {
     Account {
         provider: ID.to_owned(),
+        provider_name: NAME.to_owned(),
         account_id: identity.account_uuid.clone(),
         display_name: identity
             .email
@@ -253,6 +276,7 @@ pub(crate) fn account_for(identity: &Identity) -> Account {
         plan: identity.plan.clone(),
         org: identity.org_uuid.clone(),
         sign_in: None,
+        sign_in_use: sign_in_use(None),
     }
 }
 
@@ -776,12 +800,85 @@ mod tests {
             login.account(),
             Account {
                 provider: "claude".into(),
+                provider_name: "Claude".into(),
                 account_id: "00000000-0000-0000-0000-000000000001".into(),
                 display_name: "user@example.com".into(),
                 plan: Some("max".into()),
                 org: Some("00000000-0000-0000-0000-000000000002".into()),
                 sign_in: Some("the macOS Keychain item \"Claude Code-credentials\"".into()),
+                sign_in_use: "QuotaDial reads this account's sign-in from the macOS Keychain \
+                              item \"Claude Code-credentials\". It only reads it and never \
+                              changes it."
+                    .into(),
             }
+        );
+    }
+
+    #[test]
+    fn its_name_and_every_sentence_it_says_of_a_sign_in_keep_to_plain_words() {
+        let home = Path::new("/Users/example");
+        let env = env_in(home);
+        let keychain = |folder| {
+            Login::new(
+                &env,
+                LoginSource::Keychain {
+                    service: "Claude Code-credentials-1df4ed49".into(),
+                    account: Some("example".into()),
+                },
+                None,
+                None,
+                folder,
+            )
+        };
+        let logins = [
+            Login::new(
+                &env,
+                LoginSource::Environment(Secret::new("not a token")),
+                None,
+                None,
+                Folder::Default,
+            ),
+            keychain(Folder::Default),
+            keychain(Folder::Named(home.join(".claude-work"))),
+            Login::new(
+                &env,
+                LoginSource::File(home.join(".claude").join(".credentials.json")),
+                None,
+                None,
+                Folder::Default,
+            ),
+        ];
+        let said = logins
+            .iter()
+            .map(|login| login.account().sign_in_use)
+            .chain([sign_in_use(None), crate::NAME.to_owned()]);
+
+        for words in said {
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(
+                quotadial_core::text::unplain_words(&words),
+                Vec::<String>::new(),
+                "{words}"
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_place_known_the_sentence_names_every_place_claude_code_keeps_a_sign_in() {
+        let keychain = if cfg!(target_os = "macos") {
+            "then the macOS Keychain item \"Claude Code-credentials\", "
+        } else {
+            ""
+        };
+
+        assert_eq!(
+            sign_in_use(None),
+            format!(
+                "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN \
+                 environment variable when it is set, {keychain}then .credentials.json in \
+                 ~/.claude or the folder CLAUDE_CONFIG_DIR names. It only reads the sign-in and \
+                 never changes it. If it stops working, run claude once."
+            )
         );
     }
 

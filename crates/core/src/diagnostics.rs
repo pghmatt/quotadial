@@ -68,14 +68,16 @@ impl Diagnostics {
                     text::source_label(window.source)
                 )
             });
+            // The name once when it says nothing beyond the provider's label.
             lines.push(format!(
-                "  {} {}{plan}: {}{fetched}",
-                account.provider,
-                account.display_name,
+                "  {}{plan}: {}{fetched}",
+                text::labelled(account.provider_label(), &account.display_name),
                 text::status_label(snapshot.status)
             ));
-            if let Some(sign_in) = &account.sign_in {
-                lines.push(format!("    sign-in: {sign_in}"));
+            // What QuotaDial does with the sign-in, in the provider's words, which name where it is
+            // when the provider knows (P-020). An account from an older QuotaDial says nothing.
+            if !account.sign_in_use.is_empty() {
+                lines.push(format!("    sign-in: {}", account.sign_in_use));
             }
             if let Some(error) = &snapshot.error {
                 lines.push(format!("    {error}"));
@@ -92,10 +94,17 @@ impl Diagnostics {
             ),
             (
                 "Status pages",
+                // Named as the report's accounts name their provider (P-020).
                 report
                     .status_pages
                     .iter()
-                    .map(|page| format!("{}: {}", page.provider, page.description))
+                    .map(|page| {
+                        format!(
+                            "{}: {}",
+                            report.provider_name(&page.provider),
+                            page.description
+                        )
+                    })
                     .collect(),
             ),
             (
@@ -223,7 +232,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        Account, LeftOut, ProFeature, ProviderError, Snapshot, Source, Status, Window, WindowKind,
+        Account, Indicator, LeftOut, ProFeature, ProviderError, ProviderName, Snapshot, Source,
+        Status, StatusPage, Window, WindowKind,
     };
 
     fn at(text: &str) -> DateTime<Utc> {
@@ -233,15 +243,19 @@ mod tests {
     }
 
     fn diagnostics() -> Diagnostics {
+        let place = "the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR \
+                     /home/someone/.claude-work)";
         let account = Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "a-1".into(),
             display_name: "matt@example.com".into(),
             plan: Some("max".into()),
             org: None,
-            sign_in: Some(
-                "the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR /home/someone/.claude-work)"
-                    .into(),
+            sign_in: Some(place.into()),
+            sign_in_use: format!(
+                "QuotaDial reads this account's sign-in from {place}. It only reads it and never \
+                 changes it."
             ),
         };
         Diagnostics {
@@ -279,6 +293,16 @@ mod tests {
                 costs: Vec::new(),
                 left_out: vec![LeftOut::feature(ProFeature::CostScan)],
                 problems: Vec::new(),
+                providers: vec![
+                    ProviderName {
+                        id: "claude".into(),
+                        name: "Claude".into(),
+                    },
+                    ProviderName {
+                        id: "codex".into(),
+                        name: "Codex".into(),
+                    },
+                ],
             },
             settings: vec![
                 ("history_days".into(), "30".into()),
@@ -300,8 +324,10 @@ mod tests {
              Numbers: from the daemon\n\
              \n\
              Accounts (1):\n  \
-             claude m***@e***.com (max): ok, fetched 3 min ago from the API\n    \
-             sign-in: the macOS Keychain item \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR ~/.claude-work)\n\
+             Claude m***@e***.com (max): ok, fetched 3 min ago from the API\n    \
+             sign-in: QuotaDial reads this account's sign-in from the macOS Keychain item \
+             \"Claude Code-credentials\" (CLAUDE_CONFIG_DIR ~/.claude-work). It only reads it and \
+             never changes it.\n\
              Left out on QuotaDial Free:\n  \
              The week's cost at API prices is part of QuotaDial Pro: quotadial.com/pro\n\
              Problems:\n  \
@@ -309,6 +335,59 @@ mod tests {
              Settings in effect:\n  \
              history_days: 30\n  \
              alert webhooks: hooks.slack.com\n"
+        );
+    }
+
+    #[test]
+    fn an_account_from_an_older_quotadial_shows_its_providers_id_and_no_sign_in_line() {
+        let mut facts = diagnostics();
+        let account = &mut facts.report.snapshots[0].account;
+        account.provider_name = String::new();
+        account.sign_in_use = String::new();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains(
+                "Accounts (1):\n  claude m***@e***.com (max): ok, fetched 3 min ago from the \
+                 API\nLeft out"
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once() {
+        let mut facts = diagnostics();
+        let account = &mut facts.report.snapshots[0].account;
+        account.provider_name = "Example".into();
+        account.display_name = "Example".into();
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains("Accounts (1):\n  Example (max): ok, fetched 3 min ago from the API\n"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_status_page_is_named_as_its_provider_names_itself() {
+        let mut facts = diagnostics();
+        facts.report.status_pages.push(StatusPage {
+            provider: "claude".into(),
+            indicator: Indicator::Minor,
+            description: "Partially Degraded Service".into(),
+            url: "https://status.anthropic.com".into(),
+            since: None,
+            checked_at: at("2099-01-01T00:00:00Z"),
+        });
+
+        let text = facts.text(at("2099-01-01T00:03:00Z"), Some(Path::new("/home/someone")));
+
+        assert!(
+            text.contains("Status pages:\n  Claude: Partially Degraded Service\n"),
+            "{text}"
         );
     }
 

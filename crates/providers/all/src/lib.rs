@@ -2,11 +2,11 @@
 //! licence. The CLI and the tray app both start from this list, so a new provider is added in one
 //! place.
 //!
-//! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini` adds
-//! Gemini CLI after them (D-118). The example build (the `fake` feature, D-117) lists the fake
-//! provider alone, whose made-up accounts are for pictures of the app: no sign-in is read and no
-//! provider is asked, whatever else is on. No release has `fake`, and the tests below hold each
-//! build's list.
+//! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini`, on by
+//! default, adds Gemini CLI after them (D-118, D-124). The example build (the `fake` feature, D-117)
+//! lists the fake provider alone, whose made-up accounts are for pictures of the app: no sign-in is
+//! read and no provider is asked, whatever else is on. No release has `fake`, and the tests below
+//! hold each build's list.
 
 use std::sync::Arc;
 
@@ -61,30 +61,45 @@ pub fn with_config(_config: &Config, _licensing: &Licensing) -> Vec<Arc<dyn Prov
 mod tests {
     use super::*;
 
-    /// The ids of the providers listed, made with the default settings and no licence, so no
-    /// folder is read.
-    fn listed() -> Vec<&'static str> {
+    /// The ids and names of the providers listed, made with the default settings and no
+    /// licence, so no folder is read.
+    fn listed() -> Vec<(&'static str, &'static str)> {
         with_config(&Config::default(), &Licensing::new(None))
             .iter()
-            .map(|provider| provider.id())
+            .map(|provider| (provider.id(), provider.name()))
             .collect()
     }
 
-    #[cfg(not(any(feature = "fake", feature = "gemini")))]
     #[test]
-    fn a_release_lists_exactly_claude_then_codex() {
-        assert_eq!(listed(), ["claude", "codex"]);
-        assert_eq!(
-            quotadial_core::copy::FOLDER,
-            "quotadial",
-            "and the copy keeps QuotaDial's own folders"
-        );
+    fn every_name_listed_is_a_short_name_in_plain_words() {
+        for (id, name) in listed() {
+            // Each provider's own short name for itself, never a sentence (P-020), and #52's plain
+            // words: never "quota", "auth" or "credential".
+            assert!(
+                !name.is_empty() && name.len() <= 20 && !name.ends_with('.'),
+                "{id}: {name}"
+            );
+            assert_eq!(
+                quotadial_core::text::unplain_words(name),
+                Vec::<String>::new(),
+                "{id}: {name}"
+            );
+        }
     }
 
-    #[cfg(all(feature = "gemini", not(feature = "fake")))]
+    /// What a release ships: Claude, Codex and, since it was turned on in the PR after the one
+    /// that merged it, Gemini CLI (D-121, D-122, D-124).
+    #[cfg(not(feature = "fake"))]
     #[test]
-    fn with_gemini_the_list_is_exactly_claude_codex_then_gemini() {
-        assert_eq!(listed(), ["claude", "codex", "gemini"]);
+    fn a_release_lists_exactly_claude_codex_then_gemini() {
+        assert_eq!(
+            listed(),
+            [
+                ("claude", "Claude"),
+                ("codex", "Codex"),
+                ("gemini", "Gemini CLI")
+            ]
+        );
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial",
@@ -95,7 +110,7 @@ mod tests {
     #[cfg(feature = "fake")]
     #[test]
     fn with_the_fake_feature_the_list_is_exactly_the_fake_provider() {
-        assert_eq!(listed(), ["fake"]);
+        assert_eq!(listed(), [("fake", "Example")]);
         assert_eq!(
             quotadial_core::copy::FOLDER,
             "quotadial-fake",

@@ -277,13 +277,18 @@ async fn discovers_the_signed_in_account_without_reading_the_token() {
         account,
         Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
             sign_in: Some("the macOS Keychain item \"Claude Code-credentials\"".into()),
+            sign_in_use: "QuotaDial reads this account's sign-in from the macOS Keychain item \
+                          \"Claude Code-credentials\". It only reads it and never changes it."
+                .into(),
         }
     );
+    assert_eq!(account.provider_name, harness.provider().name());
     assert_eq!(harness.keychain.reads(), 0);
 }
 
@@ -596,11 +601,16 @@ async fn an_environment_token_is_named_by_the_profile_endpoint() {
         snapshot.account,
         Account {
             provider: "claude".into(),
+            provider_name: "Claude".into(),
             account_id: "00000000-0000-0000-0000-000000000001".into(),
             display_name: "user@example.com".into(),
             plan: Some("max".into()),
             org: Some("00000000-0000-0000-0000-000000000002".into()),
             sign_in: Some("the CLAUDE_CODE_OAUTH_TOKEN environment variable".into()),
+            sign_in_use: "QuotaDial reads this account's sign-in from the \
+                          CLAUDE_CODE_OAUTH_TOKEN environment variable. It only reads it and \
+                          never changes it."
+                .into(),
         }
     );
     assert_eq!(harness.keychain.reads(), 0);

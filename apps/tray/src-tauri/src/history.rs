@@ -42,7 +42,8 @@ pub struct AccountHistory {
     pub key: String,
     /// Such as "Claude".
     pub provider: String,
-    /// The name the user gave the account, or its email address.
+    /// The name the user gave the account, or its email address; empty when that says nothing
+    /// beyond `provider`, so the provider shows once.
     pub name: String,
     /// What the picture of this account's history calls it ([`share::label`]): its provider and
     /// the name given it, or its plan, and never its address.
@@ -121,18 +122,18 @@ pub fn view<Tz: TimeZone>(
     let today = now.with_timezone(zone).date_naive();
     let first_day =
         (today - TimeDelta::days(i64::from(days) - 1)).max(start.with_timezone(zone).date_naive());
-    let plans = plans(history)?;
+    let newest = newest(history)?;
     let mut accounts: Vec<AccountHistory> = Vec::new();
     let mut group: Vec<&Series> = Vec::new();
     for one in &series {
         if group.last().is_some_and(|last| !same_account(last, one)) {
-            accounts.push(account(&group, settings, &plans, days, start, now, zone));
+            accounts.push(account(&group, settings, &newest, days, start, now, zone));
             group.clear();
         }
         group.push(one);
     }
     if !group.is_empty() {
-        accounts.push(account(&group, settings, &plans, days, start, now, zone));
+        accounts.push(account(&group, settings, &newest, days, start, now, zone));
     }
     Ok(HistoryView {
         days,
@@ -184,24 +185,46 @@ pub fn label(history: &History, settings: &Settings, key: &str) -> Result<String
         .ok_or_else(share::unknown_account)?;
     let account = snapshot.account;
     Ok(share::label(
-        text::provider_name(&account.provider),
+        account.provider_label(),
         settings.aliases.get(key).map(String::as_str),
         account.plan.as_deref(),
     ))
 }
 
-/// Each account's plan, by [`account_key`], from its newest snapshot: a series carries only the
-/// account's id and display name.
-fn plans(history: &History) -> Result<HashMap<String, String>, String> {
-    Ok(history
+/// What the newest snapshots say that a series does not carry: each account's plan, by
+/// [`account_key`], and what each provider calls itself, by its id (P-020).
+#[derive(Default)]
+struct Newest {
+    plans: HashMap<String, String>,
+    names: HashMap<String, String>,
+}
+
+impl Newest {
+    /// What the provider `id` calls itself, or `id` itself while its newest snapshots all come
+    /// from an older QuotaDial, which named none, until the next poll.
+    fn name<'a>(&'a self, id: &'a str) -> &'a str {
+        self.names.get(id).map_or(id, String::as_str)
+    }
+}
+
+fn newest(history: &History) -> Result<Newest, String> {
+    let mut newest = Newest::default();
+    for snapshot in history
         .latest()
         .map_err(|error| format!("QuotaDial could not read its history: {error}"))?
-        .into_iter()
-        .filter_map(|snapshot| {
-            let key = account_key(&snapshot.account);
-            snapshot.account.plan.map(|plan| (key, plan))
-        })
-        .collect())
+    {
+        let account = snapshot.account;
+        // An older QuotaDial named no provider.
+        if !account.provider_name.is_empty() {
+            newest
+                .names
+                .insert(account.provider.clone(), account.provider_name.clone());
+        }
+        if let Some(plan) = account.plan.clone() {
+            newest.plans.insert(account_key(&account), plan);
+        }
+    }
+    Ok(newest)
 }
 
 /// The days from `first` to `last`, as people write them: "19 to 25 October 2026", "26 September
@@ -226,7 +249,7 @@ fn same_account(a: &Series, b: &Series) -> bool {
 fn account<Tz: TimeZone>(
     group: &[&Series],
     settings: &Settings,
-    plans: &HashMap<String, String>,
+    newest: &Newest,
     days: u32,
     since: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -235,8 +258,13 @@ fn account<Tz: TimeZone>(
     let first = group[0];
     let key = key(&first.provider, &first.account_id, first.org.as_deref());
     let alias = settings.aliases.get(&key);
-    let name = alias.cloned().unwrap_or_else(|| first.account.clone());
-    let provider = text::provider_name(&first.provider);
+    let provider = newest.name(&first.provider);
+    // The name given, or the account's own when it says more than the provider's label.
+    let name = alias.cloned().unwrap_or_else(|| {
+        text::name_beside(provider, &first.account)
+            .unwrap_or_default()
+            .to_owned()
+    });
     let period = format!("in the last {days} days");
     AccountHistory {
         provider: provider.to_owned(),
@@ -244,7 +272,7 @@ fn account<Tz: TimeZone>(
         label: share::label(
             provider,
             alias.map(String::as_str),
-            plans.get(&key).map(String::as_str),
+            newest.plans.get(&key).map(String::as_str),
         ),
         windows: group
             .iter()
@@ -421,11 +449,18 @@ mod tests {
         Snapshot {
             account: Account {
                 provider: provider.into(),
+                provider_name: if provider == "claude" {
+                    "Claude"
+                } else {
+                    "Codex"
+                }
+                .into(),
                 account_id: "user-1".into(),
                 display_name: format!("{provider}@example.com"),
                 plan: (provider == "claude").then(|| "max".to_owned()),
                 org: None,
                 sign_in: None,
+                sign_in_use: "QuotaDial reads this test's sign-in.".into(),
             },
             windows: windows
                 .iter()
@@ -594,6 +629,56 @@ mod tests {
         {
             assert!(!account.label.contains('@'), "{}", account.label);
         }
+    }
+
+    #[test]
+    fn a_history_from_an_older_quotadial_shows_the_providers_id_until_the_next_poll() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = History::open(&dir.path().join("history.db")).expect("opens");
+        let mut older = snapshot(
+            "codex",
+            &[(WindowKind::Weekly, "Weekly", 60.0)],
+            "2099-01-06T08:00:00Z",
+        );
+        older.account.provider_name = String::new();
+        history
+            .record(&older, at("2099-01-06T08:00:00Z"))
+            .expect("records");
+        let now = at("2099-01-07T00:00:00Z");
+
+        let view = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(view.accounts[0].provider, "codex");
+        assert_eq!(view.accounts[0].label, "codex");
+        assert_eq!(
+            label(&history, &Settings::default(), "codex user-1 -").as_deref(),
+            Ok("codex")
+        );
+    }
+
+    #[test]
+    fn an_account_called_as_its_provider_is_named_once_in_history() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = History::open(&dir.path().join("history.db")).expect("opens");
+        let mut example = snapshot(
+            "codex",
+            &[(WindowKind::Weekly, "Weekly", 60.0)],
+            "2099-01-06T08:00:00Z",
+        );
+        example.account.provider_name = "Example".into();
+        example.account.display_name = "Example".into();
+        history
+            .record(&example, at("2099-01-06T08:00:00Z"))
+            .expect("records");
+        let now = at("2099-01-07T00:00:00Z");
+
+        let view = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(view.accounts[0].provider, "Example");
+        assert_eq!(
+            view.accounts[0].name, "",
+            "no name beside the label it repeats"
+        );
     }
 
     #[test]
