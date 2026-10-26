@@ -228,7 +228,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Claude's sign-in command, working as written and naming no user | Done (PR #85, D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
 | A place holding the home folder's path beside a space or a quote | Done (PR #87, D-133) | D-130's other leftover, done in `text::tilde_in` alone, as the manager's review of #85 asked: a folder whose name only starts as the home folder's does, such as `/Users/ann (old)` beside `/Users/ann`, is left as written in a sentence and in both commands, where it was written `~ (old)`, so `config.json`'s `chmod 600` and Claude's sign-in command failed as written; a word in single quotes is read whole as a POSIX shell and PowerShell read it, so every place outside the home folder that `shell_word` and `powershell_string` write comes through unchanged, whatever its name holds; a sentence is read by what follows the home folder: it is `~` at a separator, the end of the text or of a line, or marks and then a word that does not carry a name on (one that opens with a bracket or has a separator after a name does), and any other character joined to it is more of the name; where it must guess it leaves the name, and D-133 says what it still gets wrong; no folder QuotaDial makes is one of these, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
 | The popover redesigned (Matt's ask, 2026-10-26) | Done (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
-| Doctor's `[user]` mask and a user named `claude` | Queued (D-131) | Left a queued row by the manager's review of #85 (2026-10-26, 13:40 UTC), since "doctor's masking is its own rule and the case is rare": doctor's `[user]` pass replaces every whole word that is the user's name, a command's own words included, so for a Mac user called `claude` doctor shows `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]`, and `~/.[user]` for `~/.claude` elsewhere in its text; a later PR could keep a command's own words out of that pass |
+| Doctor's `[user]` mask and a user named `claude` | In review (PR #?, D-134) | Doctor hid every whole word that was the user's name, a command's own words and `~/.claude` included, so for a Mac user called `claude` it wrote `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.[user]`, and the same for `codex`, `status`, `history`, `daemon` and any other word it writes (queued by the manager's review of #85, and put next by the review of #87). `text::hide_user_in`, beside `tilde_in`, writes `[user]` only where the name is a whole name inside a place outside the home folder (a root, `/`, `\` or a drive, read as `tilde_in` reads a path; a word in single quotes whole; a web address no place), so a command, a sentence and a place that starts at `~` keep every word for any user; where it must guess it hides, and D-134 lists where; hidden again, a text is what it was, for any name; 21 new tests and five properties among them, 18 failing first against the old rule, and 28 of 31 hand-made breaks failing a test, the other three having broken code no test could tell from its absence, or repeated another |
 | A line once per card for a window's source and time, when every window agrees | In review (PR #89, D-135) | The manager's review of #86 (2026-10-26, 19:28 UTC) put it on the M6 queue, keeping each window's own line until then (#52: each window carries its own time and origin). The view model gives an account a `fetched`, such as "from the API 3 min ago", when every window was read from the same source at exactly the same moment, as the windows of one answer are, and then each window says only its reset and pace; when they differ, each says its own, as before. A card with one window says it for the card too, so the line does not jump when a limit leaves a card after its reset. The rule is `fetched_together` in `meter.rs`, not the window's script. The line is a quiet caption under the windows and above the sign-in, which opens below it, chosen from three placements shown in pictures; the window check's new `checkSources` holds it, and the site's test and pictures follow. #52 holds: the data, the API, the CLI, `doctor` and the MCP server still say it for each window |
 | A property test for the window's `codeSpans` | Done (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
@@ -419,6 +419,230 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: doctor hides the user's name only where it names the user (D-134)
+
+- **The ask:** the coordinator's brief of 2026-10-26: M6's queued row
+  "Doctor's `[user]` mask and a user named `claude`", left queued by the manager's review of #85
+  (2026-10-26, 13:40 UTC, "doctor's masking is its own rule and the case is rare") and put next by
+  the review of #87 (20:22 UTC). Doctor's text hides the user's name wherever it is a whole word, so
+  for a Mac user called `claude` it broke Claude's sign-in command and wrote `~/.[user]` for
+  `~/.claude`. Hide the name where it names the user and nowhere else, with tests and a property
+  that fail first, and record it as D-134. Built on `fix/doctor-user-mask` from `main` at 82038b0
+  (#86), moved onto 72bc175 (#87) before the first commit, as the coordinator asked. In review as
+  #?.
+- **The bug, as the old rule wrote it** (what the new tests printed against it, with the home
+  folder `/Users/claude` unless said): `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` for Claude's
+  sign-in command, `~/.[user]/.credentials.json` for the sign-in's place and "run [user] once" for
+  "run claude once"; for a user called `status`, the daemon's address `http://127.0.0.1:47115/v1/[user]`
+  and `[user]_pages: on`; and the properties' shrunk inputs: `~/'[user]'` for a user called `a-0`
+  whose home folder holds a folder of the same name, and `[[user]]` for a user called `user`, who
+  was hidden again each time the text was. `claudeclaude`, a name right after a name the rule had
+  kept, became `claude[user]`, since it read the character before a name from the text it had left
+  to scan.
+- **Where the fix is:** `crates/core/src/text.rs`: `hide_user_in(text, home)` beside `tilde_in`,
+  public like it, and its private helpers (`user_name`, `is_whole_name`, `outside_the_home_folder`,
+  `starts_at_a_root`, `continues_a_path`, `is_slash`, `is_web_address`, `home_string`,
+  `place_goes_on`); `crates/core/src/diagnostics.rs` calls it where it called `without_word`,
+  which is gone. No provider, no command writer and no other caller changed, and no file system is
+  read. Only doctor and Send feedback hide the name, as before (D-129's "what can still show a
+  name" stands for every other surface).
+- **The audit the brief asked for** (D-134 has it in full): what `Diagnostics::text` writes holds
+  the user's name only in a place: the data folder, "Numbers: from nowhere: ...", each account's
+  sign-in sentence, errors and problems, and the settings (`extra_config_dirs` as typed, the
+  warnings). A place in the home folder is `~` (or `$HOME` in PowerShell's command) by `tilde_in`
+  and the commands, so only a place outside it can hold the name. The version, the system, the
+  licence, the daemon's line, account names (emails cut to their first letters), status pages and the
+  Keychain's account (passed to `security`, never shown) hold none.
+- **The rule, in short** (D-134 has it in full): the name is written `[user]` where it is a whole
+  name inside a place outside the home folder. A place starts at a root (`/`, `\`, `C:\`, `C:/`) where
+  a path can start, goes on to the end of its word and past a space into a next word that holds a
+  separator, and ends at a line break or a plain word; a word in single quotes is read whole, as
+  `tilde_in` reads one; PowerShell's string from `$HOME` is read whole as `powershell_string` writes
+  it; a word that starts with `~`, `$` or `%` is the home folder's (`%USERPROFILE%\x` and `${HOME}/x`
+  in one piece); a relative path is no place; a `//` after `scheme:` is a web address, except after
+  `file:`. Each name and each `[user]` already there is read as one character, so hiding a name
+  cannot change what is read after it (a name with a space, such as `Ann Smith`, included), and a
+  name that touches a `[user]` is left: hidden again, a text is what it was hidden as.
+- **How it was built:** a prototype of the rule in Python, in the session's scratchpad and not
+  committed, ported `tilde_in`'s readers and ran the rule over random text before any Rust was written.
+  It found, before the Rust did, that PowerShell's string from `$HOME` must be read whole (a folder
+  whose name ends in a space before a separator made the next word look like a place), that
+  `claudeclaude` needs the character before a name read from the whole text, and, from the test for
+  the `%` anchor, that `%USERPROFILE%/x` was read as a variable and then a place of its own.
+- **Calls the brief left to me, and why** (D-134 weighs the alternatives and says what each costs):
+  - *Names in places only,* not commands marked where written, not a list of the words doctor
+    writes, not the whole-word pass with `~` places and backticked commands kept out of it: the
+    brief's own list of users (`codex`, `gemini`, `daemon`, `history`, `status`) are words in
+    sentences, settings and an address, which only a rule about places leaves alone.
+  - *Where the rule guesses, it hides,* as the brief said: a component only spelled as the name
+    (`/usr/bin/security` for `security`, Claude Code's own `claude-501`, a backup's `.claude`), a
+    word that reads as a place (`/model`, a bare `/v1/status`), a word with a separator after a
+    space (`docs/CLI.md` after a place), and a folder in the home folder that ends with a space
+    before a word that starts like a place. D-134 lists them and I pinned none by a test, since a
+    test would hold a wrong answer in place (as D-133 did for its own).
+  - *A web address is no place,* except `file:`: `status` is on the brief's own list, and doctor
+    writes "its API at http://127.0.0.1:47115/v1/status could not be reached" when the daemon does
+    not answer.
+  - *A place goes on past a space only into a word with a separator,* not into a plain word: the
+    macOS volume `/Volumes/My Passport/Users/ann` is read whole, `/Volumes/Time Machine Backups/Users/ann`
+    is not (the place ends at `Machine`), and a sentence after a place is never part of it.
+  - *Both separators on every system,* so a place written on another system is found, and the tests
+    run the same on this Mac as on Windows.
+  - *PowerShell's `"$HOME..."` string is read whole,* which fuzzing the rule found it needs: a folder
+    whose name ends in a space before a separator made the next word look like a place.
+  - *`%` and `}` go on into a path,* so `%USERPROFILE%\x` and `${HOME}/x` are the home folder's in
+    one piece: found when the example for the `%` anchor failed in the prototype.
+  - *Names are read as one character,* so that a name with a space cannot change what is read after
+    it, which makes the text idempotent for any name, `user` and `Ann Smith` included.
+  - *Case and form are as before:* matching is by the characters, so `/users/ANN` and a decomposed
+    accent show the name, as they did.
+  - *Public, in `text`, beside `tilde_in`:* the one rule for the user's name next to the one rule
+    for the home folder (the manager on #82), usable by another surface later; the brief put the
+    property beside `tilde_in`'s.
+  - *The tracker:* the existing queued row is flipped to "In review (PR #?, D-134)" as the
+    coordinator said, and the rows of #87, #90 and #91, all on `main` now, to Done, as each PR has
+    done for the one before; the number comes when the coordinator gives it. `docs/CLI.md`'s Doctor paragraph is not changed (below).
+- **What it still gets wrong** (D-134 has it in full): the guesses above, which hide a word; and
+  what it leaves, since the text cannot tell: a name after a plain word in a folder's name, in a
+  relative path (the `extra_config_dirs` entry shown as typed in "... is not a full path"), in a
+  sentence, in another case or form, and in the user's folder encoded under `~`.
+- **Tests,** each new one failing first (below): 21 new tests.
+  - core, `text.rs`, thirteen tests: `a_users_name_is_hidden_in_a_place_outside_the_home_folder`
+    (another disk's copy of the home folder, Claude Code's temporary folder, a drive, a share and a
+    folder named after the name, for users called `ann`, `claude` and `codex`, in five sentences
+    each, the name kept in the prose around the place);
+    `a_word_that_is_only_spelled_as_the_users_name_stays_as_it_is`;
+    `a_place_in_the_home_folder_keeps_the_words_it_has_whoever_the_user_is` (`claude`, `codex`,
+    `gemini`, `quotadial`, `Support`); `a_command_for_a_place_in_the_home_folder_comes_through_whole_for_any_user`
+    (both shells, `chmod 600` and the warning's own words, five users, seven folders, one with a
+    space before a separator); `a_web_address_is_not_a_place` (`status`, `headroom`, `anthropic`,
+    `api`, `wham`; `file:` and `D://` are places);
+    `the_words_around_a_quoted_place_outside_the_home_folder_stay` (three folders, and PowerShell's
+    quotes on a drive); `a_quoted_word_that_goes_on_from_a_path_is_part_of_that_path`;
+    `a_place_goes_on_past_a_space_only_into_a_word_with_a_separator`;
+    `a_place_outside_the_home_folder_ends_where_one_in_it_starts_in_the_same_word` (`:`, `=`,
+    `$HOME`, `%USERPROFILE%`, `${HOME}`); `a_name_with_a_space_in_it_is_hidden_as_one_name`;
+    `a_name_that_is_not_whole_does_not_hide_a_whole_one_that_overlaps_it`;
+    `a_name_that_is_a_word_of_the_marker_is_hidden_once`; and
+    `nothing_is_hidden_without_a_name_of_three_characters_in_the_text`.
+  - core, five properties beside `tilde_in`'s, with the brief's three:
+    `no_text_or_home_folder_makes_hiding_the_user_panic` (any text, any home folder or none),
+    `hiding_the_user_again_changes_nothing` (any name, `user` and `Ann Smith` among them, over
+    every shape of text around it), `hiding_the_user_hides_nothing_but_the_name`,
+    `the_users_name_never_survives_in_a_place_outside_the_home_folder` (every root, separator,
+    shape of the name (`ann`, `ann-OLD`, `-Users-ann--WORK`, `OLD.ann`) and form of sentence, with
+    the name kept in the sentence around the place; every expected place made from its parts) and
+    `the_commands_for_a_place_in_the_home_folder_come_through_whole_for_any_user` (any name, any
+    folder, in a POSIX shell and PowerShell).
+  - doctor, `diagnostics.rs`, two:
+    `a_user_called_as_a_word_in_the_text_sees_every_command_and_place_as_written` (the text for
+    each of nine users called by a word doctor writes is the text any other user sees, built
+    from `shell_word`, `powershell_string`, `sign_in_read_from` and places in the home folder) and
+    `the_users_name_is_hidden_in_a_place_outside_the_home_folder_whoever_the_user_is`.
+  - Claude's provider, `advice.rs`, one:
+    `doctor_shows_the_command_and_places_as_written_for_a_user_called_claude_or_codex`, with the
+    real `claude_in`, `signed_out` and the account's sign-in sentence, both shells, four folders,
+    and a place outside the home folder with the name hidden in it and the command's own words
+    around it kept.
+  - Changed: `the_account_s_name_is_hidden_outside_the_home_folder_too` lost its two assertions about
+    `without_word`, which is gone: "someones [user]_x xsomeone" is in
+    `a_word_that_is_only_spelled_as_the_users_name_stays_as_it_is` and "too short to be sure" in
+    `nothing_is_hidden_without_a_name_of_three_characters_in_the_text`.
+- **First failures:** against the old rule put behind the new signature (a stub, not committed), 18 of the
+  21 failed, with the outputs in "The bug, as the old rule wrote it". The three that passed pin what
+  both rules do, and each fails under a break of the new one (a name of any length; a hidden name
+  taking the character after it; the scan running a byte past the text):
+  `nothing_is_hidden_without_a_name_of_three_characters_in_the_text`,
+  `no_text_or_home_folder_makes_hiding_the_user_panic` and `hiding_the_user_hides_nothing_but_the_name`.
+  An earlier set, run first, passed its "the name is still hidden" tests against the old rule too,
+  since that hid the name everywhere; each of them now also holds the name left in the sentence
+  around the place, which the old rule hid, so each fails first.
+- **Mutations:** thirty-one hand-made breaks, each applied alone to the finished file and run against
+  core's `text::` and `diagnostics::` tests (a harness in the session's scratchpad, not committed,
+  which copied the files back from copies after each): no guard for a web address's `//`; `file:`
+  a web address too; a word at `~` not ending a place; no continuation past a space; a place going on
+  into any word; a line break not ending a place; `\` not a separator; a drive not a root; the
+  character before a name, and the one after it, not looked at; a name that touches a `[user]`
+  taken for a name; a `[user]` not read as one character; names not read as one character; a word
+  in single quotes not read whole; a quoted word that goes on from a path taken for a place of its
+  own; any quoted word a place; `$HOME`'s string not read whole, leaving a place going, and with no
+  backtick escape; a name of any length; an occurrence that is not whole hiding one that overlaps
+  it; a root inside a word starting a place; the name hidden wherever it is; doctor not calling the
+  rule; a hidden name taking the character after it; the scan running a byte past the text; `%` not
+  an anchor; the end of a variable not going on into a path; and the three that no longer apply.
+  The final tests fail under the other 28. Of those three, two broke code no test could tell from
+  its absence, which is removed (the check for `~`, `$` and `%` in `place_goes_on`, which the scan
+  makes again where it reaches the word, and a scheme's length, since a drive written `D://` has
+  started a place at its letter), and one repeated another. Six survived the first set of tests: five got a
+  test each (the `~` that ends a place in the same word, names read as one character, a quoted word
+  that goes on from a path, `$HOME`'s string leaving a place going, an overlapping name) and the
+  sixth was the redundant check; two more that only a property caught, a drive and `$HOME`'s string,
+  got an example too.
+- **Stress:** core's `text::` and `diagnostics::` tests at 20,000 cases per property
+  (`PROPTEST_CASES`, with failure persistence off), 64 tests passing in 6 seconds; the five new
+  properties at 150,000 cases, three runs of 34 seconds, passing. The version before the last three
+  edits (`%` and `}` going on into a path, `place_goes_on` and the scheme's length made simpler)
+  passed the same, at 150,000 over every `text::` test in 107 seconds and in three more runs of
+  the new properties. A prototype of the rule in Python (in the scratchpad, not committed) ran 600,000
+  random cases per check over four seeds, and over a million more of any characters, names holding
+  quotes, brackets, separators and the marker's own letters included.
+- **Windows:** no `#[cfg(unix)]` item is added, no import, helper or constant is used by Unix tests
+  alone, and every place a test writes is made from its parts (`slashed`, `backslashed`, `path`,
+  `MAIN_SEPARATOR_STR`); the rule reads both separators on every system, so a Windows-style place
+  (`D:\Backup\Ann Smith`, `\\server\home\ann`) is tested here as text. No new test runs
+  `sh`, so none needs `cfg(unix)`, and each runs the same on Windows; no Windows target is installed here, so Windows is CI's to build, and `pwsh` is
+  not installed: no PowerShell command ran, only its text.
+- **Counts:** the default workspace 778 passed (1 ignored) on `main` at 72bc175, measured first
+  here, and 799 (1 ignored) with this change; the example build 775 (2 ignored), measured first, and
+  796 (2 ignored). By crate: core 150 to 170 (168 in the library, up from 148, and 2 in
+  `fixtures`: eighteen new in `text` and two in doctor); Claude's provider 141 to 142 (1 ignored);
+  the CLI 67 (64, 1 ignored, in the example build), the API 59, the daemon 109, Antigravity 64, Codex
+  63, cost 30, fake 19, Gemini CLI 29, issue 6, poll 37 and `quotadial-providers` 4 unchanged.
+  Rebased onto `main` at f2a7a1e, where #88 adds one daemon test (110), the default workspace is
+  779 there and 800 (1 ignored) with this change, measured again. The tray app's
+  `--lib` tests 91 before (the default build, measured first) and 91 after in both builds. The
+  site's tests 90 and the release scripts' tests 40 (39 passed, 1 skipped) unchanged.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and `--locked`
+  on the workspace and the tray app, default and `fake` (the app's `fake` run with the example's CLI
+  bundled by `npm run cli -- --fake`, then `npm run cli` to bundle the default build's again); the
+  workspace's tests, default and `fake`; the tray app's `--lib` tests, default and `fake`,
+  `tests/icon_press.rs` not run, as briefed; the release build's licence key test
+  (`only_a_debug_build_trusts_the_test_key`), core having changed; the tray app's `npm run build`
+  (35.5 KB of 150); the site's `npm run check`, `npm run build` and `npm test` (90), since it renders
+  `CHANGELOG.md`, whose built `/changelog` page shows the new line; `scripts/privacy.sh --check`,
+  `scripts/public-prd.sh --check`, the 0.2.0 release notes, the release scripts' tests (40, 39 passed,
+  1 skipped) and shellcheck on `scripts/`. The changelog line was held to the site's jargon list by
+  hand, as no word outside a code span is on it. **Not run:** a Windows or Linux build, which no
+  target here makes (CI's); PowerShell, not installed; `cargo deny`, `cargo audit` and actionlint,
+  not installed here (no dependency, lockfile or workflow changed); `npm ci` and `npm audit`, no npm
+  dependency changed; the tray app's `npm test` and `npm run check:window`, its window being
+  unchanged; and the jargon engine on the built changelog, which lives under `~/.claude`, where the
+  brief says to touch nothing.
+- **Found going down #52, left for the manager or a later PR:**
+  - Every other surface (`status`, `watch`, the API, the MCP server and the app's window) still shows
+    the user's name in a place outside the home folder (D-129); only doctor and Send feedback hide
+    it. `text::hide_user_in` is there if a later PR wants it on those surfaces, though a pasteable
+    command cannot be both private and exact outside the home folder (D-130, D-131).
+  - Doctor's copy of a command that names a place outside the home folder has the name hidden in its
+    place (`chmod 600 '/Volumes/Data/[user]/quotadial/config.json'`), so it is for support to read.
+  - `docs/CLI.md`'s Doctor paragraph lists what doctor leaves out (tokens, email addresses, the home
+    folder, the licence id, webhooks) and not the user's name; adding it is one sentence, left out
+    because the brief's records do not name that file and the site renders it.
+  - A server's or the system's words that name the local account outside a place would show it; the
+    audit found none, and a provider's sentence that does should name a place.
+  - `/model` for a user called `model` and the other guesses in D-134: rare, and hiding is the
+    private side of the error.
+- **Safety on this Mac:** every build, test and npm run went through a wrapper that points
+  `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`,
+  `CLAUDE_SECURESTORAGE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME` and `XDG_DATA_HOME` into the
+  session's scratchpad, strips every token-like variable (the session's own `CLAUDE_CODE_*` and the
+  like) from the environment, and turns off proptest's failure file; no vendor CLI ran, no sign-in or
+  Keychain item was read, and nothing touched `~/Library/Application Support/quotadial`, `~/.claude`,
+  the other worktrees or QuotaDial Example (whose daemon, running from `QuotaDial-fake`, was left
+  alone). No script wrote `rm`; the mutation and first-failure runs copied the files back from
+  copies in the scratchpad, and the tree holds only this change (`git status`), with no
+  `proptest-regressions` file and no changed lockfile.
 
 ### Main's CI, a second flake: a place where nothing answers, on a port no test is given
 
