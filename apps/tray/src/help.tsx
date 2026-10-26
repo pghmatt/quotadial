@@ -10,7 +10,7 @@ import { UpdateStatus } from "./update";
  * what QuotaDial reads and sends. Links open in the person's own browser or mail app, and only
  * the ones named here.
  */
-export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDone: () => void }) {
+export function HelpPanel({ update }: { update: UpdateView | null }) {
   const [help, setHelp] = useState<HelpView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const panel = usePanelFocus();
@@ -103,9 +103,6 @@ export function HelpPanel({ update, onDone }: { update: UpdateView | null; onDon
           {problem}
         </p>
       )}
-      <button type="button" class="done" onClick={onDone}>
-        Done
-      </button>
     </section>
   );
 }

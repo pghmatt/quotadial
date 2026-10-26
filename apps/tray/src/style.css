@@ -22,15 +22,18 @@
   --tag-pressed: rgb(0 0 0 / 12%);
   /* The capsule of an account that is not ok, such as "stale". */
   --attention: rgb(255 149 0 / 16%);
+  /* The chosen segment of a segmented control, raised in its track. */
+  --segment: #ffffff;
+  --segment-shadow: 0 1px 2px rgb(0 0 0 / 14%), 0 0 0 0.5px rgb(0 0 0 / 6%);
   --rule: rgb(0 0 0 / 10%);
   --bar: rgb(0 0 0 / 9%);
   --bar-normal: #0a84ff;
   --bar-warning: #ff9f0a;
   --bar-high: #ff3b30;
+  /* A chart's hairline at 0%, and its faint line at 100%. */
+  --chart-base: rgb(0 0 0 / 22%);
+  --chart-top: rgb(0 0 0 / 8%);
   --focus: #0a84ff;
-  /* The chosen period in History, and its text. */
-  --accent: #0071e3;
-  --on-accent: #ffffff;
   /* The edge of a text field, 3:1 against the background and a card. */
   --field: #8a8a8e;
   /* A card's corners. */
@@ -55,8 +58,12 @@
     --tag: rgb(255 255 255 / 10%);
     --tag-pressed: rgb(255 255 255 / 16%);
     --attention: rgb(255 159 10 / 18%);
+    --segment: rgb(255 255 255 / 16%);
+    --segment-shadow: 0 1px 2px rgb(0 0 0 / 35%);
     --rule: rgb(255 255 255 / 12%);
     --bar: rgb(255 255 255 / 14%);
+    --chart-base: rgb(255 255 255 / 25%);
+    --chart-top: rgb(255 255 255 / 9%);
     --field: #7f7f84;
   }
 }
@@ -532,10 +539,6 @@ section[tabindex="-1"]:focus {
   margin: 0;
 }
 
-.done {
-  margin-top: 12px;
-}
-
 /* Nothing in a card leaves room under its last line. */
 .card > :last-child {
   margin-bottom: 0;
@@ -676,17 +679,30 @@ fieldset > .card {
   margin-top: 8px;
 }
 
+/* The period, as a Mac draws a segmented control: one rounded track, the chosen segment raised
+   in it, its words bold and in the text colour, the other's quieter. */
 .period {
-  display: flex;
-  gap: 6px;
+  display: inline-flex;
+  gap: 2px;
   margin-top: 8px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--tag);
 }
 
-/* The chosen period is told by its weight as well as its colour. */
+.period button {
+  padding: 2px 14px;
+  border-radius: 6px;
+  background: none;
+  color: var(--secondary);
+}
+
+/* The chosen period is told by its weight and its raised segment as well as its colour. */
 .period button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--segment);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: var(--segment-shadow);
 }
 
 .account-history .card-head {
@@ -704,13 +720,28 @@ fieldset > .card {
   font-size: 12px;
 }
 
+/* No plate: a hairline base at 0% and a faint line at 100% give the scale, as macOS's own charts
+   do, and the lines are drawn whole at the chart's edges. */
 .chart svg {
   display: block;
   width: 100%;
   height: 40px;
-  margin-top: 3px;
-  border-radius: 4px;
-  background: var(--bar);
+  margin-top: 4px;
+  overflow: visible;
+}
+
+.chart .base,
+.chart .top {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .base {
+  stroke: var(--chart-base);
+}
+
+.chart .top {
+  stroke: var(--chart-top);
 }
 
 .chart .used {
@@ -762,10 +793,6 @@ fieldset > .card {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-}
-
-.history-actions .done {
-  margin-top: 0;
 }
 
 .help h3 {

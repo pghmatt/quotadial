@@ -1,9 +1,9 @@
 // Checks the window's colours against WCAG AA in both themes (#52), from src/style.css itself, so
 // a colour changed there is checked here: 4.5:1 for every text colour against every ground it can
-// sit on, and 3:1 for the focus ring and a text field's edge. A ground is a stack: the background,
-// then what is laid over it, such as a card and a capsule on the card, each see-through colour laid
-// over what is under it, as the window shows it. Run by `npm run build`; fails, naming the pair,
-// when one falls short.
+// sit on, and 3:1 for the focus ring, a text field's edge and a chart's line. A ground is a stack:
+// the background, then what is laid over it, such as a card and a capsule on the card, each
+// see-through colour laid over what is under it, as the window shows it. Run by `npm run build`;
+// fails, naming the pair, when one falls short.
 //
 // On macOS the system draws the popover material behind a transparent page; the background stands
 // in for it. The bars' fill against their track is left out: each bar has its percentage beside it
@@ -19,9 +19,11 @@ const PAIRS = [
   ["--text", ["--background", "--card"], 4.5, "an account's name and its windows, on its card"],
   ["--text", ["--background", "--tag"], 4.5, "a button, such as the footer's, or a command"],
   ["--text", ["--background", "--card", "--tag"], 4.5, "a button or a command on a card"],
+  ["--text", ["--background", "--tag", "--segment"], 4.5, "the chosen period in History"],
   ["--secondary", ["--background"], 4.5, "the line under the summary's number"],
   ["--secondary", ["--background", "--card"], 4.5, "an account's address and what it does with its sign-in"],
   ["--secondary", ["--background", "--card", "--tag"], 4.5, "a capsule, such as a plan, on a card"],
+  ["--secondary", ["--background", "--tag"], 4.5, "a period not chosen, in History"],
   ["--muted", ["--background"], 4.5, "details, the origin line and the legend"],
   ["--muted", ["--background", "--card"], 4.5, "a window's reset, source and pace, on its card"],
   ["--warning", ["--background"], 4.5, "an incident, and a problem in a panel"],
@@ -29,11 +31,11 @@ const PAIRS = [
   ["--warning", ["--background", "--card", "--attention"], 4.5, "the capsule of an account that is not ok"],
   ["--high", ["--background"], 4.5, "the summary's number past 90%"],
   ["--high", ["--background", "--card"], 4.5, "a window past 90%, on its card"],
-  ["--on-accent", ["--accent"], 4.5, "the chosen period in History"],
   ["--focus", ["--background"], 3, "the focus ring"],
   ["--focus", ["--background", "--card"], 3, "the focus ring on a card"],
   ["--field", ["--background"], 3, "the edge of a text field"],
   ["--field", ["--background", "--card"], 3, "the edge of a text field in a card, in Settings"],
+  ["--bar-normal", ["--background", "--card"], 3, "a chart's line in History, on its card"],
 ];
 
 /** The custom properties in the first `:root` block after `from`. */

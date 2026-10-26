@@ -10,7 +10,7 @@ import { Said } from "./said";
  * The settings panel: opening at login, the daily check for updates, the alert rules, which
  * providers to show, the names given to accounts, and the licence key.
  */
-export function SettingsPanel({ onDone }: { onDone: () => void }) {
+export function SettingsPanel() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -265,9 +265,6 @@ export function SettingsPanel({ onDone }: { onDone: () => void }) {
           {problem}
         </p>
       )}
-      <button type="button" class="done" onClick={onDone}>
-        Done
-      </button>
     </section>
   );
 }

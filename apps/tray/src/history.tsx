@@ -14,7 +14,7 @@ const PERIODS = [7, 30];
  * by hour of the day, an export of every reading as CSV, and on QuotaDial Pro a picture of each
  * account's history to share, saved in the Downloads folder as the CSV is (D-115).
  */
-export function HistoryPanel({ onDone }: { onDone: () => void }) {
+export function HistoryPanel() {
   const [days, setDays] = useState(PERIODS[0]);
   const [view, setView] = useState<HistoryView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -118,9 +118,6 @@ export function HistoryPanel({ onDone }: { onDone: () => void }) {
         <button type="button" onClick={exportReadings}>
           Export CSV
         </button>
-        <button type="button" class="done" onClick={onDone}>
-          Done
-        </button>
       </div>
     </section>
   );
@@ -158,7 +155,10 @@ function AccountCharts({
   );
 }
 
-/** A window's share used over the period, with a dashed line at 90%. */
+/**
+ * A window's share used over the period, drawn with no plate under it: a hairline at 0%, a faint
+ * line at 100% to show the scale, and a dashed line at 90%.
+ */
 function Chart({ chart }: { chart: WindowChart }) {
   const line = chart.points
     .map(([along, used]) => `${(along * 100).toFixed(2)},${(100 - used).toFixed(2)}`)
@@ -172,6 +172,8 @@ function Chart({ chart }: { chart: WindowChart }) {
         </span>
       </figcaption>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={chart.summary}>
+        <line class="top" x1="0" y1="0" x2="100" y2="0" />
+        <line class="base" x1="0" y1="100" x2="100" y2="100" />
         <line class="limit" x1="0" y1="10" x2="100" y2="10" />
         <polyline class="used" points={line} />
       </svg>

@@ -15,6 +15,8 @@
 //   account that set the number, by the name given it or its address;
 // - History's cards and Settings' names head each account as the popover's cards do: the name
 //   given it or its provider's, then its address, inside the card;
+// - one toolbar at the foot of every view: History, Settings and Help under the accounts, Done
+//   under a panel, which has no Done of its own, and Quit set apart at its far end;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -796,6 +798,7 @@ async function checkView(view, panel, operate, copy) {
   if (panel === "history" || panel === "settings") {
     await checkHeadings(view, copy, panel);
   }
+  await checkToolbar(view, panel);
 
   // Nothing moves, and no text is cut off at 100% or 200%.
   for (const problem of await view.evaluate(MOVING)) {
@@ -965,6 +968,38 @@ async function checkHeadings(view, copy, panel) {
     check(label, (heading.line ?? "") !== line && `${what}'s second line is "${heading.line}", not "${line}"`);
     check(label, !heading.inside && `${what}'s second line is not inside its card`);
   }
+}
+
+/** In the page: the buttons of the footer's toolbar, in order, where each is, and the panel's own
+ * buttons called Done. */
+const TOOLBAR = `({
+  buttons: [...document.querySelectorAll('footer .toolbar > button')].map((button) => {
+    const { left, right, top } = button.getBoundingClientRect();
+    return { text: button.textContent.trim(), left, right, top };
+  }),
+  panelDone: [...document.querySelectorAll('main > section button')].filter((button) => button.textContent.trim() === 'Done').length,
+})`;
+
+/**
+ * One calm toolbar at the foot of every view (D-132): under the accounts, History, Settings and
+ * Help, then Quit QuotaDial; under a panel, Done, where those three were, then Quit, and no Done in
+ * the panel itself. Quit is set apart at the far end, further from the button before it than the
+ * others are from each other.
+ */
+async function checkToolbar(view, panel) {
+  const label = `${view.label}, toolbar`;
+  const { buttons, panelDone } = await view.evaluate(TOOLBAR);
+  const expected = panel === "accounts" ? ["History", "Settings", "Help", "Quit QuotaDial"] : ["Done", "Quit QuotaDial"];
+  const texts = buttons.map((button) => button.text);
+  check(label, texts.join("|") !== expected.join("|") && `the footer's toolbar holds ${JSON.stringify(texts)}, not ${JSON.stringify(expected)}`);
+  check(label, panelDone > 0 && `the ${panel} panel has a Done of its own as well as the toolbar's`);
+  if (buttons.length < 2) {
+    return;
+  }
+  const [before, quit] = buttons.slice(-2);
+  const between = buttons.slice(1, -1).map((button, index) => button.left - buttons[index].right);
+  const apart = quit.top === before.top ? quit.left - before.right : Number.POSITIVE_INFINITY;
+  check(label, apart <= Math.max(0, ...between) + 8 && `Quit QuotaDial is not set apart from ${before.text}`);
 }
 
 /** In the page: the line under the summary's number, and whether it is shown. */

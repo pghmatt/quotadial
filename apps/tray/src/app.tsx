@@ -121,9 +121,9 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           </p>
         ))}
       </header>
-      {panel === "settings" && <SettingsPanel onDone={() => setPanel("accounts")} />}
-      {panel === "history" && <HistoryPanel onDone={() => setPanel("accounts")} />}
-      {panel === "help" && <HelpPanel update={update} onDone={() => setPanel("accounts")} />}
+      {panel === "settings" && <SettingsPanel />}
+      {panel === "history" && <HistoryPanel />}
+      {panel === "help" && <HelpPanel update={update} />}
       {accounts &&
         meter.accounts.map((account, index) => (
           <AccountSection
@@ -156,23 +156,26 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
           <UpdateStatus update={update} offer />
         </section>
       )}
-      {/* A calm toolbar in line with the cards' text, Quit set apart at its far end, and under it
-          where the numbers come from. */}
+      {/* One calm toolbar at the foot of every view, in line with the cards' text: History,
+          Settings and Help under the accounts, Done under a panel, and Quit set apart at its far
+          end; under it, where the numbers come from. */}
       <footer ref={footer}>
         <div class="toolbar">
-          {accounts && (
-            <button type="button" data-panel="history" onClick={() => setPanel("history")}>
-              History
-            </button>
-          )}
-          {accounts && (
-            <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
-              Settings
-            </button>
-          )}
-          {accounts && (
-            <button type="button" data-panel="help" onClick={() => setPanel("help")}>
-              Help
+          {accounts ? (
+            <>
+              <button type="button" data-panel="history" onClick={() => setPanel("history")}>
+                History
+              </button>
+              <button type="button" data-panel="settings" onClick={() => setPanel("settings")}>
+                Settings
+              </button>
+              <button type="button" data-panel="help" onClick={() => setPanel("help")}>
+                Help
+              </button>
+            </>
+          ) : (
+            <button type="button" class="done" onClick={() => setPanel("accounts")}>
+              Done
             </button>
           )}
           <button type="button" class="quit" onClick={() => void invoke("quit")}>
