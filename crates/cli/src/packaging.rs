@@ -169,6 +169,11 @@ fn about_the_command(roff: &mut Roff) {
             "CODEX_HOME",
             "The folder the Codex CLI keeps auth.json in, in place of ~/.codex.",
         ),
+        (
+            "GEMINI_CLI_HOME",
+            "The folder Gemini CLI keeps its .gemini folder in, in place of the home folder. \
+             QuotaDial only checks that its sign-in is there and reads one field of its settings.",
+        ),
     ] {
         roff.control("TP", [])
             .text([bold(name)])
@@ -288,6 +293,19 @@ fn there_is_a_manual_page_for_every_command() {
         "SEE ALSO",
     ] {
         assert!(top.contains(section), "quotadial(1) has no {section}");
+    }
+    // Each variable a shipped provider reads to find a sign-in, Gemini CLI's too (D-124).
+    for variable in [
+        "QUOTADIAL_DATA_DIR",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "CLAUDE_CONFIG_DIR",
+        "CODEX_HOME",
+        "GEMINI_CLI_HOME",
+    ] {
+        assert!(
+            top.contains(variable),
+            "quotadial(1) does not name {variable}"
+        );
     }
 }
 

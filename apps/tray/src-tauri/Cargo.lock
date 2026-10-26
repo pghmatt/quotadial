@@ -3459,6 +3459,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quotadial-provider-gemini"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "quotadial-core",
+ "serde",
+ "serde_json",
+ "zeroize",
+]
+
+[[package]]
 name = "quotadial-providers"
 version = "0.2.0"
 dependencies = [
@@ -3467,6 +3478,7 @@ dependencies = [
  "quotadial-provider-claude",
  "quotadial-provider-codex",
  "quotadial-provider-fake",
+ "quotadial-provider-gemini",
 ]
 
 [[package]]

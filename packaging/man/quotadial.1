@@ -14,7 +14,7 @@ quotadial \- Track Claude and ChatGPT/Codex usage limits
 .SH DESCRIPTION
 Track Claude and ChatGPT/Codex usage limits.
 .PP
-QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. `qd` is the same command, shorter.
+QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign\-in is never opened. `qd` is the same command, shorter.
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH OPTIONS
@@ -84,6 +84,9 @@ The folder Claude Code keeps its sign\-in for, in place of ~/.claude. QuotaDial 
 .TP
 \fBCODEX_HOME\fR
 The folder the Codex CLI keeps auth.json in, in place of ~/.codex.
+.TP
+\fBGEMINI_CLI_HOME\fR
+The folder Gemini CLI keeps its .gemini folder in, in place of the home folder. QuotaDial only checks that its sign\-in is there and reads one field of its settings.
 .SH FILES
 .TP
 \fI~/Library/Application Support/quotadial\fR

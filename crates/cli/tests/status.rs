@@ -18,23 +18,20 @@ const EXAMPLE: bool = cfg!(feature = "fake");
 /// How the daemon and `watch` say how often each provider is asked.
 const ASKS: &str = if EXAMPLE {
     "asks Example at most every 1 min"
-} else if cfg!(feature = "gemini") {
-    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
 } else {
-    "asks Claude at most every 5 min and Codex at most every 2 min"
+    "asks Claude at most every 5 min and Codex at most every 2 min and Gemini CLI at most every 5 min"
 };
 
-/// The providers each build asks, by id and as each names itself (P-020).
+/// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI
+/// since D-124.
 const PROVIDERS: &[(&str, &str)] = if EXAMPLE {
     &[("fake", "Example")]
-} else if cfg!(feature = "gemini") {
+} else {
     &[
         ("claude", "Claude"),
         ("codex", "Codex"),
         ("gemini", "Gemini CLI"),
     ]
-} else {
-    &[("claude", "Claude"), ("codex", "Codex")]
 };
 
 /// [`PROVIDERS`] as a report lists them.
@@ -176,8 +173,8 @@ fn status_says_no_accounts_found() {
 
 /// Gemini CLI signed in with Google in a made-up home: one account, which says why there are no
 /// numbers and where QuotaDial saw the sign-in, in `status`, `status --json` and `doctor` alike
-/// (D-118). Only a build with Gemini has it.
-#[cfg(all(feature = "gemini", not(feature = "fake")))]
+/// (D-118). Every release has it (D-124); the example build has the fake provider alone.
+#[cfg(not(feature = "fake"))]
 #[test]
 fn status_shows_gemini_cli_signed_in_and_says_why_there_are_no_numbers() {
     let home = empty_home("gemini");

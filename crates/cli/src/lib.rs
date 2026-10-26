@@ -26,7 +26,8 @@ use quotadial_daemon::{
 ///
 /// QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets,
 /// and how old every number is. It reads the sign-ins Claude Code and the Codex CLI already store,
-/// and never writes them. `qd` is the same command, shorter.
+/// and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no
+/// numbers, and its sign-in is never opened. `qd` is the same command, shorter.
 #[derive(Debug, Parser)]
 #[command(name = "quotadial", version, after_long_help = EXAMPLES)]
 struct Cli {
@@ -89,7 +90,7 @@ enum Command {
         /// From how long ago: such as 24h, 7d or 30d, or a time such as 2099-01-01T00:00:00Z.
         #[arg(long, default_value = "7d")]
         since: String,
-        /// Only this provider: claude or codex.
+        /// Only this provider: claude, codex or gemini.
         #[arg(long)]
         provider: Option<String>,
         /// Only this account, by its email address or id.

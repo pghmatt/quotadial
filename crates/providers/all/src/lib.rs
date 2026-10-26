@@ -2,11 +2,11 @@
 //! licence. The CLI and the tray app both start from this list, so a new provider is added in one
 //! place.
 //!
-//! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini` adds
-//! Gemini CLI after them (D-118). The example build (the `fake` feature, D-117) lists the fake
-//! provider alone, whose made-up accounts are for pictures of the app: no sign-in is read and no
-//! provider is asked, whatever else is on. No release has `fake`, and the tests below hold each
-//! build's list.
+//! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini`, on by
+//! default, adds Gemini CLI after them (D-118, D-124). The example build (the `fake` feature, D-117)
+//! lists the fake provider alone, whose made-up accounts are for pictures of the app: no sign-in is
+//! read and no provider is asked, whatever else is on. No release has `fake`, and the tests below
+//! hold each build's list.
 
 use std::sync::Arc;
 
@@ -87,20 +87,11 @@ mod tests {
         }
     }
 
-    #[cfg(not(any(feature = "fake", feature = "gemini")))]
+    /// What a release ships: Claude, Codex and, since it was turned on in the PR after the one
+    /// that merged it, Gemini CLI (D-121, D-122, D-124).
+    #[cfg(not(feature = "fake"))]
     #[test]
-    fn a_release_lists_exactly_claude_then_codex() {
-        assert_eq!(listed(), [("claude", "Claude"), ("codex", "Codex")]);
-        assert_eq!(
-            quotadial_core::copy::FOLDER,
-            "quotadial",
-            "and the copy keeps QuotaDial's own folders"
-        );
-    }
-
-    #[cfg(all(feature = "gemini", not(feature = "fake")))]
-    #[test]
-    fn with_gemini_the_list_is_exactly_claude_codex_then_gemini() {
+    fn a_release_lists_exactly_claude_codex_then_gemini() {
         assert_eq!(
             listed(),
             [

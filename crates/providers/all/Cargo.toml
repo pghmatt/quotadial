@@ -10,13 +10,15 @@ homepage.workspace = true
 publish.workspace = true
 
 [features]
+# Every provider a release ships after Claude and Codex, each behind its own feature (D-121).
+default = ["gemini"]
 # The example build (D-117): the fake provider alone, in place of Claude and Codex, and this copy's
 # own data folder, cache folder and port (quotadial-core's `fake`). Off by default and in no binary's
 # defaults; the Release workflow checks that no CLI it ships ever names a provider `fake`.
 fake = ["dep:quotadial-provider-fake", "quotadial-core/fake"]
-# Gemini CLI, seen and explained, with no numbers and no request (D-118). Off by default until the
-# app can show an account whose sign-in QuotaDial does not read (D-122); `cargo test -p
-# quotadial-providers --features gemini` holds its list, as CI does.
+# Gemini CLI, seen and explained, with no numbers and no request (D-118), on by default since the
+# PR after the one that merged it (D-122, D-124), once every provider names itself and says what
+# QuotaDial does with its sign-in (P-020). The CLI and the tray app take it with the default list.
 gemini = ["dep:quotadial-provider-gemini"]
 
 [dependencies]

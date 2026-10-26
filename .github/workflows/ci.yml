@@ -40,12 +40,6 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --workspace --locked
-      # A provider built but not yet turned on for releases (D-122): the provider list and the CLI
-      # with it, linted and tested on every system, so it is ready the day it is turned on.
-      - name: Clippy, with Gemini
-        run: cargo clippy -p quotadial-providers -p quotadial --all-targets --locked --features gemini -- -D warnings
-      - name: Test, with Gemini
-        run: cargo test -p quotadial-providers -p quotadial --locked --features gemini
       # Only a debug build trusts the licence test key, whose private half is public (D-099).
       - name: A release build trusts only QuotaDial's licence key
         if: runner.os == 'Linux'
