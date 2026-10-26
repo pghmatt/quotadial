@@ -29,6 +29,25 @@ shapes the live account does not show.
 | `wham-usage.synthetic.json` | CodexBar's field names | A Plus plan's session and weekly windows, credits turned off |
 | `rollout.jsonl` | A live Codex CLI session log, 2026-10-23, reduced to its event shapes with ids, paths and text replaced | `session_meta` naming the creating account and user, `token_count` events with rate limits (one for the `premium` limit), other events after the last one |
 
+## Copilot
+
+Made up in the shape of GitHub's `GET https://api.github.com/copilot_internal/user`, with the field
+names GitHub's own Copilot clients read, as CodexBar ports them (`CopilotUsageModels.swift` at
+4654968e9), and every value invented (D-127). No real answer has been captured yet: #51's live check
+saves one, redacted, under these, and says which of these shapes it confirms.
+
+| File | Covers |
+| --- | --- |
+| `user-pro-credits.synthetic.json` | A plan billed in AI credits (`token_based_billing`): the month's credits in `premium_interactions`, 375 of 1,500 used, with `quota_reset_at`; chat and completions unlimited |
+| `user-annual-premium.synthetic.json` | An annual plan still billed by request: the month's premium requests, 40% left; chat and completions unlimited |
+| `user-free.synthetic.json` | Copilot Free: `monthly_quotas` and `limited_user_quotas` for chat and completions, and `limited_user_reset_date`, with no `quota_snapshots` |
+| `user-business.synthetic.json` | A seat billed elsewhere: `premium_interactions` with no allowance and nothing left beside `percent_remaining: 100`, which is no meter, not 0% |
+| `user-unlimited.synthetic.json` | Every allowance unlimited |
+| `unauthorized.synthetic.json` | GitHub's documented error body for a rejected token (`Bad credentials`) |
+
+GitHub CLI's `hosts.yml` is made up in the provider's own tests (`crates/providers/copilot/src/
+hosts.rs`) rather than kept here, since the real file holds GitHub CLI's token.
+
 ## Fake
 
 The example build's accounts (D-117): made up for pictures of the app, never a capture.

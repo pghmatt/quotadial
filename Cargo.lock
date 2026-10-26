@@ -1584,6 +1584,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "quotadial-provider-copilot"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "proptest",
+ "quotadial-core",
+ "quotadial-poll",
+ "reqwest",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "wiremock",
+ "zeroize",
+]
+
+[[package]]
 name = "quotadial-provider-fake"
 version = "0.2.0"
 dependencies = [
