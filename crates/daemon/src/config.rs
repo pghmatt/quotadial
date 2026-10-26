@@ -182,11 +182,16 @@ impl Config {
                 "{} holds webhook addresses, which work like passwords, and other users can read \
                  it; run `chmod 600 {}`.",
                 path.display(),
-                path.display()
+                shell_word(&path, home)
             ));
         }
         // Each names config.json: the one pass its text goes through where it is made writes the
-        // home folder `~` (#52, D-129).
+        // home folder `~` (#52, D-129). It leaves the chmod command as `shell_word` wrote it: the
+        // pass writes `~` only for the home folder's own path, and the command holds that path
+        // nowhere the pass takes it for the home folder, `~` standing for it already and a place
+        // outside the home folder not starting in it. D-130 has the one exception, never a folder
+        // QuotaDial makes: a place whose text holds the home folder's path beside a space, a quote
+        // or the like, such as `/Users/ann (old)` beside `/Users/ann`.
         for warning in &mut config.warnings {
             *warning = text::tilde_in(warning, home);
         }
@@ -197,6 +202,27 @@ impl Config {
 /// The setting called `name`, if it is there and of the right kind.
 fn setting<T: DeserializeOwned>(settings: &Value, name: &str) -> Option<T> {
     serde_json::from_value(settings.get(name)?.clone()).ok()
+}
+
+/// `place` as a POSIX shell takes it, for a command a user pastes as written (D-130): in the home
+/// folder `home`, `~/` left unquoted, so the shell expands it, and the rest in single quotes, so a
+/// space does not split it, such as `~/'Library/Application Support/quotadial/config.json'`;
+/// anywhere else, or with no home folder or one that is a whole disk, the whole place in single
+/// quotes. A single quote in a name is written `'\''`: the quotes closed, a quote escaped, and the
+/// quotes opened again. Quoted whatever the place holds, so no character a shell reads can be
+/// missed. In the home folder by whole names, as [`text::tilde`] finds it, so `/Users/anna` is not
+/// in `/Users/ann`. `~/` on every system, being for a POSIX shell: the warning that uses it cannot
+/// occur on Windows.
+fn shell_word(place: &Path, home: Option<&Path>) -> String {
+    let quoted = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', r"'\''"));
+    match home
+        .filter(|home| home.parent().is_some())
+        .and_then(|home| place.strip_prefix(home).ok())
+    {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", quoted(rest)),
+        None => quoted(place),
+    }
 }
 
 /// Whether users other than the owner can read the file at `path`.
@@ -216,7 +242,7 @@ fn readable_by_others(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, PathBuf};
 
     use super::*;
 
@@ -425,26 +451,160 @@ mod tests {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
             (dir, path)
         };
-        let warning = |file: &str| {
+        let warning = |file: &str, word: &str| {
             format!(
                 "{file} holds webhook addresses, which work like passwords, and other users can \
-                 read it; run `chmod 600 {file}`."
+                 read it; run `chmod 600 {word}`."
             )
         };
 
-        // Written `~` where it is in the home folder (#52, D-129), a command that works as it is.
-        let (dir, path) = readable(home.join("quotadial"));
+        // Written `~` where it is in the home folder (#52, D-129), and in the command `~` and the
+        // rest quoted, so it works as written where a name has a space, as macOS's data folder's
+        // does (D-130).
+        let (dir, path) = readable(
+            home.join("Library")
+                .join("Application Support")
+                .join("quotadial"),
+        );
         assert_eq!(
             Config::loaded(&dir, Some(&home)).warnings,
-            [warning(&in_home(&["quotadial", "config.json"]))]
+            [warning(
+                "~/Library/Application Support/quotadial/config.json",
+                "~/'Library/Application Support/quotadial/config.json'"
+            )]
         );
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("chmod");
         assert!(Config::loaded(&dir, Some(&home)).warnings.is_empty());
-        // Another user's folder, whose name starts as the home folder's does.
+        // Another user's folder, whose name starts as the home folder's does: as it is, and the
+        // whole place quoted in the command.
         let (dir, path) = readable(temp.path().join("anna").join("quotadial"));
+        let file = path.display().to_string();
         assert_eq!(
             Config::loaded(&dir, Some(&home)).warnings,
-            [warning(&path.display().to_string())]
+            [warning(&file, &format!("'{file}'"))]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_warnings_chmod_command_works_as_written_in_a_shell() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+        // #52: every error names the fix, in one sentence a stranger can act on (D-130). The
+        // command, taken from the warning as a user sees it, run by `sh` with the same home folder,
+        // on a file in a folder whose name has a space, as macOS's data folder's does, then a quote
+        // too, in the home folder and outside it.
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("ann");
+        for folder in [
+            home.join("Library")
+                .join("Application Support")
+                .join("quotadial"),
+            home.join("Ann's QuotaDial"),
+            temp.path().join("O'Brien's data").join("quotadial"),
+        ] {
+            let dir = written_in(
+                folder,
+                r#"{"slack_webhook": "https://hooks.slack.com/services/T/B/X"}"#,
+            );
+            let path = dir.path().join("config.json");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+            let warnings = Config::loaded(&dir, Some(&home)).warnings;
+            let command = warnings
+                .first()
+                .and_then(|warning| warning.split_once("; run `"))
+                .and_then(|(_, run)| run.strip_suffix("`."))
+                .expect("the warning names a command");
+
+            // In the temporary folder, so a place the shell split could name nothing outside it.
+            let ran = Command::new("sh")
+                .arg("-c")
+                .arg(command)
+                .env("HOME", &home)
+                .current_dir(temp.path())
+                .status()
+                .expect("sh runs");
+
+            assert!(ran.success(), "{command}");
+            let mode = std::fs::metadata(&path)
+                .expect("there")
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600, "{command}");
+            assert!(
+                Config::loaded(&dir, Some(&home)).warnings.is_empty(),
+                "{command}"
+            );
+        }
+    }
+
+    /// `shell_word`'s word for `place`, held to the warning's pass leaving it as it was written.
+    fn word(place: &Path, home: Option<&Path>) -> String {
+        let word = shell_word(place, home);
+        assert_eq!(text::tilde_in(&word, home), word, "the warning's pass");
+        word
+    }
+
+    #[test]
+    fn a_place_in_the_home_folder_is_quoted_after_a_bare_tilde() {
+        // macOS keeps the data folder in `~/Library/Application Support`, whose space split the
+        // command, and a shell expands `~` only where it is not quoted (D-130).
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let rest: PathBuf = ["Library", "Application Support", "quotadial", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&home.join(&rest), Some(&home)),
+            format!("~/'{}'", rest.display())
+        );
+        assert_eq!(word(&home, Some(&home)), "~", "the home folder itself");
+    }
+
+    #[test]
+    fn a_place_outside_the_home_folder_is_quoted_whole() {
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        let beside: PathBuf = [MAIN_SEPARATOR_STR, "Users", "anna", "config.json"]
+            .iter()
+            .collect();
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "config.json"]
+            .iter()
+            .collect();
+        for place in [beside, elsewhere] {
+            assert_eq!(
+                word(&place, Some(&home)),
+                format!("'{}'", place.display()),
+                "a folder whose name only starts as the home folder's does, and another disk"
+            );
+        }
+        let place = home.join("config.json");
+        assert_eq!(
+            word(&place, None),
+            format!("'{}'", place.display()),
+            "no home folder"
+        );
+        assert_eq!(
+            word(&place, Some(Path::new(MAIN_SEPARATOR_STR))),
+            format!("'{}'", place.display()),
+            "a home folder that is a whole disk, which the warning's sentence leaves as it is too"
+        );
+    }
+
+    #[test]
+    fn a_single_quote_in_a_place_is_written_as_a_shell_reads_it() {
+        // `'\''`: the quotes closed, a quote escaped, and the quotes opened again.
+        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
+        assert_eq!(
+            word(&home.join("Ann's data").join("config.json"), Some(&home)),
+            format!(r"~/'Ann'\''s data{MAIN_SEPARATOR}config.json'")
+        );
+        let elsewhere: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "O'Brien", "config.json"]
+            .iter()
+            .collect();
+        assert_eq!(
+            word(&elsewhere, Some(&home)),
+            format!(
+                r"'{MAIN_SEPARATOR}Volumes{MAIN_SEPARATOR}O'\''Brien{MAIN_SEPARATOR}config.json'"
+            )
         );
     }
 

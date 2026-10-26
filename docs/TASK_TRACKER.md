@@ -217,11 +217,12 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 1: the groundwork, and Gemini CLI | Done (PR #75); Gemini held off by default | P-018: `Provider::commands`, run by the CLI as `quotadial <provider id> <name>` and listed in its help, completions and pages; Google's (`ya29.`, `1//`) and GitHub's (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) tokens redacted by shape, with every fixture held to it; `quotadial-provider-gemini`: an account when Gemini CLI is signed in, from the sign-in file's presence and one settings field, `unsupported` with one line naming `/model`, nothing read inside the sign-in and nothing sent; the `gemini` feature off until the manager settles what the app lacks; CI lints and tests the Gemini build; P-019 and D-118 to D-122 |
 | 1b: providers name themselves, and Gemini CLI on | Done (PR #77) | P-020 by the manager's five rules on #73 (D-124): `Provider::name`, `Account.provider_name` and `sign_in_use`, the report's `providers`, every surface showing them as given; the panel "What QuotaDial does with this sign-in"; an older account's id shown until the next poll; #52's plain words held over every name and sentence; Gemini CLI on in the release binaries and the app, with its docs, GEMINI_CLI_HOME in the help and pages, and the release check |
 | 1c: whom QuotaDial asks, and no cost offer where nothing could fill it | Done (PR #78) | P-021 (D-125): `Provider::asks()`, required, the company a provider asks or none, held by one test to `privacy::HOSTS` or to a manifest with no HTTP client; the daemon's and `watch`'s line names whom QuotaDial asks and says it asks no one about Gemini CLI; the week's cost offered only for an account of a provider that keeps logs; error lines named through the report left for a later PR, being three places |
-| 3: Antigravity, through its status line | In review (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
+| 3: Antigravity, through its status line | Done (PR #79) | D-126: `quotadial-provider-antigravity`, on in the release binaries and the app; `quotadial antigravity status-line` keeps each limit's share or amount and reset, the plan, the address and the time in `antigravity.json` (0600, temporary file and rename) before it runs any status line named after it, unchanged, and prints nothing of its own; an account from that file, or from Antigravity CLI's folder being there, with the block to add; windows from the status line (P-022), stale after two polls with the handover's time, a limit turned off or reset since left out, an amount-only limit named in words (P-023, deferred to #51); never a reader of Antigravity's sign-in or its app's server |
 | 2: Copilot | After 3 | Built from GitHub's docs and fixtures under the manager's Copilot rules on #73; `api.github.com` in `privacy::HOSTS` and `docs/PRIVACY.md` first; its merge held on its live check (#51) |
 | Cursor | Out of M6 (D-120) | Until Cursor says in writing that reading one's own usage with the editor's sign-in is allowed; asking is a #51 checkbox |
 | Error lines named through the report | Done (PR #82, D-128) | `StatusReport::error_lines()`, "{the provider's own name}: {what happened and what to do}", the one line `status` and `watch`, doctor and the app's problems show; `errors[].message` leaves the provider out, which `provider` and `providers` give, and an older daemon's id is taken off so the provider shows once; "could not read the sign-in from" in place of "credentials", every `Error` held to #52's plain words by a test; the home folder written `~` in every provider's error by one pass where it is made; the OpenAPI descriptions, the CLI guide, the skill and the MCP tools say so |
-| The home folder written `~` in QuotaDial's own messages | In review (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
+| The home folder written `~` in QuotaDial's own messages | Done (PR #83, D-129) | D-128's leftovers and the manager's two notes on #82: `text::tilde_in` once where each message's text is made, for `config.json`'s warnings, every history error, the daemon's start errors, why a running daemon gave no answer, the CLI's history errors and `quotadial daemon`'s first two lines, and the app's Export CSV; doctor through it in place of its own replace, so `/Users/anna` keeps its name; `~` and then the system's own separator, `~\` on Windows, in `tilde` and `tilde_in` (the manager on #83); a property test of `tilde_in` beside `unplain_words`'s |
+| `config.json`'s `chmod 600` command, working as written | In review (PR #84, D-130) | D-129's leftover: `shell_word` writes the place for a POSIX shell, `~/` unquoted and the rest in single quotes (`'\''` for a quote), or the whole place quoted outside the home folder, so `chmod 600 ~/'Library/Application Support/quotadial/config.json'` works when pasted on macOS; the warning's `tilde_in` pass leaves it as written, which a comment says and the tests hold; never shown on Windows, whose file mode check is Unix-only; a test runs the warning's own command with `sh -c` and finds the file 0600 |
 
 ## Kickoff
 
@@ -409,6 +410,82 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the `chmod 600` command in `config.json`'s warning works as written (D-130)
+
+- **The ask:** the coordinator's brief of 2026-10-26: the command `config.json`'s warning tells a
+  user to run works when pasted into the user's shell as written, with a space in the place and `~`
+  for the home folder, which D-129 left for a later PR (its first "Found going down #52" item).
+  Built on `fix/chmod-command` from `main` at 6063ad1 (#83), in review as #84.
+- **The command** (`crates/daemon/src/config.rs`): `shell_word(place, home)`, a private helper with
+  a doc comment, called where the warning is made. In the home folder, `~/` unquoted and the rest in
+  single quotes; outside it, or with no home folder or one with no parent (a whole disk, as
+  `text::tilde_in` takes it), the whole place in single quotes; a single quote as `'\''`; always
+  quoted. In the home folder by `Path::strip_prefix`, whole names, as `text::tilde` finds it. On
+  macOS the warning's command was
+  `chmod 600 ~/Library/Application Support/quotadial/config.json`, which chmod ran on
+  `~/Library/Application` and `Support/quotadial/config.json`, and is now
+  `chmod 600 ~/'Library/Application Support/quotadial/config.json'`. By hand on this Mac the form
+  worked in sh, dash, bash, zsh, ksh and tcsh, on a file in the scratchpad with a space and a quote
+  in its folder's name (fish is not installed here).
+- **The pass:** the warnings' one `text::tilde_in` loop is unchanged; its comment now says why it
+  leaves the command as `shell_word` wrote it, and points to D-130's one exception, a place whose
+  text holds the home folder's path beside a space, a quote or the like. A scratch program against
+  the real `tilde_in` (not committed) showed it: `'/Users/ann (old)/quotadial/config.json'` comes
+  out `'~ (old)/quotadial/config.json'`, and `~/'Backup (old)/Users/ann/quotadial/config.json'`
+  comes out `~/'Backup (old)~/quotadial/config.json'`, while macOS's command and a place in
+  `/Users/anna` come out as they went in. The tests' `word` helper holds every word they make to
+  `tilde_in` leaving it as written, on every system.
+- **Windows:** `readable_by_others` reads the file's mode only under `cfg(unix)` and says no
+  elsewhere, so the warning and its command never occur on Windows (D-130). `shell_word` and its
+  three tests still build and run there: their expected places are built from their parts with
+  `MAIN_SEPARATOR`, and the two tests that set a file's mode or run `sh` are `cfg(unix)`, with their
+  imports inside them. No Windows target is installed here, so Windows is CI's to build.
+- **Tests** (`config.rs`): new, `a_place_in_the_home_folder_is_quoted_after_a_bare_tilde`,
+  `a_place_outside_the_home_folder_is_quoted_whole`,
+  `a_single_quote_in_a_place_is_written_as_a_shell_reads_it` and, on Unix,
+  `the_warnings_chmod_command_works_as_written_in_a_shell`: the command taken from the warning
+  `Config::loaded` makes, run by `sh -c` with `HOME` set to the test's home folder and the
+  temporary folder as its working folder, on files in `ann/Library/Application Support/quotadial`,
+  `ann/Ann's QuotaDial` and, outside the home folder, `O'Brien's data/quotadial`, each then 0600
+  with its warning gone. Changed: `a_file_with_webhooks_that_others_can_read_gets_a_warning`, now in
+  macOS's `Library/Application Support`, with the command's own expected text. The new tests and the
+  changed one all failed first against a stub that wrote the place as before, which chmod split at
+  the space (".../ann/Library/Application: No such file or directory" and
+  "Support/quotadial/config.json: No such file or directory"); all but the outside test, which is
+  right to pass it, failed against a second stub that quoted the whole place, which the pass then
+  wrote `'~/Library/...'`, a place chmod could not find. Neither stub was committed.
+- **Counts:** in the workspace, 759 passed (1 ignored) on `main` at 6063ad1 and 763 (1 ignored)
+  now; the example build 756 (2 ignored) and 760 (2 ignored). By crate: the daemon 108 to 112, the
+  four new tests (the test of a file others can read is changed, not added); the CLI 67 (64, 1
+  ignored, in the example build), the API 59, core 135, Antigravity 64, Claude 138 (and 1
+  ignored), Codex 63, cost 30, fake 19, Gemini CLI 29, issue 6, poll 37 and `quotadial-providers` 4
+  unchanged. The tray app's `--lib` tests 87 in both builds, unchanged.
+- **Checks run here:** `cargo fmt --check` in both workspaces; clippy with `-D warnings` and
+  `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default
+  and `fake`; the tray app's `--lib` tests, default and `fake`, the latter with the example's CLI
+  bundled (`npm run cli -- --fake`, then `npm run cli` to bundle the default build's again), and
+  `tests/icon_press.rs` not run, as briefed; the tray app's `npm run build`; the site's
+  `npm run check`, `npm run build` and `npm test` (90), since it renders `CHANGELOG.md`, whose built
+  `/changelog` page shows the new line; `scripts/privacy.sh --check`,
+  `scripts/public-prd.sh --check`, the 0.2.0 release notes, the release scripts' tests (39, 1
+  skipped for GNU sha256sum) and shellcheck on `scripts/`. **Not run:** a Windows or Linux build,
+  which no target here makes (CI's); `cargo deny`, `cargo audit` and actionlint, not installed here
+  (no dependency, lockfile or workflow changed); `npm audit`, no npm dependency changed; the tray
+  app's `npm test` and `npm run check:window`, its window being unchanged; and the release-only
+  licence key test, which nothing here reaches.
+- **Found going down #52, left for a later PR:** Claude's sign-in command, `claude_in`, writes a
+  folder that needs quotes as the whole place, `CLAUDE_CONFIG_DIR='/Users/ann/My Claude' claude`,
+  with the user's name in it, and doctor's pass then writes `~` inside the quotes,
+  `'~/My Claude'`, which no shell expands (the scratch program showed it). D-130's form would mend
+  both: `CLAUDE_CONFIG_DIR=~/'My Claude' claude` works in sh, dash, bash and zsh, which expand `~`
+  after an assignment's `=`.
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the
+  scratchpad and no token in its environment; the new tests make their own home and data folders in
+  a temporary folder and run `sh` only there, and the shells by hand ran on files in the scratchpad
+  with `HOME` set there. No vendor CLI ran, no sign-in or keychain item was read, and nothing
+  touched `~/Library/Application Support/quotadial`.
 
 ### M6: the home folder written `~` in QuotaDial's own messages (D-129)
 
