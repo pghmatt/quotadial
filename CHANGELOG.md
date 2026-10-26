@@ -52,6 +52,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A log line with an impossible token count no longer makes the week's cost wrong.
 - Grey text on tags, warnings, the chosen period in History and the edges of text fields now have enough contrast to read, in both themes.
 - A long account name or address no longer runs off the side of Settings or History, and nothing in the window is cut off at 200%.
+- The command in the warning about a `config.json` other users can read now works when pasted into a terminal, such as `chmod 600 ~/'Library/Application Support/quotadial/config.json'` on macOS, where the space in `Application Support` used to split it.
 
 ## [0.2.0] - 2026-10-24
 
