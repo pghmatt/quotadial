@@ -237,7 +237,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A window's share is one token, in the window and in the picture | Done (PR #98) | The manager's decision on #73 (2026-10-27, 04:25 UTC), which D-136's self-review left for it: at 200% zoom a long label beside a share left it on two lines, "64" over "%" in this Mac's overlay bars and "6", "4" and "%" in the window check's. The body's `overflow-wrap: anywhere` let a flex row squeeze a share to the width of one character, so the number under the summary, each window's share and the shares in a History caption are `white-space: nowrap`, and a window's share keeps its width (`flex: none`), so that it is the label that wraps. The window check reads each share's own line boxes (`whole-shares.mjs`) at 100%, 200%, 300% and 500% zoom in every view of every copy, and holds every figure and its sign anywhere in the window's text to one line at 100% and 200%; it fails first on `main` (506 of 17,306 checks). The picture to share, drawn from the same numbers, cut a share short in Chrome's own font from 6 windows ("100…", then "highest 10…"), which its arithmetic and its unit tests could not show: it now measures each size where it is written, and an account of seven windows joins the check's copies, over History alone (D-138) |
 | The daemon's footprint over a day | Done (PR #99): levels off | The 24-hour run of QuotaDial Example's `quotadial daemon` (from 2026-10-26, 06:53 UTC; a sample every 10 minutes, 145 in all; `vmmap` every hour): the heap's allocated bytes rose about 235 KiB an hour for ten hours, from 538 KiB to 2,875 KiB, and then held at 2,880 to 2,888 KiB for the next fourteen, SQLite's default page cache of about 2 MB a connection full, as #80 predicted; the footprint 3.72 to 6.84 MiB, 6.10 MiB on average and 6.81 to 6.84 MiB over the last six hours, against #52's 40 MB (D-123); CPU 3.78 s in 24 hours, 0.004% of one core. No `cache_size` change; every reading is in the log's note |
 | Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
-| Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
+| A pixel verdict for the dashed 90% line in `share-picture.mjs` | Done (PR #104) | The manager's decision on #73 (2026-10-27, 11:26 UTC), item 2, on what the review of #97 queued: the share picture's dashed 90% line is read pixel by pixel along the whole of each chart, in both themes, and judged on three things a chart: a dash wherever the 6/6 pattern puts one, from the chart's left end and within a pixel of anti-aliasing; the card's fill or the soft fill in each gap, so that it is not solid; and each dash in `--chart-limit`, over the card and over the fill, exactly, since the dash is opaque and a pixel it covers whole is no blend (the gaps, which are blends, within 2). It leaves out only the pixels a chart's own line comes within a pixel of, worked out from the readings, and those within a pixel of a dash's end; a chart that leaves no dash or gap to judge fails, saying how much its line covers, and the window check says how much it read: 58,264 of the lines' 74,964 pixels, 616 of them over the fill, with 2,040 left out under a chart's line. The colours and `SHADING` are read as `check-contrast.mjs` reads them, and nothing in `share.ts` changes. The account of seven windows has its Weekly full from half way, so its dashed line crosses the soft fill for half the chart, where on `main` no line crossed it for long enough to judge a dash. The window check passes 18,918 checks over 26 views, up from 18,750, and fails on a copy of the tree with `share.ts` broken: the dash gone (56 checks), solid (56) and #97's `--bar-warning` (28, light only). 11 tests more, 111 in all; against `main`'s verdicts 12 of `share-picture.test.mjs`'s 33 fail, the pictures drawn without the dash, solid and in #97's colour each earning no verdict at all. Check tooling only: no CHANGELOG line, no D |
 | History's caption keeps a short label whole at 200% | Done (PR #102, D-139) | The manager's decision on #73 (2026-10-27, 08:30 UTC), on the review of #98 (06:24 UTC): at 200% History's caption broke a short label in the middle, "Wee" over "kly". The body's `overflow-wrap: anywhere` is gone: it is on fifteen selectors, the lines that can carry text from outside, or a file name or a host, with no spaces in it (an account's heading, a window's label, the summary's line, a provider's incident, a note, a problem, a sign-in panel, the week's cost, a command, what History says under its period and about each heatmap, Settings' cards, Help's cards and the update on offer), so QuotaDial's own words keep the browser's default and break between words; History's caption wraps, so its label, which can be a model's name, and the shares beside it are never squeezed together. The window check's new `checkWords` holds the captions the window draws to the ones each copy has, in order, with their words, and no word of four letters or more in one is drawn on two lines at 100% and 200% unless its run, the word with what is written against it up to a space, such as a model's name with its brackets, is wider than its caption (as Windows' CI found after the review); it failed first on `main`'s window (100 of 18,750 checks, all at 200% in History). The Many copy has text from outside as long as it gets, with no space to break at, in each place the window shows some, so the long-name rule is held at 100% and 200% in every place, each failing when taken off the list, and a command is held at 200% too. The manager's fallback, `break-word` on the caption's label alone, was tried and is not enough. The website's pictures are unchanged |
 | The window check's `--window-zoom 3` | Done (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
 | The window check's `--window-zoom` refuses what is not a zoom | Done (PR #103) | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139), and on #73 (11:26 UTC) a negative is tested too. `zoomOf` in `scripts/viewport.mjs` refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%, not "abc"`, and the check asks it before it makes a folder or looks for Chrome; a unit test and a run of the check itself with `abc`, `0`, `-2` and nothing after the flag hold it, the second failing first on `main`'s check. Check tooling only: no CHANGELOG line, no D |
@@ -452,6 +452,159 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: a pixel verdict for the share picture's dashed 90% line
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 11:26 UTC), item 2, on what the review of #97 queued (#97 measured the
+  dashed line from the pictures' pixels and left nothing to check them): "Approved, check tooling only, so no D and no CHANGELOG line.
+  Hold it to these: Read the pixels along the whole line in each chart, not one point, and in both themes. In the fixture you check,
+  at least one chart must have a reading above 90% and one below, so the dash is judged where it crosses the card *and* where it
+  crosses the soft fill. If the Pro copy's seven windows give neither, add the reading to the fixture rather than loosening the check.
+  The verdict is on three things: the dash is there (the line's pixels alternate between `--chart-limit` and the ground on the 6/6
+  pattern, within a pixel of anti-aliasing), it is not solid, and its colour is `--chart-limit` within the blend's rounding, over the
+  card and over the fill, the rounding stated as a number in the check with why. It must fail first on a picture drawn without the
+  dash, with a solid line, and with #97's old colour, each a test. Nothing in `share.ts` changes. The check reads `SHADING` and the
+  stylesheet's colours as `check-contrast.mjs` does, so one number moving fails one test rather than two silently agreeing." And the
+  coordinator's brief of the same day: commits local only, heavy builds held until it allowed them (before any picture was made), and
+  the verdict to leave out only the pixels a chart's own line covers, worked out from the readings as `emptyPlaces` works out where a
+  line runs, and to say how much it leaves out, so that it cannot pass by leaving out the whole line. Item 3 of the same decision, the
+  chart line on its own soft fill, is the coordinator's own pull request, so this one does not touch `check-contrast.mjs`,
+  `docs/DECISIONS.md` or `docs/ACCESSIBILITY.md`. Built on `test/dash-pixel-verdict` from `main` at 3d8f566 (#102), in four commits:
+  the fixture's reading (9a3c1ac); the verdict, its tests and the window check's use of it (f60748c); the window check's count of what
+  it read (1872749); and these records. In review as #104.
+- **What the picture draws, measured before the verdict was written,** in the 16 pictures `--share-images` saves from `main` (Chrome
+  156.0.8078.48): the dashed line runs from a chart's left end to its right, 4 pixels thick about y 663.6 (rows 662 to 664 whole, 661
+  and 665 in part), 12 pixels on and 12 off, and it starts with a dash at the left end, as a canvas starts a pattern where its line
+  starts: the first column's, from x 160.0, covers pixels 160 to 171 whole, and the second's in the account of seven windows, from
+  467.43, covers 468 to 478 whole and 467 and 479 in part. Every pixel a dash covers whole is `--chart-limit` exactly, in both themes,
+  over the card and over the fill; every pixel of a gap is within 1 of the card's fill (`#f9f9f9` in light, `#39393b` in dark) or the
+  soft fill (`#d1e5fa`, `#31455a`) worked out in full. On `main`'s fixtures the dashed line can be judged over the fill in one chart
+  alone, the seven-window account's Weekly, in the last tenth of its chart and mostly under its own line, which leaves 11 pixels of
+  gap and no dash over the fill to judge in each of its four pictures: the case the manager named.
+- **The verdict** (`scripts/share-picture.mjs`):
+  - *Where the line is* (`dashPlaces`): from a chart's box and readings, as `share.ts` draws them, every pixel the dashed line covers
+    whole, in each of its rows. Those the chart's own line comes within a pixel of are left out (the line's 3 pixels each side, half a
+    pixel's diagonal and a pixel more; a single reading's ring reaches 9), and so are those within a pixel of an end of a dash, a gap,
+    the line or the fill, which anti-aliasing blends. Each of the rest is a dash or a gap of the pattern, which starts with a dash at
+    the left end, and is over the soft fill when it is inside the fill's outline by the canvas's nonzero rule, or else over the card.
+  - *Three verdicts a chart,* each naming the first place that fails from the left: a dash wherever the pattern puts one ("has no dash
+    1% along Session's 90% line, where the 6/6 pattern puts one: #38383a there is the card's fill #39393b"); what the line is drawn
+    over in each gap, so that it is not solid ("has #ff9f0a in a gap 10% along Session's 90% line, where the 6/6 pattern leaves the
+    card's fill #39393b to show, so the line is not dashed there"); and each dash in `--chart-limit` ("draws the dash 1% along
+    Session's 90% line in #ff9f0a over the card's fill #f9f9f9, not in --chart-limit #b87000"), over the card and over the fill. A
+    pixel in a dash counts as drawn when it is not what the line is drawn over there, within `BLEND`, so a picture with no dash fails
+    the first verdict only, a solid one the second only and one in the wrong colour the third only. A chart whose own line leaves no
+    dash or no gap to judge fails, saying how much it covers ("has no dash of Level's 90% line to judge: its own line, drawn over it,
+    covers 5952 of the 5952 pixels the 90% line covers whole").
+  - *The rounding, stated in the check with why:* `DASH_ROUNDING` is 0. The dash is opaque, so the canvas writes a pixel it covers
+    whole in the dash's own colour, whatever is under it, as it writes the material at the corners, which is held to 0 too; a pixel
+    it covers in part is a blend and is not judged. A gap shows a see-through colour laid over another, which the canvas rounds, and
+    is held within `BLEND`, 2, as the card's fill is. `ANTI_ALIASING`, 1, is the manager's "within a pixel": a pixel is judged only
+    when every end near it is more than a pixel from its square.
+  - *The colours* (`dashColours`): `--chart-limit` and `--bar-normal` from the stylesheet through `stylesheet.mjs`'s `themes()`, and
+    `SHADING` from `share.ts`, as `check-contrast.mjs` reads them; the soft fill is `--bar-normal` at `SHADING` over the card's fill.
+    So a colour or `SHADING` moved in either file is followed here and judged by the contrast check alone. The geometry `share.ts`
+    does not export (90%, the dashed line's 2 px and 6/6, the chart line's 3 px and a single reading's ring of 3) is written in the
+    check as its own text, as `MATERIAL` is; `share.test.mjs` already holds the same numbers in the drawing's calls.
+  - *In the window check* (`check-window.mjs`): `pixelVerdicts` hands the verdict the theme's colours, which makes three checks a chart
+    more, and after its checks the run says how much of the lines it read: "The pictures' dashed 90% lines cover 74964 pixels whole:
+    58264 were judged, 616 of them over the soft fill under a chart's line, 2040 left out where a chart's own line covers its 90%
+    line, and the rest within a pixel of a dash's end."
+- **How much it leaves out, and why that much:** in the account of seven windows a chart's own line covers 33 to 85 of the 414 or
+  417 pixels its dashed line covers whole (8% to 21%; Weekly (Sonnet) the most, its line crossing 90% three times), and the ends of
+  the dashes take 66 to 96; over all 16 pictures, 2,040 of 74,964 pixels are under a line (2.7%), 14,660 at the ends (19.6%) and
+  58,264 are judged (77.7%). The margins were tried on the pictures, `main`'s before they were written and the branch's after. On the
+  branch's 16, with the line's edge taken half a pixel past its 3 pixels, 18 pixels its blending reaches are judged and fail, in 14
+  charts, and 4 in 4 at 0.6; from half a pixel's diagonal, 0.71, which is how far a pixel's square reaches from its middle, none do
+  (on `main`'s, some failed at half a pixel and none from three quarters), and the verdict keeps a pixel more. At the ends of the
+  dashes, judging every pixel but the one an end falls in passes too, on both; the verdict keeps a pixel either side.
+- **The fixture:** the seven-window account's Weekly, at 100% now, has been full since the middle of the period (`fullSince` in
+  `window-fixtures.mjs`): its readings climb to 100% by half way and stay there, so its dashed line crosses the soft fill for half the
+  chart, 81 pixels of dash and 73 of gap judged there in each of its four pictures (7 and 30 days, both themes), 616 in all, and
+  crosses the card for the first half and in the other six charts. No text the window or the picture writes changes: its latest and
+  highest are 100% as before, and the window check's other checks of the copy pass as they did.
+- **The tests** (`scripts/share-picture.test.mjs`, 33, up from 22): the pictures here are drawn as Chrome draws them now, the dashed line
+  12 on and 12 off from the chart's left end and blended where it covers a pixel in part, the soft fill laid at `SHADING` and the
+  chart's line 6 pixels thick with round ends, where they drew the dash 6 on and 6 off at whole pixels before. New: the copy the
+  window check judges has, in what the verdicts read, a chart judged over two dashes and two gaps of the fill and one of the card,
+  over 7 days and over 30; every chart's line passes along the whole of it in both themes; a picture drawn without the dashed line,
+  with it solid, in #97's `#ff9f0a` (on the light card and the light fill; dark, whose colour it still is, passes) or a step off
+  `--chart-limit` fails its own verdict and no other, in every chart, and the first three also when they are broken over the fill
+  alone; the fill laid over the dashed line, as before #97, fails the colour verdict of the one chart whose line crosses it, and no
+  other; the pattern a pixel early or late, or 6.5 on and 5.5 off, passes, and two pixels out, 3/3 (the old
+  drawing's 6/6 of device pixels), 7/5, 8/8 and half a period out each fail in every chart; a mark on the first, middle or last
+  pixel judged, in a dash or a gap, over the card or the fill, is found, in that chart only; a chart's own line leaves out no pixel it
+  does not touch or come within two of, and none at all when it stays under 90%; and a line along 90% leaves nothing to judge and
+  fails, saying how much it covers, while a single reading's ring is left out only where it reaches. Changed: the count of verdicts a
+  picture earns (four a chart), the plate tests, which also find a plate in the gaps of that chart's dashed line, and three tests that
+  judged a picture of other charts now draw the charts they judge.
+- **Proof:**
+  - *The tests failed first,* against `main`'s verdicts: in a copy of the tree in the scratchpad with the verdicts' new loop taken out
+    of `share-picture.mjs` (its helpers kept, so the tests load), 12 of the 33 fail. The pictures drawn without the dash, solid and in
+    `#ff9f0a` each earn no verdict at all, nor do the fill laid over the dash, a dash a step off, a pattern two pixels out, the marks
+    and a line along 90%; the right picture fails on the count (11 verdicts where 32 are due), and so do the count and the two plate
+    tests, which now expect the dashed line's verdicts too. The fixture's test and the test of what is left out pass, since they hold
+    `dashPlaces` and the fixture, not a verdict.
+  - *The window check fails on each hand-made break,* in three copies of the tree in the scratchpad with `share.ts` broken by hand,
+    each built and checked in full: the dash gone (its `rule` call taken out) fails 56 of 18,918 checks, each chart's dash verdict in
+    every picture of the Pro and seven-window copies in both themes; solid (`setLineDash([6, 6])` taken out) fails 56, each chart's
+    gap verdict; and `limit: "--bar-warning"`, as `share.ts` had it before #97, fails 28, each chart's colour verdict in light alone,
+    since `#ff9f0a` is still dark's `--chart-limit`. Nothing else fails in any of the three.
+  - *The window check passes* on this branch, 18,918 checks over 26 views in 205 seconds, where `main` passes 18,750 in as long: 168
+    more, three for each of the 56 charts its pictures draw. The website's accounts (`--fixtures ./scripts/site-fixtures.mjs`, which
+    the website's pictures are made with) pass 4,626 checks over 8 views, their lines never crossing the soft fill; nothing of the
+    website's pictures changes, since nothing in the window does (`dist/` is `main`'s build: the same `index-B8SbbVId.js` and
+    `index-CStOEq7O.css`).
+  - *The fixture alone,* the first commit with `main`'s scripts: the tray's 100 tests pass.
+- **Counts:** the tray's `npm test` 111, up from 100 on `main` at 3d8f566 (`share-picture.test.mjs` 33, up from 22, in 18 seconds
+  where it took 10); the window check 18,918 checks over 26 views, up from 18,750, in 3 minutes 25 seconds, as `main`'s took; the
+  website's accounts 4,626 over 8 views; the contrast check 30 pairs a theme and the window's JavaScript 38.5 KB of its 150, both as on
+  `main`. No Rust changed, so the Rust counts are `main`'s own.
+- **Checks run here,** each through the scratchpad's `safe.sh`, one heavy job at a time: on `main` at 3d8f566 the tray's
+  `npm run build`, `npm test` and `npm run check:window -- --share-images`; on this branch `npm test` and `npm run build` again,
+  `npm run check:window` with the pictures saved, over the website's accounts, on each of the three hand-made breaks (each built
+  first) and on the final commit, `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; and, with no browser, the tests
+  against `main`'s verdicts and `main`'s tests with the fixture alone, in copies in the scratchpad. All passed but the four runs made to
+  fail, which failed as above.
+- **Not run:** `cargo fmt`, clippy and `cargo test` (no Rust changed; CI runs them on three systems); the website's checks (nothing
+  under `site/` and no `CHANGELOG.md` line); the release scripts' tests at the repository's root (nothing in `scripts/` there
+  changed); the window check on Windows and Linux (CI's); `tests/icon_press.rs`, the app itself and QuotaDial Example (never
+  launched).
+- **Safety on this Mac:** every npm run and every run in Chrome went through `safe.sh`: QuotaDial's, Claude's, Codex's, Gemini's,
+  GitHub's and the XDG folders in the scratchpad, no token in the environment, four build jobs. No provider's CLI ran, no sign-in or
+  keychain item was read, and nothing touched `~/Library/Application Support/quotadial`, the example's folders or the owner's
+  Downloads folder. No `rm` was run by hand or in a script of mine: the project's own code removed its own temporary files,
+  `check-window.mjs` its Chrome profile in each of its seven runs, `chrome.test.mjs` its folder in each run of the tray's tests,
+  `vite build` the old `dist/` before writing it, and `privacy.sh`'s `trap` its two `mktemp` files. The copies of the tree were made
+  with `cp` and `git archive` in the scratchpad, with `node_modules` linked where a build needed it, and left there; the repository
+  was never changed to break it. The other command lines were `git` (fetch, switch, diff, commit), `gh`, reading #73's comment and
+  #52, and `node` and `python3` scripts of mine that read the pictures and wrote only in the scratchpad.
+- **Calls where the brief left room:**
+  - *0 for a dash's colour,* where the manager wrote "within the blend's rounding": a pixel the opaque dash covers whole is not a
+    blend, which Chrome's pictures bear out, so its rounding is 0, written in the check with why; the gaps, which are blends, keep
+    `BLEND`'s 2. A dash one step off fails, and a test says so.
+  - *"Within a pixel of anti-aliasing"* read as: an end of a dash may fall anywhere within a pixel of where the pattern puts it, so a
+    pixel is judged only when every end is more than a pixel from its square. The pattern's start is held too, at the chart's left
+    end with a dash, where Chrome draws it.
+  - *All the rows the dash covers whole,* three, not its middle row alone: "the line's pixels".
+  - *The ground* in the manager's "between `--chart-limit` and the ground" is read as what the line is drawn over, the card's fill or
+    the soft fill, and not the material, which `share-picture.mjs` calls the ground.
+  - *Three verdicts a chart, each failing alone:* a dash is judged drawn when it is not what is under it, so a missing dash, a solid
+    line and a wrong colour each fail one verdict, each a test.
+  - *The reading added:* the Weekly window at 100% made full from half way, the one change to the fixture, since a window that only
+    passes 90% crosses the fill too briefly to judge a dash there.
+  - *What is left out is said twice:* in the verdict when a chart leaves nothing to judge, and by the window check after every run,
+    in one new line of output that is not itself a check.
+  - *The tests' drawing of a chart was redrawn* to Chrome's pattern; it had drawn the dash 6 on and 6 off in device pixels, which the
+    verdicts before this one never read.
+  - *No D and no `CHANGELOG.md` line,* as the manager said; nothing in `share.ts`, `check-contrast.mjs` or the stylesheet.
+- **#52's list, gone down:** *found and fixed:* the share picture's dashed line had no check of its own pixels, and the fixture the
+  window check judges crossed the fill too briefly to judge a dash there; both are held now. *Held:* every colour pair in both themes
+  (30 a theme), the window's JavaScript within its budget, the window itself (`dist/` unchanged), and every check the window check
+  made before, which passes as it did; no new dependency, network address or secret; one concern a commit, in Conventional Commits.
+  *Left for later:* nothing found here. Item 3 of the same decision, the chart line on its own fill, is the coordinator's own pull
+  request.
+- **The tracker:** the queued row is "Done (PR #104)", without its "Queued:".
 
 ### M6: the window check's `--window-zoom` refuses what is not a zoom
 
