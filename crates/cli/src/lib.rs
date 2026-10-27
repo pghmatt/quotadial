@@ -1103,8 +1103,9 @@ fn write_json_line(report: &StatusReport, out: &mut impl Write) -> io::Result<()
     writeln!(out)
 }
 
-/// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated
-/// and how often each provider is asked. `redraw` clears the terminal first.
+/// One `watch` refresh: the status, or why the running daemon gave none, then when it was updated,
+/// as a person reads a time (D-142), and how often each provider is asked. `redraw` clears the
+/// terminal first.
 fn write_frame<P: AsRef<dyn Provider>>(
     report: Result<(&StatusReport, Origin), &Unanswered>,
     providers: &[P],
@@ -1123,7 +1124,7 @@ fn write_frame<P: AsRef<dyn Provider>>(
     writeln!(
         out,
         "\nUpdated {}. Refreshes every minute. {} Press Ctrl-C to stop.",
-        timestamp(now),
+        text::date_and_time(now),
         asking(providers)
     )
 }
@@ -1251,6 +1252,8 @@ fn write_text(
     Ok(())
 }
 
+/// `at` as RFC 3339 in UTC, for `history`'s lines, which `--since` takes back in the same form, so
+/// they stay as they are (D-142).
 fn timestamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
@@ -2140,8 +2143,8 @@ mod tests {
         let redrawn = frame(true);
         assert!(redrawn.starts_with("\x1b[2J\x1b[HScripted user@example.com (max): ok\n"));
         assert!(redrawn.ends_with(
-            "\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It asks Acme at most every 5 \
-             min. Press Ctrl-C to stop.\n"
+            "\nUpdated 1 Jan 2099 at 00:04 UTC. Refreshes every minute. It asks Acme at most \
+             every 5 min. Press Ctrl-C to stop.\n"
         ));
         assert!(!frame(false).contains('\x1b'), "no escape codes when piped");
     }
@@ -2653,8 +2656,8 @@ mod tests {
             format!(
                 "error: the QuotaDial daemon is running, but its API at \
                  http://127.0.0.1:{port}/v1/status could not be reached; restart it with \
-                 `quotadial daemon`.\n\nUpdated 2099-01-01T00:04:00Z. Refreshes every minute. It \
-                 asks Acme at most every 5 min. Press Ctrl-C to stop.\n"
+                 `quotadial daemon`.\n\nUpdated 1 Jan 2099 at 00:04 UTC. Refreshes every minute. \
+                 It asks Acme at most every 5 min. Press Ctrl-C to stop.\n"
             )
         );
     }
