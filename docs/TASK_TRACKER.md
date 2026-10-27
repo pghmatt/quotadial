@@ -234,10 +234,12 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The share picture in the cards' language | Done (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
 | The toolbar stays at the window's foot while the accounts scroll | Done (PR #94, D-136) | The toolbar and the origin line, which scrolled away with the accounts once the window reached its 640 px, stay at its foot while the summary and the accounts or a panel scroll above them: layout and not overlap, so nothing is drawn under the toolbar and the material needs no backdrop, with a hairline over the toolbar only while content is hidden below it. Chosen from two layouts in pictures (the footer alone, or with the summary pinned too). Held by the manager on #73 to 200% zoom, and pinned in any window 300 px tall or more; below that the page scrolls as one, since the app zooms on to 500% and past. The app is told what the scrolling part holds beyond its edge (`neededHeight`, which the new check found a pixel short at first), each view opens at its top, and the part is a Tab stop only when nothing in it is. The window check gains a copy of nine accounts and checks of the frame at every place along the scroll, the keys, the wheel, the reading order and what the app is told, each first failed on a window broken on purpose; `--window-pictures` takes pictures of the window as it is shown. The first CI run (#94 at 299b8d5) failed on three causes, found and fixed in the same PR (D-136): a classic scroll bar narrowing what the window holds once it scrolls, a Tab stop left stale when no size changed, and the check reading a glide too early |
 | The dashed 90% line at 3:1 | Done (PR #97) | The manager's decision on #73 (2026-10-27, 04:25 UTC), on what #94's and #95's self-reviews found: the line that marks the alert threshold is a graphical object (WCAG 1.4.11), and it was 1.96:1 on a light card and 1.60:1 on the share picture's soft fill. It has a colour token of its own, `--chart-limit`, which History's stylesheet and the share picture both read: `#b87000` in light, the old orange's hue darkened only as far as 3:1 on the fill needs (3.73:1 on the card, 3.04:1 on the fill), and in dark the system's `#ff9f0a` as it was (5.64:1 and 4.81:1, already enough). The picture draws the line over its soft fill and not under it, so a share above 90% no longer tints it. `check-contrast.mjs` holds three pairs a theme more, 30 in all, and fails first on the old colour (1.96:1, 1.96:1, 1.60:1); the website's light History picture is captured again. No D: nothing the PRD left open. |
-| A window's share is one token, in the window and in the picture | In review (PR #98) | The manager's decision on #73 (2026-10-27, 04:25 UTC), which D-136's self-review left for it: at 200% zoom a long label beside a share left it on two lines, "64" over "%" in this Mac's overlay bars and "6", "4" and "%" in the window check's. The body's `overflow-wrap: anywhere` let a flex row squeeze a share to the width of one character, so the number under the summary, each window's share and the shares in a History caption are `white-space: nowrap`, and a window's share keeps its width (`flex: none`), so that it is the label that wraps. The window check reads each share's own line boxes (`whole-shares.mjs`) at 100%, 200%, 300% and 500% zoom in every view of every copy, and holds every figure and its sign anywhere in the window's text to one line at 100% and 200%; it fails first on `main` (506 of 17,306 checks). The picture to share, drawn from the same numbers, cut a share short in Chrome's own font from 6 windows ("100…", then "highest 10…"), which its arithmetic and its unit tests could not show: it now measures each size where it is written, and an account of seven windows joins the check's copies, over History alone (D-138) |
-| Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
+| A window's share is one token, in the window and in the picture | Done (PR #98) | The manager's decision on #73 (2026-10-27, 04:25 UTC), which D-136's self-review left for it: at 200% zoom a long label beside a share left it on two lines, "64" over "%" in this Mac's overlay bars and "6", "4" and "%" in the window check's. The body's `overflow-wrap: anywhere` let a flex row squeeze a share to the width of one character, so the number under the summary, each window's share and the shares in a History caption are `white-space: nowrap`, and a window's share keeps its width (`flex: none`), so that it is the label that wraps. The window check reads each share's own line boxes (`whole-shares.mjs`) at 100%, 200%, 300% and 500% zoom in every view of every copy, and holds every figure and its sign anywhere in the window's text to one line at 100% and 200%; it fails first on `main` (506 of 17,306 checks). The picture to share, drawn from the same numbers, cut a share short in Chrome's own font from 6 windows ("100…", then "highest 10…"), which its arithmetic and its unit tests could not show: it now measures each size where it is written, and an account of seven windows joins the check's copies, over History alone (D-138) |
+| The daemon's footprint over a day | Done (PR #99): levels off | The 24-hour run of QuotaDial Example's `quotadial daemon` (from 2026-10-26, 06:53 UTC; a sample every 10 minutes, 145 in all; `vmmap` every hour): the heap's allocated bytes rose about 235 KiB an hour for ten hours, from 538 KiB to 2,875 KiB, and then held at 2,880 to 2,888 KiB for the next fourteen, SQLite's default page cache of about 2 MB a connection full, as #80 predicted; the footprint 3.72 to 6.84 MiB, 6.10 MiB on average and 6.81 to 6.84 MiB over the last six hours, against #52's 40 MB (D-123); CPU 3.78 s in 24 hours, 0.004% of one core. No `cache_size` change; every reading is in the log's note |
 | Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
 | Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
+| Queued: History's caption keeps a short label whole at 200% | Queued | The manager's review of #98 (2026-10-27, 06:24 UTC): at 200% History's caption breaks a short label mid-word ("Wee" over "kly"), the same before and after #98. The body's `overflow-wrap: anywhere` is for addresses and long names that would otherwise be cut off; a short label should wrap between words first. Find whether `overflow-wrap: break-word` on the caption's label, or `anywhere` kept to the address and name lines, keeps #52's long-name rule while leaving "Weekly" whole, held by the window check |
+| Queued: the window check's `--window-zoom 3` | Queued | The manager's review of #98: `--window-zoom 3` fails with "Invalid parameters", since 640 / 3 is not a whole number of CSS pixels; round the viewport the check asks for, so the zoom that proved #98's fix to the summary can also make pictures |
 
 ## Kickoff
 
@@ -449,6 +451,65 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the daemon's footprint over a day levels off
+
+- **The ask:** M6's queued row, from #80 (PR D): the daemon's footprint was still rising at ten hours,
+  so a 24-hour run of the same build would say whether it levels off. The manager on #73 (2026-10-27,
+  04:25 UTC): close the row as "levels off" with every reading from the run's own samples, the hour
+  the heap stopped and the CPU figure, or keep it queued and say so if the last hours show the heap
+  moving again.
+- **The run:** QuotaDial Example's bundled command (the same build as #80's ten-hour run, in the
+  example's own bundle), running `quotadial daemon` as the command-line install runs it, in a home and
+  data folder of its own, on a port the system chose, from 2026-10-26, 06:53:06 UTC to 2026-10-27,
+  06:53:17 UTC. `daemon-alone.sh --minutes 1440 --every 600` took a sample every 10 minutes (145 in
+  all: `ps -o time=,rss=` and the physical footprint from `proc_pid_rusage`) and stopped the daemon
+  by its own PID at the end; a second script took `vmmap --summary` every hour. Both are kept outside
+  the repository with the builder's notes, with the run's samples and logs.
+- **Every reading,** an hour to a row: the footprint's lowest and highest of the samples in that hour,
+  `vmmap` at the hour's start, and the CPU used so far.
+
+| Hour | Footprint in the hour, MiB (lowest to highest) | `vmmap` at the hour's start: footprint, KiB | malloc allocated, KiB | Blocks | CPU so far, s |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 3.72 to 4.14 | 3,760 | 538 | 2,384 | 0.07 |
+| 1 | 4.19 to 4.41 | 4,272 | 778 | 2,435 | 0.16 |
+| 2 | 4.44 to 4.67 | 4,528 | 1,013 | 2,482 | 0.26 |
+| 3 | 4.72 to 4.94 | 4,816 | 1,248 | 2,529 | 0.36 |
+| 4 | 4.97 to 5.20 | 5,072 | 1,478 | 2,575 | 0.49 |
+| 5 | 5.23 to 5.42 | 5,344 | 1,708 | 2,621 | 0.61 |
+| 6 | 5.47 to 5.67 | 5,584 | 1,945 | 2,668 | 0.73 |
+| 7 | 5.75 to 5.95 | 5,872 | 2,180 | 2,715 | 0.86 |
+| 8 | 5.98 to 6.23 | 6,112 | 2,405 | 2,760 | 1.01 |
+| 9 | 6.27 to 6.47 | 6,400 | 2,640 | 2,807 | 1.14 |
+| 10 | 6.50 to 6.53 | 6,640 | 2,875 | 2,854 | 1.29 |
+| 11 | 6.53 to 6.53 | 6,672 | 2,880 | 2,855 | 1.45 |
+| 12 | 6.53 to 6.55 | 6,672 | 2,880 | 2,855 | 1.61 |
+| 13 | 6.55 to 6.73 | 6,688 | 2,880 | 2,855 | 1.79 |
+| 14 | 6.73 to 6.73 | 6,881 | 2,888 | 2,945 | 1.96 |
+| 15 | 6.75 to 6.75 | 6,897 | 2,888 | 2,945 | 2.14 |
+| 16 | 6.75 to 6.75 | 6,897 | 2,888 | 2,945 | 2.32 |
+| 17 | 6.75 to 6.81 | 6,897 | 2,888 | 2,945 | 2.50 |
+| 18 | 6.81 to 6.81 | 6,961 | 2,888 | 2,945 | 2.70 |
+| 19 | 6.81 to 6.81 | 6,961 | 2,888 | 2,945 | 2.90 |
+| 20 | 6.81 to 6.81 | 6,961 | 2,888 | 2,945 | 3.11 |
+| 21 | 6.81 to 6.84 | 6,961 | 2,888 | 2,945 | 3.32 |
+| 22 | 6.84 to 6.84 | 6,993 | 2,888 | 2,945 | 3.54 |
+| 23 | 6.83 to 6.84 | 6,993 | 2,888 | 2,945 | 3.76 |
+| 24 | 6.83 to 6.83 |  |  |  | 3.79 |
+
+- **The hour the heap stopped:** hour 10. The heap's allocated bytes rose about 235 KiB an hour, from
+  538 KiB at the start to 2,875 KiB at hour 10, then held: 2,880 KiB from hour 11 to hour 13, and
+  2,888 KiB (2,945 blocks) from hour 14 to the end. That is SQLite's default page cache, about 2 MB a
+  connection, full, as #80's note predicted. The footprint followed it to 6.50 MiB at hour 10 and has
+  moved by 0.34 MiB in the fourteen hours since, by single pages, 6.81 to 6.84 MiB over the last six.
+- **The day:** CPU 3.78 s in 24 hours, 0.004% of one core (#52: under 0.5% over an hour); the
+  footprint 3.72 to 6.84 MiB, 6.10 MiB on average (#52: under 40 MB, judged on the footprint, D-123);
+  resident 13.1 MiB on average.
+- **Decided:** it levels off, so the row closes with no `cache_size` change; 6.84 MiB is about a sixth
+  of #52's 40 MB. Records only: no code, no CHANGELOG line.
+- **Also in this PR:** #98's row is marked Done, and two rows join M6's queue from the manager's review
+  of #98 (06:24 UTC): History's caption keeping a short label whole at 200%, and the window check's
+  `--window-zoom 3`.
 
 ### M6: a window's share is one token, in the window and in the picture (D-138)
 
