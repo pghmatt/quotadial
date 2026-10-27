@@ -118,7 +118,7 @@ const ACCOUNTS = [
       },
     ],
     // A line of its own under the windows, so the caption is checked under it too.
-    extra_usage: "on, 12.50 of 50.00 USD used (25%)",
+    extra_usage: "$12.50 of $50.00 used (25%)",
     note: null,
     sign_in: CLAUDE_SIGN_IN,
   },
