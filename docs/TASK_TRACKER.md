@@ -647,6 +647,10 @@ The notes below run newest first; the setup notes above them are the oldest.
   focus on the first scrolling key, which only Chrome has shown here; at 200% a percentage can break over two lines, "64" above "%", where a long label takes the room (seen in the 200% picture; the row's CSS and `overflow-wrap: anywhere` are as before this PR); past about 213% zoom the toolbar scrolls away with the page again, which
   the D weighs; the history and settings pictures' antialiasing; and measuring the popover's draw time and the helper's
   memory on QuotaDial Example at the next real run.
+- **CI's second run** (9f33726) was green on macOS and Windows and failed one of the window check's own
+  tests on Linux: the launcher appended Linux's `--no-sandbox` after `about:blank`, where the test holds
+  that the page Chrome opens is the last argument. The flag now goes before the page, as every other
+  flag does, and the test runs the Linux arguments on every system, so it failed here first.
 
 ### M6: the share picture in the cards' language (D-137)
 

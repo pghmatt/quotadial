@@ -61,9 +61,10 @@ export function launch(
   if (classicScrollbars) {
     args.splice(-1, 0, "--disable-features=OverlayScrollbar,FluentOverlayScrollbar");
   }
-  // Linux runners refuse Chrome's sandbox; the page is only this build, served on this machine.
+  // Linux runners refuse Chrome's sandbox; the page is only this build, served on this machine. Like
+  // every flag, it goes before the page Chrome opens, which stays the last argument.
   if (platform === "linux") {
-    args.push("--no-sandbox");
+    args.splice(-1, 0, "--no-sandbox");
   }
   const browser = spawn(chrome, args, { stdio: ["ignore", "ignore", "pipe"] });
   const address = new Promise((done, fail) => {

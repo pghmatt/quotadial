@@ -81,6 +81,8 @@ test("Chrome's scroll bars take room unless the pictures ask for the system's ow
   for (const [options, classic] of [
     [{}, true],
     [{ classicScrollbars: false }, false],
+    [{ platform: "linux" }, true],
+    [{ platform: "linux", classicScrollbars: false }, false],
   ]) {
     const { program, profile, folder } = standIn(`
       require("node:fs").writeFileSync(require("node:path").join(__dirname, "args.json"), JSON.stringify(process.argv.slice(2)));
@@ -94,6 +96,7 @@ test("Chrome's scroll bars take room unless the pictures ask for the system's ow
       assert.equal(args.some((arg) => arg.startsWith("--disable-features=") && arg.includes("OverlayScrollbar")), classic, JSON.stringify(options));
       assert.ok(args.includes("--disable-smooth-scrolling"), JSON.stringify(options));
       assert.equal(args.at(-1), "about:blank", "the page Chrome opens is still the last argument");
+      assert.equal(args.includes("--no-sandbox"), options.platform === "linux", JSON.stringify(options));
     } finally {
       await stop(browser);
     }
