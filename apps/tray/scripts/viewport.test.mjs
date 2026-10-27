@@ -1,9 +1,9 @@
 // The window's size at a zoom (viewport.mjs), which the window check asks Chrome for twice: to judge
 // the window at a zoom, and to take its pictures at one. Chrome takes the size in whole pixels, and
 // `--window-pictures` at `--window-zoom 3` failed with "Invalid parameters" for want of it (the
-// manager's review of #98). So the size is a whole number of pixels at every zoom, and it is the
-// same size at 100% and 200% as both asked for before, so that the pictures made at those stay as
-// they were.
+// manager's review of #98). So the size is a whole number of pixels at every zoom, it is the same
+// size at 100% and 200% as both asked for before, so that the pictures made at those stay as they
+// were, and the check asks for no size of its own.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -81,4 +81,14 @@ test("at 300% and 150% it is the size the pages were always shown at, where the 
   // 640 / 3 is 213.33 and 640 / 1.5 is 426.67: down at one, up at the other.
   assert.equal(viewportAt(3, POPOVER).height, 213);
   assert.equal(viewportAt(1.5, POPOVER).height, 427);
+});
+
+test("the check asks for no size of its own: the popover over a zoom is only ever worked out in viewport.mjs", () => {
+  // The pictures are not made in CI, so nothing else would notice a second rule for the size.
+  const source = readFileSync(new URL("./check-window.mjs", import.meta.url), "utf8");
+  const second = source
+    .split("\n")
+    .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+    .filter(({ line }) => /\b(?:WIDTH|HEIGHT)\s*\/\s*zoom\b/.test(line));
+  assert.deepEqual(second, [], "ask viewportAt for the size at a zoom, so that every place gets the same whole pixels");
 });

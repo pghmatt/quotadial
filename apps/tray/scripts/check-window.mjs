@@ -55,8 +55,8 @@
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
-// half way down what scrolls (`-- --window-zoom 2` at 200% zoom), `-- --share-images <folder>`
-// saves the picture to share of each
+// half way down what scrolls (`-- --window-zoom 2` at 200% zoom, `3` at 300%),
+// `-- --share-images <folder>` saves the picture to share of each
 // account in each copy and theme, `-- --scroll-bars classic` or `system` says whether Chrome's scroll
 // bars take room, as Windows' and Linux's do (the checks' own choice), or lie over what they scroll,
 // as a Mac's do (the pictures' own choice), `-- --only "pro, dark"` checks only the views named so, and
@@ -70,6 +70,7 @@ import { fileURLToPath } from "node:url";
 
 import { launch, wantsClassicScrollbars } from "./chrome.mjs";
 import { waitForScrollEnd } from "./quiet.mjs";
+import { viewportAt } from "./viewport.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
@@ -87,6 +88,8 @@ const CONFIG = JSON.parse(
 /** The popover's width (POPOVER_WIDTH in src-tauri/src/lib.rs) and its tallest height. */
 const WIDTH = CONFIG.app.windows[0].width;
 const HEIGHT = 640;
+/** The popover at 100%: its size at any other zoom is only ever `viewportAt(zoom, POPOVER)`. */
+const POPOVER = { width: WIDTH, height: HEIGHT };
 /** The copies of the app to check: each named export of the fixtures module that has a meter. */
 const FIXTURES = process.argv.includes("--fixtures")
   ? new URL(process.argv[process.argv.indexOf("--fixtures") + 1], `file://${process.cwd()}/`)
@@ -710,10 +713,10 @@ class View {
    * every system checks the room Windows and Linux leave. The window is its tallest unless
    * `height` says, in CSS pixels, how tall it is.
    */
-  async zoom(zoom, height = Math.round(HEIGHT / zoom)) {
+  async zoom(zoom, height = viewportAt(zoom, POPOVER).height) {
     this.bar ??= (await this.evaluate(SCROLL_BAR)) > 0 ? 0 : CLASSIC_BAR;
     await this.send("Emulation.setDeviceMetricsOverride", {
-      width: Math.round(WIDTH / zoom) - this.bar,
+      width: viewportAt(zoom, POPOVER).width - this.bar,
       height,
       deviceScaleFactor: zoom,
       mobile: false,
@@ -1479,7 +1482,7 @@ function hairline(shadow) {
  * before: the toolbar is in the window at the end of the page, no line is drawn, and the part with
  * the accounts does not scroll of itself.
  */
-async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
+async function checkFrame(view, zoom, height = viewportAt(zoom, POPOVER).height) {
   const label = `${view.label}, the toolbar at ${Math.round(zoom * 100)}% in a window ${height} px tall`;
   await view.zoom(zoom, height);
   await view.settle();
@@ -2377,10 +2380,12 @@ async function screenshot(view, panel, folder) {
  */
 async function windowPictures(view, panel, folder, zoom) {
   await view.load(panel);
-  // As many pixels as the window has at 2x, whatever the zoom.
+  // The window at this zoom in whole pixels, as the checks show it (viewport.mjs), with as many
+  // pixels as the window has at 2x, whatever the zoom.
+  const viewport = viewportAt(zoom, POPOVER);
   await view.send("Emulation.setDeviceMetricsOverride", {
-    width: WIDTH / zoom,
-    height: HEIGHT / zoom,
+    width: viewport.width,
+    height: viewport.height,
     deviceScaleFactor: 2 * zoom,
     mobile: false,
   });
@@ -2396,7 +2401,7 @@ async function windowPictures(view, panel, folder, zoom) {
     const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
     const { data } = await view.send("Page.captureScreenshot", {
       format: "png",
-      clip: { x: 0, y: scrolled, width: WIDTH / zoom, height: Math.min(HEIGHT / zoom, Math.max(120 / zoom, height)), scale: 1 },
+      clip: { x: 0, y: scrolled, width: viewport.width, height: Math.min(viewport.height, Math.max(120 / zoom, height)), scale: 1 },
     });
     const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
     writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
