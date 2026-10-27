@@ -52,6 +52,12 @@
 //   then no word of an address, the part between two places it may break, is drawn on two lines
 //   where it fits its line on its own (whole-addresses.mjs); and the address in a heading, its text
 //   and what a copy of it gives, is the address byte for byte, and a screen reader is told it whole;
+// - History's time marks (the manager on #73, 2026-10-27, 15:28 UTC, D-143), over 7 days and over 30,
+//   each chosen with its button, at 100% and 200% zoom: every chart's ticks are where the copy's marks
+//   put them, to half a pixel in the page and to a pixel in what is drawn under its baseline, and no
+//   others; each card has one row of the marks' words, under its last chart and its ticks and above
+//   its heatmap's caption, the copy's words in order, none over another or past the chart's edges, and
+//   a screen reader is told none of them (time-marks.mjs); and over 30 days no text is cut off either;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -111,6 +117,7 @@ import {
   textVerdicts,
   visibly,
 } from "./whole-addresses.mjs";
+import { MARKS, expectedMarks, heardVerdicts, inkVerdicts, inkedTicks, markVerdicts } from "./time-marks.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -863,6 +870,20 @@ class View {
     return String(nodes[0]?.name?.value ?? "").trim();
   }
 
+  /** Whether a screen reader is told nothing of the element `expression` gives in the page: the
+   * accessibility tree leaves it out, or has no node for it. Null when there is no such element. */
+  async ignored(expression) {
+    const { result } = await this.send("Runtime.evaluate", { expression });
+    if (!result.objectId) {
+      return null;
+    }
+    const { nodes } = await this.send("Accessibility.getPartialAXTree", {
+      objectId: result.objectId,
+      fetchRelatives: false,
+    });
+    return nodes.length === 0 || nodes[0].ignored === true;
+  }
+
   async close() {
     this.stop();
     await this.tools.send("Target.closeTarget", { targetId: this.targetId });
@@ -976,6 +997,9 @@ async function checkView(view, panel, operate, copy, light) {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
       await checkSources(view, copy, zoom);
+    }
+    if (panel === "history") {
+      await checkMarks(view, copy, zoom);
     }
   }
   // A share is held whole past 200% too, which the other checks stop at.
@@ -1332,6 +1356,104 @@ async function checkAddresses(view, copy, panel, zoom) {
     );
     const called = index < 0 ? null : await view.called(".help-actions button", index);
     check(label, called !== `Write to ${support}` && `a screen reader calls the button that writes to support ${visibly(called ?? "")}, not ${visibly(`Write to ${support}`)}`);
+  }
+}
+
+/**
+ * Shows History over `days` by pressing its period's button, as a person would, and answers whether
+ * the window then shows that period: the button pressed and the copy's span for it under the title.
+ */
+async function showPeriod(view, copy, days) {
+  const button = `[...document.querySelectorAll('section.history .period button')].find((button) => button.textContent.trim() === ${JSON.stringify(`${days} days`)})`;
+  await view.evaluate(`${button}?.click()`);
+  const shown = await view.eventually(
+    `${button}?.getAttribute('aria-pressed') === 'true' && document.querySelector('section.history > p.detail')?.textContent === ${JSON.stringify(copy.history[days]?.span)}`,
+  );
+  await view.settle();
+  return shown;
+}
+
+/** In the page: brings the `chart`th chart of the `card`th History card into view, and answers where
+ * its drawing now is, or null when there is none. */
+const CHART_IN_VIEW = (card, chart) => `(() => {
+  const svg = document.querySelectorAll('section.history .account-history')[${card}]?.querySelectorAll('figure.chart svg')[${chart}];
+  if (!svg) return null;
+  svg.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const { top, bottom, left, right } = svg.getBoundingClientRect();
+  return { top, bottom, left, right, scrolled: document.scrollingElement.scrollTop };
+})()`;
+
+/**
+ * History's time marks (the manager's decision on #73, 2026-10-27, 15:28 UTC, D-143), in each History
+ * view, at 100% and 200%, over 7 days and then over 30, each chosen with its button as a person
+ * chooses it: every chart's ticks are where the copy's marks put them, to half a pixel in the page and
+ * to a pixel in what is drawn under its baseline, and no others; each card has one row of the marks'
+ * words, under its last chart and above its heatmap's caption, the copy's words in order, none over
+ * another or past the chart's edges (time-marks.mjs); and, at 100%, a screen reader is told none of it.
+ * Over 30 days nothing in History is cut off either, as the check of cut-off text holds over 7. History
+ * is left showing 7 days, as it opens, for the checks after this one.
+ */
+async function checkMarks(view, copy, zoom) {
+  for (const days of [7, 30]) {
+    const label = `${view.label}, time marks over ${days} days at ${Math.round(zoom * 100)}%`;
+    if (!copy.history[days]) {
+      continue;
+    }
+    if (!(await showPeriod(view, copy, days))) {
+      check(label, `History does not show ${days} days when its button is pressed`);
+      continue;
+    }
+    const cards = await view.evaluate(MARKS);
+    const wanted = expectedMarks(copy, days);
+    for (const verdict of markVerdicts(cards, wanted, copy.history[days].accounts.length)) {
+      check(label, verdict);
+    }
+    // What is drawn under each chart's baseline, read from the page's own pixels.
+    for (const [index, card] of cards.entries()) {
+      for (let chart = 0; chart < card.charts.length; chart += 1) {
+        const drawn = await view.evaluate(CHART_IN_VIEW(index, chart));
+        if (!drawn) {
+          continue;
+        }
+        const frame = { x: Math.floor(drawn.left) - 2, y: Math.floor(drawn.bottom) - 1, zoom };
+        const { data } = await view.send("Page.captureScreenshot", {
+          format: "png",
+          clip: { x: frame.x, y: frame.y + drawn.scrolled, width: Math.ceil(drawn.right) + 2 - frame.x, height: 6, scale: 1 },
+        });
+        const places = wanted.ticks.map((along) => drawn.left + along * (drawn.right - drawn.left));
+        const ticks = inkedTicks(decodePng(Buffer.from(data, "base64")), frame, drawn.bottom);
+        for (const verdict of inkVerdicts(ticks, places, `${card.what}'s chart ${chart + 1}`)) {
+          check(label, verdict);
+        }
+      }
+    }
+    if (zoom === 1) {
+      const told = [];
+      for (const [index, card] of cards.entries()) {
+        const at = `document.querySelectorAll('section.history .account-history')[${index}]`;
+        for (const [row, { words }] of card.rows.entries()) {
+          told.push({ what: `${card.what}'s row of words`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}]`) });
+          for (const [word, { text }] of words.entries()) {
+            told.push({ what: `"${text}" under ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}].children[${word}]`) });
+          }
+        }
+        const ticks = card.charts.reduce((sum, chart) => sum + chart.ticks.length, 0);
+        for (let tick = 0; tick < ticks; tick += 1) {
+          told.push({ what: `a tick of ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('figure.chart .tick')[${tick}]`) });
+        }
+      }
+      for (const verdict of heardVerdicts(told)) {
+        check(label, verdict);
+      }
+    }
+    if (days !== 7) {
+      const cut = await view.evaluate(CUT_OFF);
+      check(label, cut.length > 0 && `${cut.slice(0, 6).join("; ")}`);
+    }
+  }
+  await view.evaluate(SCROLL_TO(0));
+  if (!(await showPeriod(view, copy, 7))) {
+    check(`${view.label}, time marks`, "History does not go back to 7 days when its button is pressed");
   }
 }
 
@@ -2676,7 +2798,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
