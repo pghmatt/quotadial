@@ -246,6 +246,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | An address breaks before its `@` and each `.`, never inside a word | Done (PR #107, D-141) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 2, approving the coordinator's proposal with three holds: wherever the window writes an address, a `<wbr>` before its `@` and before each `.`, never a character, so "a.very.long.account.name.that.keeps.going" goes over "@engineering.example.com" where it broke inside "engineering", with D-139's `overflow-wrap: anywhere` the last resort for a part wider than the line; each `<wbr>` hidden from screen readers, since Chrome names a heading, a field or a button with a space at each `<wbr>` it can see; in each account's heading in the popover and History, Settings' names, the line under the number and Help's support address. `checkAddresses` (`whole-addresses.mjs`) holds every address written whole and in order, no word of one broken where it fits its line, the headings' text and copy byte for byte and the address heard whole; it failed 174 of 20,446 checks on `main`'s window, 128 on one with a bare `<wbr>` and 83 of 4,179 on one with a zero-width space; the website's pictures captured again, changed only along each address |
 | The extra-usage line in plain words | Done (PR #108) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 4, on the fourth shortfall the coordinator found reading every Pro view as a stranger would (13:17): "Extra usage: on, 12.50 of 50.00 USD used (25%)" read like data. `text::extra_usage`, which `quotadial status` and the app's window share, now says "off"; what is used when both amounts are known, "$12.50 of $50.00 used (25%)", both amounts in one form, to the cent with their thousands grouped (the coordinator's review), US dollars with the symbol before each and any other currency with its code after them as before; "25% used" when only the share is known, the call the decision left open, in the words a window's share is said in; and "on" when nothing is known of what is used, with ", 1056.44 credits left" after it as before. The JSON fields do not change, so `docs/openapi.json` and the skill do not; the CLI guide's example and one CHANGELOG line follow. No D |
 | Expiry times a person reads | Done (PR #109, D-142) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 3, on the third shortfall the coordinator found reading every Pro view as a stranger would (13:17): "This Claude Code sign-in expired at 2026-10-26T09:12:00Z." was written for a program. `text::date_and_time` in core writes "26 Oct 2026 at 09:12 UTC", the seconds dropped, with its own test, and both providers' expiry sentences call it: "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `claude` once to refresh it." and the same in Codex's; each stays in its provider's `advice.rs`. The CLI's three data lines stay RFC 3339 (the manager's hold); every other sentence with an RFC 3339 time or date is listed in the note for the manager, with a proposal for `watch`'s "Updated …" line. The window check's copy of the sentence follows; one CHANGELOG line and D-142 |
+| The launcher test waits as long as its stand-in needs | Done (PR #110) | The manager's review of #109 (2026-10-27, 15:27 UTC): "the 200 ms in `chrome.test.mjs`'s launcher test is a flake under load that two builders have now seen. Queue it as a tooling-only fix (a wait that scales with the stand-in's own start, or a longer wait with why)". "A Chrome that has not answered within the wait fails, saying what it said" gave up after 200 ms, and under load its stand-in, a new program, had not yet said anything, so the message ended at the colon. The test now measures its own stand-in's first start and launches it with five times that, never under 200 ms, still holding the whole message. Under 12 busy cores `main`'s test failed 5 of 20 runs and this one none; 30 runs at the machine's own load all passed. Tooling only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -458,6 +459,46 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the launcher test's wait scales with its stand-in's own start
+
+- **The ask:** the manager's review of #109 (2026-10-27, 15:27 UTC): "the 200 ms in `chrome.test.mjs`'s launcher test is
+  a flake under load that two builders have now seen. Queue it as a tooling-only fix (a wait that scales with the
+  stand-in's own start, or a longer wait with why), its own small PR whenever a builder has the slot." The coordinator
+  asked for the first, holding both halves of the test: that the launcher fails when Chrome has not answered within the
+  wait, and that its message has what Chrome said. Built on `test/launcher-wait` from `main` at 923dc43. In review as #110, which the manager let
+  merge ahead of the queue; rebased onto 0e6172f (#109), where only the tracker clashed.
+- **The cause, measured:** each of the three failures in #109's runs said "Chrome did not start within 0.2 s: " with
+  nothing after the colon: the stand-in had said nothing when the timer fired. Pairs of new stand-ins started one after
+  the other through `launch()`: at the machine's own load (a load average of about 11 to 16), 130 to 402 ms to be heard,
+  median 185 ms, 5 of 30 over 200 ms; with 12 more cores busy, 9 of 80 over 200 ms; the second of a pair at most 4.35
+  times the first, median 1.0. Started again, the same file took about 23 ms where a new one took about 145 ms, so the
+  slow part is a new program's first start, most likely the system checking it (XProtect was busy then), not Node.
+- **What changed,** in `chrome.test.mjs` alone: `firstWords(program)` starts a program, waits for the first thing it
+  writes to stderr, gives how long that took and stops it, and does not wait for a program that never started. The test
+  measures its own stand-in's first start with it, then launches the same file with a wait of five times that, never
+  under 200 ms, and holds the whole message, "Chrome did not start within <wait> s: starting slowly"; a comment says
+  why each number, and each run says the start and the wait it chose (`t.diagnostic`). `chrome.mjs` does not change.
+- **Why this way:** a longer fixed wait would hold only while the load stays under what it was chosen for, and would
+  cost its whole length on every run; this one costs about 0.75 s on a Mac, where a first start takes about 150 ms, 0.2
+  s where starting is quick, and grows with the load. Measuring the stand-in's own first start, rather than another
+  program's, also leaves the launch, its second start, a wide margin where a first start is the slow one: under 75 ms
+  against waits of at least 669 ms, the tightest wait 14.2 times the launch's start.
+- **Proof:**
+  - Both halves held: three breaks made by hand to `chrome.mjs` and put back with `git checkout` each fail the test: the
+    message without what Chrome said, the message naming another wait, and a launcher that gives up at once.
+  - Failing first: under 12 busy cores (`yes`, stopped by its PIDs), `main`'s test and this one in turn, 20 runs each:
+    `main`'s failed 5, each with nothing after the colon; this one none, its waits 740 to 1,274 ms.
+  - Each way, 40 times by a scratch harness that runs the test's case: at the machine's own load (a load average of
+    about 22), the fixed 200 ms failed 10 and the scaled wait none; with 12 more cores busy, 16 and none.
+  - 30 runs of `node --test scripts/chrome.test.mjs` at the machine's own load (a load average of 17 to 27): all passed,
+    first starts 136 to 433 ms (median 149), waits 679 to 2,165 ms (median 746).
+- **Counts:** `chrome.test.mjs`'s 7 tests, as on `main`; the file took 2.8 s in one timed run at a load average of 22.
+- **Checks run:** `node --test scripts/chrome.test.mjs`, as above, and nothing else: another builder held the heavy
+  slot, and nothing else reads the file. **Not run:** cargo, the tray's `npm run build` and the window check.
+- **#52's list, gone down:** *held:* the test holds both of its halves as before; a test that fails under load and
+  passes on a rerun costs each builder a rerun and teaches everyone to ignore a red run, which hides a real failure;
+  nothing a person sees changes. *Left for later:* none.
 
 ### M6: expiry times a person reads (D-142)
 
