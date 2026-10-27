@@ -248,6 +248,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Expiry times a person reads | Done (PR #109, D-142) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 3, on the third shortfall the coordinator found reading every Pro view as a stranger would (13:17): "This Claude Code sign-in expired at 2026-10-26T09:12:00Z." was written for a program. `text::date_and_time` in core writes "26 Oct 2026 at 09:12 UTC", the seconds dropped, with its own test, and both providers' expiry sentences call it: "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `claude` once to refresh it." and the same in Codex's; each stays in its provider's `advice.rs`. The CLI's three data lines stay RFC 3339 (the manager's hold); every other sentence with an RFC 3339 time or date is listed in the note for the manager, with a proposal for `watch`'s "Updated …" line. The window check's copy of the sentence follows; one CHANGELOG line and D-142 |
 | The launcher test waits as long as its stand-in needs | Done (PR #110) | The manager's review of #109 (2026-10-27, 15:27 UTC): "the 200 ms in `chrome.test.mjs`'s launcher test is a flake under load that two builders have now seen. Queue it as a tooling-only fix (a wait that scales with the stand-in's own start, or a longer wait with why)". "A Chrome that has not answered within the wait fails, saying what it said" gave up after 200 ms, and under load its stand-in, a new program, had not yet said anything, so the message ended at the colon. The test now measures its own stand-in's first start and launches it with five times that, never under 200 ms, still holding the whole message. Under 12 busy cores `main`'s test failed 5 of 20 runs and this one none; 30 runs at the machine's own load all passed. Tooling only: no CHANGELOG line, no D |
 | History's time marks: a tick where each day or week begins, and the days' initials or the period's dates | Done (PR #111, D-143) | The manager's decision on #73 (2026-10-27, 15:28 UTC), "Time marks: decided, with four holds", on the coordinator's proposal of 14:39 UTC: `HistoryView.marks`, one list a view, worked out in Rust from the period the charts span, in the zone the heatmap counts a day in: over 7 days a tick at each midnight inside the period and each day's initial in the part of it held, a partial day's only when the period holds half of it or more; over 30 days a tick at each Monday's midnight, four or five, and the dates of the days the period's ends are in, flush with the chart's edges. The window draws them and works nothing out: a tick hanging 4 px from every chart's baseline in `--chart-base`, its length the stylesheet's dash, and the words under each card's last chart and above the heatmap's caption, in the heatmap's hours' type (10 px, not the decision's 11, which is not the hours' size), hidden from screen readers, an initial kept inside the chart at 200%. `checkMarks` (`time-marks.mjs`) holds the ticks to half a pixel in the page and a pixel in what is drawn, and no others, and the words in order, none over another or past an edge, under the last chart and above the caption, none heard, in every History view at 100% and 200% over 7 and 30 days; it failed 2,756 of 23,834 checks on `main`'s window and on each of eight windows broken on purpose. The copies' days are named from the calendar, and the check's pictures show History over 30 days |
+| A currency is three capital letters or unknown | Done (PR #112) | The manager's review of #108 (2026-10-27, 15:27 UTC): "Keep a currency only when, trimmed, it is three ASCII letters (ISO 4217), upper-cased; anything else is treated as unknown, and the amounts are then written with no symbol and no code, "12.50 of 50.00 used (25%)", never as dollars". `ExtraUsage::currency_code` in core holds the rule; the Claude provider keeps Anthropic's `currency` to it where it reads it, so a snapshot carries three capitals or nothing; and `text::extra_usage`, the one writer of the line, writes an unknown currency with neither symbol nor code. A missing currency, which the provider had taken for dollars after CodexBar, is unknown too: the live answer names its currency "USD" beside an amount, so nothing a person sees changes for a real answer. A property test holds that no currency makes the reading panic or reaches the line as more than three letters. Rust only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -460,6 +461,63 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: a currency is three capital letters or unknown
+
+- **The ask:** the manager's review of #108 (2026-10-27, 15:27 UTC), "Decided, your follow-up on the currency code (Rust
+  only, its own small PR, after the time marks PR)": the code is text from outside, so it goes through the convention.
+  "Keep a currency only when, trimmed, it is three ASCII letters (ISO 4217), upper-cased; anything else is treated as
+  unknown, and the amounts are then written with no symbol and no code, "12.50 of 50.00 used (25%)", never as dollars,
+  since calling an unknown currency dollars would be a wrong figure. The Claude provider does this where it reads
+  `currency`, so `Snapshot` never carries more than three letters; a property test holds that no input panics and
+  nothing longer than three letters reaches the text." No D and no CHANGELOG line. Built on `fix/currency-code` from
+  `main` at c1d6472, after #108, and rebased onto 60a35cc once #109 and #110 merged, where only the tracker clashed;
+  then by the coordinator onto cd653ae (#111), where again only the tracker clashed. In review as #112.
+- **What changed:**
+  - `ExtraUsage::currency_code(text)` in core: trimmed, three ASCII letters, in capitals, or none. The one rule, on the
+    type whose field it holds (`currency`, "The ISO 4217 currency code of `used` and `limit`").
+  - The Claude provider keeps Anthropic's `currency` to it where it reads it, so a snapshot, and with it the JSON, the
+    history and the cache, carries three capitals or nothing. Its default of "USD" for a missing currency is gone.
+  - `text::extra_usage` holds whatever snapshot reaches it to the same rule: "USD" gives the dollar sign, any other
+    code is written after the amounts in capitals, and an unknown currency gives neither, "1,234.50 of 5,000.00 used
+    (25%)". It is the one writer of the line for both front ends, so a snapshot an older QuotaDial kept, or one from a
+    provider still to come, cannot put more than three letters there either.
+  - `docs/CLI.md`'s bullet gives the unknown form. The JSON fields keep their shape and their description ("when
+    known ... `currency`"), so `docs/openapi.json` and the skill do not change.
+  - `quotadial_core::testing`'s keys gain "currency", and its strings "USD", so every property test over arbitrary
+    answers now reaches a currency.
+- **A missing currency, a call named in the PR:** #108 wrote a missing or blank currency as dollars, since the Claude
+  provider took a missing one for "USD", as CodexBar does (its test of OAuth extra usage sends none and expects USD); no
+  decision or capture of QuotaDial's backed it. The decision's "anything else is treated as unknown ... never as
+  dollars" covers it: nothing says a missing currency is dollars, and for a euro account it would be the wrong figure.
+  So it is unknown, as anything else is. Nothing a person sees changes for a real answer: the live answer
+  (`fixtures/claude/oauth-usage.json`, 2026-10-23) has `extra_usage.currency` null only beside null amounts, extra
+  usage being off, and names its currency "USD" in `spend.used`, beside an amount. CodexBar's tests are answers it made
+  up, some with "USD" or "EUR" and some with none, which it takes for USD, so they show what it guesses, not what
+  Anthropic sends. Should Anthropic ever leave the currency out beside amounts, the line gives the amounts with no
+  symbol rather than a guess.
+- **Proof:** with `main`'s reading and line put back under the new tests (a patch kept in the scratchpad, applied and
+  taken off with `git apply`), the four tests of the new rule fail: an unknown currency ("$1.50 of $20.00 used (7%)"
+  for "1.50 of 20.00 used (7%)"), another currency in capitals ("12.50 of 50.00 eur used (25%)"), the provider's
+  ("eur" kept as it came), and the property test, which shrank its failure to a currency of one character outside
+  ASCII that the old reading kept. Proptest saved that seed, and the branch keeps it, as the repository keeps such
+  files (`crates/providers/claude/proptest-regressions/usage.txt`), so the case runs first each time. The tests whose
+  words do not change pass on `main` too. With the branch's code all pass.
+- **Counts:** the workspace's tests 810 with 1 ignored, and 807 with 2 ignored in the example build, each 3 more than
+  `main`'s 807 and 804: the rule's own test in core, the unknown currency's in `text` and the property test, the
+  provider's test of a missing currency becoming its test of every currency; the app's `--lib` tests 99 in both
+  builds and the website's 90, as on `main`.
+- **Checks run,** through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the workspace and the app;
+  clippy with `-D warnings` in the default and example builds, for the workspace and the app; `cargo test --workspace`
+  in both builds; the app's `--lib` tests in both builds; the website's `npm run check`, `npm run build` and `npm test`
+  (its built `/cli` page carries the new bullet); `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`.
+  **Not run:** the tray's build, `npm test` and the window check, since no string the window check shows changes (its
+  copy's extra-usage line is in US dollars); the real app; Windows and Linux, which CI covers; `cargo deny` and
+  `cargo audit`, since no dependency changed.
+- **#52's list, gone down:** *held:* text from outside is held to the convention (AGENTS.md), here the stricter rule a
+  code needs; no wrong figure, since an unknown currency is never called dollars; the line's form is the one rule for
+  every snapshot; and the window's extra-usage line, which is not one of D-139's lines that break anywhere, now holds
+  nothing from outside longer than three letters, so it needs no place there. *Left for later:* none.
 
 ### M6: History's time marks, a tick where each day or week begins and the days' initials or the period's dates (D-143)
 
