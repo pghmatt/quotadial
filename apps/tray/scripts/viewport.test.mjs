@@ -5,10 +5,14 @@
 // size at 100% and 200% as both asked for before, so that the pictures made at those stay as they
 // were, and the check asks for no size of its own.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { viewportAt } from "./viewport.mjs";
+import { viewportAt, zoomOf } from "./viewport.mjs";
 
 // The popover as the check shows it at 100%: its width from the config the app is built with, as
 // check-window.mjs reads it, and the tallest it is (its HEIGHT, which src-tauri/src/lib.rs clamps to).
@@ -91,4 +95,43 @@ test("the check asks for no size of its own: the popover over a zoom is only eve
     .map((line, index) => ({ line: line.trim(), number: index + 1 }))
     .filter(({ line }) => /\b(?:WIDTH|HEIGHT)\s*\/\s*zoom\b/.test(line));
   assert.deepEqual(second, [], "ask viewportAt for the size at a zoom, so that every place gets the same whole pixels");
+});
+
+/** What the window check says of a `--window-zoom` that is not a zoom, in the form `--scroll-bars` refuses a value in. */
+const notAZoom = (flag) => `--window-zoom is a number above 0, such as 2 for 200%, not "${flag}"`;
+
+test("--window-zoom refuses what is not a zoom: \"abc\", which reached Chrome as NaN, and 0, which is no zoom", () => {
+  // The manager's review of #100: `--window-zoom abc` failed in Chrome with "Invalid parameters".
+  for (const flag of ["abc", "0", "", " ", "-2", "NaN", "Infinity", "2x", "1/2"]) {
+    assert.throws(() => zoomOf(flag), { message: notAZoom(flag) }, JSON.stringify(flag));
+  }
+  // A zoom is the number it says, and with no flag the window is at 100%.
+  for (const [flag, zoom] of [["2", 2], ["3", 3], ["1.5", 1.5], ["0.5", 0.5], ["5", 5]]) {
+    assert.equal(zoomOf(flag), zoom, flag);
+  }
+  assert.equal(zoomOf(undefined), 1);
+});
+
+test("the window check refuses a zoom that is not one, abc, 0 or a negative, before it makes a folder or asks for Chrome", () => {
+  const check = fileURLToPath(new URL("./check-window.mjs", import.meta.url));
+  // A folder for the pictures that must never be made, and a Chrome that is not there, which the
+  // check would say it could not find, or fail to start, had it got that far.
+  const folder = join(tmpdir(), `quotadial-window-zoom-refused-${process.pid}`);
+  assert.ok(!existsSync(folder));
+  for (const [args, flag] of [
+    [["--window-zoom", "abc"], "abc"],
+    [["--window-zoom", "0"], "0"],
+    [["--window-zoom", "-2"], "-2"],
+    // The flag with nothing after it is a zoom of nothing, as `--scroll-bars` with none is.
+    [["--window-zoom"], ""],
+  ]) {
+    const run = spawnSync(process.execPath, [check, "--window-pictures", folder, ...args], {
+      encoding: "utf8",
+      env: { ...process.env, CHROME: join(tmpdir(), "quotadial-no-chrome-here") },
+      timeout: 60_000,
+    });
+    assert.equal(run.status, 1, `${args.join(" ")}: ${run.stderr}`);
+    assert.equal(run.stderr.trim(), notAZoom(flag), args.join(" "));
+    assert.ok(!existsSync(folder), `${args.join(" ")} made the pictures' folder`);
+  }
 });

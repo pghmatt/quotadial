@@ -65,7 +65,8 @@
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
-// half way down what scrolls (`-- --window-zoom 2` at 200% zoom, `3` at 300%),
+// half way down what scrolls (`-- --window-zoom 2` at 200% zoom, `3` at 300%: a number above 0,
+// and anything else is refused before Chrome is asked),
 // `-- --share-images <folder>` saves the picture to share of each
 // account in each copy and theme, `-- --scroll-bars classic` or `system` says whether Chrome's scroll
 // bars take room, as Windows' and Linux's do (the checks' own choice), or lie over what they scroll,
@@ -80,7 +81,7 @@ import { fileURLToPath } from "node:url";
 
 import { launch, wantsClassicScrollbars } from "./chrome.mjs";
 import { waitForScrollEnd } from "./quiet.mjs";
-import { viewportAt } from "./viewport.mjs";
+import { viewportAt, zoomOf } from "./viewport.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
@@ -2451,7 +2452,8 @@ async function main() {
   const framing = process.argv.indexOf("--window-pictures");
   const windows = framing > 0 ? resolve(process.argv[framing + 1] ?? "") : null;
   const zooming = process.argv.indexOf("--window-zoom");
-  const windowZoom = zooming > 0 ? Number(process.argv[zooming + 1]) : 1;
+  // A zoom that is not one is refused here, before a folder is made or Chrome is asked (viewport.mjs).
+  const windowZoom = zoomOf(zooming > 0 ? (process.argv[zooming + 1] ?? "") : undefined);
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
   const barsAt = process.argv.indexOf("--scroll-bars");
   const classic = wantsClassicScrollbars(barsAt > 0 ? (process.argv[barsAt + 1] ?? "") : undefined, Boolean(pictures || windows));

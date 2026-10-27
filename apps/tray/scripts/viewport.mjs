@@ -15,3 +15,20 @@
 export function viewportAt(zoom, size) {
   return { width: Math.round(size.width / zoom), height: Math.round(size.height / zoom) };
 }
+
+/**
+ * The zoom `--window-zoom` asks for (2 for 200%), from what follows the flag, or 100% with no flag:
+ * a number above 0. What is not one is refused before the check makes a folder or asks Chrome for
+ * anything (the manager's review of #100), in the form `--scroll-bars` refuses a value in: "abc"
+ * reached Chrome as NaN and failed there with "Invalid parameters", and 0, or less, is no zoom.
+ */
+export function zoomOf(flag) {
+  if (flag === undefined) {
+    return 1;
+  }
+  const zoom = Number(flag);
+  if (!Number.isFinite(zoom) || zoom <= 0) {
+    throw new Error(`--window-zoom is a number above 0, such as 2 for 200%, not "${flag}"`);
+  }
+  return zoom;
+}

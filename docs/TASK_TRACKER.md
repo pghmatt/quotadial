@@ -240,7 +240,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
 | History's caption keeps a short label whole at 200% | Done (PR #102, D-139) | The manager's decision on #73 (2026-10-27, 08:30 UTC), on the review of #98 (06:24 UTC): at 200% History's caption broke a short label in the middle, "Wee" over "kly". The body's `overflow-wrap: anywhere` is gone: it is on fifteen selectors, the lines that can carry text from outside, or a file name or a host, with no spaces in it (an account's heading, a window's label, the summary's line, a provider's incident, a note, a problem, a sign-in panel, the week's cost, a command, what History says under its period and about each heatmap, Settings' cards, Help's cards and the update on offer), so QuotaDial's own words keep the browser's default and break between words; History's caption wraps, so its label, which can be a model's name, and the shares beside it are never squeezed together. The window check's new `checkWords` holds the captions the window draws to the ones each copy has, in order, with their words, and no word of four letters or more in one is drawn on two lines at 100% and 200% unless its run, the word with what is written against it up to a space, such as a model's name with its brackets, is wider than its caption (as Windows' CI found after the review); it failed first on `main`'s window (100 of 18,750 checks, all at 200% in History). The Many copy has text from outside as long as it gets, with no space to break at, in each place the window shows some, so the long-name rule is held at 100% and 200% in every place, each failing when taken off the list, and a command is held at 200% too. The manager's fallback, `break-word` on the caption's label alone, was tried and is not enough. The website's pictures are unchanged |
 | The window check's `--window-zoom 3` | Done (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
-| Queued: the window check's `--window-zoom` refuses what is not a zoom | Queued | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139) |
+| The window check's `--window-zoom` refuses what is not a zoom | Done (PR #103) | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139), and on #73 (11:26 UTC) a negative is tested too. `zoomOf` in `scripts/viewport.mjs` refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%, not "abc"`, and the check asks it before it makes a folder or looks for Chrome; a unit test and a run of the check itself with `abc`, `0`, `-2` and nothing after the flag hold it, the second failing first on `main`'s check. Check tooling only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -452,6 +452,39 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the window check's `--window-zoom` refuses what is not a zoom
+
+- **The ask:** the manager's review of #100 (2026-10-27, 09:22 UTC): "add it as a queued tracker row in PR 1's records, not as
+  a change in either of these PRs: a message in `--scroll-bars`' form, and a test that `abc` and `0` fail before Chrome is
+  asked. It is small, and it comes after PR 1." #102 (PR 1, History's caption) queued the row, and on #73 (11:26 UTC) the
+  manager confirmed it with "a test for `abc`, `0` and a negative, and a tracker row. Tooling only." Built by the coordinator
+  on `test/window-zoom-refuses` from `main` at 3f0c35f and rebased onto 3d8f566 (#102), whose row this is. In review as #103.
+- **What happened before:** `--window-zoom` took whatever followed it as `Number(...)`, so `abc` and the flag with nothing
+  after it were `NaN`, and `0` was 0, which made the window `Infinity` pixels wide. Run again here on `main`'s check, both
+  `abc` and `0` failed with "Emulation.setDeviceMetricsOverride: Invalid parameters", after the check had made the
+  pictures' folder and started Chrome.
+- **The fix:** `zoomOf` in `scripts/viewport.mjs`, beside `viewportAt`, takes what follows the flag and gives the zoom, or
+  100% with no flag, and refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%,
+  not "abc"`, in the form `--scroll-bars` refuses a value in. `check-window.mjs` asks it before it makes a folder or looks
+  for Chrome, and passes it `""` for the flag with nothing after it, as `--scroll-bars` does.
+- **Tests,** in `viewport.test.mjs`: what is and is not a zoom (`abc`, `0`, nothing, a space, `-2`, `NaN`, `Infinity`, `2x`
+  and `1/2` refused with that message; `2`, `3`, `1.5`, `0.5` and `5` taken as they are; no flag 100%); and the check itself
+  run with `abc`, `0`, `-2` and nothing after the flag, with a `CHROME` that is not there: it says so, exits 1 and makes no
+  folder. The second failed first against the check as it was: it made the pictures' folder and a Chrome profile, then
+  crashed trying to start a Chrome that was not there.
+- **Counts:** the tray's `npm test` 102, up from 100 on `main` at 3d8f566; the window check 18,750 checks over 26 views, as
+  on `main`, since with no flag the zoom is 100% as before; a `--window-pictures` run at `--window-zoom 3` of `pro, light`
+  still makes its 8 pictures (3,924 checks over 4 views).
+- **Checks run,** through the scratchpad's `safe.sh`, on the rebased tree: the tray's `npm run build` (38.5 KB of 150; 30
+  pairs a theme), `npm test` and `npm run check:window`, `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`.
+  No Rust, no `CHANGELOG.md` line (nothing people see changes) and nothing the website renders changed, so cargo and the
+  website's checks were not run. No D: the manager decided it.
+- **#52's list, gone down:** *found and fixed:* the check made a folder and started Chrome before it found that its zoom was
+  not one. *Found and left:* a `CHROME` that is not there crashes the check with Node's unhandled `spawn ... ENOENT` and
+  leaves its Chrome profile in the temporary folder, where it could say that Chrome was not found, as it does when it finds
+  none; not part of this ask, and for the manager to queue or not. *Held:* nothing in the app, `style.css` or the pictures
+  changes.
 
 ### M6: History's caption keeps a short label whole at 200% (D-139)
 
