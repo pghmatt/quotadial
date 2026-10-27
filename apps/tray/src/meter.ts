@@ -197,13 +197,19 @@ export interface WindowChart {
 export interface Heatmap {
   /** The window the use is counted in, such as "Session". */
   window: string;
-  /** A label per day, oldest first, such as "Mon 20". */
+  /** A label per row, oldest first, such as "Mon 20": a row for each calendar day the charts'
+   * period holds any part of, so a period that does not end at midnight has a partial row at each
+   * end (D-144). */
   days: string[];
-  /** Per day, the share used in each of its 24 hours, local time. */
-  cells: number[][];
+  /** Per row, the share used in each of its 24 hours, local time, or null for an hour the period
+   * holds none of: before its start in the first row, after now in the last. Nothing is drawn for
+   * a null, and the other hours keep their columns (D-144). */
+  cells: (number | null)[][];
   /** The largest cell, which the others are shaded against. */
   most: number;
-  /** The same facts in words, a line per day, which a screen reader reads in place of the grid. */
+  /** The same facts in words, a line per day, which a screen reader reads in place of the grid; the
+   * first names the hour it starts from when the period starts part way through its day, such as
+   * "Sun 19 from 14:00: not used". */
   said: string[];
 }
 

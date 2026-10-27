@@ -237,7 +237,11 @@ function MarkWords({ marks }: { marks: Mark[] }) {
   );
 }
 
-/** When the account was used: a row per day, a column per hour, darker for more. */
+/**
+ * When the account was used: a row per day the period holds, a column per hour, darker for more,
+ * and no square for an hour the period holds none of, before its start in the first row and after
+ * now in the last, each square kept in its hour's column (D-144).
+ */
 function HeatmapGrid({ heatmap }: { heatmap: Heatmap }) {
   // One sentence, seen in the caption and heard as the figure's name, from the one place the
   // picture to share takes it too.
@@ -256,14 +260,19 @@ function HeatmapGrid({ heatmap }: { heatmap: Heatmap }) {
       {heatmap.cells.map((hours, day) => (
         <div class="heat-row" key={heatmap.days[day]} aria-hidden="true">
           <span class="heat-day">{heatmap.days[day]}</span>
-          {hours.map((used, hour) => (
-            <span
-              class="heat-cell"
-              key={hour}
-              style={{ opacity: used > 0 ? 0.15 + (0.85 * used) / heatmap.most : 0.06 }}
-              title={`${heatmap.days[day]}, ${hour}:00: ${Math.round(used)}% used`}
-            />
-          ))}
+          {hours.map((used, hour) =>
+            used === null ? null : (
+              <span
+                class="heat-cell"
+                key={hour}
+                style={{
+                  gridColumn: String(hour + 2),
+                  opacity: used > 0 ? 0.15 + (0.85 * used) / heatmap.most : 0.06,
+                }}
+                title={`${heatmap.days[day]}, ${hour}:00: ${Math.round(used)}% used`}
+              />
+            ),
+          )}
         </div>
       ))}
       <div class="heat-row heat-hours" aria-hidden="true">
