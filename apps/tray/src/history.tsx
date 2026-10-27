@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { AccountHeading } from "./account";
 import { usePanelFocus } from "./focus";
 import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
-import { ACCOUNT_HEADER, lookOf, shareImage } from "./share";
+import { ACCOUNT_HEADER, heatmapWords, lookOf, shareImage } from "./share";
 
 /** How far back the view can go, in days. */
 const PERIODS = [7, 30];
@@ -186,12 +186,15 @@ function Chart({ chart }: { chart: WindowChart }) {
 
 /** When the account was used: a row per day, a column per hour, darker for more. */
 function HeatmapGrid({ heatmap }: { heatmap: Heatmap }) {
+  // One sentence, seen in the caption and heard as the figure's name, from the one place the
+  // picture to share takes it too.
+  const said = heatmapWords(heatmap);
   if (heatmap.most <= 0) {
-    return <p class="detail">No use in {heatmap.window.toLowerCase()} readings in this period.</p>;
+    return <p class="detail">{said}</p>;
   }
   return (
-    <figure class="heatmap" aria-label={`When it was used, by hour, from ${heatmap.window} readings`}>
-      <figcaption class="detail">When it was used, by hour ({heatmap.window.toLowerCase()})</figcaption>
+    <figure class="heatmap" aria-label={said}>
+      <figcaption class="detail">{said}</figcaption>
       <ul class="visually-hidden">
         {heatmap.said.map((line) => (
           <li key={line}>{line}</li>

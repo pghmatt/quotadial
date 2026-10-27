@@ -101,7 +101,12 @@ export function expectedCaptions(copy, panel) {
   if (panel === "history") {
     return copy.history[7].accounts.flatMap((account) => [
       ...account.windows.map((chart) => `${chart.label} latest ${share(chart.latest)}, highest ${share(chart.highest)}`),
-      ...(account.heatmap.most > 0 ? [`When it was used, by hour (${account.heatmap.window.toLowerCase()})`] : []),
+      // The heatmap's caption names its window as the provider writes it, never lowercased or in
+      // brackets of its own (the manager on #73, 2026-10-27, 13:26 UTC), written here as the check's
+      // own text of it, not taken from the window's code, so a change there fails here.
+      ...(account.heatmap.most > 0
+        ? [account.heatmap.window ? `When it was used, by hour, from ${account.heatmap.window} readings` : "When it was used, by hour"]
+        : []),
     ]);
   }
   return [];
