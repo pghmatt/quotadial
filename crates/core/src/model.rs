@@ -323,6 +323,22 @@ pub struct ExtraUsage {
     pub balance: Option<f64>,
 }
 
+impl ExtraUsage {
+    /// `text` as the currency of `used` and `limit`, when it is one: three ASCII letters once
+    /// trimmed, as ISO 4217 writes a currency's code, in capitals, so ` usd ` is `USD`. Anything
+    /// else, nothing at all included, is a currency QuotaDial cannot name, and so none: the amounts
+    /// are then written with no symbol and no code, never as dollars, since calling an unknown
+    /// currency dollars would be a wrong figure. A provider's currency is text from outside, held to
+    /// this where the provider reads it, so a snapshot never carries more than three letters (the
+    /// manager's review of #108).
+    #[must_use]
+    pub fn currency_code(text: &str) -> Option<String> {
+        let code = text.trim();
+        (code.len() == 3 && code.bytes().all(|byte| byte.is_ascii_alphabetic()))
+            .then(|| code.to_ascii_uppercase())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,6 +388,40 @@ mod tests {
             .collect();
         keys.sort_unstable();
         keys
+    }
+
+    #[test]
+    fn a_currency_is_three_letters_in_capitals_or_none() {
+        for (text, code) in [
+            ("USD", "USD"),
+            (" usd ", "USD"),
+            ("eur", "EUR"),
+            ("\tJpY\n", "JPY"),
+        ] {
+            assert_eq!(
+                ExtraUsage::currency_code(text).as_deref(),
+                Some(code),
+                "{text:?}"
+            );
+        }
+        // Anything else is a currency QuotaDial cannot name, never taken for dollars: nothing at
+        // all, too few or too many letters, words, signs, and letters outside ASCII (the euro
+        // sign, an accented capital, and full-width letters).
+        for text in [
+            "",
+            "   ",
+            "US",
+            "EURO",
+            "US Dollars",
+            "U S",
+            "US$",
+            "12A",
+            "\u{20ac}",
+            "\u{c9}UR",
+            "\u{ff35}\u{ff33}\u{ff24}",
+        ] {
+            assert_eq!(ExtraUsage::currency_code(text), None, "{text:?}");
+        }
     }
 
     #[test]
