@@ -452,6 +452,22 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
 
 The notes below run newest first; the setup notes above them are the oldest.
 
+### Main's CI, a third flake: the API test of questions asked while a host stops
+
+- **What happened:** #100's CI at 349c8f1 failed once in `check (ubuntu-latest)`, in a test #100 does
+  not touch: `questions_asked_while_a_host_stops_get_an_answer_or_a_handover` (`crates/api`) found the
+  first of its twenty questions handed over to a direct fetch where it expects an answer. The job
+  passed when run again. It had failed the same way once before, on #81's CI on 2026-10-26.
+- **Why:** the test asked twenty questions 10 ms apart and stopped the host at 80 ms, expecting the
+  first to be answered and the last handed over. On a busy runner the first can reach the host after
+  the stop, and is then handed over, as the client is built to do.
+- **The fix:** the first question is asked and answered before the stop is sent, and the last is
+  asked once the host has stopped, so both no longer race it. Eighteen questions still race the stop
+  and are held to an answer or a handover, never an error. With the first question made 120 ms late,
+  the old test fails at the same assertion CI did and the new one passes; the new one passed 100 runs
+  in a row here. Test only: `cargo fmt --check`, clippy with `-D warnings` for the API's targets, and
+  its 59 tests.
+
 ### M6: the window check's `--window-zoom 3`, one rule for the viewport at a zoom
 
 - **The ask:** the manager's decision on #73 (2026-10-27, 08:30 UTC), PR 2 of two, which its review of #98 queued: check
