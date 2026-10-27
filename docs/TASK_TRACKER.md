@@ -239,7 +239,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
 | Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
 | Queued: History's caption keeps a short label whole at 200% | Queued | The manager's review of #98 (2026-10-27, 06:24 UTC): at 200% History's caption breaks a short label mid-word ("Wee" over "kly"), the same before and after #98. The body's `overflow-wrap: anywhere` is for addresses and long names that would otherwise be cut off; a short label should wrap between words first. Find whether `overflow-wrap: break-word` on the caption's label, or `anywhere` kept to the address and name lines, keeps #52's long-name rule while leaving "Weekly" whole, held by the window check |
-| Queued: the window check's `--window-zoom 3` | Queued | The manager's review of #98: `--window-zoom 3` fails with "Invalid parameters", since 640 / 3 is not a whole number of CSS pixels; round the viewport the check asks for, so the zoom that proved #98's fix to the summary can also make pictures |
+| The window check's `--window-zoom 3` | In review (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -444,13 +444,110 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   its own source line, so #89's one line per card is not in it; D-136 would change nothing in it, since its
   two example accounts do not reach the 640 px at which a window scrolls, and no toolbar is pinned.
 - **Pictures of the window as it is shown,** from `node scripts/check-window.mjs --window-pictures <folder>`
-  (`--window-zoom 2` for 200%): each view no taller than 640 px, at its top and half way down what scrolls.
+  (`--window-zoom 2` for 200%, `3` for 300%): each view no taller than 640 px, at its top and half way down what scrolls.
   Not kept in the repository: they are the before and after of a PR that changes how the window scrolls, such
   as D-136's, which `--screenshots` cannot show. They show this Mac's own overlay scroll bars, as the website's
   pictures do; `--scroll-bars classic` shows what a system whose bars take room draws, which is what the
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the window check's `--window-zoom 3`, one rule for the viewport at a zoom
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 08:30 UTC), PR 2 of two, which its review of #98 queued: check
+  tooling only, nothing in the app. `zoom()` already rounded the viewport and `windowPictures` sent it unrounded, "so the
+  fix is one rule for both places, not a second rounding: a function that gives the viewport for a zoom, used by `zoom()`
+  and `windowPictures()`, with a unit test in the scripts' tests that it returns whole numbers for 1, 2, 3 and 1.5 and the
+  same width and height the two call sites get today for 1 and 2 (so the existing pictures stay byte for byte the same). A
+  picture run at 300% in the PR, both themes, to show it works; those pictures are for the PR, not the site. One
+  `CHANGELOG.md` line is not needed since nothing people see changes; a tracker row is." And the coordinator's brief of
+  the same day: heavy builds held until it allowed them, then allowed with the byte-for-byte comparison in full. Built on
+  `test/window-zoom-viewport` from `main` at b6b6611, in three commits: the rule and its tests (da465ca), the call sites
+  and the test that holds them to it (c55eaec) and these records. In review as #100.
+- **What failed,** on `main` at b6b6611: `node scripts/check-window.mjs --window-pictures <folder> --window-zoom 3` ends 7
+  seconds in, at the first view's first picture, with `Emulation.setDeviceMetricsOverride: Invalid parameters`, and has
+  written none. Chrome takes the viewport's width and height in whole CSS pixels. The popover is 360 wide and at most 640
+  tall, so at 300% it is 120 by 213.33 and at 150% 240 by 426.67: the width divides, the height does not. `View.zoom`
+  rounded both, so the checks have always judged the window at 300% (`checkWidth`, and the shares at 300% and 500%);
+  `windowPictures` sent them as they came, so it could make pictures only at a zoom that divides both, such as 100%,
+  125%, 200%, 250% and 500%.
+- **The fix:** `viewportAt(zoom, size)` in `scripts/viewport.mjs`, each side the nearest whole pixel of the size over the
+  zoom (`Math.round`, the rule `View.zoom` always had, and not a second rounding). Four places worked a size out from a
+  zoom, and not two: `View.zoom` (its width and its default height), `checkFrame`'s default height, and in
+  `windowPictures` the metrics and the clip the picture is cut to, which was a fraction too (213.33 px of a 213 px
+  window). All four take it from `viewportAt`, each a substitution of the old expression, and `check-window.mjs` binds the
+  popover's size once (`POPOVER`). At 100% and 200% every number sent to Chrome is the one sent before. At 300% a picture
+  is 720 by 1278 px, the 120 by 213 the checks judge at the 2 x 3 scale `windowPictures` has always asked for. The
+  scroll-bar room `View.zoom` takes off the width stays in `View.zoom`: it is the Chrome's, not the zoom's, and the
+  pictures show the system's own bars at the full width, as before.
+- **The tests** (`scripts/viewport.test.mjs`, 4): the size is a whole number of pixels, and the nearest, at 1, 2, 3 and
+  1.5 and at the other zooms the check judges the window at (1.25, 2.1, 640 / 300, 2.2, 2.5 and 5); at 100% and 200% it
+  is what both the pages and the pictures asked for before; at 300% and 150% it is what the pages were always shown at,
+  where the pictures asked for a fraction (a height of 213 and of 427); and `check-window.mjs` has no `WIDTH / zoom` or
+  `HEIGHT / zoom` of its own, which is the only thing that would notice a second rule, since CI makes no pictures.
+  *Failing first,* against the unrounded size: the first fails at 300% ("120 by 213.33333333333334"), 150% ("240 by
+  426.6666666666667"), 210%, 213% and 220%; the third at 300% and 150%; the last lists the six lines of `main`'s
+  `check-window.mjs` that had a rule of their own (713, 716, 1482, 2382, 2383 and 2399); the second passes, since 100% and
+  200% divide. *Hand-made breaks:* 8 of 8 wrong rules each fail at least one test (floor, ceil, round the width only,
+  round the height only, the sides swapped, the zoom ignored, the zoom rounded, and no rounding).
+- **Proof,** in the window check's Chrome (Chrome 156.0.8078.48), whose pictures show the system's own scroll bars:
+  - *At 300%, on this branch:* `--window-pictures <folder> --window-zoom 3` writes 52 pictures, 26 views at their top and
+    half way down, in light and dark, every one 720 by 1278 px, and the run passes 17,450 checks over 26 views in 216
+    seconds. On `main` the same command fails as above. I opened five of the 52, from the accounts, History and Settings,
+    in both themes: each is the window at 300%, wrapped to its 120 px.
+  - *At 100% and 200%, from `main` and from this branch:* `--window-pictures` at `--window-zoom 1` and `2`, 52 pictures a
+    run, every one compared with `cmp`: 52 of 52 byte for byte the same at each, and one fingerprint a folder (the hash
+    of its files' hashes) the same on both sides, 605180c73cbb1fba at 100% and 3de0055d8a6ad4f6 at 200%. Each of the four
+    runs passes the same 17,450 checks over 26 views. The comparison fails when it should: `main`'s 100% folder against
+    the 300% one gives 0 of 52. `main` was `origin/main` checked out detached in this worktree for its runs and `npm
+    test`, and the branch checked out again after; both ran against one `dist/`, built from this branch, since no file of
+    the window's source changed.
+- **Pictures,** in the scratchpad's `window-zoom/`: the 52 at 300%, named `<copy>-<theme>-<panel>-zoom300-<top|half>.png`
+  (the copies are `pro`, `free`, `many` and `crowded`, which is History alone). They are for the PR, not the site, and not
+  kept in the repository. The comparison's are in `window-zoom-compare/{main,branch}-zoom{1,2}/`.
+- **Counts:** the tray's `npm test` 82, up from 78 on `main` at b6b6611 (the 4 in `viewport.test.mjs`); the window check
+  17,450 checks over 26 views in 200 seconds, the count `main` gives (its two picture runs here, 17,450 each, and #98's
+  note); the contrast check 30 pairs a theme and the window's JavaScript 38.5 KB of its 150, both as on `main`. No Rust
+  changed, so the Rust counts are `main`'s own.
+- **Checks run here,** each through the scratchpad's `window-zoom-run/safe.sh`, one heavy job at a time: on this branch
+  the tray's `npm run build` (types, size, contrast), `npm test` and `npm run check:window`, and the picture runs at 300%,
+  100% and 200%; on `main` (detached) `npm test` and the picture runs at 100%, 200% and 300%; `scripts/privacy.sh
+  --check` and `scripts/public-prd.sh --check` on this branch; and, before heavy builds were allowed, `node --test` on the
+  six test files that delete nothing. All passed, except `main`'s 300% run, which fails by design.
+- **Not run:** `cargo fmt`, `clippy` and `cargo test` (no Rust changed; CI runs them on three systems); the website's
+  checks (nothing under `site/` and no `CHANGELOG.md` line); the release scripts' tests at the repository root (nothing
+  under `scripts/` changed); the window check on Windows and Linux (CI's); the app itself and QuotaDial Example (never
+  launched).
+- **Safety on this Mac:** every run went through `safe.sh`: nothing of the caller's environment but PATH, HOME and LANG,
+  so no token, `TMPDIR` and QuotaDial's, Claude's, Codex's, Gemini's, GitHub's and the XDG folders in the scratchpad, 4
+  build jobs. No provider's CLI ran, no sign-in or keychain item was read, and nothing touched `~/Library/Application
+  Support/quotadial`, the example's folders or the owner's Downloads folder. No `rm` was run by hand or in a script of
+  mine; the project's own code removed its own temporary files, as the coordinator allowed: `chrome.test.mjs` (in `npm
+  test`, twice), `check-window.mjs` (its Chrome profile, in the scratchpad's `TMPDIR`, seven runs) and `privacy.sh`'s
+  `trap` on its two `mktemp` files. The other command lines were `git` (fetch, switch, diff, commit), `gh` reading #73's
+  comment and #52, and reads (`ls`, `file`, `shasum`, `cmp`, `ps`).
+- **Calls where the brief left room:**
+  - *Four places, not two:* the manager named `zoom()` and `windowPictures`; `checkFrame`'s default height and the
+    picture's clip are the same rule written twice more, so they take it too.
+  - *The function takes the size:* `viewportAt(zoom, size)`, and not the window check's constants, so that a test holds it
+    with no browser and no config; `check-window.mjs` binds the popover's size once.
+  - *A test over the check's source:* the one test that reads `check-window.mjs`, since a second rule would show only in a
+    picture run and CI makes none. It matches `WIDTH / zoom` and `HEIGHT / zoom`, which a size written another way would
+    escape.
+  - *No D and no `CHANGELOG.md` line:* as the manager said, nothing people see changes.
+  - *Not done:* a `--window-zoom` that is not a number (`abc`) still reaches Chrome as NaN and fails with the same
+    "Invalid parameters"; a clear message for it, as `--scroll-bars` has, is a small change if it is wanted.
+- **#52's list, gone down:** *found and fixed:* the picture mode had a rule for the viewport of its own, unrounded, that
+  no unit test or CI run could reach, since CI makes no pictures: one rule now, and a test that keeps it one. *Held:* the
+  104 pictures at 100% and 200% (byte for byte), every check's count (17,450 over 26 views), the window's JavaScript (38.5
+  KB of 150), the 30 contrast pairs a theme and the window's source, which is not touched; no new dependency, network
+  address or secret. *Left for later,* from the five pictures at 300% I opened of the 52: History's caption breaks a short
+  label inside a word ("Week" over "ly", "lates" over "t", beside the latest share), the caption rule that the manager's PR
+  1 scopes, here in a window 120 px wide where a short label shares it with the latest share; the name and the address
+  break inside words ("Antigravit" over "y", "ag@exampl" over "e.com"), which is #52's long-name rule, as it should be;
+  shares stay whole ("64%"), as #98's check holds them to 500%.
+- **The tracker:** the queued row is "In review (PR #100)", without its "Queued:", and the line above that says how the
+  pictures of the window are made now says `3` for 300%; the number comes when the coordinator gives it.
 
 ### M6: the daemon's footprint over a day levels off
 
