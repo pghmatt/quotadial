@@ -22,7 +22,7 @@ test("a share is found whole across the nodes it is written in, with where it st
     { text: "11%", from: { node: 3, offset: 0 }, to: { node: 4, offset: 1 } },
   ]);
   // One node, with other figures in the line.
-  const line = "on, 12.50 of 50.00 USD used (25%)";
+  const line = "$12.50 of $50.00 used (25%)";
   const at = line.indexOf("25%");
   assert.deepEqual(sharesIn([line]), [
     { text: "25%", from: { node: 0, offset: at }, to: { node: 0, offset: at + 3 } },

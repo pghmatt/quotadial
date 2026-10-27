@@ -721,24 +721,56 @@ pub fn duration(length: TimeDelta) -> String {
     }
 }
 
-/// For example `on, 12.50 of 50.00 USD used (25%)`, `on, 1056.44 credits left`, or `off`.
+/// Where an account's extra usage stands, as the CLI and the app's window write it after "Extra
+/// usage:": `off`; what is used of the limit when both amounts are known, such as `$12.50 of $50.00
+/// used (25%)`; the share alone when only it is, such as `25% used`, in the words a window's share
+/// is said in; or `on` when nothing is known of what is used. While it is on, credits left come
+/// after, such as `on, 1056.44 credits left`. The two amounts take one form, to the cent with their
+/// thousands grouped, as the limit is set: US dollars, the currency when none is given, with the
+/// symbol before each, such as `$1,234.50 of $5,000.00`, and any other currency with its code after
+/// them, such as `1,234.50 of 5,000.00 EUR used (25%)`. Not [`usd`], which writes a cost said on
+/// its own, in whole dollars from $100, and would put two forms in one line, as `$99.50 of $150`.
 #[must_use]
 pub fn extra_usage(extra: &ExtraUsage) -> String {
     if !extra.enabled {
         return "off".to_owned();
     }
-    let mut text = "on".to_owned();
-    if let (Some(used), Some(limit)) = (extra.used, extra.limit) {
-        let currency = extra.currency.as_deref().unwrap_or("USD");
-        text.push_str(&format!(", {used:.2} of {limit:.2} {currency} used"));
-    }
-    if let Some(used_pct) = extra.used_pct {
-        text.push_str(&format!(" ({used_pct:.0}%)"));
-    }
+    let share = extra.used_pct.map(|used_pct| format!("{used_pct:.0}%"));
+    let mut text = match (extra.used.zip(extra.limit), share) {
+        (Some((used, limit)), share) => format!(
+            "{} used{}",
+            used_of_limit(used, limit, extra.currency.as_deref()),
+            share.map(|share| format!(" ({share})")).unwrap_or_default()
+        ),
+        (None, Some(share)) => format!("{share} used"),
+        (None, None) => "on".to_owned(),
+    };
     if let Some(balance) = extra.balance {
         text.push_str(&format!(", {balance:.2} credits left"));
     }
     text
+}
+
+/// `used` of `limit`, both in `currency` and both [`to_the_cent`]: `$1,234.50 of $5,000.00` in US
+/// dollars, which a currency left out or blank is too, and in any other currency the amounts with
+/// its code after them, `1,234.50 of 5,000.00 EUR`.
+fn used_of_limit(used: f64, limit: f64, currency: Option<&str>) -> String {
+    let (used, limit) = (to_the_cent(used), to_the_cent(limit));
+    match currency.map(str::trim).filter(|code| !code.is_empty()) {
+        Some(code) if !code.eq_ignore_ascii_case("USD") => format!("{used} of {limit} {code}"),
+        _ => format!("${used} of ${limit}"),
+    }
+}
+
+/// An amount of money to the cent, its whole part grouped by [`thousands`], such as `1,234.50`;
+/// `0.00` for nothing, and for a negative amount or one that is not a number, which [`usd`] takes
+/// as nothing too.
+fn to_the_cent(amount: f64) -> String {
+    if amount.is_nan() || amount <= 0.0 {
+        return "0.00".to_owned();
+    }
+    let cents = (amount * 100.0).round() as u64;
+    format!("{}.{:02}", thousands(cents / 100), cents % 100)
 }
 
 /// For example `ok`, `stale` or `sign-in required`.
@@ -1936,32 +1968,165 @@ mod tests {
         assert_eq!(percent(33.333), "33.3");
     }
 
-    #[test]
-    fn extra_usage_that_is_off_says_so() {
-        let extra = ExtraUsage {
-            enabled: false,
-            used_pct: None,
-            used: None,
-            limit: None,
-            currency: None,
-            balance: None,
-        };
-
-        assert_eq!(extra_usage(&extra), "off");
-    }
-
-    #[test]
-    fn a_credit_balance_is_shown() {
-        let extra = ExtraUsage {
+    /// Extra usage that is on, with nothing more known: what the tests below add to.
+    fn extra_on() -> ExtraUsage {
+        ExtraUsage {
             enabled: true,
             used_pct: None,
             used: None,
             limit: None,
             currency: None,
-            balance: Some(1_056.436_375),
-        };
+            balance: None,
+        }
+    }
 
-        assert_eq!(extra_usage(&extra), "on, 1056.44 credits left");
+    /// Extra usage that is on, with `used` of `limit` spent in `currency`, `used_pct` of it.
+    fn spent(used: f64, limit: f64, currency: Option<&str>, used_pct: Option<f64>) -> ExtraUsage {
+        ExtraUsage {
+            used_pct,
+            used: Some(used),
+            limit: Some(limit),
+            currency: currency.map(str::to_owned),
+            ..extra_on()
+        }
+    }
+
+    #[test]
+    fn extra_usage_that_is_off_says_so() {
+        let off = ExtraUsage {
+            enabled: false,
+            ..extra_on()
+        };
+        assert_eq!(extra_usage(&off), "off");
+        assert_eq!(
+            extra_usage(&ExtraUsage {
+                enabled: false,
+                ..spent(12.5, 50.0, Some("USD"), Some(25.0))
+            }),
+            "off",
+            "whatever numbers come with it"
+        );
+    }
+
+    #[test]
+    fn extra_usage_that_is_on_with_nothing_more_known_says_on() {
+        // Nothing is known but that it is on, so the word stays: without it the line says nothing.
+        assert_eq!(extra_usage(&extra_on()), "on");
+    }
+
+    #[test]
+    fn extra_usage_in_dollars_says_what_is_used_with_the_symbol_before_each_amount() {
+        assert_eq!(
+            extra_usage(&spent(12.5, 50.0, Some("USD"), Some(25.0))),
+            "$12.50 of $50.00 used (25%)"
+        );
+        assert_eq!(
+            extra_usage(&spent(12.5, 50.0, Some("USD"), None)),
+            "$12.50 of $50.00 used",
+            "with no share given"
+        );
+        // Both amounts in one form, to the cent with their thousands grouped, whatever their size.
+        assert_eq!(
+            extra_usage(&spent(0.0, 50.0, Some("USD"), Some(0.0))),
+            "$0.00 of $50.00 used (0%)"
+        );
+        assert_eq!(
+            extra_usage(&spent(99.5, 150.0, Some("USD"), Some(66.33))),
+            "$99.50 of $150.00 used (66%)"
+        );
+        assert_eq!(
+            extra_usage(&spent(1_234.5, 5_000.0, Some("USD"), Some(24.69))),
+            "$1,234.50 of $5,000.00 used (25%)"
+        );
+        // A currency left out or blank is dollars, as the Claude provider reads one, and so is
+        // USD in any case.
+        for currency in [None, Some(""), Some(" "), Some("usd"), Some(" USD ")] {
+            assert_eq!(
+                extra_usage(&spent(1.5, 20.0, currency, Some(7.0))),
+                "$1.50 of $20.00 used (7%)",
+                "{currency:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn extra_usage_in_another_currency_keeps_its_code_after_the_amounts() {
+        assert_eq!(
+            extra_usage(&spent(12.5, 50.0, Some("EUR"), Some(25.0))),
+            "12.50 of 50.00 EUR used (25%)"
+        );
+        assert_eq!(
+            extra_usage(&spent(1_234.5, 5_000.0, Some("EUR"), Some(24.69))),
+            "1,234.50 of 5,000.00 EUR used (25%)"
+        );
+    }
+
+    #[test]
+    fn money_people_set_is_written_to_the_cent_with_its_thousands_grouped() {
+        assert_eq!(to_the_cent(12.5), "12.50");
+        assert_eq!(to_the_cent(0.0), "0.00");
+        assert_eq!(to_the_cent(0.004), "0.00", "under a cent");
+        assert_eq!(
+            to_the_cent(99.999),
+            "100.00",
+            "a cent carried into the whole part"
+        );
+        assert_eq!(to_the_cent(1_234.5), "1,234.50");
+        assert_eq!(to_the_cent(1_000_000.0), "1,000,000.00");
+        // Nothing, as `usd` takes them: a negative amount, negative zero and one that is not a
+        // number.
+        for nothing in [-1.5, -0.0, f64::NAN] {
+            assert_eq!(to_the_cent(nothing), "0.00", "{nothing}");
+        }
+    }
+
+    #[test]
+    fn extra_usage_with_a_share_and_no_amounts_says_the_share_used() {
+        let share = ExtraUsage {
+            used_pct: Some(25.0),
+            ..extra_on()
+        };
+        assert_eq!(extra_usage(&share), "25% used");
+        // The amounts are written together or not at all, so one alone leaves the share, or "on".
+        assert_eq!(
+            extra_usage(&ExtraUsage {
+                used: Some(12.5),
+                currency: Some("USD".into()),
+                ..share
+            }),
+            "25% used"
+        );
+        assert_eq!(
+            extra_usage(&ExtraUsage {
+                limit: Some(50.0),
+                ..extra_on()
+            }),
+            "on"
+        );
+    }
+
+    #[test]
+    fn a_credit_balance_is_shown() {
+        let balance = ExtraUsage {
+            balance: Some(1_056.436_375),
+            ..extra_on()
+        };
+        assert_eq!(extra_usage(&balance), "on, 1056.44 credits left");
+        // After what is used, as it is after "on".
+        assert_eq!(
+            extra_usage(&ExtraUsage {
+                balance: Some(12.5),
+                ..spent(12.5, 50.0, Some("USD"), Some(25.0))
+            }),
+            "$12.50 of $50.00 used (25%), 12.50 credits left"
+        );
+        assert_eq!(
+            extra_usage(&ExtraUsage {
+                used_pct: Some(25.0),
+                ..balance
+            }),
+            "25% used, 1056.44 credits left"
+        );
     }
 
     #[test]

@@ -127,7 +127,7 @@ pub struct AccountView {
     pub fetched: Option<String>,
     /// Tightest first.
     pub windows: Vec<WindowView>,
-    /// Such as "on, 12.50 of 50.00 USD used (25%)".
+    /// Such as "$12.50 of $50.00 used (25%)", "on" or "off", in `text::extra_usage`'s words.
     pub extra_usage: Option<String>,
     /// Why the status is not ok, naming the fix.
     pub note: Option<String>,

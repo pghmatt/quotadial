@@ -2103,7 +2103,7 @@ mod tests {
         assert_eq!(
             render(&report, false),
             "Scripted user@example.com (max): rate limited\n  Session: 12% used, resets in 4 h \
-             56 min, from cache 4 min ago\n  Extra usage: on, 12.50 of 50.00 USD used (25%)\n  \
+             56 min, from cache 4 min ago\n  Extra usage: $12.50 of $50.00 used (25%)\n  \
              Anthropic is rate-limiting usage requests.\n"
         );
     }
