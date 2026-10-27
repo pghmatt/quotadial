@@ -168,7 +168,7 @@ function Chart({ chart }: { chart: WindowChart }) {
   return (
     <figure class="chart">
       <figcaption>
-        <span>{chart.label}</span>
+        <span class="label">{chart.label}</span>
         <span class="detail">
           latest <span class="nobreak">{Math.floor(chart.latest)}%</span>, highest{" "}
           <span class="nobreak">{Math.floor(chart.highest)}%</span>

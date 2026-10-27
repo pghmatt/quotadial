@@ -102,13 +102,45 @@
 body {
   margin: 0;
   color: var(--text);
-  /* A long account name or address breaks where it must rather than being cut off (#52). */
-  overflow-wrap: anywhere;
   /* With many accounts the popover reaches its tallest and scrolls. */
   overflow-x: hidden;
   overflow-y: auto;
   user-select: none;
   cursor: default;
+}
+
+/* The lines that can carry text from outside with no spaces in it break where they must rather than
+   being cut off (#52, D-139): an account's address, the name given it, its provider's name and its
+   plan (its heading, in the popover, in History and in Settings), a window's label, which can be a
+   model's name, the summary's line and a provider's incident, a note, a problem, a sign-in panel
+   and a cost's models, which can name a folder or a command, a command, what History says under its
+   period and about each heatmap, which echoes a label or a path, Settings' cards, which hold what
+   the person wrote and the hosts they set, and Help's cards and the update on offer, which hold the
+   changelog's lines, the privacy text and an update's error, and so file names, hosts and
+   addresses, the support address among them. Only these may break anywhere, and the body may not:
+   `overflow-wrap: anywhere` counts a break between any two letters when the least room a flex item
+   can be given is worked out, so on the body it let a flex row squeeze one of its parts below its
+   own words, and at 200% zoom History's caption broke "Weekly" as "Wee" over "kly". Every other
+   line is QuotaDial's own short words, which keep the browser's default: a line wraps between words
+   and a word stays whole. A line that shows text from outside, or a file name, a command or an
+   address, goes in this list, and a line of short words in a flex row does not;
+   whole-words.test.mjs holds the list. */
+.card-head,
+.label,
+.headline,
+.incident,
+.note,
+.problems,
+.costs,
+.sign-in,
+.settings .card,
+.help .card,
+.update-offer,
+.history > p,
+.account-history > .detail,
+.heatmap figcaption,
+code {
+  overflow-wrap: anywhere;
 }
 
 /* On macOS the system draws the popover material behind a transparent page. */
@@ -316,12 +348,13 @@ ul {
 }
 
 /* A window's share is one token, such as "64%": it never breaks over two lines, and whatever is
-   beside it gives way instead. The body's `overflow-wrap: anywhere` counts a break between any two
-   characters when it works out the least room a flex item can be given, so a long label beside a
-   share squeezed it down to one character's width and, at 200% zoom, left "64" over "%". nowrap
-   keeps the figure and its sign together. The number under the summary and the shares in a History
-   chart's caption are shares too. A window too narrow to hold a share cuts it off at its edge,
-   which is not breaking it. */
+   beside it gives way instead. `overflow-wrap: anywhere`, which the body had until D-139, counts a
+   break between any two characters when it works out the least room a flex item can be given, so a
+   long label beside a share squeezed it down to one character's width and, at 200% zoom, left "64"
+   over "%". The body no longer has it, and a label still may (the list above), so nowrap keeps the
+   figure and its sign together whatever is beside it. The number under the summary and the shares
+   in a History chart's caption are shares too. A window too narrow to hold a share cuts it off at
+   its edge, which is not breaking it. */
 .percent,
 .row .used,
 .nobreak {
@@ -867,10 +900,16 @@ html.solid input[type="checkbox"] {
   margin: 0 0 10px;
 }
 
+/* A chart's caption is its window's label, which can break anywhere, and the words and shares
+   beside it, which may not. It wraps, so that the two share a line only while both fit on it and
+   the shares go under the label when they do not, as at 200% zoom: two parts that could both shrink
+   would share the room in proportion to their width and squeeze the label into less than its own
+   words (D-139). */
 .chart figcaption {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0 8px;
   font-size: 12px;
 }
 
