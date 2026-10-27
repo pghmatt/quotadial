@@ -30,7 +30,7 @@ test("Claude's sign-in command shows whole, in a POSIX shell and in PowerShell (
   // PowerShell escapes a backtick, a $ and a double quote with a backtick, so a folder called
   // it's "$HOME" `Claude` puts backticks inside the command.
   const powershell =
-    'This Claude Code sign-in expired at 2026-10-26T09:12:00Z. Run `$env:CLAUDE_CONFIG_DIR = "$HOME\\it\'s `"`$HOME`" ``Claude``"; claude` once to refresh it.';
+    'This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `$env:CLAUDE_CONFIG_DIR = "$HOME\\it\'s `"`$HOME`" ``Claude``"; claude` once to refresh it.';
   assert.deepEqual(commands(powershell), [
     '$env:CLAUDE_CONFIG_DIR = "$HOME\\it\'s `"`$HOME`" ``Claude``"; claude',
   ]);

@@ -175,7 +175,7 @@ const ACCOUNTS = [
     extra_usage: null,
     // Claude's sentence for a sign-in that expired, with the command for its folder (D-131).
     note:
-      "This Claude Code sign-in expired at 2026-10-26T09:12:00Z. Run " +
+      "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run " +
       "`CLAUDE_CONFIG_DIR=~/'My Claude' claude` once to refresh it.",
     sign_in: CLAUDE_SIGN_IN,
   },
