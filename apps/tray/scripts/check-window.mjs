@@ -42,7 +42,7 @@
 //   a chart, each read from the PNG's own pixels (share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
-// QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with nine accounts, with the made-up accounts
+// QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, with the made-up accounts
 // in window-fixtures.mjs answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a

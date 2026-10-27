@@ -19,7 +19,7 @@
 // week's cost, a key kept and a Share image button on each account in History; Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
 // daemon sends it, with no panel, and an example account, its provider shown once; and Many, Pro
-// with nine accounts, which carry every view far past the window's tallest height (D-136).
+// with ten accounts, which carry every view far past the window's tallest height (D-136).
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -303,9 +303,10 @@ const ACCOUNTS = [
 ];
 
 /**
- * Three more accounts, which with the six above make nine: as many as a person with a few
+ * Three more accounts, which with those above make ten, as many as a person with a few
  * subscriptions each for work and for play has, and enough to carry the popover well past its
- * tallest, so that its toolbar has to stay put while they scroll (D-136).
+ * tallest, so that its toolbar has to stay put while they scroll (D-136). The copy of them was
+ * called Nine, before an account with one window was added to those above (D-137).
  * @type {Meter["accounts"]}
  */
 const MORE_ACCOUNTS = [
@@ -419,8 +420,8 @@ const MORE_ACCOUNTS = [
   },
 ];
 
-/** Nine accounts: the six above and three more. */
-const NINE = [...ACCOUNTS, ...MORE_ACCOUNTS];
+/** Every account above and three more: the Many copy's. */
+const MANY_ACCOUNTS = [...ACCOUNTS, ...MORE_ACCOUNTS];
 
 /**
  * An account as the example build sends it (D-117): called Example under the provider Example, so
@@ -706,7 +707,7 @@ export const pro = {
 };
 
 /**
- * QuotaDial Pro with nine accounts (D-136): the popover's accounts, and each panel's, run far past
+ * QuotaDial Pro with ten accounts (D-136): the popover's accounts, and each panel's, run far past
  * the window's tallest height, so the check sees the toolbar stay at the window's foot while they
  * scroll, from the top to the last card.
  *
@@ -714,9 +715,9 @@ export const pro = {
  */
 export const many = {
   ...pro,
-  meter: { ...pro.meter, accounts: NINE },
-  settings: { ...SETTINGS, accounts: choices(NINE) },
-  history: { 7: history(7, null, NINE), 30: history(30, null, NINE) },
+  meter: { ...pro.meter, accounts: MANY_ACCOUNTS },
+  settings: { ...SETTINGS, accounts: choices(MANY_ACCOUNTS) },
+  history: { 7: history(7, null, MANY_ACCOUNTS), 30: history(30, null, MANY_ACCOUNTS) },
   forScrolling: true,
 };
 
