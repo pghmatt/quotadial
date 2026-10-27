@@ -503,8 +503,9 @@ The notes below run newest first; the setup notes above them are the oldest.
   and then its heatmap's when it was used at all), and the words found in each must be the words its text has, before any line is
   judged, so that a check that finds none cannot pass. A word is four letters or more in a row, in any script ("5-hour" holds "hour";
   "GPT" and "and" are not words); each is judged by its own line boxes, a range's client rects, and is a verdict when it is on more than
-  one line, unless it is wider than its whole caption (the boxes of a broken word are as wide together as the word), which has to break
-  somewhere or be cut off, which the check of cut-off text holds. What is shared with the check of shares moved into
+  one line, unless its run, the word with what is written against it up to a space, such as a model's name with its brackets, is wider
+  than its whole caption (the boxes of a broken run are as wide together as the run), which has to break somewhere or be cut off, which
+  the check of cut-off text holds (Windows' CI, below). What is shared with the check of shares moved into
   `whole-shares.mjs`: `matchesIn`, which finds a match across the nodes Preact writes a text in, `sharesIn` as a use of it, and `PAGE_TEXT`,
   the page's reading of its text by the block each piece is drawn in; the tests' stand-in for the page is `page-stand-in.mjs`, their
   random strings `random-text.mjs` and the stylesheet's rules `stylesheet.mjs`'s `rules()`. A command is selected whole by a click at
@@ -546,7 +547,7 @@ The notes below run newest first; the setup notes above them are the oldest.
     breaks words (`overflow-wrap`, `word-wrap`, `word-break`, `line-break`, `hyphens`) is anything but `overflow-wrap: anywhere` on
     exactly the fifteen selectors, if the body or any line that reaches every line is among them, if History's caption does not wrap, or
     its label is not the `.label` that may break.
-  - *`whole-words.test.mjs`, 15 tests with no browser:* a word found across the nodes it is written in, with where it starts and ends; what
+  - *`whole-words.test.mjs`, 18 tests with no browser (15 at the review; the three since are Windows' CI's, below):* a word found across the nodes it is written in, with where it starts and ends; what
     is not a word; a property test of 5,000 strings cut into random nodes, in Latin, accented and other scripts and in a character of two
     UTF-16 units, a new seed each run (the seed is in every failure, `QUOTADIAL_TEST_SEED=<seed>` runs the same strings again); the
     captions each copy should draw, in order, and that every copy has some, each with a word to judge; the verdict on the captions drawn
@@ -568,8 +569,8 @@ The notes below run newest first; the setup notes above them are the oldest.
   - *Help's cards and the update on offer* are on the list for QuotaDial's own words that have no space in them, file names, commands and
     hosts in the changelog's lines and the privacy text, and the support address, which a long word needs as much as text from outside
     does: found by reading what Help really shows, which its fixture's two short sentences had hidden, and held by the check since.
-  - *A word* is four letters or more in a row, in any script; a break at a hyphen, as "5-" over "hour", is not a word broken. A word wider
-    than its whole caption is no verdict.
+  - *A word* is four letters or more in a row, in any script; a break at a hyphen, as "5-" over "hour", is not a word broken. A word whose
+    run, with what is written against it up to a space, is wider than its whole caption is no verdict (Windows' CI, below).
   - *Which captions:* the card's line saying where and when its windows were read, each History chart's caption and each heatmap's (the
     manager's "any caption", by the vocabulary of D-135's check and the markup's `figcaption`s). Settings and Help have none, and are held
     to have none.
@@ -580,7 +581,31 @@ The notes below run newest first; the setup notes above them are the oldest.
   - *Commands at 200%:* `checkCommands` moved into the zoom loop, with its label saying the zoom, since a long command wraps at both.
   - *The queued row for `--window-zoom abc`* is added as the manager asked in the review of #100 (09:22 UTC), and #100's own rows are its.
   - *No PR number* in the Done row: the pull request is the coordinator's to open.
-- **Counts:** the tray's `npm test` 97, up from 82 on `main` at 43ab677, where #100 had made it 82 from 78 (15 in `whole-words.test.mjs`;
+- **Windows' CI, after the review.** The manager approved at 857578e (10:22 UTC) with the three `tray` jobs still running, and
+  `tray (windows-latest)` then failed 2 of its 18,750 checks (CI run 40487038794): "ClaudeSonnetFourPointFiveExtendedContextPreview" is
+  broken over 2 lines, though it fits its caption, in `many, light, history, caption words at 100%` and the same in dark. macOS and
+  Linux passed. *The cause* is in the check, and the window is right: the Many copy's label is
+  "Weekly (ClaudeSonnetFourPointFiveExtendedContextPreview)", where a line can break only at the space, so the brackets go with the
+  name. On Windows the caption at 100% was wider than the name and narrower than the name with its brackets, so that run had to break,
+  and the browser broke it where the line ended, inside the name, as the label's `overflow-wrap: anywhere` lets it; the check measured
+  the name alone, found that it fitted, and called the break a verdict. Reproduced in this Mac's Chrome 156 with the caption's own rules
+  (the scratchpad's `caption-run/repro.mjs`): at 300.85 px, between the name's 298.56 px and the 303.14 px of the name with its opening
+  bracket, the name is drawn in boxes of 289.3 and 9.3 px and the check gave Windows' verdict word for word; at 310 px, which the run's
+  307.72 px fits, the name is whole; and the bug D-139 fixed, a caption that does not wrap squeezing "Weekly" into boxes of 24.8 and
+  16.1 px, is a verdict. *The fix* (`whole-words.mjs`, and D-139's text): each word is measured with its run, the word with what is
+  written against it up to a space (a no-break space joins a run), by the same range boxes, and a broken word is excused only when its
+  run is wider than its whole caption; a verdict names the run when it is more than the word. QuotaDial's own words are runs of their
+  own or short ones, and so is every label narrower than its caption, and they are judged as before. Three tests, the first failing
+  first with Windows' message: a run wider than its caption may break inside its word and one that fits may not; a word's run, across
+  the nodes it is written in, up to a space or a new line and not a no-break space; and the page's own code measuring a name in its
+  brackets as its run. The property test of 5,000 strings holds each word's run too. With the fix the reproduction gives no verdict at
+  300.85 px and still gives one for the squeezed "Weekly". Nothing in the window changed: `style.css`, the app and the pictures are as
+  reviewed. Checks run again, through the scratchpad's `safe.sh`: the tray's `npm run build`, `npm test` (100) and
+  `npm run check:window` (18,750 checks over 26 views, all passing, in 3 minutes 24 seconds), `scripts/privacy.sh --check` and
+  `scripts/public-prd.sh --check`. No Rust, no `CHANGELOG.md` line and nothing the website renders changed, so cargo and the website's
+  checks were not run again.
+- **Counts:** the tray's `npm test` 100, up from 82 on `main` at 43ab677, where #100 had made it 82 from 78 (18 in `whole-words.test.mjs`,
+  15 at the review and three for Windows' CI;
   the 18 in `whole-shares.test.mjs` are unchanged in what they hold); the window check 18,750 checks over 26 views in
   3 minutes 24 seconds on the rebased tree, up from 17,450 over 26 views in 3 minutes 19 seconds on `main` (1,112 for the captions and their
   words, 80 for the Many copy's long text, 68 for the commands at 200% and 40 for its Help and update lines); the website's eight views
@@ -614,7 +639,8 @@ The notes below run newest first; the setup notes above them are the oldest.
   #73's comment and the manager's review of #100 and #100's list of files, and `git fetch`.
 - **#52's list, gone down:** *found and fixed:* a short word broken in History's caption at 200% (above), and the long text the window
   could not have shown at 200% had the rule been taken off the body without the check: Help's support address, which ran past the window's
-  edge in bars that take room, and a long label from outside in History's caption. *Held:* a long name, address, plan, label, folder,
+  edge in bars that take room, and a long label from outside in History's caption; and, from Windows' CI after the review, the
+  check of words calling a long name's break a verdict where its brackets made the run too wide for the caption (above). *Held:* a long name, address, plan, label, folder,
   command, incident, host and alert wrap rather than being cut off, at 100% and 200%, in every place the window shows them, now by a
   check of each place and not of an address alone; a command is selected whole by one click at 200% as at 100%; every colour pair in both
   themes (30 a theme); tabular figures; no address in the picture; no new dependency or network address; the window's JavaScript within its
