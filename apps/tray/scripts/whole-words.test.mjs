@@ -2,9 +2,9 @@
 // letters or more is found wherever it is written, across the text nodes it is cut into; which
 // captions a copy of the window should draw, in order; that the captions the window draws are held
 // to those before any line is judged; and that a word's line boxes say whether it is drawn on one
-// line or two, and excuse a word that is wider than its caption. The page's own code runs here
-// against a small stand-in for the page, and the browser's part, which boxes a word is drawn in, is
-// held by the window check itself.
+// line or two, and excuse a word whose run, the word with what is written against it, is wider than
+// its caption. The page's own code runs here against a small stand-in for the page, and the
+// browser's part, which boxes a word is drawn in, is held by the window check itself.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
