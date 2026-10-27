@@ -13,6 +13,9 @@
 // draws the dashed 90% line over that fill, so the dashed line is held on it too, as `--shading`.
 // History draws no fill. The bars' fill against their track is left out: each bar has its
 // percentage beside it in text, which is checked, so the bar is never the only way to tell.
+// The chart's line itself is held on its card and not on its own soft fill, which is part of it,
+// the area under its series in its own colour (D-140); that figure is measured and said with each
+// run, and not held, so that it is seen if it moves.
 import { MATERIAL, SHADING } from "../src/share.ts";
 import { themes } from "./stylesheet.mjs";
 
@@ -49,9 +52,14 @@ const PAIRS = [
   ["--muted", ["--picture", "--card"], 4.5, "the share picture's quotadial.com, highest share, 90% label and heatmap's words, on its card"],
   ["--warning", ["--picture", "--card"], 4.5, "a share past 70% in the share picture, on its card"],
   ["--high", ["--picture", "--card"], 4.5, "a share past 90% in the share picture, on its card"],
-  ["--bar-normal", ["--picture", "--card"], 3, "the share picture's chart line, on its card"],
+  ["--bar-normal", ["--picture", "--card"], 3, "the share picture's chart line, on its card, which is what it is judged against (D-140)"],
   ["--chart-limit", ["--picture", "--card"], 3, "the share picture's dashed 90% line, on its card"],
   ["--chart-limit", ["--picture", "--card", "--shading"], 3, "the share picture's dashed 90% line where a share above 90% fills the chart under its line"],
+];
+
+/** Each pair measured and said with each run, not held: the colour, its grounds from the bottom up and what it is. */
+const MEASURED = [
+  ["--bar-normal", ["--picture", "--card", "--shading"], "the share picture's chart line on its own soft fill, which is part of it (D-140)"],
 ];
 
 /** `value` as `[r, g, b, a]`, from `#rrggbb` or `rgb(r g b / a%)`. */
@@ -94,7 +102,21 @@ function shading(line) {
   return `rgb(${r} ${g} ${b} / ${SHADING * 100}%)`;
 }
 
+/**
+ * `foreground` against its `grounds` in `colours`, or the first of them `colours` does not define:
+ * the bottom ground is laid on white in case it is see-through, then each one over it in turn.
+ */
+function measure(colours, foreground, grounds) {
+  const missing = [foreground, ...grounds].find((name) => colours[name] === undefined);
+  if (missing) {
+    return { missing };
+  }
+  const back = grounds.reduce((under, name) => over(parse(colours[name]), under), [255, 255, 255]);
+  return { found: ratio(over(parse(colours[foreground]), back), back) };
+}
+
 let failed = false;
+const measured = MEASURED.map(() => []);
 for (const [theme, stylesheet] of themes()) {
   // The picture's ground is its own, in the theme's name, and so is its soft fill, the chart line's
   // colour at SHADING; the rest are the stylesheet's. A missing chart line is said by its own pairs.
@@ -105,15 +127,12 @@ for (const [theme, stylesheet] of themes()) {
     ...(line === undefined ? {} : { "--shading": shading(line) }),
   };
   for (const [foreground, grounds, needed, where] of PAIRS) {
-    const missing = [foreground, ...grounds].find((name) => colours[name] === undefined);
+    const { missing, found } = measure(colours, foreground, grounds);
     if (missing) {
       failed = true;
       console.error(`${theme}: style.css does not define ${missing}, used for ${where}.`);
       continue;
     }
-    // The bottom ground is laid on white in case it is see-through, then each one over it in turn.
-    const back = grounds.reduce((under, name) => over(parse(colours[name]), under), [255, 255, 255]);
-    const found = ratio(over(parse(colours[foreground]), back), back);
     if (found < needed) {
       failed = true;
       console.error(
@@ -121,7 +140,15 @@ for (const [theme, stylesheet] of themes()) {
       );
     }
   }
+  MEASURED.forEach(([foreground, grounds], index) => {
+    measured[index].push({ theme, found: measure(colours, foreground, grounds).found });
+  });
 }
+// A colour a measured pair needs and the stylesheet lacks is said by the held pair that uses it.
+MEASURED.forEach(([, , what], index) => {
+  const said = measured[index].map(({ theme, found }) => (found === undefined ? `not measured in ${theme}` : `${found.toFixed(2)}:1 in ${theme}`));
+  console.log(`Measured, not held: ${what}, ${said.join(" and ")}.`);
+});
 if (failed) {
   console.error(
     "Change the colour in src/style.css, or the share picture's ground, MATERIAL, or its soft fill, SHADING, in src/share.ts, until each pair reaches its ratio.",
