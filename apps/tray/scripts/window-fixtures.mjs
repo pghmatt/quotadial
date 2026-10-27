@@ -27,11 +27,15 @@
 // an account with many windows, where each share must be written whole in every system's own font,
 // and where one window, full since the middle of the period, puts its dashed 90% line over the soft
 // fill under its line for half the chart, to be judged there.
-// Each History view carries the marks the app would send for its period (D-143, fixture-marks.mjs):
-// the others' week ends on a Sunday at 14:00, and Crowded's on a Wednesday at noon, so its first and
-// last days are each held half a day and have an initial, a W, the widest, at each end of the chart.
+// Each History view carries the marks the app would send for its period (D-143, fixture-marks.mjs)
+// and the heatmap's rows, a row for each day the period holds and no cell for an hour it does not
+// hold (D-144, fixture-period.mjs): the others' week ends on a Sunday at 14:25, so its first and
+// last rows are each held from or to the middle of an hour, and Crowded's on a Wednesday at noon,
+// so its first and last days are each held half a day and have an initial, a W, the widest, at each
+// end of the chart, and its last row ends on the hour.
 
 import { marksOf } from "./fixture-marks.mjs";
+import { fromOf, rowsOf, saidOf } from "./fixture-period.mjs";
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -41,12 +45,14 @@ import { marksOf } from "./fixture-marks.mjs";
 /** @typedef {import("../src/meter").HelpView} HelpView */
 /** @typedef {import("../src/meter").UpdateView} UpdateView */
 /**
- * @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView, forScrolling?: boolean, panels?: ("accounts" | "history" | "settings" | "help")[] }} Copy
+ * @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView, periods: Record<string, { start: number, now: number }>, forScrolling?: boolean, panels?: ("accounts" | "history" | "settings" | "help")[] }} Copy
  * `forScrolling` marks a copy made to scroll: the check puts the window's scrolling through its
  * tests over this copy, once, in the light theme (the keys, the wheel, each view's top, the other
  * sizes), and, since what it holds is checked on the other copies, does not press each of its
  * controls from a window opened afresh or draw each account's picture to share over again.
  * `panels` names the only views of a copy that are checked, where the copy is made for one.
+ * `periods` gives the period each of its History views is of, `start` to `now` in milliseconds,
+ * which the window check counts the heatmap's rows against (D-144).
  */
 
 const LONG_NAME = "a.very.long.account.name.that.keeps.going@engineering.example.com";
@@ -581,10 +587,15 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 
 /**
  * When each period the copies show ends, in UTC, the copies' zone: the week on Sunday 26 April 2026
- * and the month on Tuesday 19 May 2026, each at 14:00, so that both begin their heatmaps on Monday
- * 20 April and each is held in part at its two ends, as the app's periods are (D-143).
+ * and the month on Tuesday 19 May 2026, each at 14:25, so that both begin on Sunday 19 April at
+ * 14:25 and each is held in part at its two ends, from and to the middle of an hour, as the app's
+ * periods are (D-143, D-144).
  */
-const NOW = { 7: Date.UTC(2026, 3, 26, 14), 30: Date.UTC(2026, 4, 19, 14) };
+const NOW = { 7: Date.UTC(2026, 3, 26, 14, 25), 30: Date.UTC(2026, 4, 19, 14, 25) };
+
+/** The day the copies' use counts its days from, Monday 20 April 2026, so a day's use is the same in
+ * every period that shows it. */
+const PATTERN_FROM = Date.UTC(2026, 3, 20);
 
 /** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
 const SESSIONS = ["Session", "5-hour"];
@@ -642,38 +653,30 @@ function label(account) {
 }
 
 /**
- * An account's history over the `days` days from `first`, a UTC midnight in milliseconds: a working
- * day's use, heavier mid-week, the same each run so a failure can be reproduced. Each day is named
- * as the app names it, from the calendar.
+ * An account's history over a period of `days`, whose heatmap has `rows`, `rowsOf`'s days: a working
+ * day's use, heavier mid-week, the same each run so a failure can be reproduced, and no cell for an
+ * hour the period does not hold. Each day is named as the app names it, from the calendar, and the
+ * first row's words name the hour it starts from.
  *
  * @param {Meter["accounts"][number]} account
  * @param {number} days
- * @param {number} first
+ * @param {{ day: number, hours: boolean[] }[]} rows
  * @returns {AccountHistory}
  */
-function accountHistory(account, days, first) {
-  /** @type {string[]} */
-  const labels = [];
-  /** @type {number[][]} */
-  const cells = [];
-  /** @type {string[]} */
-  const said = [];
-  for (let day = 0; day < days; day += 1) {
-    const date = new Date(first + day * DAY);
-    const label = `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()}`;
-    const weekend = date.getUTCDay() % 6 === 0;
-    const hours = Array.from({ length: 24 }, (_, hour) =>
-      !weekend && hour >= 9 && hour < 18 ? Math.round((3 + ((day * 7 + hour * 3) % 9)) * 10) / 10 : 0,
+function accountHistory(account, days, rows) {
+  const from = fromOf(rows);
+  const labels = rows.map(({ day }) => `${DAY_NAMES[new Date(day).getUTCDay()]} ${new Date(day).getUTCDate()}`);
+  const cells = rows.map(({ day, hours }) => {
+    const index = Math.round((day - PATTERN_FROM) / DAY);
+    const weekend = new Date(day).getUTCDay() % 6 === 0;
+    return hours.map((held, hour) =>
+      !held
+        ? null
+        : !weekend && hour >= 9 && hour < 18
+          ? Math.round((3 + ((((index * 7 + hour * 3) % 9) + 9) % 9)) * 10) / 10
+          : 0,
     );
-    const most = hours.indexOf(Math.max(...hours));
-    labels.push(label);
-    cells.push(hours);
-    said.push(
-      weekend
-        ? `${label}: not used`
-        : `${label}: used 9:00 to 18:00, most at ${most}:00 (${Math.round(hours[most])}%)`,
-    );
-  }
+  });
   return {
     key: account.key,
     provider: account.provider,
@@ -696,15 +699,16 @@ function accountHistory(account, days, first) {
       window: account.windows[account.windows.length - 1]?.label ?? "Session",
       days: labels,
       cells,
-      most: Math.max(...cells.flat()),
-      said,
+      most: Math.max(...cells.flat().map((cell) => cell ?? 0)),
+      said: labels.map((day, row) => saidOf(row === 0 && from !== null ? `${day} from ${from}:00` : day, cells[row])),
     },
   };
 }
 
 /**
- * History over the `days` before `now`, in milliseconds: the heatmap's days, from the last day back,
- * the dates they cover and the marks of the period, as the app sends them (D-143).
+ * History over the `days` before `now`, in milliseconds: the heatmap's rows, the calendar days the
+ * period holds, the dates of the first and last of them and the marks of the period, as the app
+ * sends them (D-143, D-144).
  *
  * @param {7 | 30} days
  * @param {string | null} shareLeftOut
@@ -713,18 +717,29 @@ function accountHistory(account, days, first) {
  * @returns {HistoryView}
  */
 function history(days, shareLeftOut, accounts = ACCOUNTS, now = NOW[days]) {
-  const today = Math.floor(now / DAY) * DAY;
-  const first = today - (days - 1) * DAY;
+  const start = now - days * DAY;
+  const rows = rowsOf(start, now);
   return {
     days,
     span: `The last ${days} days.`,
-    dates: dates(first, today),
-    marks: marksOf(days, now - days * DAY, now),
+    dates: dates(rows[0].day, rows[rows.length - 1].day),
+    marks: marksOf(days, start, now),
     accounts: accounts.filter((account) => account.windows.length > 0).map((account) =>
-      accountHistory(account, days, first),
+      accountHistory(account, days, rows),
     ),
     share_left_out: shareLeftOut,
   };
+}
+
+/**
+ * The periods a copy's History views are of, `start` to `now` in milliseconds, which the window check
+ * counts the heatmap's rows against, ending at `ends[days]`.
+ *
+ * @param {Record<number, number>} ends
+ * @returns {Record<string, { start: number, now: number }>}
+ */
+function periodsOf(ends) {
+  return Object.fromEntries(Object.entries(ends).map(([days, now]) => [days, { start: now - Number(days) * DAY, now }]));
 }
 
 /** @type {HelpView} */
@@ -785,6 +800,7 @@ export const pro = {
   },
   settings: SETTINGS,
   history: { 7: history(7, null), 30: history(30, null) },
+  periods: periodsOf(NOW),
   help: HELP,
   update: {
     text: "QuotaDial 0.3.0 is the newest version. Checked 5 min ago.",
@@ -1020,6 +1036,7 @@ export const crowded = {
   },
   settings: { ...SETTINGS, accounts: choices([CROWDED_ACCOUNT]) },
   history: { 7: crowdedHistory(7), 30: crowdedHistory(30) },
+  periods: periodsOf({ 7: CROWDED_NOW, 30: CROWDED_NOW }),
   panels: ["history"],
 };
 
@@ -1064,6 +1081,7 @@ export const free = {
     },
   },
   history: { 7: history(7, SHARE_LEFT_OUT), 30: history(30, SHARE_LEFT_OUT) },
+  periods: periodsOf(NOW),
   help: { ...HELP, licence: "QuotaDial Free, with no licence key." },
   update: {
     text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",

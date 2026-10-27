@@ -25,16 +25,24 @@ test("the site's examples match the pictures of the app", () => {
   assert.equal(WEEKLY_CURVE.runsOut.hour - (WEEKLY_CURVE.points.at(-1)?.hour ?? 0), 4.5);
 });
 
-/** Each period the pictures' History offers is as long as it is named, so its picture to share is. */
-test("each period of the pictures' History covers the days it is named for, a row and four readings a day", () => {
+/**
+ * Each period the pictures' History offers is as long as it is named, so its picture to share is,
+ * and its heatmap has a row for each calendar day the period touches (D-144): one more than its
+ * days, since it ends at 14:10 and not at midnight.
+ */
+test("each period of the pictures' History covers the days it is named for, a row for each day it touches and four readings a day", () => {
+  const DAY = 24 * 60 * 60 * 1000;
   for (const [key, view] of Object.entries(site.history)) {
     const days = Number(key);
     assert.equal(view.days, days, `the ${key}-day period says it covers ${view.days} days`);
     assert.equal(view.span, `The last ${days} days.`);
+    const { start, now } = site.periods[key];
+    const touched = Math.floor((now - 1) / DAY) - Math.floor(start / DAY) + 1;
+    assert.equal(touched, days + 1, `the ${key}-day period ends part way through a day`);
     for (const account of view.accounts) {
       const labels = account.heatmap.days;
-      assert.equal(labels.length, days, `${account.label} over ${key} days: a heatmap row a day`);
-      assert.equal(new Set(labels).size, days, `${account.label} over ${key} days: each day named once`);
+      assert.equal(labels.length, touched, `${account.label} over ${key} days: a heatmap row for each day the period touches`);
+      assert.equal(new Set(labels).size, touched, `${account.label} over ${key} days: each day named once`);
       const [first, last] = [labels[0], labels[labels.length - 1]].map((label) => label.split(" ")[1]);
       assert.ok(view.dates.startsWith(`${first} `) && view.dates.includes(` to ${last} `), `${view.dates} runs from ${first} to ${last}`);
       for (const window of account.windows) {
