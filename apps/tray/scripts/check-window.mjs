@@ -497,6 +497,11 @@ const MOVING = `(() => {
     if (transition || style.animationName !== 'none') {
       found.push(element.tagName.toLowerCase() + (element.className ? '.' + element.className : '') + ' still moves');
     }
+    // A scroll that glides moves too. Whether Chrome glides is the system's choice, and this check's
+    // Chrome is told not to, so what is read is what the stylesheet asks for.
+    if (style.scrollBehavior !== 'auto') {
+      found.push(element.tagName.toLowerCase() + (element.className ? '.' + element.className : '') + ' still scrolls in a glide');
+    }
   }
   return [...new Set(found)].slice(0, 10);
 })()`;
@@ -1490,11 +1495,6 @@ async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
     await view.settle();
     const almost = await view.evaluate(FRAME);
     check(label, hairline(almost.footer.line) && "a line is drawn above the toolbar with a single pixel hidden below it, which is only rounding");
-  }
-  // Scrolling is not animated: what is asked for is there at once, with less motion asked for.
-  if (hidden >= 100) {
-    const jumped = await view.evaluate(`(() => { const scroller = ${SCROLLER}; scroller.scrollTop = 0; scroller.scrollTop = 100; return scroller.scrollTop; })()`);
-    check(label, jumped !== 100 && "scrolling is animated, with less motion asked for");
   }
 }
 
