@@ -246,8 +246,10 @@ function drawChart(raster, theme, box, points, fill) {
   const grey = theme === "light" ? [0, 0, 0] : [255, 255, 255];
   raster.fill(left, top - 2, right, top + 2, over([...grey, 0.08], fill).map(Math.round));
   raster.fill(left, bottom - 2, right, bottom + 2, over([...grey, 0.22], fill).map(Math.round));
+  // The dashed line's colour as the stylesheet gives it, `--chart-limit`: darker in light, for 3:1.
+  const orange = theme === "light" ? [184, 112, 0] : [255, 159, 10];
   for (let x = left; x < right; x += 12) {
-    raster.fill(x, row(90) - 2, Math.min(right, x + 12 - 6), row(90) + 2, [255, 159, 10]);
+    raster.fill(x, row(90) - 2, Math.min(right, x + 12 - 6), row(90) + 2, orange);
   }
   const blue = theme === "light" ? [0, 122, 255] : [10, 132, 255];
   for (let x = left; x < right; x += 1) {

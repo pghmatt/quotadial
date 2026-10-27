@@ -143,8 +143,8 @@ const RULE = 2;
 const LINE = 3;
 /**
  * How strong the soft fill under a chart's line is: the line's colour at this opacity over the
- * card. It is the picture's own choice, History draws none (D-137), and it is named so that a
- * check can lay it under another colour, as the dashed 90% line's can be.
+ * card. It is the picture's own choice, History draws none (D-137), and check-contrast.mjs reads
+ * it to hold the dashed 90% line, which is drawn over it, at 3:1 against it.
  */
 export const SHADING = 0.16;
 /**
@@ -398,7 +398,8 @@ function drawChart(
     context.globalAlpha = 1;
   }
   // The dashed line goes over the fill, so that a share above 90%, which is what the line is for,
-  // does not dull it: it is seen in its own colour, as History's is, with the fill under it.
+  // does not dull it: it is seen in its own colour, which check-contrast.mjs holds at 3:1 against
+  // the fill under it, as History's is against the card.
   context.setLineDash([6, 6]);
   rule(context, x, x + width, y + ((100 - LIMIT_PCT) / 100) * height, look.limit);
   context.setLineDash([]);
