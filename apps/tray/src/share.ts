@@ -142,6 +142,12 @@ const LIMIT_ROOM = 48;
 const RULE = 2;
 const LINE = 3;
 /**
+ * How strong the soft fill under a chart's line is: the line's colour at this opacity over the
+ * card. It is the picture's own choice, History draws none (D-137), and it is named so that a
+ * check can lay it under another colour, as the dashed 90% line's can be.
+ */
+export const SHADING = 0.16;
+/**
  * The heatmap's words, its room for a day's label, where its rows begin, where its hours are
  * written, and the room between its last row and them. A week's rows are 18.9 px apart, room for
  * a day's name at 16 px to stand clear of the one above it.
@@ -357,7 +363,8 @@ function rule(
 /**
  * A window's share used over the period, on the card with no plate under it, as History draws it
  * (D-132): a faint line at 100% and a hairline at 0% give the scale, whole at the chart's edges,
- * and a dashed line marks 90%.
+ * and a dashed line marks 90%. From the bottom: the scale, the soft fill under the share's line,
+ * the dashed line, and the share's own line.
  */
 function drawChart(
   context: CanvasRenderingContext2D,
@@ -375,9 +382,6 @@ function drawChart(
   context.lineWidth = RULE;
   rule(context, x, x + width, y, look.top);
   rule(context, x, x + width, y + height, look.base);
-  context.setLineDash([6, 6]);
-  rule(context, x, x + width, y + ((100 - LIMIT_PCT) / 100) * height, look.limit);
-  context.setLineDash([]);
   const points = chart.points.map(at);
   if (points.length > 0) {
     // The share used is filled in beneath its line, so the shape reads when the picture is small.
@@ -388,10 +392,17 @@ function drawChart(
     }
     context.lineTo(points[points.length - 1][0], y + height);
     context.closePath();
-    context.globalAlpha = 0.16;
+    context.globalAlpha = SHADING;
     context.fillStyle = look.line;
     context.fill();
     context.globalAlpha = 1;
+  }
+  // The dashed line goes over the fill, so that a share above 90%, which is what the line is for,
+  // does not dull it: it is seen in its own colour, as History's is, with the fill under it.
+  context.setLineDash([6, 6]);
+  rule(context, x, x + width, y + ((100 - LIMIT_PCT) / 100) * height, look.limit);
+  context.setLineDash([]);
+  if (points.length > 0) {
     context.beginPath();
     points.forEach(([px, py], index) =>
       index === 0 ? context.moveTo(px, py) : context.lineTo(px, py),

@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CARD, MATERIAL, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
+import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
 import { site } from "./site-fixtures.mjs";
 import { themes } from "./stylesheet.mjs";
 import { pro } from "./window-fixtures.mjs";
@@ -250,6 +250,30 @@ test("each chart has the scale History draws: a faint line at 100%, a hairline a
       const lines = strokes.filter((op) => op.stroke === look.line);
       assert.equal(lines.length, account.windows.length, account.label);
       assert.ok(lines.every((line) => line.width === 3), "the line is 3 px");
+    }
+  }
+});
+
+test("each chart's dashed 90% line is drawn over the shading under its line and under the line, so the shading never dulls it", () => {
+  // The contrast check holds the dashed line at 3:1 against the shading as it is, in the line's own
+  // colour, which is what a share above 90% shows only when nothing is laid over the dashed line.
+  assert.equal(SHADING, 0.16);
+  for (const theme of ["light", "dark"]) {
+    const look = LOOKS[theme];
+    for (const [view, account] of ACCOUNTS) {
+      const ops = draw(view, account, theme);
+      const where = (found) => ops.flatMap((op, index) => (found(op) ? [index] : []));
+      // Each chart draws one of each, and the charts are drawn in turn.
+      const shading = where((op) => op.op === "fill" && op.alpha === SHADING);
+      const limits = where((op) => op.op === "stroke" && op.stroke === look.limit);
+      const lines = where((op) => op.op === "stroke" && op.stroke === look.line);
+      const counts = [shading.length, limits.length, lines.length];
+      assert.deepEqual(counts, Array(3).fill(account.windows.length), `${account.label}: a shading, a dashed line and a line for each chart`);
+      account.windows.forEach((_, chart) => {
+        const what = `${account.label}, chart ${chart + 1}`;
+        assert.ok(shading[chart] < limits[chart], `${what}: the dashed line is drawn before the shading, which then dulls it`);
+        assert.ok(limits[chart] < lines[chart], `${what}: the line is drawn before the dashed line, which then crosses it`);
+      });
     }
   }
 });
