@@ -930,7 +930,18 @@ async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
     let running = tokio::spawn(host.run(async {
         let _ = stopped.await;
     }));
-    let questions: Vec<_> = (0..20_u64)
+
+    // A question asked while the host runs has its answer. It is answered before the stop is sent,
+    // so a busy machine cannot make it late: asked among the others, it once reached the host only
+    // after the stop on a CI runner and was handed over instead.
+    let first = client::status(&dir).await;
+    assert!(
+        matches!(first, Ok(Some(_))),
+        "the first question had an answer: {first:?}"
+    );
+
+    // Questions asked while the host stops get an answer or a handover, and never an error.
+    let questions: Vec<_> = (0..18_u64)
         .map(|i| {
             let dir = dir.clone();
             tokio::spawn(async move {
@@ -939,24 +950,22 @@ async fn questions_asked_while_a_host_stops_get_an_answer_or_a_handover() {
             })
         })
         .collect();
-
     tokio::time::sleep(Duration::from_millis(80)).await;
     stop.send(()).expect("running");
     running.await.expect("joins").expect("stops cleanly");
-
-    let mut answers = Vec::new();
     for question in questions {
         let answer = question.await.expect("joins");
         assert!(
             answer.is_ok(),
             "never an error while the daemon stops: {answer:?}"
         );
-        answers.push(answer.expect("checked"));
     }
-    assert!(answers[0].is_some(), "the first question had an answer");
+
+    // One asked once the host has stopped is handed over to a direct fetch.
+    let last = client::status(&dir).await;
     assert!(
-        answers[answers.len() - 1].is_none(),
-        "the last was handed over to a direct fetch"
+        matches!(last, Ok(None)),
+        "the last was handed over to a direct fetch: {last:?}"
     );
 }
 
