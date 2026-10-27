@@ -42,6 +42,11 @@
   --field: #78787d;
   /* A card's corners. */
   --radius: 10px;
+  /* The line at the edge of what scrolls, drawn only where content is hidden beyond it: a device
+     pixel, which is half a CSS pixel on a screen of two. It is a decorative separator in --rule,
+     which says again what the layout already says, that the content ends there, so it is not held
+     to 3:1 as a control's edge is (D-136). */
+  --hairline: 0.5px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.35;
@@ -74,6 +79,14 @@
   }
 }
 
+/* On a screen of one pixel to the CSS pixel the line is a whole pixel, since half of one would be
+   too faint. */
+@media (max-resolution: 1.5dppx) {
+  :root {
+    --hairline: 1px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -103,9 +116,32 @@ html.solid .popover {
   border: 1px solid var(--rule);
 }
 
-/* The cards fill the width but for an even edge; text outside them lines up with text inside. */
+/* The popover is a column of two parts: the summary with the accounts or a panel under it
+   (`.scroll`), and the toolbar with the origin line (`footer`). Each keeps its own even edge, the
+   cards 12 px in from the window's sides and the text outside them in line with the text in them.
+   While the window is tall enough, `.scroll` is what scrolls and the footer stays where it is. */
 .popover {
-  padding: 14px 12px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The summary, and the accounts or the panel under it. It is a block formatting context of its own
+   in every window, so no margin runs out of it, and it ends where the footer begins: nothing in it
+   is drawn under the toolbar, so the toolbar needs no backdrop on the material behind it.
+   Its bottom padding is 4 px less than the room the cards keep under them, and the footer's top
+   padding 4 px more, so the gap between the last card and the toolbar is the room it was. */
+.scroll {
+  position: relative;
+  display: flow-root;
+  padding: 14px 12px 8px;
+  /* A control scrolled into view keeps room for its ring, which is drawn outside it. */
+  scroll-padding: 8px 0;
+}
+
+/* What it holds, in a formatting context of its own, so that its height is all of what is in it, the
+   margin of its last card included, which the window is told. */
+.content {
+  display: flow-root;
 }
 
 .summary {
@@ -426,7 +462,7 @@ code {
 }
 
 /* On QuotaDial Free, a line under the accounts for each part of Pro, in line with their text. */
-.popover > .left-out {
+.content > .left-out {
   margin-top: 8px;
   padding: 0 12px;
 }
@@ -466,10 +502,56 @@ code {
   padding-left: 16px;
 }
 
-/* The footer, in line with the cards' text: no rule above it, only space. */
+/* The footer, in line with the cards' text: no rule above it, only the space the part above it
+   leaves. It is not in what scrolls, so it is never scrolled away. Where the window is pinned (below)
+   it clips what is drawn outside it, and a focus ring is drawn outside a control, 2 px out and 2 px
+   thick, so the room above its controls is 4 px. */
 footer {
-  margin-top: 12px;
-  padding: 0 12px;
+  flex: none;
+  padding: 4px 24px 10px;
+  transition: box-shadow 150ms ease-out;
+}
+
+/* While content is hidden below the part that scrolls, a hairline along its foot, which is the
+   footer's head: a Mac's toolbar draws one when a window's content passes under it, and here, with
+   nothing under the toolbar, it is drawn on the edge. It is gone when nothing is hidden. */
+footer.edge {
+  box-shadow: inset 0 var(--hairline) 0 var(--rule);
+}
+
+/* While the window is tall enough, the toolbar stays at its foot and the summary, with the accounts
+   or the panel under it, scrolls above it (D-136); the page itself does not scroll. That holds
+   at 200% zoom, where the 640 px window is 320 px tall. The app can be zoomed far past that, to
+   500% and more, where the toolbar and origin line would take the whole of a window, so in one
+   shorter than 300 px the page scrolls as one, as it did before.
+
+   Where a scroll bar takes room, as it does on Windows and Linux when the system's are not the
+   ones that lie over what they scroll, the part that scrolls keeps the room on both sides whether
+   or not there is a bar (D-136), so that what it holds is as wide when it scrolls as when it does
+   not, and the cards stay 12 px in from each side. A bar that came in as it began to scroll would
+   narrow what it holds by its own width: the text would wrap onto more lines, and the window would
+   be told a height that is not the height of what it holds. The footer keeps the same room, which
+   it clips to, so that its labels stay in line with the cards' text. Where the bars lie over what
+   they scroll, as on a Mac, the room is none, and nothing changes. */
+@media (min-height: 300px) {
+  body {
+    overflow: hidden;
+  }
+
+  .popover {
+    max-height: 100vh;
+  }
+
+  .scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  footer {
+    overflow: hidden;
+    scrollbar-gutter: stable both-edges;
+  }
 }
 
 /* Each button's label lines up with the text above it, its fill reaching a little past it. */
@@ -536,8 +618,17 @@ input:focus-visible {
   outline-offset: 2px;
 }
 
+/* The scrolling part, when it is a Tab stop of its own: its ring is drawn inside it, which
+   reaches the window's sides. When a key that scrolls gives it the focus, it is not one, and
+   draws none. */
+.scroll[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
 /* A panel takes the focus when it opens, so the keyboard and a screen reader start in it; it is
    not a control, so it draws no ring of its own. */
+.scroll[tabindex="-1"]:focus,
 section[tabindex="-1"]:focus {
   outline: none;
 }

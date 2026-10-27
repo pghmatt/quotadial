@@ -208,7 +208,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
-| 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80 |
+| 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80; the Graphics and Media helper takes about 245 MiB while the window is drawn and gives it back within 10 seconds (#91's run) |
 | 12, PR E: the first-run recording | Done (PR #91) | The README's recording of QuotaDial Example's first run, cropped to its icon and popover, under rule 4 on #49: `docs/images/first-run.gif` (376x600, 5.5 s) in the README and the same as an MP4, recorded on 2026-10-26 at 21:02 UTC from the example built at 485d0cf (#86) once Matt's menu bar stayed visible; the Graphics and Media helper's third reading says its 245 MiB is the window being drawn, given back within 10 seconds |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -228,10 +228,11 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Claude's sign-in command, working as written and naming no user | Done (PR #85, D-131) | D-130's leftover, ahead of the next row by the manager's note on #84: `shell_word` moved to core's `text` module and used for both commands, so a folder in the home folder is `CLAUDE_CONFIG_DIR=~/'My Claude' claude`, where it was the whole path with the user's name, which doctor's pass then wrote `'~/My Claude'`; `text::powershell_string` for PowerShell, `$env:CLAUDE_CONFIG_DIR = "$HOME\My Claude"; claude`, a backtick before what a double-quoted string reads, and outside the home folder the single-quoted path with every single quotation mark PowerShell takes written twice; doctor's `tilde_in` pass leaves both shells' commands as written, which tests hold; a test runs the command with `sh -c` and a stand-in `claude` and finds the folder's own path |
 | A place holding the home folder's path beside a space or a quote | Done (PR #87, D-133) | D-130's other leftover, done in `text::tilde_in` alone, as the manager's review of #85 asked: a folder whose name only starts as the home folder's does, such as `/Users/ann (old)` beside `/Users/ann`, is left as written in a sentence and in both commands, where it was written `~ (old)`, so `config.json`'s `chmod 600` and Claude's sign-in command failed as written; a word in single quotes is read whole as a POSIX shell and PowerShell read it, so every place outside the home folder that `shell_word` and `powershell_string` write comes through unchanged, whatever its name holds; a sentence is read by what follows the home folder: it is `~` at a separator, the end of the text or of a line, or marks and then a word that does not carry a name on (one that opens with a bracket or has a separator after a name does), and any other character joined to it is more of the name; where it must guess it leaves the name, and D-133 says what it still gets wrong; no folder QuotaDial makes is one of these, and only `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR` or an `extra_config_dirs` entry can name one |
 | The popover redesigned (Matt's ask, 2026-10-26) | Done (PR #86, D-132) | Each account a card raised on the page, headed by the name given it or its provider, its address leading the line under it; plan and status as capsules; the summary and the tray's tooltip name the account whose window sets the number; commands shown as code that one click selects (the manager's note on #85); one quiet toolbar at the foot of every view; History, Settings and Help in the same cards, History's charts without plates and its period a segmented control; colours retuned for the macOS material and field hints readable; the window check's new checks of the cards, the address, the summary, the commands, the headings and the toolbar; the site's and README's pictures captured again |
-| Doctor's `[user]` mask and a user named `claude` | In review (PR #93, D-134) | Doctor hid every whole word that was the user's name, a command's own words and `~/.claude` included, so for a Mac user called `claude` it wrote `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.[user]`, and the same for `codex`, `status`, `history`, `daemon` and any other word it writes (queued by the manager's review of #85, and put next by the review of #87). `text::hide_user_in`, beside `tilde_in`, writes `[user]` only where the name is a whole name inside a place outside the home folder (a root, `/`, `\` or a drive, read as `tilde_in` reads a path; a word in single quotes whole; a web address no place), so a command, a sentence and a place that starts at `~` keep every word for any user; where it must guess it hides, and D-134 lists where; hidden again, a text is what it was, for any name; 21 new tests and five properties among them, 18 failing first against the old rule, and 28 of 31 hand-made breaks failing a test, the other three having broken code no test could tell from its absence, or repeated another |
+| Doctor's `[user]` mask and a user named `claude` | Done (PR #93, D-134) | Doctor hid every whole word that was the user's name, a command's own words and `~/.claude` included, so for a Mac user called `claude` it wrote `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.[user]`, and the same for `codex`, `status`, `history`, `daemon` and any other word it writes (queued by the manager's review of #85, and put next by the review of #87). `text::hide_user_in`, beside `tilde_in`, writes `[user]` only where the name is a whole name inside a place outside the home folder (a root, `/`, `\` or a drive, read as `tilde_in` reads a path; a word in single quotes whole; a web address no place), so a command, a sentence and a place that starts at `~` keep every word for any user; where it must guess it hides, and D-134 lists where; hidden again, a text is what it was, for any name; 21 new tests and five properties among them, 18 failing first against the old rule, and 28 of 31 hand-made breaks failing a test, the other three having broken code no test could tell from its absence, or repeated another |
 | A line once per card for a window's source and time, when every window agrees | Done (PR #89, D-135) | The manager's review of #86 (2026-10-26, 19:28 UTC) put it on the M6 queue, keeping each window's own line until then (#52: each window carries its own time and origin). The view model gives an account a `fetched`, such as "from the API 3 min ago", when every window was read from the same source at exactly the same moment, as the windows of one answer are, and then each window says only its reset and pace; when they differ, each says its own, as before. A card with one window says it for the card too, so the line does not jump when a limit leaves a card after its reset. The rule is `fetched_together` in `meter.rs`, not the window's script. The line is a quiet caption under the windows and above the sign-in, which opens below it, chosen from three placements shown in pictures; the window check's new `checkSources` holds it, and the site's test and pictures follow. #52 holds: the data, the API, the CLI, `doctor` and the MCP server still say it for each window |
 | A property test for the window's `codeSpans` | Done (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
-| The share picture in the cards' language | In review (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
+| The share picture in the cards' language | Done (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
+| The toolbar stays at the window's foot while the accounts scroll | In review (PR #94, D-136) | The toolbar and the origin line, which scrolled away with the accounts once the window reached its 640 px, stay at its foot while the summary and the accounts or a panel scroll above them: layout and not overlap, so nothing is drawn under the toolbar and the material needs no backdrop, with a hairline over the toolbar only while content is hidden below it. Chosen from two layouts in pictures (the footer alone, or with the summary pinned too). Held by the manager on #73 to 200% zoom, and pinned in any window 300 px tall or more; below that the page scrolls as one, since the app zooms on to 500% and past. The app is told what the scrolling part holds beyond its edge (`neededHeight`, which the new check found a pixel short at first), each view opens at its top, and the part is a Tab stop only when nothing in it is. The window check gains a copy of nine accounts and checks of the frame at every place along the scroll, the keys, the wheel, the reading order and what the app is told, each first failed on a window broken on purpose; `--window-pictures` takes pictures of the window as it is shown. The first CI run (#94 at 299b8d5) failed on three causes, found and fixed in the same PR (D-136): a classic scroll bar narrowing what the window holds once it scrolls, a Tab stop left stale when no size changed, and the check reading a glide too early |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -419,7 +420,237 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
+### Pictures of the window, and when each is captured again
+
+The pictures of the app's window, and what makes each one out of date. Each is captured again in the PR
+that changes the window enough to change the picture, and not before; a change that leaves a picture
+as it was, as D-136 left the accounts pictures, leaves the file alone.
+
+- **The website's six pictures,** `site/public/images/app/{accounts,settings,history}-{light,dark}.png`, of which
+  the README shows `accounts-light` and `accounts-dark`: `node scripts/app-pictures.mjs` in `site/`, from
+  the window check answering with the website's two example accounts (`site-fixtures.mjs`), each the whole
+  of the window's content as tall as it needs, at 2x. Captured again when the window's drawing of those two
+  accounts changes (D-132 did; D-135 and D-136 did not change the two accounts pictures).
+- **The README's first-run recording,** `docs/images/first-run.gif` (and the same as `first-run.mp4`): QuotaDial
+  Example's first run, recorded through ScreenCaptureKit with Matt's menu bar set to stay visible, so it
+  waits for a change worth his menu bar again (the manager's note on #91, 2026-10-26): it is captured again
+  when the window next changes materially, not before. It shows the window as it was at #86, each window with
+  its own source line, so #89's one line per card is not in it; D-136 would change nothing in it, since its
+  two example accounts do not reach the 640 px at which a window scrolls, and no toolbar is pinned.
+- **Pictures of the window as it is shown,** from `node scripts/check-window.mjs --window-pictures <folder>`
+  (`--window-zoom 2` for 200%): each view no taller than 640 px, at its top and half way down what scrolls.
+  Not kept in the repository: they are the before and after of a PR that changes how the window scrolls, such
+  as D-136's, which `--screenshots` cannot show. They show this Mac's own overlay scroll bars, as the website's
+  pictures do; `--scroll-bars classic` shows what a system whose bars take room draws, which is what the
+  window check itself runs in.
+
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the toolbar stays at the window's foot while the accounts scroll (D-136)
+
+- **The ask:** Matt's of 2026-10-26, "make the OS X UX more professional and make it easier to see separation between
+  accounts and what the account email addresses are. make the ux something Steve Jobs would love", which #86
+  answered with the cards, one heading and one toolbar, and left this in its #52 self-review: "a footer that stays
+  put when many accounts scroll". The window caps at 640 px and scrolls, and with many accounts the toolbar
+  (History, Settings, Help, Quit QuotaDial) and the origin line scrolled away with them. The manager's plan is on #73
+  (22:28 UTC) and its approval, at 23:25 UTC, holds the PR to: the toolbar and the origin line pinned to the window's
+  foot on the material with the cards scrolling above them; the footer's tab order unchanged, `usePanelFocus` and
+  the `data-panel` buttons still working; the window check running the nine-account case at 100% and 200% zoom and
+  failing if the footer leaves the viewport; one CHANGELOG line; a D number for the layout rule; and the two notes
+  from #91 in the record. Built on `feat/pinned-footer` from `main` at 4b8757c, in small commits to the coordinator's
+  brief, and rebased onto `main` twice since (at 705286f, then at 6de02c4 with #95).
+- **The first CI run failed, and what it found (2026-10-27, run 40425127058, #94 at 299b8d5):** the tray job's window
+  check failed on all three systems, 9 of 11,166 checks on Windows and on Linux and 29 on macOS. The coordinator's two
+  briefs and the manager's review of #94 (00:28 UTC, "FIX, THEN MERGE") set three causes in front of this PR; each was
+  reproduced here before it was fixed, and each fix has a check that failed first.
+  1. *The height the app is told* (all three systems, 7 to 9 views): once `.scroll` scrolls, a classic scroll bar takes
+     15 px of what it holds, so the text wraps onto more lines and the app is told up to 99 px more than the window
+     holds once it is tall enough not to scroll (2,199 against 2,168; 2,796 against 2,764). It was the app's fault and
+     not the check's, as the manager said: the window would be sized for a width it will not have, and a bar that comes
+     and goes while the window grows is the fault. This Mac's overlay bars hid it, and the check's stand-in for a classic
+     bar, a window narrowed by one, is a bar that never goes. Chrome started with `--disable-features=OverlayScrollbar`
+     reproduces CI's numbers exactly; `-AppleShowScrollBars Always` made headless Chrome exit and `--hide-scrollbars`
+     hides the bar, and with it the fault. The fix, with the choice among the manager's three ways to keep the room
+     and its cost, is in D-136: `scrollbar-gutter: stable both-edges` on `.scroll` and on the footer. The manager's
+     third hold, a check that catches this on a Mac too, is met by forcing the bars in the check's Chrome (and by
+     comparing `.content`'s width capped and uncapped, which `checkWidth` does): the unfixed window fails it in
+     every view with bars that take room, and the fixed one passes it in both modes, so nothing is queued for it.
+  2. *Keys and wheel* (macOS only, in `many`): the log's values are mid-glide ones, a Home that "leaves it at 946", an
+     End at 862 of 1,056 and an ArrowUp "then 1,016", which is 1,056 less its 40 px, so CI's Chrome glides under a key
+     and a wheel where this Mac's, with the check's flags, does not, and the check, which read the position twice 50 ms
+     apart, took a glide that starts late or stalls between frames for one that had ended; the wheel over the toolbar
+     "scrolled the accounts" because the wheel before it was still running. The check now sets
+     `--disable-smooth-scrolling` and waits for the page's own `scroll` and `scrollend` (`quiet.mjs`; six tests against a
+     clock the test moves: a glide that starts 120 ms late and stalls for 300, a stall of 600, nothing scrolling, a
+     scroll that was over before the wait, a second scroll, one that never ends; the old reading returns before the
+     glide has begun). **Not reproduced:** the stall itself. The old check passed here with smooth scrolling forced on, with
+     the CPU starved by 32 busy loops on 16 cores, with software compositing, and with the page's main thread 40 and
+     120 times slower; the stall on CI's Mac is read from its numbers and not seen. What is seen is that this Mac's Chrome
+     glides for about 150 ms under a key and 550 ms under a smooth `scrollTo` once `--enable-smooth-scrolling` is on, and
+     not at all with `--disable-smooth-scrolling`. The app scrolls by its own code in one place, a view's reset to its
+     top, which is now `scrollTo` with `behavior: "instant"`, whatever a stylesheet says of gliding; no Chrome here will
+     glide to show a failure, so a check reads what the app asked for (it fails for `scrollTop = 0` and for a smooth
+     `scrollTo`).
+  3. *"Nothing else to reach"* (macOS only, in `many`): the check removed every control from the part as soon as the
+     window had loaded and asked whether the part had become a Tab stop. That is a race with the app's first read of
+     what the part holds, which runs after the first paint: a fast machine reads after the removal and passes, and
+     CI's Mac read before it, and found the part with `tabindex="-1"`, since the app read what the part holds only when
+     it was resized or scrolled, and the last control going changes no size when what is left is a disclosure with no
+     summary (it draws a default one of the same height, which Tab then reached: "Tab reached details"). It is the
+     app's bug as well: a control going, or every button being disabled, as an update's are while it installs, leaves
+     the part a Tab stop the app does not know, and a keyboard cannot scroll it. The fix is a `MutationObserver`
+     beside the `ResizeObserver`; the check lets the window settle first, swaps each disclosure for plain text of the
+     same height so that only the change can wake the part, waits up to 2 s for the Tab stop, and does the same in
+     History by disabling every button. Against the committed window it fails every time, in five checks.
+- **The window check after the CI run:** `chrome.mjs` starts Chrome with scroll bars that take room
+  (`--disable-features=OverlayScrollbar,FluentOverlayScrollbar`) and `--disable-smooth-scrolling`; the pictures keep the
+  system's own bars, and `--scroll-bars classic|system` chooses (`wantsClassicScrollbars`, tested); each run says at its
+  top which Chrome and which bars it ran in, so that a CI log can say what ran. `View.scrolled()` is the wait,
+  `position()` the read and `eventually()` a poll for a condition. The stand-in records every scroll the window's own
+  code makes and what it asked for. New and changed checks: `checkWidth` (what the window holds is as wide with and
+  without a bar, the cards as far from each side, the toolbar's first label in line with the cards' text, at 640 px,
+  12,000 px and 300% zoom); `checkStop` as above; the ring check follows every box that clips, the footer now being
+  one; `checkTop` lists what the app scrolls by its own code; and the less-motion check reads each element's computed
+  `scroll-behavior`, since a Chrome told not to glide cannot show one (the mutant that gives `.scroll`
+  `scroll-behavior: smooth` and drops the reduced-motion rule passed unnoticed until it did). The run is 12,425 checks
+  over 24 views in 3 minutes 8 seconds, in either scroll bar mode (11,166 in 164 s at 299b8d5, before #95's).
+- **Pictures, after the CI run:** the website's eight pictures, made again with this Mac's own bars, are the same as
+  those made at 299b8d5, and the two accounts pictures are byte for byte what they were before the toolbar was pinned;
+  History's and Settings' differ from the committed ones by the same 210, 316 and 12 antialiased pixels, left as they
+  were. The window as a system whose bars take room draws it (`--scroll-bars classic --window-pictures`), looked at:
+  the bar at the right edge and an empty strip of the same width at the left, the cards 28 px from each side, the
+  toolbar's labels and the origin line in line with the cards' text, and the hairline across the foot of the part.
+  They are in the scratchpad, as before.
+- **Broken on purpose, after the CI run,** eight more, each failing for its own reason, and all 32 run again on the rebased
+  tree, 32 caught (one of them, the less-motion mutant above, only after the check was changed): the part that
+  scrolls keeping no room for a bar (the app told 2,987 for 2,955; 319 px wide scrolling and 334 not; the first card
+  13 px from the left and 28 from the right; the toolbar's labels 15 px out of line); room kept on the right only (13
+  and 28, labels out of line); the footer keeping none (labels 25 px in, the cards' text 40); the footer keeping it in
+  a window under 300 px (labels 40, text 25, at 300% zoom); the footer clipping its rings with no room above them
+  (History, Settings, Help and Quit "above what shows it"); the Tab stop not read when what the part holds changes (the
+  five checks above); the view reset by `scrollTop` and by a smooth `scrollTo` (three failures each: the accounts
+  opening, History opening, Done going back).
+- **Counts, after the CI run:** the tray's `npm test` 53, up from 45 on `main` at 6de02c4 (six for the wait, two for the
+  scroll bars); the window check 12,425 over 24 views, in either scroll bar mode (11,166 at 299b8d5, before #95's checks and this fix's); the contrast check 27
+  pairs a theme; the window's JavaScript 38.2 KB of 150; `npm run build` passes. No Rust changed, so `cargo` was not
+  run here (the share-picture builder had the heavy checks), and the counts above for the workspace are as they were.
+- **Not run, and queued, after the CI run:** CI's own three systems, which are the next run; WebKit, so
+  `scrollbar-gutter` (in WebKit from Safari 18.2, as recalled and not checked) and a Mac whose bars take room (a mouse, or "Show scroll bars: Always")
+  are unseen, and the next real run of QuotaDial Example is the place to set that and look at the nine-account window,
+  where the cards should be 27 px in from each side and the toolbar's labels in line with their text; and CI's macOS
+  stall, not reproduced (above). Queued as a choice for the manager, not a fault: the room kept for a bar costs 30 px
+  of the cards' width and wraps the toolbar a step sooner where bars take room (D-136), and `scrollbar-width: thin`
+  would give 8 px of it back at the price of changing a Mac's own bar, which cannot be judged until WebKit is run.
+- **What it is:** the popover is a column of two parts, `.scroll`, the summary with the accounts or a panel under it,
+  and `footer`. While the window is 300 px tall or more, `.scroll` is the one part that scrolls and the footer is
+  never in it; `.scroll` ends where the footer begins, so nothing is drawn under the toolbar and the material, a
+  transparent page on macOS, needs no backdrop. A hairline over the toolbar (an inset shadow in `--rule`, half a CSS
+  pixel, a whole one at 1x) shows only while content is hidden below, fades in over 150 ms and is cut by the
+  reduced-motion rule; it is a decorative separator, so it is not held to 3:1 and no colour pair is new.
+- **Two layouts, in pictures:** with nine accounts, light and dark, at the top and half way down, the footer alone
+  against the footer with the summary pinned too, which is Wi-Fi's and Bluetooth's frame. The coordinator chose the
+  footer alone, on three reasons the D records. By the check's browser, at its narrowed width: the toolbar and origin
+  line are 51 px at 100% and 110%, 75 at 125% and 150%, 90 at 175% and 114 at 200%; the summary, with the longest
+  headline and one incident, 109 px at 100% and 142, 160 and 194 at 125%, 150% and 200%, and unbounded; the accounts
+  keep 587 px against 478 at 100%, 435 against 292 at 125% and 350 against about 190 at 150%. The pictures are kept
+  outside the repository.
+- **200% and past it:** my first threshold was 400 px, from a rule that the footer take under a quarter of the window, and
+  it dropped 200% (320 px) to the old scrolling page. The manager's hold put 200% inside it. The app is not limited to
+  200%: Tauri's zoom keys (`webview/scripts/zoom-hotkey.js` in tauri 2.12.5, off on Windows) step 20% from 20% to
+  1000% on macOS and Linux, and WebView2 has its own, to 500%. So the pinning stops where the footer takes the window,
+  and the check's widths show where that is: at 200%, 114 px of 320 (36%), leaving 204 px (228 at a Mac's width); at
+  220%, the next step of the keys, 129 px of 291 (44%), leaving 160; at 250%, Windows' next step, 169 px of 256 (66%),
+  leaving 85; at 300%, 215 px of 213, leaving the part's own 26 px; at 400% the footer is taller than the window. The
+  line is a 300 px window (213% zoom), which leaves 169 px at the check's width and 20 px of margin under 200%; the
+  check holds 120 px as the least a pinned window leaves, below that so that a wider font on Windows or Linux still meets it.
+  After the room kept for a scroll bar (D-136) the figures are, at the check's width and at a Mac's: 200%, a toolbar of
+  133 px (42%) leaving 185, and 94 px leaving 224; the 300 px window, 157 px (52%) leaving 141, and 118 px leaving 180;
+  a font as wide as Arial Black still leaves 125 at 300 px.
+- **The window's height:** with the window capped, the popover's own height stops growing with its content, so `fit`,
+  which was told that height, would never grow the window again. It is now told what `.scroll` holds beyond its
+  edge as well (`neededHeight` in `src/scroll.ts`). The first version added `scrollHeight` minus `clientHeight`,
+  which round to a pixel, and the check's first run told it 2,795 px for a window that holds 2,796, which would
+  leave the window a pixel short with a hairline up at rest; it now measures the content's box and the part's
+  padding to a fraction of a pixel, with the content a formatting context of its own so that its last card's margin
+  is in it. The Rust side, `fit` and `fitted_height` are unchanged.
+- **Keyboard, focus and VoiceOver:** the markup's order is the page's order, so Tab and a screen reader meet the
+  summary, the accounts or the panel, the toolbar and the origin line as before; `usePanelFocus` and the
+  `data-panel` buttons are as they were, and the check's panel-takes-the-focus and Done-gives-it-back checks, which
+  run over Pro and Free in the light theme, held through every run. With the focus in the scrolling part the arrows,
+  Page Up and Page Down, Home and End scroll it, and Space where the focus is on nothing Space presses; with nothing
+  focused, as in a window just opened, none of them scrolled anything, since the page no longer scrolls (Chrome showed
+  it, until a click or a Tab), so the window's key handler gives the part the focus on the first of them
+  (`tabindex="-1"`, no ring, not a Tab stop) and Tab then reaches the first control as before; Tab scrolls a
+  control into view with room for its ring (`scroll-padding: 8px 0`), found necessary by a broken-on-purpose run. Each view opens
+  at its top (a layout effect on the panel), which Done needs, since the accounts would come back where the panel left
+  them. The part is a Tab stop of its own, a region named for its view, only when it scrolls and holds nothing Tab
+  reaches, as Chrome does from 130 and WebKit does not. With less motion asked for, scrolling is not animated.
+- **The window check:** a third copy, `many`, Pro with nine accounts (`forScrolling`, so it is not pressed control
+  by control or made to draw nine pictures to share, which Pro does). In every view and both themes: the toolbar at
+  five places along the scroll, at 100% and at 200% (the buttons and the origin line inside the window, a click at a button's middle reaching it, the
+  toolbar not moving, with the scrolling part ending where it begins, the page not scrolling, the line exactly while content is
+  hidden, 120 px left, a pixel short of the end drawing no line, no animated scrolling), and Tab bringing each control
+  into view with its ring. In every copy, in the light theme: the order Tab and the accessibility tree meet, and what
+  `fit` is told, with 123 px put in and taken out. On `many`, in the light theme: the keys, with nothing focused too, the
+  wheel over the accounts and over the toolbar, each view at its top, and the part as a Tab stop with nothing else to reach; and, for
+  the accounts, 125%, 150%, 210%, the 300 px window (213%), 220% and 250%, and windows of 299, 300 and 4,000 px. The
+  cut-off check no longer counts text beyond the end of a box that scrolls, and still sees it cut off by one that
+  does not. The structure the old checks address moved from `main > section` to `main .content > section`.
+  `--screenshots` frames the whole of the content from the page's own height; `--window-pictures` is new (see the list
+  of pictures above). The check's run is 164 s over 24 views, from 113 s over 16.
+- **Broken on purpose,** each new check failing first, in twenty-four ways: the page scrolling as one at every height
+  (the toolbar not inside the window, not reached by a click, the page scrolling, no part scrolling); pinned in every
+  window (a toolbar kept in a window under 300 px); pinned only from 400 px (the manager's hold: at 200% the accounts do
+  not scroll above the toolbar); the scrolling part 40 px under the toolbar, with and without being drawn over it (a
+  click would not reach the buttons; 40.0 px under the toolbar); the line always drawn; the line never drawn; the line for a
+  pixel of rounding, which the check first did not see and now does by scrolling to a pixel short of the end; the app
+  told the capped height (640 px for 2,796, and not told when 123 px is put in); the app told `scrollHeight`'s rounded
+  height (2,795 for 2,796); the toolbar before the accounts in the markup (Tab reaches the toolbar first, a screen
+  reader reads the last account after it); the part hiding what overflows (the keys and the wheel scroll nothing); scrolling
+  animated with less motion asked for; no room for a focus ring (the ring cut off at the edge); no Tab stop of its own when
+  nothing else is one (the first try did not compile, then five checks failed); a new view keeping the last one's
+  scroll (Done shows the accounts 1,985 px down); the key handler no longer giving the part the focus, so that no key scrolls a window just opened; the app not told when what it
+  holds grows; a box that clips text and does not
+  scroll (the relaxed cut-off check still sees it); and the window as it was before this PR, where the check first threw on
+  the missing content part and now reports it, with 175 lines of failures; the page scrolling under the wheel; the footer hanging 40 px below the window, which cuts off
+  the origin line under the toolbar; and, for the manager's hold on `usePanelFocus` and the `data-panel` buttons, which the check's older
+  checks already hold, a panel not taking the focus when it opens ("opening history left the focus on the page") and Done not
+  giving it back ("Done gave the focus to the page, not the history button").
+- **Pictures:** `--screenshots` shows the window as tall as what it holds, so the website's accounts pictures, light
+  and dark, come out byte for byte the same as committed (the two-account pictures should not change, and they do not).
+  The history and settings pictures differ from the committed ones by 210 and 316 and by 12 antialiased pixels, at a card's
+  corner and a chart's hairline, with their sizes unchanged: the sub-pixel snapping of a scroll box. They were not
+  captured again, as the coordinator decided; a regeneration with `node scripts/app-pictures.mjs` would write those pixels.
+  The README's first-run recording shows two example accounts that do not reach 640 px, so it is unchanged, and it is
+  on the list above for the window's next material change. The first geometry comparison, byte by byte against the
+  baseline, found a real slip: the footer's text 12 px too far left, since the popover's side padding had gone.
+- **Counts:** in the workspace, 780 passed (1 ignored) and in the example build 777 (2 ignored), both as on `main` at 4b8757c, since no crate changed; the app's `--lib` tests 99 in both builds, as on `main`; the window's `npm test` 9, as on `main`; the window check 11,166 checks over 24 views in 164 s, up from 6,721 over 16 views in 113 s; the contrast check 21 pairs a theme, as before; the window's JavaScript 37.2 KB, up from 35.5 KB, within its 150 KB; the site's tests 90; the release scripts' tests 40, none failing.
+- **Checks run here:** one run after another with the data folders in the scratchpad, on a warm build: `cargo fmt --check` in both workspaces; clippy with `-D warnings` and `--locked` on the workspace and the tray app, default and `fake`; the workspace's tests, default and `fake`; the tray app's `--lib` tests, default and `fake`, the latter with the example's CLI bundled (`npm run cli -- --fake`, then `npm run cli` again), and the default once more, since they read `CHANGELOG.md`; `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; the release scripts' tests; the tray app's `npm run build` (types, size, contrast), `npm test` and `npm run check:window`; and the site's `npm run check`, `npm test` and `npm run build`, which the changelog line makes necessary, the site rendering it. All passed. The Rust is as on `main`, which nothing here changed.
+- **Not run:** a Windows or Linux build, which no target here makes (CI's); WebKit, which draws the app on macOS and
+  Linux (the window check drives Chrome, which is WebView2's engine on Windows), so macOS's overlay scroll bars,
+  its elastic scrolling and how WebKit scrolls by key with nothing focused are unseen; VoiceOver by hand, and the
+  transparent page over the real material (the pictures are the painted page, and the check holds that nothing is drawn
+  under the toolbar by geometry); the app itself, never run, as briefed, so the popover's draw time and the Graphics and Media
+  helper's figure with one more scroll box are unmeasured; `tests/icon_press.rs`; `cargo deny`, `cargo audit` and
+  actionlint, not installed here, with no dependency, lockfile or workflow changed.
+- **Safety on this Mac:** every build, test and npm run had `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`,
+  `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad and no token in its environment; no vendor
+  CLI ran, no sign-in or keychain item was read, and nothing touched `~/Library/Application Support/quotadial`.
+- **#52's list, what it found:** *never waits or guesses:* every number still shows its age and source, and the
+  summary scrolling away loses none; *fast and light:* the window's JavaScript is 37.2 KB of its 150 KB (35.5 KB
+  before), the listeners are events and observers with no polling, the popover's draw time and the helper's memory are
+  unmeasured here; *usable by everyone:* keyboard, screen-reader order, reduced motion and 200% are checked, no
+  colour pair is new, nothing is cut off at 200%, and nothing shifts as numbers change, since the toolbar never moves;
+  *trustworthy:* no dependency, no network address and no change to what is read or sent; *installable:* the
+  CHANGELOG line, and the two #91 notes here; *the code:* module docs on `src/scroll.ts`, one concern per commit, the
+  record in D-136. What it left for a later PR: how WebKit and VoiceOver take the key handler that gives the part the
+  focus on the first scrolling key, which only Chrome has shown here; at 200% a percentage can break over two lines, "64" above "%", where a long label takes the room (seen in the 200% picture; the row's CSS and `overflow-wrap: anywhere` are as before this PR); past about 213% zoom the toolbar scrolls away with the page again, which
+  the D weighs; the history and settings pictures' antialiasing; and measuring the popover's draw time and the helper's
+  memory on QuotaDial Example at the next real run.
+- **CI's second run** (9f33726) was green on macOS and Windows and failed one of the window check's own
+  tests on Linux: the launcher appended Linux's `--no-sandbox` after `about:blank`, where the test holds
+  that the page Chrome opens is the last argument. The flag now goes before the page, as every other
+  flag does, and the test runs the Linux arguments on every system, so it failed here first.
 
 ### M6: the share picture in the cards' language (D-137)
 
@@ -1487,7 +1718,9 @@ The notes below run newest first; the setup notes above them are the oldest.
   helpers' footprints on average: Web Content 19.5 MiB, Networking 6.4 MiB, Graphics and Media 29.8
   MiB, and an audio helper, there for 19 minutes, 3.2 MiB. The Graphics and Media helper held about
   245 MiB for the first three minutes after the launch, then 10 to 21 MiB; the earlier build's
-  started at 6.4 MiB, so two runs do not say whether that is the app or macOS.
+  started at 6.4 MiB, so two runs do not say whether that is the app or macOS. PR E's third reading
+  settled it: the helper takes about 245 MiB while the window is drawn and gives it back within 10
+  seconds (#91's run).
 - **The daemon alone** (#52: under 0.5% of one core averaged over an hour, and under 40 MB, judged
   on its footprint, D-123): the example build's `quotadial daemon`, as the command-line install runs
   it, with a home and data folder of its own, on a port the system chose, listening only on
