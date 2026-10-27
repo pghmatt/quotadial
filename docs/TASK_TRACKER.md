@@ -244,6 +244,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Queued: the window check says a `CHROME` that is not there was not found | Queued | The manager's review of #103 (2026-10-27, 12:37 UTC), on what #103 found and left: a `CHROME` that is not there crashes the check with Node's unhandled `spawn ... ENOENT` and leaves its Chrome profile folder in the temporary folder. "Queue it as a tracker row, not its own PR. Fold it into the next PR that already touches Chrome's start in `check-window.mjs` or `chrome.mjs`: say Chrome was not found at that path, as the check does when it finds none, and remove the profile folder on the way out. Not before then." Queued in #104's records |
 | History's heatmap caption names its window as written, and a note that only explains is not a warning | Done (PR #106) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 1 of the four the coordinator found going over every Pro view in both themes, with the smaller "unsupported" note folded in as he allowed. The caption said "When it was used, by hour (weekly (gemini))", lowercasing a model's name inside brackets of its own, while the figure's name said "from Weekly (Gemini) readings"; `heatmapWords` (`share.ts`) now writes one sentence, "When it was used, by hour, from Weekly (Gemini) readings" (or "No use from Weekly (Gemini) readings in this period."), for the caption, the figure's name and the picture to share. Gemini CLI's note, with nothing for the person to fix, takes the detail colour; `checkNotes` holds every note's colour. The website's History pictures are captured again. Copy and colour only: one CHANGELOG line, no D |
 | An address breaks before its `@` and each `.`, never inside a word | Done (PR #107, D-141) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 2, approving the coordinator's proposal with three holds: wherever the window writes an address, a `<wbr>` before its `@` and before each `.`, never a character, so "a.very.long.account.name.that.keeps.going" goes over "@engineering.example.com" where it broke inside "engineering", with D-139's `overflow-wrap: anywhere` the last resort for a part wider than the line; each `<wbr>` hidden from screen readers, since Chrome names a heading, a field or a button with a space at each `<wbr>` it can see; in each account's heading in the popover and History, Settings' names, the line under the number and Help's support address. `checkAddresses` (`whole-addresses.mjs`) holds every address written whole and in order, no word of one broken where it fits its line, the headings' text and copy byte for byte and the address heard whole; it failed 174 of 20,446 checks on `main`'s window, 128 on one with a bare `<wbr>` and 83 of 4,179 on one with a zero-width space; the website's pictures captured again, changed only along each address |
+| The extra-usage line in plain words | Done (PR #108) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 4, on the fourth shortfall the coordinator found reading every Pro view as a stranger would (13:17): "Extra usage: on, 12.50 of 50.00 USD used (25%)" read like data. `text::extra_usage`, which `quotadial status` and the app's window share, now says "off"; what is used when both amounts are known, "$12.50 of $50.00 used (25%)", both amounts in one form, to the cent with their thousands grouped (the coordinator's review), US dollars with the symbol before each and any other currency with its code after them as before; "25% used" when only the share is known, the call the decision left open, in the words a window's share is said in; and "on" when nothing is known of what is used, with ", 1056.44 credits left" after it as before. The JSON fields do not change, so `docs/openapi.json` and the skill do not; the CLI guide's example and one CHANGELOG line follow. No D |
 
 ## Kickoff
 
@@ -456,6 +457,85 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the extra-usage line in plain words
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 13:26 UTC), item 4 of the four shortfalls the coordinator
+  found at 13:17 by reading every Pro view as a stranger would (Matt's "make the UX something Steve Jobs would love"):
+  "Approved as proposed, with one hold the proposal skips: `enabled` with no numbers still says "on", since dropping
+  the word leaves nothing. So: "off"; "on" when nothing more is known; "$12.50 of $50.00 used (25%)" when the amounts
+  are; and ", 12.50 credits left" unchanged after it. USD takes the symbol before the amount; any other currency keeps
+  its code after the amounts as now." The change is in `text::extra_usage` and its tests, which serve both front ends;
+  `docs/CLI.md`'s example follows; the JSON fields, `docs/openapi.json` and the skill do not change; one CHANGELOG
+  line. Built on `fix/extra-usage-words` from `main` at 2d98661, and rebased onto 550cce0 (#106) once it merged,
+  where only the tracker clashed (its row beside #106's and the newest-first notes). In review as #108, after #107;
+  rebased onto 923dc43 (#107) once it merged, where again only the tracker clashed.
+- **What changed:** while extra usage is on, `text::extra_usage` writes what is used when both amounts are known,
+  `$12.50 of $50.00 used (25%)`, or `12.50 of 50.00 EUR used (25%)` in any other currency, through two private
+  functions, `used_of_limit` and `to_the_cent`; the share alone when only it is known, `25% used`; and `on`
+  otherwise. A balance follows any of them as before, and `off` is as it was. `quotadial status`, `watch` and the
+  app's card take the line from there. The CLI's test of the text output, the app's view model's doc comment, Claude
+  Work's card in the window check's Pro copy and the shares check's example line take the new words. `docs/CLI.md`'s
+  example shows Claude's account with its amounts, and a line under it says each form the line takes. The CHANGELOG
+  line, under Changed, gives the new words and says that an amount of a thousand or more is grouped, such as
+  $1,234.50.
+- **Two calls, named in the PR:**
+  - A share with no amounts said "on (25%)" and now says "25% used", which the decision leaves open. These are the
+    words a window's share is said in: `quotadial status` writes "Weekly: 7% used", and the window's meter is read as
+    "7% used". It drops the "on," the decision drops where the amounts are shown, since saying what is used says that
+    it is on. No provider sends a share alone today: Claude's answers carry it with both amounts or with neither
+    (`fixtures/claude/oauth-usage-scoped.synthetic.json` and the live `oauth-usage.json`), and Codex's credits carry no
+    share.
+  - The two amounts in a line take one form, to the cent with their thousands grouped, through `to_the_cent`, which
+    groups the whole part with the existing `thousands`: "$0.00 of $50.00", "$99.50 of $150.00" and "$1,234.50 of
+    $5,000.00 used (25%)", and "1,234.50 of 5,000.00 EUR used (25%)" in another currency, where `main` wrote "on,
+    1234.50 of 5000.00 USD used (25%)". The first build reused `text::usd`, and the coordinator's review sent it back:
+    `usd` writes a cost said on its own, in whole dollars from $100, "$0" for nothing and "under $0.01" for less than
+    a cent, so in "X of Y" it put two forms in one line ("$0 of $50.00", "$99.50 of $150", "under $0.01 of $50.00").
+    The manager's example keeps cents, and an extra-usage limit is money people set to the cent. A negative amount,
+    or one that is not a number, is written "0.00", as `usd` takes it as nothing. A currency left out or blank is
+    dollars, as the Claude provider reads one (`extra_usage_without_a_currency_is_in_dollars`), and "usd" is USD.
+- **Left as it was:** the amounts are written together or not at all, as before, so one alone (no provider sends one)
+  leaves the share, or "on". Off is "off" whatever numbers come with it. A balance is written as before, "1056.44
+  credits left", to the cent with no commas, as the decision keeps it unchanged; no provider gives a balance and
+  amounts together (Claude gives amounts, Codex a balance), so it never shares a line with them.
+- **Proof:** with `main`'s `extra_usage` put back under the new tests (a patch kept in the scratchpad, applied and
+  taken off with `git apply`), 4 of the 7 extra-usage tests in core's `text` module fail: in dollars ("on, 12.50 of
+  50.00 USD used (25%)" for "$12.50 of $50.00 used (25%)"), in another currency ("on, 12.50 of 50.00 EUR used
+  (25%)"), a share alone ("on (25%)" for "25% used") and a balance after the amounts; so does the CLI's test of the
+  text output. The 3 that pass are what the decision keeps, "off" and "on", and `to_the_cent`'s own test, which is new
+  and has nothing on `main` to fail against. With the branch's code all 57 of `text`'s tests pass, and the CLI's.
+- **Pictures,** for the PR: Claude Work's card in the window check's Pro copy, before and after, light and dark, at
+  100%, from one build of the window, whose code is the same on `main` and the branch: the before with `main`'s words
+  put back through `--fixtures`, the after from the branch's copy. The whole accounts views differ only in a 377 by
+  22 pixel box at 2x, the line's words after "Extra usage:", in both themes; the line stays one line and the card
+  keeps its height.
+- **Counts:** the workspace's tests 806 with 1 ignored, and 803 with 2 ignored in the example build, each 5 more than
+  `main`'s 801 and 798, all in core's `text` module (52 tests there on `main`, 57 here); the app's `--lib` tests 99 in
+  both builds, the tray's `npm test` 115 and the website's 90, as on `main`; the window check 19,126 checks over 26
+  views, as on `main` after #106; the window's JavaScript 38.5 KB of its 150, and the contrast check's 30 pairs a
+  theme, as they were.
+- **Checks run,** through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the workspace and the app;
+  clippy with `-D warnings` in the default and example builds, for the workspace and the app; `cargo test --workspace`
+  in both builds; the app's `--lib` tests in both builds, which read `CHANGELOG.md`; the tray's `npm run build`, `npm
+  test` and `npm run check:window`; the website's `npm run check`, `npm run build` and `npm test` (it renders the
+  changelog and `docs/CLI.md`, and its built `/cli` and `/changelog` pages carry the new words with their dollar
+  signs); `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; and, as CI does for a changelog, the
+  repository scripts' tests (39 pass, and one skips on macOS, needing GNU `sha256sum`) and `scripts/release-notes.sh
+  0.2.0`. **Not run:** the real app, `tests/icon_press.rs`, VoiceOver, Windows and Linux (CI covers them), and `cargo
+  deny`, `cargo audit`, shellcheck and actionlint, since no dependency, script or workflow changed.
+- **#52's list, gone down:** *held:* one function writes the line for the CLI and the window, so the two cannot drift;
+  the share is said as a window's is; the two amounts in a line take one form, to the cent with their thousands
+  grouped; nothing unknown is written as a figure, so "on" stands where nothing is known of what is used, never "0%"
+  or "$0.00"; the words are plain, none of those #52 keeps out; the line stays one line on its card in both themes,
+  nothing else in the window moves, and the window check passes at 100% and 200% zoom. *Left for later, for the
+  manager:* the currency code is the one part of the line that is text from outside. The Claude provider trims
+  Anthropic's `currency` and keeps it as sent, without `outside_text`, and `Snapshot::without_secrets` does not pass
+  over it, so a long or odd code would be written whole after the amounts, and in the window the line (`.extra`) is
+  not one of D-139's that break anywhere, so a long one with no space could run past the card. The answers in
+  `fixtures/claude/` hold none (the live one, with extra usage off) or "USD", which is written as dollars and never
+  reaches the line as text. A small PR of its own could pass it through `outside_text` with a short limit, or keep it
+  only when it is three letters; this one keeps it "as now", as the decision says.
 
 ### M6: an address breaks before its `@` and before each `.`, never inside a word (D-141)
 
