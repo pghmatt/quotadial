@@ -4,11 +4,15 @@ import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter"
  * The picture of one account's history to share (D-115), drawn from the History view's own
  * numbers: the account's label, the period and its dates, each window's chart with its 90% line,
  * its latest and highest share, the heatmap of when it was used, and where it came from. It is
- * drawn at 1200 by 675 CSS pixels, twice over, as a 2400 by 1350 PNG: the 16:9 shape social feeds
- * show whole, with few words and large numbers so it reads when shown small. Its colours and font
- * are the window's own, read from the stylesheet, so it follows the window's theme. It is read away
- * from the app, with nothing around it to explain it, so a window's highest share is said only
- * when it differs from its latest, and the dashed line says it is at 90%.
+ * the account's card as the window draws one (D-132), on the material (D-137): the card's fill,
+ * corners and hairline edge, scaled up, on the colour of the macOS popover material, which is the
+ * picture's own choice and not whatever the page happens to paint; and its charts have no plate,
+ * as History's have none. It is drawn at 1200 by 675 CSS pixels, twice over, as a 2400 by 1350
+ * PNG: the 16:9 shape social feeds show whole, with few words and large numbers so it reads when
+ * shown small. Its text, card and chart colours and its font are the window's own, read from the
+ * stylesheet, so it follows the window's theme. It is read away from the app, with nothing around
+ * it to explain it, so a window's highest share is said only when it differs from its latest, and
+ * the dashed line says it is at 90%.
  *
  * Privacy: the picture draws only what `shareStrings` returns, and that holds the account's
  * `label` (its provider and the name given it, or its plan), never its `name`, which can be its
@@ -24,32 +28,54 @@ export const SCALE = 2;
 /** The request header naming the account a picture is of (`share::ACCOUNT_HEADER` in the app). */
 export const ACCOUNT_HEADER = "quotadial-account";
 
-/** Where each colour comes from in the stylesheet. Text uses only text, muted, warning and high,
- * which check-contrast.mjs holds to 4.5:1 against the background in both themes. */
+/**
+ * The picture's ground, the picture's own choice (D-137): the colour of the macOS popover
+ * material in each theme, `#ececec` in light and `#2c2c2e` in dark, the same two the contrast
+ * check takes for the material. It is not read from the page's `--background`, which is only what
+ * a page with no system material behind it paints, so a change to the page's grey cannot change
+ * the picture; check-contrast.mjs holds the picture's text and chart line to their ratios on these.
+ */
+export const MATERIAL = { light: "#ececec", dark: "#2c2c2e" } as const;
+
+/** The two themes the window has, which are the picture's too. */
+export type Theme = keyof typeof MATERIAL;
+
+/** Where each colour comes from in the stylesheet. Text uses only text, secondary, muted, warning
+ * and high, which check-contrast.mjs holds to 4.5:1 on the picture's card in both themes. */
 const PROPERTIES = {
-  background: "--background",
   text: "--text",
+  /** An account's second line in the window; here the period and its dates. */
+  secondary: "--secondary",
   muted: "--muted",
   warning: "--warning",
   high: "--high",
-  /** A chart's ground. */
-  track: "--bar",
+  /** The card's fill, white over the material: 70% in light, 6% in dark. */
+  card: "--card",
+  /** The card's hairline edge: black at 7% in light, clear in dark. */
+  edge: "--card-edge",
+  /** A chart's hairline at 0%, and its faint line at 100%. */
+  base: "--chart-base",
+  top: "--chart-top",
   /** A chart's line and the heatmap's squares. */
   line: "--bar-normal",
   /** The dashed line at 90%. */
   limit: "--bar-warning",
 } as const;
 
-/** The colours and font the picture takes from the window's stylesheet. */
+/** The colours and font the picture takes from the window's stylesheet, and the theme it is in. */
 export type Look = Record<keyof typeof PROPERTIES, string> & {
   /** The window's own font stack. */
   font: string;
+  /** The theme the window shows, which picks the picture's material. */
+  theme: Theme;
 };
 
 /** The look of the window's root element now, in the theme it shows. */
 export function lookOf(root: Element): Look {
   const style = getComputedStyle(root);
-  const look = { font: style.fontFamily } as Look;
+  // The stylesheet's own test for its dark colours, so the picture cannot disagree with it.
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const look = { font: style.fontFamily, theme: dark ? "dark" : "light" } as Look;
   const entries = Object.entries(PROPERTIES) as [keyof typeof PROPERTIES, string][];
   for (const [name, property] of entries) {
     look[name] = style.getPropertyValue(property).trim();
@@ -64,21 +90,90 @@ const HIGH_PCT = 90;
 const LIMIT_PCT = 90;
 const LIMIT = `${LIMIT_PCT}%`;
 
-/** Where things go, in CSS pixels. */
-const EDGE = 64;
-const RIGHT = WIDTH - EDGE;
-const ROOM = WIDTH - 2 * EDGE;
+/** A place on the picture, in CSS pixels. */
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The account's card, to scale with the window's. In the 360 px window a card is 336 px wide, 12 px
+ * in from each side, with 10 px corners and 12 px of padding; here it is 1120 px wide, 40 px in
+ * from each side of the 1200 px picture, so a pixel of the window is 10/3 pixels of the picture
+ * and the corners and the padding are those, scaled. Its hairline edge is the window's 0.5 px,
+ * drawn as 1.5 px so that it still shows when the picture is small.
+ */
+export const CARD = {
+  x: 40,
+  y: 40,
+  width: 1120,
+  height: 595,
+  /** The window's 10 px corners. */
+  radius: 33,
+  /** The window's 12 px of padding. */
+  padding: 40,
+  /** The window's 0.5 px hairline edge. */
+  edge: 1.5,
+} as const;
+
+/** Where things go, in CSS pixels: the card's contents, and where each line of them is written. */
+const LEFT = CARD.x + CARD.padding;
+const RIGHT = CARD.x + CARD.width - CARD.padding;
+const ROOM = RIGHT - LEFT;
+/** The heading: the card's title type, 14 px semibold times 10/3, with the period under it. */
+const TITLE_SIZE = 47;
+const TITLE_AT = 118;
+const PERIOD_AT = 154;
 /** Between the windows' columns. */
 const GUTTER = 36;
 /** The largest a window's latest share is drawn. */
 const NUMBER = 84;
-/** Where each chart begins, and how tall it is. */
-const CHART_TOP = 334;
-const CHART_HEIGHT = 82;
-/** The heatmap's room for a day's label, and where its rows begin and its hours are written. */
+/** Each window's name, its latest share and its highest, by the baseline they are written on. */
+const LABEL_AT = 204;
+const LATEST_AT = 282;
+const HIGHEST_AT = 311;
+/** Where each chart begins, how tall it is, and the room kept at its right end for "90%". */
+const CHART_TOP = 326;
+const CHART_HEIGHT = 58;
+const LIMIT_ROOM = 48;
+/** The thickness of a chart's scale, its dashed line and its line. */
+const RULE = 2;
+const LINE = 3;
+/**
+ * The heatmap's words, its room for a day's label, where its rows begin, where its hours are
+ * written, and the room between its last row and them. A week's rows are 18.9 px apart, room for
+ * a day's name at 16 px to stand clear of the one above it.
+ */
+const CAPTION_AT = 430;
 const DAY_ROOM = 92;
-const HEAT_TOP = 474;
-const HOURS_AT = 630;
+const HEAT_TOP = 445;
+const HOURS_AT = 598;
+const HOURS_ROOM = 24;
+/** How tall the heatmap's 16 px words stand above their baseline, to set them level with a row. */
+const WORD_RISE = 11.5;
+
+/** The room of `count` windows' columns, and where each begins. */
+function columnsOf(count: number): { width: number; at: (index: number) => number } {
+  const columns = Math.max(1, count);
+  const width = (ROOM - GUTTER * (columns - 1)) / columns;
+  return { width, at: (index) => LEFT + index * (width + GUTTER) };
+}
+
+/**
+ * Where each of `count` windows' charts is drawn, left to right: its lines run along the box's top
+ * and bottom, and the room after it holds the dashed line's label.
+ */
+export function chartBoxes(count: number): Box[] {
+  const { width, at } = columnsOf(count);
+  return Array.from({ length: count }, (_, index) => ({
+    x: at(index),
+    y: CHART_TOP,
+    width: width - LIMIT_ROOM,
+    height: CHART_HEIGHT,
+  }));
+}
 
 /** What one window says. Its level picks the colour of its latest share. */
 interface WindowWords {
@@ -169,81 +264,119 @@ export function drawShare(
   const pen = new Pen(context, look);
   context.save();
   context.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-  context.fillStyle = look.background;
+  // The ground is the material, the picture's own choice (D-137); the card sits on it.
+  context.fillStyle = MATERIAL[look.theme];
   context.fillRect(0, 0, WIDTH, HEIGHT);
+  drawCard(context, look);
 
-  // Where it came from, small, top right; the account and its period beside it.
+  // Where it came from, small, at the card's top right, on the baselines of its title and period.
   pen.use(600, 24, look.text);
-  const brand = pen.write(said.brand, RIGHT, 92, "right");
+  const brand = pen.write(said.brand, RIGHT, TITLE_AT, "right");
   pen.use(400, 20, look.muted);
-  const site = pen.write(said.site, RIGHT, 122, "right");
+  const site = pen.write(said.site, RIGHT, PERIOD_AT, "right");
   const beside = ROOM - Math.max(brand, site) - 48;
-  pen.use(700, 46, look.text);
-  pen.write(said.title, EDGE, 96, "left", beside);
-  pen.use(400, 24, look.muted);
-  pen.write(said.period, EDGE, 134, "left", beside);
+  // The account's heading as the window sets it: its label in the card's title type, and under it
+  // a second line, here the period, in the colour of the window's address line.
+  pen.use(600, TITLE_SIZE, look.text);
+  pen.write(said.title, LEFT, TITLE_AT, "left", beside);
+  pen.use(400, 25, look.secondary);
+  pen.write(said.period, LEFT, PERIOD_AT, "left", beside);
 
   // Each window: its name, its latest share, large, its highest when that differs (its room is
   // kept either way, so the charts in a row stay level), and its chart with the dashed line's
-  // label in small type at the line's right end, on the picture's ground.
-  const columns = Math.max(1, said.windows.length);
-  const width = (ROOM - GUTTER * (columns - 1)) / columns;
-  pen.use(700, NUMBER, look.text);
+  // label in small type at the line's right end, on the card.
+  const { width, at } = columnsOf(said.windows.length);
+  const charts = chartBoxes(said.windows.length);
+  pen.use(600, NUMBER, look.text);
   const number = Math.min(NUMBER, Math.floor((NUMBER * width) / pen.measure("100%")));
-  pen.use(400, 16, look.muted);
-  const beyond = pen.measure(LIMIT) + 8;
   const limitAt = CHART_TOP + ((100 - LIMIT_PCT) / 100) * CHART_HEIGHT;
   said.windows.forEach((column, index) => {
-    const x = EDGE + index * (width + GUTTER);
-    pen.use(600, 26, look.text);
-    pen.write(column.label, x, 202, "left", width);
-    pen.use(700, number, column.level === "normal" ? look.text : look[column.level]);
-    pen.write(column.latest, x, 282, "left", width);
+    const x = at(index);
+    pen.use(600, 25, look.text);
+    pen.write(column.label, x, LABEL_AT, "left", width);
+    pen.use(600, number, column.level === "normal" ? look.text : look[column.level]);
+    pen.write(column.latest, x, LATEST_AT, "left", width);
     if (column.highest !== null) {
-      pen.use(400, 22, look.muted);
-      pen.write(column.highest, x, 316, "left", width);
+      pen.use(400, 21, look.muted);
+      pen.write(column.highest, x, HIGHEST_AT, "left", width);
     }
     pen.use(400, 16, look.muted);
     pen.write(LIMIT, x + width, limitAt + 6, "right");
-    drawChart(context, column.chart, x, CHART_TOP, width - beyond, CHART_HEIGHT, look);
+    drawChart(context, column.chart, charts[index], look);
   });
 
   // When it was used, by day and hour.
-  pen.use(400, 22, look.muted);
-  pen.write(said.heatmap, EDGE, 456, "left", ROOM);
+  pen.use(400, 21, look.muted);
+  pen.write(said.heatmap, LEFT, CAPTION_AT, "left", ROOM);
   if (said.hours.length > 0) {
     drawHeatmap(context, pen, account.heatmap, said, look);
   }
   context.restore();
 }
 
-/** A window's share used over the period, on its ground, with a dashed line at 90%. */
+/**
+ * The account's card on the ground, as the window draws one: its fill laid over the material, its
+ * corners rounded, and its hairline edge just inside the outline, as the window's inset shadow is.
+ * The edge is clear in dark, as the window's is.
+ */
+function drawCard(context: CanvasRenderingContext2D, look: Look): void {
+  context.save();
+  rounded(context, CARD.x, CARD.y, CARD.width, CARD.height, CARD.radius);
+  context.fillStyle = look.card;
+  context.fill();
+  const half = CARD.edge / 2;
+  rounded(
+    context,
+    CARD.x + half,
+    CARD.y + half,
+    CARD.width - CARD.edge,
+    CARD.height - CARD.edge,
+    CARD.radius - half,
+  );
+  context.lineWidth = CARD.edge;
+  context.strokeStyle = look.edge;
+  context.stroke();
+  context.restore();
+}
+
+/** A straight line of `colour` from `from` to `to` along `y`, as the current line style draws it. */
+function rule(
+  context: CanvasRenderingContext2D,
+  from: number,
+  to: number,
+  y: number,
+  colour: string,
+): void {
+  context.beginPath();
+  context.moveTo(from, y);
+  context.lineTo(to, y);
+  context.strokeStyle = colour;
+  context.stroke();
+}
+
+/**
+ * A window's share used over the period, on the card with no plate under it, as History draws it
+ * (D-132): a faint line at 100% and a hairline at 0% give the scale, whole at the chart's edges,
+ * and a dashed line marks 90%.
+ */
 function drawChart(
   context: CanvasRenderingContext2D,
   chart: WindowChart,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
+  box: Box,
   look: Look,
 ): void {
+  const { x, y, width, height } = box;
+  // Nothing is clipped to a plate now, so a reading outside the chart's range is held to its edge.
   const at = ([along, used]: [number, number]): [number, number] => [
-    x + along * width,
-    y + ((100 - used) / 100) * height,
+    x + Math.min(1, Math.max(0, along)) * width,
+    y + ((100 - Math.min(100, Math.max(0, used))) / 100) * height,
   ];
   context.save();
-  rounded(context, x, y, width, height, 8);
-  context.fillStyle = look.track;
-  context.fill();
-  context.clip();
-  const limit = y + ((100 - LIMIT_PCT) / 100) * height;
-  context.beginPath();
+  context.lineWidth = RULE;
+  rule(context, x, x + width, y, look.top);
+  rule(context, x, x + width, y + height, look.base);
   context.setLineDash([6, 6]);
-  context.moveTo(x, limit);
-  context.lineTo(x + width, limit);
-  context.strokeStyle = look.limit;
-  context.lineWidth = 2;
-  context.stroke();
+  rule(context, x, x + width, y + ((100 - LIMIT_PCT) / 100) * height, look.limit);
   context.setLineDash([]);
   const points = chart.points.map(at);
   if (points.length > 0) {
@@ -267,7 +400,7 @@ function drawChart(
       context.arc(points[0][0], points[0][1], 3, 0, 2 * Math.PI);
     }
     context.strokeStyle = look.line;
-    context.lineWidth = 3;
+    context.lineWidth = LINE;
     context.lineJoin = "round";
     context.lineCap = "round";
     context.stroke();
@@ -285,9 +418,9 @@ function drawHeatmap(
 ): void {
   const rows = heatmap.cells.length;
   const gap = rows <= 7 ? 3 : 1;
-  const left = EDGE + DAY_ROOM;
+  const left = LEFT + DAY_ROOM;
   const cell = (RIGHT - left - 23 * gap) / 24;
-  const bottom = HOURS_AT - 26;
+  const bottom = HOURS_AT - HOURS_ROOM;
   const pitch = (bottom - HEAT_TOP + gap) / Math.max(1, rows);
   const height = pitch - gap;
   context.save();
@@ -303,8 +436,11 @@ function drawHeatmap(
   context.restore();
   pen.use(400, 16, look.muted);
   for (const day of said.days) {
-    // Each name sits level with the middle of its row.
-    pen.write(day.text, left - 14, HEAT_TOP + day.row * pitch + Math.max(height, 12) / 2 + 6, "right");
+    // Each name sits level with the middle of its row, and inside the grid: a month's rows are
+    // thinner than a name, and the first and last would otherwise stand out of it.
+    const middle = HEAT_TOP + day.row * pitch + height / 2;
+    const at = Math.min(bottom, Math.max(HEAT_TOP + WORD_RISE, middle + WORD_RISE / 2));
+    pen.write(day.text, left - 14, at, "right");
   }
   said.hours.forEach((hour, index) => {
     pen.write(hour, left + index * 6 * (cell + gap), HOURS_AT, "left");

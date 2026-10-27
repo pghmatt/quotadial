@@ -27,7 +27,9 @@
 //   works from the keyboard and sends the app a whole 2400 by 1350 PNG for that account, drawn only
 //   with the strings `shareStrings` lists (the label, never an address), in the stylesheet's text
 //   colours and the window's font, with tabular figures; on QuotaDial Free there is no button and
-//   the feature's line shows once (D-115).
+//   the feature's line shows once (D-115);
+// - that picture is the account's card on the theme's material, #ececec in light and #2c2c2e in dark
+//   (D-137), which is the first thing it draws, over its whole size.
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, with the made-up accounts in window-fixtures.mjs answering
@@ -52,6 +54,14 @@ import { ACCOUNT_HEADER, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, share
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
+
+/**
+ * The picture's ground in each theme, as the manager decided it on #73 (2026-10-26, 23:25 UTC) and
+ * D-137 records it: the macOS popover material's colour. Written here as the check's own text of the
+ * decision, not read from src/share.ts or the stylesheet, so a ground changed in either fails the
+ * check instead of being followed by it.
+ */
+const MATERIAL = { light: "#ececec", dark: "#2c2c2e" };
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const CONFIG = JSON.parse(
@@ -1285,9 +1295,9 @@ const HISTORY_LINES = `[...document.querySelectorAll('section.history > p')].map
  * periods and before Export CSV, in the accounts' order, named by the account's label; pressed
  * from the keyboard, it sends the app a whole PNG of 2400 by 1350 for that account, says where it
  * went, and draws only what `shareStrings` lists, with the label and never an @, in the
- * stylesheet's text colours on its background, the window's font and tabular figures: each
- * account over 7 days, and the first over 30. On QuotaDial Free: no button, and the feature's line
- * once. Saves each picture in `folder` when one is named.
+ * stylesheet's text colours, the window's font and tabular figures, on a card on the theme's
+ * material (D-137): each account over 7 days, and the first over 30. On QuotaDial Free: no button,
+ * and the feature's line once. Saves each picture in `folder` when one is named.
  */
 async function checkSharing(view, name, copy, theme, folder) {
   const label = `${view.label}, Share image`;
@@ -1320,8 +1330,10 @@ async function checkSharing(view, name, copy, theme, folder) {
   }
 
   const look = {
-    allowed: new Set(await view.evaluate(`['--text', '--muted', '--warning', '--high'].map(window.__check.colour)`)),
-    background: await view.evaluate(`window.__check.colour('--background')`),
+    // The picture writes in these and no others.
+    allowed: new Set(await view.evaluate(`['--text', '--secondary', '--muted', '--warning', '--high'].map(window.__check.colour)`)),
+    // Its ground is the material, the check's own text of the decision, and not the page's background.
+    material: MATERIAL[theme],
     family: await view.evaluate("getComputedStyle(document.documentElement).fontFamily"),
   };
   // Each account over 7 days, and the first over 30 where the copy has a month of its own.
@@ -1524,7 +1536,8 @@ function contrastVerdicts(drawn) {
  * or what is wrong (each kind of problem said once). Nothing may be written that `listed` does not
  * hold, or a cut-short start of it; nothing with an @; the name given the account must be in its
  * label; writing only in the stylesheet's text colours and the window's font, figures one by one
- * in equal room; and the ground the window's background.
+ * in equal room; and the ground the theme's material, the picture's own choice (D-137), in the
+ * picture's whole size, painted first.
  */
 function drawingVerdicts(drawn, listed, account, copy, look) {
   const said = new Set();
@@ -1542,8 +1555,8 @@ function drawingVerdicts(drawn, listed, account, copy, look) {
   const [ground] = drawn;
   verdicts.push(
     verdict(
-      !(ground && "rect" in ground && ground.fill === look.background && ground.rect.join() === `0,0,${PICTURE_WIDTH},${PICTURE_HEIGHT}`) &&
-        "does not begin with the window's background",
+      !(ground && "rect" in ground && ground.fill === look.material && ground.rect.join() === `0,0,${PICTURE_WIDTH},${PICTURE_HEIGHT}`) &&
+        `does not begin with the material, ${look.material}, over its whole size`,
     ),
   );
   const written = drawn.filter((item) => "text" in item);
