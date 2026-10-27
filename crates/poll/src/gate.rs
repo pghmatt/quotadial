@@ -18,8 +18,8 @@
 //! honours `Retry-After` or a 5-minute cooldown but lets user-initiated refreshes through.
 //! QuotaDial lets nothing through.
 
-use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
-use quotadial_core::{Account, Snapshot, Status};
+use chrono::{DateTime, TimeDelta, Utc};
+use quotadial_core::{Account, Snapshot, Status, text};
 
 use crate::Policy;
 use crate::state::{AccountState, LastResult};
@@ -68,9 +68,9 @@ pub fn decide(
         },
         // QuotaDial was stopped before the first answer for this account was recorded.
         None => Decision::Wait(format!(
-            "The request sent at {} has no recorded answer, perhaps because QuotaDial was \
+            "The request sent on {} has no recorded answer, perhaps because QuotaDial was \
              stopped. {}",
-            timestamp(requested_at),
+            text::date_and_time(requested_at),
             policy.next_request(next_request)
         )),
     }
@@ -288,7 +288,7 @@ fn rate_limited(
     snapshot.error = Some(format!(
         "{} is rate-limiting usage requests, so QuotaDial will ask again after {}.",
         policy.service,
-        timestamp(until)
+        text::date_and_time(until)
     ));
     snapshot
 }
@@ -298,13 +298,9 @@ fn stale(state: &AccountState, message: &str, next_request: DateTime<Utc>) -> Op
     snapshot.status = Status::Stale;
     snapshot.error = Some(format!(
         "{message} Showing the last numbers fetched; QuotaDial asks again after {}.",
-        timestamp(next_request)
+        text::date_and_time(next_request)
     ));
     Some(snapshot)
-}
-
-pub(crate) fn timestamp(at: DateTime<Utc>) -> String {
-    at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 #[cfg(test)]
@@ -390,7 +386,7 @@ mod tests {
             shown,
             Err(
                 "OpenAI answered HTTP 503. QuotaDial asks OpenAI at most every 2 minutes, so the \
-                 next request is after 2099-01-01T00:02:00Z."
+                 next request is after 1 Jan 2099 at 00:02 UTC."
                     .to_owned()
             )
         );
@@ -398,7 +394,7 @@ mod tests {
             decide(&codex, &state, &account(), None, t0() + minutes(1)),
             Decision::Wait(
                 "OpenAI answered HTTP 503. QuotaDial asks OpenAI at most every 2 minutes, so the \
-                 next request is after 2099-01-01T00:02:00Z."
+                 next request is after 1 Jan 2099 at 00:02 UTC."
                     .into()
             )
         );
@@ -411,7 +407,7 @@ mod tests {
             blocked.error.as_deref(),
             Some(
                 "OpenAI is rate-limiting usage requests, so QuotaDial will ask again after \
-                 2099-01-01T00:07:00Z."
+                 1 Jan 2099 at 00:07 UTC."
             )
         );
     }
@@ -570,7 +566,7 @@ mod tests {
             shown.error.as_deref(),
             Some(
                 "Anthropic is rate-limiting usage requests, so QuotaDial will ask again after \
-                 2099-01-01T00:11:00Z."
+                 1 Jan 2099 at 00:11 UTC."
             )
         );
 
@@ -616,7 +612,7 @@ mod tests {
             shown.error.as_deref(),
             Some(
                 "Anthropic answered HTTP 503. Showing the last numbers fetched; QuotaDial asks \
-                 again after 2099-01-01T00:15:00Z."
+                 again after 1 Jan 2099 at 00:15 UTC."
             )
         );
         // The floor still holds after a failure.
@@ -636,7 +632,7 @@ mod tests {
             shown,
             Err(
                 "Anthropic answered HTTP 503. QuotaDial asks Anthropic at most every 5 minutes, \
-                 so the next request is after 2099-01-01T00:05:00Z."
+                 so the next request is after 1 Jan 2099 at 00:05 UTC."
                     .to_owned()
             )
         );
@@ -644,7 +640,7 @@ mod tests {
             decide(&POLICY, &state, &account(), None, t0() + minutes(2)),
             Decision::Wait(
                 "Anthropic answered HTTP 503. QuotaDial asks Anthropic at most every 5 minutes, \
-                 so the next request is after 2099-01-01T00:05:00Z."
+                 so the next request is after 1 Jan 2099 at 00:05 UTC."
                     .into()
             )
         );
@@ -806,9 +802,9 @@ mod tests {
                 t0() + minutes(1)
             ),
             Decision::Wait(
-                "The request sent at 2099-01-01T00:00:00Z has no recorded answer, perhaps because \
-                 QuotaDial was stopped. QuotaDial asks Anthropic at most every 5 minutes, so the \
-                 next request is after 2099-01-01T00:05:00Z."
+                "The request sent on 1 Jan 2099 at 00:00 UTC has no recorded answer, perhaps \
+                 because QuotaDial was stopped. QuotaDial asks Anthropic at most every 5 minutes, \
+                 so the next request is after 1 Jan 2099 at 00:05 UTC."
                     .into()
             )
         );
@@ -847,7 +843,7 @@ mod tests {
             Decision::Wait(
                 "Claude Code's sign-in changed since QuotaDial last asked Anthropic. QuotaDial asks \
                  Anthropic at most every 5 minutes, so the next request is after \
-                 2099-01-01T00:05:00Z."
+                 1 Jan 2099 at 00:05 UTC."
                     .into()
             )
         );

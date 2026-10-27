@@ -30,7 +30,7 @@ pub struct Policy {
 
 impl Policy {
     /// For example "QuotaDial asks Anthropic at most every 5 minutes, so the next request is after
-    /// 2099-01-01T00:05:00Z."
+    /// 1 Jan 2099 at 00:05 UTC.", the time as a person reads it (D-142).
     pub(crate) fn next_request(&self, at: DateTime<Utc>) -> String {
         let every = match self.floor.num_minutes() {
             1 => "minute".to_owned(),
@@ -39,7 +39,7 @@ impl Policy {
         format!(
             "QuotaDial asks {} at most every {every}, so the next request is after {}.",
             self.service,
-            gate::timestamp(at)
+            quotadial_core::text::date_and_time(at)
         )
     }
 }

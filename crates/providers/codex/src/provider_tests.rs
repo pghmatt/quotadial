@@ -395,7 +395,7 @@ async fn a_429_blocks_requests_and_keeps_the_last_numbers_on_screen() {
         limited.error.as_deref(),
         Some(
             "ChatGPT is rate-limiting usage requests, so QuotaDial will ask again after \
-             2026-10-23T12:12:00Z."
+             23 Oct 2026 at 12:12 UTC."
         )
     );
 
@@ -429,7 +429,7 @@ async fn a_server_error_shows_the_last_numbers_as_stale() {
         stale.error.as_deref(),
         Some(
             "ChatGPT's usage endpoint answered HTTP 503: Service unavailable. Showing the last \
-             numbers fetched; QuotaDial asks again after 2026-10-23T12:05:00Z."
+             numbers fetched; QuotaDial asks again after 23 Oct 2026 at 12:05 UTC."
         )
     );
 }
@@ -446,7 +446,7 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     assert_eq!(
         first.expect_err("fails").to_string(),
         "request failed: ChatGPT's usage endpoint answered HTTP 500. QuotaDial asks \
-         ChatGPT at most every 2 minutes, so the next request is after 2026-10-23T12:02:00Z."
+         ChatGPT at most every 2 minutes, so the next request is after 23 Oct 2026 at 12:02 UTC."
     );
 
     harness.advance(1);
@@ -454,7 +454,7 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     assert_eq!(
         second.expect_err("waits").to_string(),
         "request failed: ChatGPT's usage endpoint answered HTTP 500. QuotaDial asks \
-         ChatGPT at most every 2 minutes, so the next request is after 2026-10-23T12:02:00Z."
+         ChatGPT at most every 2 minutes, so the next request is after 23 Oct 2026 at 12:02 UTC."
     );
     assert_eq!(harness.usage_requests().await, 1);
 }
@@ -515,7 +515,7 @@ async fn a_request_that_times_out_still_counts_against_the_floor() {
             .await
             .expect_err("waits")
             .to_string()
-            .ends_with("so the next request is after 2026-10-23T12:02:00Z.")
+            .ends_with("so the next request is after 23 Oct 2026 at 12:02 UTC.")
     );
 }
 
@@ -605,7 +605,7 @@ async fn a_token_quoted_in_chatgpts_error_is_never_shown_or_saved() {
         failed.expect_err("fails").to_string(),
         "request failed: ChatGPT's usage endpoint answered HTTP 403: Token [redacted \
          token] is not allowed here. QuotaDial asks ChatGPT at most every 2 minutes, so the next \
-         request is after 2026-10-23T12:02:00Z."
+         request is after 23 Oct 2026 at 12:02 UTC."
     );
     assert_no_token(&harness.cache_contents(), &token);
 }
@@ -744,7 +744,7 @@ async fn an_answer_for_another_account_is_never_used() {
         result.expect_err("refused").to_string(),
         "unexpected response: ChatGPT's answer names another account than the Codex CLI's \
          sign-in, so it was not used. QuotaDial asks ChatGPT at most every 2 minutes, so the next \
-         request is after 2026-10-23T12:02:00Z."
+         request is after 23 Oct 2026 at 12:02 UTC."
     );
     assert!(
         !harness.cache_contents().contains("used_pct"),
@@ -770,7 +770,7 @@ async fn a_redirect_is_never_followed() {
     assert_eq!(
         result.expect_err("fails").to_string(),
         "request failed: ChatGPT's usage endpoint answered HTTP 302. QuotaDial asks \
-         ChatGPT at most every 2 minutes, so the next request is after 2026-10-23T12:02:00Z."
+         ChatGPT at most every 2 minutes, so the next request is after 23 Oct 2026 at 12:02 UTC."
     );
     let requests = harness.server.received_requests().await.expect("recorded");
     assert_eq!(requests.len(), 1, "only the usage request was sent");
@@ -793,7 +793,7 @@ async fn an_answer_over_a_mebibyte_is_not_read() {
         result.expect_err("refused").to_string(),
         "unexpected response: ChatGPT's answer could not be read: the usage response did not \
          arrive in full (the response is larger than 1 MiB). QuotaDial asks ChatGPT at most every \
-         2 minutes, so the next request is after 2026-10-23T12:02:00Z."
+         2 minutes, so the next request is after 23 Oct 2026 at 12:02 UTC."
     );
 }
 

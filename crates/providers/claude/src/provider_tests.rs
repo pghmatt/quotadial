@@ -448,7 +448,7 @@ async fn a_429_keeps_the_last_numbers_and_honours_retry_after() {
         limited.error.as_deref(),
         Some(
             "Anthropic is rate-limiting usage requests, so QuotaDial will ask again after \
-             2099-01-01T00:26:00Z."
+             1 Jan 2099 at 00:26 UTC."
         )
     );
 
@@ -703,7 +703,7 @@ async fn a_server_error_shows_the_last_numbers_as_stale() {
         stale.error.as_deref(),
         Some(
             "Anthropic's usage endpoint answered HTTP 503: Overloaded. Showing the last numbers \
-             fetched; QuotaDial asks again after 2099-01-01T00:11:00Z."
+             fetched; QuotaDial asks again after 1 Jan 2099 at 00:11 UTC."
         )
     );
 }
@@ -720,7 +720,7 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
     assert_eq!(
         first.expect_err("fails").to_string(),
         "request failed: Anthropic's usage endpoint answered HTTP 500. QuotaDial asks \
-         Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
+         Anthropic at most every 5 minutes, so the next request is after 1 Jan 2099 at 00:05 UTC."
     );
 
     harness.advance(2);
@@ -729,7 +729,7 @@ async fn a_server_error_with_nothing_cached_is_an_error_and_still_holds_the_floo
         second
             .expect_err("waits")
             .to_string()
-            .contains("next request is after 2099-01-01T00:05:00Z")
+            .contains("next request is after 1 Jan 2099 at 00:05 UTC")
     );
     assert_eq!(harness.requests().await, 1);
 }
@@ -956,7 +956,7 @@ async fn an_answer_too_large_to_read_still_counts_against_the_floor() {
         second
             .expect_err("waits")
             .to_string()
-            .contains("next request is after 2099-01-01T00:05:00Z")
+            .contains("next request is after 1 Jan 2099 at 00:05 UTC")
     );
     assert_eq!(harness.requests().await, 1);
 }
@@ -1253,7 +1253,7 @@ async fn a_token_quoted_in_anthropics_error_is_never_shown_or_saved() {
         failed.expect_err("fails").to_string(),
         "request failed: Anthropic's usage endpoint answered HTTP 400: invalid token: \
          [redacted token]. QuotaDial asks Anthropic at most every 5 minutes, so the next request \
-         is after 2099-01-01T00:10:00Z."
+         is after 1 Jan 2099 at 00:10 UTC."
     );
     assert_eq!(harness.usage_requests().await, 1);
     assert_no_token(&cache_contents(&harness));
@@ -1280,7 +1280,7 @@ async fn a_damaged_state_file_still_holds_the_floor() {
         held.expect_err("holds").to_string(),
         "request failed: QuotaDial could not read its saved state for this account, so \
          the last answer is lost. QuotaDial asks Anthropic at most every 5 minutes, so the next \
-         request is after 2099-01-01T00:07:00Z."
+         request is after 1 Jan 2099 at 00:07 UTC."
     );
     assert_eq!(harness.usage_requests().await, 1);
 
@@ -1292,7 +1292,7 @@ async fn a_damaged_state_file_still_holds_the_floor() {
             .await
             .expect_err("still holds")
             .to_string()
-            .ends_with("next request is after 2099-01-01T00:07:00Z.")
+            .ends_with("next request is after 1 Jan 2099 at 00:07 UTC.")
     );
     harness.advance(2);
     let fresh = provider.fetch(&account).await.expect("fetches");
@@ -1333,7 +1333,7 @@ async fn a_state_file_that_no_longer_parses_keeps_its_floor_and_block() {
         blocked.error.as_deref(),
         Some(
             "Anthropic is rate-limiting usage requests, so QuotaDial will ask again after \
-             2099-01-01T00:30:00Z."
+             1 Jan 2099 at 00:30 UTC."
         )
     );
     assert_eq!(harness.usage_requests().await, 1);
@@ -1362,7 +1362,7 @@ async fn a_redirect_is_never_followed() {
     assert_eq!(
         result.expect_err("fails").to_string(),
         "request failed: Anthropic's usage endpoint answered HTTP 302. QuotaDial asks \
-         Anthropic at most every 5 minutes, so the next request is after 2099-01-01T00:05:00Z."
+         Anthropic at most every 5 minutes, so the next request is after 1 Jan 2099 at 00:05 UTC."
     );
     assert_eq!(
         harness.requests().await,
