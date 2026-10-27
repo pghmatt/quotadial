@@ -82,8 +82,9 @@
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
-// half way down what scrolls (`-- --window-zoom 2` at 200% zoom, `3` at 300%: a number above 0,
-// and anything else is refused before Chrome is asked),
+// half way down what scrolls, and in History with its first card's time marks in the middle, each of
+// History's pictures over 7 days and again over 30 (`-- --window-zoom 2` at 200% zoom, `3` at 300%: a
+// number above 0, and anything else is refused before Chrome is asked),
 // `-- --share-images <folder>` saves the picture to share of each
 // account in each copy and theme, `-- --scroll-bars classic` or `system` says whether Chrome's scroll
 // bars take room, as Windows' and Linux's do (the checks' own choice), or lie over what they scroll,
@@ -2653,39 +2654,57 @@ const WHOLE = `(() => {
 })()`;
 
 /**
- * A picture of the whole of the window's content, as the website and the README show it: the
- * window as tall as what it holds, whatever the most the app lets it be.
+ * The periods a picture of `panel` is taken over: History's 7 days, as it opens, and then its 30,
+ * which have their own time marks (D-143), named `-30-days` after the view's name; one for any other
+ * view.
  */
-async function screenshot(view, panel, folder) {
+function periodsOf(panel, copy) {
+  return panel === "history" && copy.history[30] ? [7, 30] : [7];
+}
+
+/**
+ * A picture of the whole of the window's content, as the website and the README show it: the
+ * window as tall as what it holds, whatever the most the app lets it be; and History's again over
+ * 30 days (`periodsOf`).
+ */
+async function screenshot(view, panel, folder, copy) {
   await view.load(panel);
-  await view.settle();
-  // Room to spare, so that the window is never the shorter of the two.
-  const needed = (await view.evaluate(WHOLE)) + 200;
-  await view.send("Emulation.setDeviceMetricsOverride", {
-    width: WIDTH,
-    height: Math.max(HEIGHT, needed),
-    deviceScaleFactor: 2,
-    mobile: false,
-  });
-  await view.evaluate("document.activeElement.blur()");
-  await view.settle();
-  const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
-  const { data } = await view.send("Page.captureScreenshot", {
-    format: "png",
-    captureBeyondViewport: true,
-    clip: { x: 0, y: 0, width: WIDTH, height: Math.max(120, height), scale: 1 },
-  });
-  const file = join(folder, `${view.label.replaceAll(", ", "-")}.png`);
-  writeFileSync(file, Buffer.from(data, "base64"));
-  await view.zoom(1);
+  for (const days of periodsOf(panel, copy)) {
+    if (days !== 7 && !(await showPeriod(view, copy, days))) {
+      check(view.label, `History does not show ${days} days for its picture`);
+      continue;
+    }
+    await view.settle();
+    // Room to spare, so that the window is never the shorter of the two.
+    const needed = (await view.evaluate(WHOLE)) + 200;
+    await view.send("Emulation.setDeviceMetricsOverride", {
+      width: WIDTH,
+      height: Math.max(HEIGHT, needed),
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await view.evaluate("document.activeElement.blur()");
+    await view.settle();
+    const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+    const { data } = await view.send("Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: WIDTH, height: Math.max(120, height), scale: 1 },
+    });
+    const period = days === 7 ? "" : `-${days}-days`;
+    writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${period}.png`), Buffer.from(data, "base64"));
+    await view.zoom(1);
+  }
 }
 
 /**
  * Pictures of the window as a person sees it, zoomed in as far as `zoom` says: no taller than the
  * most the app lets it be, with whatever scrolls at its top and half way down its length, `-top`
- * and `-half` after the view's name. A window that does not scroll is the same in both.
+ * and `-half` after the view's name, and in History with its first card's time marks in the middle,
+ * or its last chart in a window with none, `-marks`, over 7 days and again over 30 (`periodsOf`). A
+ * window that does not scroll is the same in each.
  */
-async function windowPictures(view, panel, folder, zoom) {
+async function windowPictures(view, panel, folder, zoom, copy) {
   await view.load(panel);
   // The window at this zoom in whole pixels, as the checks show it (viewport.mjs), with as many
   // pixels as the window has at 2x, whatever the zoom.
@@ -2697,21 +2716,43 @@ async function windowPictures(view, panel, folder, zoom) {
     mobile: false,
   });
   await view.evaluate("document.activeElement.blur()");
-  for (const [place, along] of [["top", 0], ["half", 0.5]]) {
-    await view.evaluate(`(() => {
-      const scroller = ${SCROLLER};
-      scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
-    })()`);
-    await view.settle();
-    const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
-    // The clip is in the page's own coordinates, so a page that is scrolled is clipped from where it is.
-    const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
-    const { data } = await view.send("Page.captureScreenshot", {
-      format: "png",
-      clip: { x: 0, y: scrolled, width: viewport.width, height: Math.min(viewport.height, Math.max(120 / zoom, height)), scale: 1 },
-    });
-    const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
-    writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
+  for (const days of periodsOf(panel, copy)) {
+    if (days !== 7 && !(await showPeriod(view, copy, days))) {
+      check(view.label, `History does not show ${days} days for its picture`);
+      continue;
+    }
+    const places = [["top", 0], ["half", 0.5], ...(panel === "history" ? [["marks", null]] : [])];
+    for (const [place, along] of places) {
+      const shown = await view.evaluate(
+        along === null
+          ? `(() => {
+              const card = document.querySelector('section.history .account-history');
+              const charts = card ? card.querySelectorAll('figure.chart') : [];
+              const shown = card?.querySelector('.marks') ?? charts[charts.length - 1];
+              shown?.scrollIntoView({ block: 'center', behavior: 'instant' });
+              return !!shown;
+            })()`
+          : `(() => {
+              const scroller = ${SCROLLER};
+              scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
+              return true;
+            })()`,
+      );
+      if (!shown) {
+        continue;
+      }
+      await view.settle();
+      const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+      // The clip is in the page's own coordinates, so a page that is scrolled is clipped from where it is.
+      const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
+      const { data } = await view.send("Page.captureScreenshot", {
+        format: "png",
+        clip: { x: 0, y: scrolled, width: viewport.width, height: Math.min(viewport.height, Math.max(120 / zoom, height)), scale: 1 },
+      });
+      const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
+      const period = days === 7 ? "" : `-${days}-days`;
+      writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${period}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
+    }
   }
   await view.zoom(1);
 }
@@ -2771,10 +2812,10 @@ async function main() {
               await checkSharing(view, name, copy, theme, shares);
             }
             if (pictures) {
-              await screenshot(view, panel, pictures);
+              await screenshot(view, panel, pictures, copy);
             }
             if (windows) {
-              await windowPictures(view, panel, windows, windowZoom);
+              await windowPictures(view, panel, windows, windowZoom, copy);
             }
           } finally {
             await view.close();
