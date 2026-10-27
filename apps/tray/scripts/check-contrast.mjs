@@ -42,7 +42,8 @@ const PAIRS = [
   ["--bar-normal", ["--background", "--card"], 3, "a chart's line in History, on its card"],
   ["--chart-limit", ["--background", "--card"], 3, "the dashed 90% line in History's charts, on its card"],
   // The picture to share (D-137): the account's card on the picture's material, which is its own
-  // choice. It writes only in these five text colours, and draws its chart's line in the bars' blue.
+  // choice. It writes only in these five text colours, draws its chart's line in the bars' blue,
+  // and its dashed 90% line in --chart-limit, which it draws over the soft fill under a chart's line.
   ["--text", ["--picture", "--card"], 4.5, "the share picture's title, window names, shares and QuotaDial, on its card"],
   ["--secondary", ["--picture", "--card"], 4.5, "the share picture's period and its dates, on its card"],
   ["--muted", ["--picture", "--card"], 4.5, "the share picture's quotadial.com, highest share, 90% label and heatmap's words, on its card"],

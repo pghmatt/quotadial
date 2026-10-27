@@ -233,6 +233,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A property test for the window's `codeSpans` | Done (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
 | The share picture in the cards' language | Done (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
 | The toolbar stays at the window's foot while the accounts scroll | Done (PR #94, D-136) | The toolbar and the origin line, which scrolled away with the accounts once the window reached its 640 px, stay at its foot while the summary and the accounts or a panel scroll above them: layout and not overlap, so nothing is drawn under the toolbar and the material needs no backdrop, with a hairline over the toolbar only while content is hidden below it. Chosen from two layouts in pictures (the footer alone, or with the summary pinned too). Held by the manager on #73 to 200% zoom, and pinned in any window 300 px tall or more; below that the page scrolls as one, since the app zooms on to 500% and past. The app is told what the scrolling part holds beyond its edge (`neededHeight`, which the new check found a pixel short at first), each view opens at its top, and the part is a Tab stop only when nothing in it is. The window check gains a copy of nine accounts and checks of the frame at every place along the scroll, the keys, the wheel, the reading order and what the app is told, each first failed on a window broken on purpose; `--window-pictures` takes pictures of the window as it is shown. The first CI run (#94 at 299b8d5) failed on three causes, found and fixed in the same PR (D-136): a classic scroll bar narrowing what the window holds once it scrolls, a Tab stop left stale when no size changed, and the check reading a glide too early |
+| The dashed 90% line at 3:1 | In review (PR #?) | The manager's decision on #73 (2026-10-27, 04:25 UTC), on what #94's and #95's self-reviews found: the line that marks the alert threshold is a graphical object (WCAG 1.4.11), and it was 1.96:1 on a light card and 1.60:1 on the share picture's soft fill. It has a colour token of its own, `--chart-limit`, which History's stylesheet and the share picture both read: `#b87000` in light, the old orange's hue darkened only as far as 3:1 on the fill needs (3.73:1 on the card, 3.04:1 on the fill), and in dark the system's `#ff9f0a` as it was (5.64:1 and 4.81:1, already enough). The picture draws the line over its soft fill and not under it, so a share above 90% no longer tints it. `check-contrast.mjs` holds three pairs a theme more, 30 in all, and fails first on the old colour (1.96:1, 1.96:1, 1.60:1); the website's light History picture is captured again. No D: nothing the PRD left open. |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -445,6 +446,172 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the dashed 90% line is 3:1, in the window and in the share picture
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 04:25 UTC), on what the self-reviews of #94 and #95 each
+  left for a later PR, that the dashed 90% line was "1.96:1 on the light card (5.64:1 in dark), as it is in the window's
+  History since before this": "It marks the alert threshold, so it is a graphical object WCAG 1.4.11 covers: 3:1 or
+  better against what is next to it (the card's fill, and the soft fill under the chart's line where they meet) in both
+  themes, in the window and in the share picture, from the same colour so the two agree. The contrast check holds the
+  pair, failing first on the old colour. Pictures of both themes in the PR." And the coordinator's brief of the same
+  day. Built on `fix/threshold-line-contrast` from `main` at 634ff55, in six commits: the line's token, with the value
+  it had (8d28b30); the picture's drawing order (79eaca7); the colour and the check's pairs (3a034fd); the website's
+  light History picture (6a0151f); the test that holds the window's side of the token (dfa841d); and these records.
+  In review as #?.
+- **What the line sits on** (read from the code, then measured in pictures):
+  - *In History* (`.chart .limit`) it is drawn on the card, which is laid over the material (the page's `--background`
+    stands in for the material, as in every pair): `#f9f9f9` in light and `#39393b` in dark. History draws no fill under
+    a chart's line (`.chart .used` is `fill: none`), so the card is the only ground it has.
+  - *In the share picture* it is drawn on the same card over the picture's own material (`MATERIAL`, the same two
+    values), and, wherever a share is above 90%, on the soft fill under the share's line: `--bar-normal` at 16% over the
+    card, `#d1e5fa` in light and `#31455a` in dark. A line darker than both grounds, as light's must be, has the least
+    contrast against the darker of them, which is the fill (luminance 0.765 against the card's 0.950); a line lighter
+    than both, as dark's is, has the least against the lighter of them, which is the fill there too (0.056 against the
+    card's 0.041). So the fill is the binding ground in both themes.
+  - It never sits on the bare material: both charts are drawn inside the card's padding. The material stand-ins the
+    brief names are the bottom layer of each stack (`--background` for the window, `--picture` for the picture), so the
+    pairs run through them; the line's ratio on the bare material would be 3.32:1 in light and 6.78:1 in dark.
+- **The numbers, from the check's own formulas, before and after:**
+
+  | Ground | Light before | Light after | Dark before | Dark after |
+  | --- | --- | --- | --- | --- |
+  | the card, in the window | 1.96:1 | 3.73:1 | 5.64:1 | 5.64:1 |
+  | the card, in the picture | 1.96:1 | 3.73:1 | 5.64:1 | 5.64:1 |
+  | the soft fill, in the picture | 1.60:1 | 3.04:1 | 4.81:1 | 4.81:1 |
+
+  The same, measured from the pixels of the PNGs the window check writes (for the fill, a picture of an account made to
+  sit above 90%, since the website's two never do): on the card, light 1.95:1 before and 3.72:1 after, dark 5.69:1 and
+  5.69:1; on the fill, after, light 3.04:1 and dark 4.86:1; and History as the window draws it at 2x, the dash two
+  device pixels thick and whole in its colour, light 1.95:1 before and 3.72:1 after, dark 5.69:1 and 5.69:1. After the
+  fix the figures from the pixels are the model's to the second place (the pixels being whole numbers). Before it, the
+  picture drew its fill over the line, so what it showed on the fill was the old orange tinted blue, 1.93:1 in light and
+  4.09:1 in dark, where the pair, with the line in its own colour, says 1.60:1 and 4.81:1 (the table).
+- **The colour** is `#b87000` in light: HSL(36.5, 100%, 36%), the old orange's hue to a tenth of a degree, darkened
+  only as far as 3:1 on the fill needs. The lightest orange of that hue that clears 3:1 on all three grounds is `#b97100`,
+  3.006:1 on the fill. Darkening the old orange two other ways gives `#b77207` (its three channels scaled, the same hue)
+  and `#c56900` (its OKLCH lightness lowered at the same chroma and hue, which is a redder orange in sRGB, 32 degrees
+  against 36.5), both at 3.01 and 3.02:1 on the fill; the hue the stylesheet already uses is the first kind, so that is
+  the one kept. `#b87000` is the HSL one with 0.04 more, a tidy value that 8-bit rounding in a real picture cannot take
+  under 3:1 (it measures 3.04:1). Dark is
+  `#ff9f0a`, as it was: 4.81:1 on the fill is already past 3:1, so "only as far as the 3:1 needs" is not at all. The
+  line stays the thin, dashed one: 1 px in the window and 2 px in the picture, against the data line's 1.5 and 3, and in
+  light the two have much the same contrast (the dashed 3.73:1 and 3.04:1, the data line's 3.83:1 and 3.12:1), so what
+  keeps it the quieter is its thinness, its dashes and its hue, which the pictures show.
+- **A token of its own,** `--chart-limit`, beside `--chart-base` and `--chart-top`. `--bar-warning` also fills the
+  popover meter's bar past 70% (`meter::-webkit-meter-suboptimum-value`), whose look is not this PR's and which is not held to
+  a ratio (each bar has its percentage in text), so darkening it would have changed every meter in light. The stylesheet's
+  `.chart .limit` and the picture's `PROPERTIES.limit` both name `--chart-limit`, and the dark value is written in the
+  dark block, so the window and the picture cannot drift. The first commit makes only that change, with the old value in
+  both themes: History and the share pictures of the website's two accounts, made before and after in both themes, are
+  identical pixel for pixel, and the window check passes the same 3,064 checks over those views.
+- **The picture draws the line over its fill now,** found while working out what "against the soft fill where they meet"
+  asks. `drawChart` drew the dashed line first and the fill over it, so wherever a share is above 90%, which is what the
+  line is for, the fill tinted the line: in a picture of an account made to sit above 90%, the dash that the stylesheet
+  gives as `#ff9f0a` was `#d69931` on the fill in light (1.93:1) and `#d89a31` in dark (4.09:1). A pair holding the token
+  against the fill would have described a line the picture does not show. The picture now draws, from the bottom, the
+  scale, the fill, the dashed line and the share's own line, so the pair the check holds is the one in the picture
+  (the dark line on the fill is 4.86:1 where it was 4.09:1, with no change of colour). The website's two accounts'
+  pictures do not change from this alone, pixel for pixel: the one window that crosses 90%, the Weekly's 91%, does so in
+  the last 1% of its chart, which is a gap in the picture's dash pattern. `SHADING` (0.16, as it was) is exported from
+  `share.ts` so the check can lay the fill under a colour.
+- **The check** (`scripts/check-contrast.mjs`): three pairs a theme more, 30 in all where there were 27. The line on
+  the window's card, `--chart-limit` on `--card` on `--background`; on the picture's card, on `--card` on `--picture`; and
+  on the picture's fill, on `--shading` on `--card` on `--picture`, where `--shading` is `--bar-normal` at `SHADING`,
+  worked in the check and read from nowhere else. A missing `--bar-normal` is still said by its own pairs.
+- **Proof:**
+  - *The check failed first on the old colour,* with the pairs in and `--chart-limit` still `#ff9f0a`, exit status 1:
+    "light: --chart-limit on --card on --background (the dashed 90% line in History's charts, on its card) is 1.96:1,
+    under 3:1", the same for the picture's card at 1.96:1, and "light: --chart-limit on --shading on --card on --picture
+    (the share picture's dashed 90% line where a share above 90% fills the chart under its line) is 1.60:1, under 3:1".
+    Dark passed. With `#b87000` in light and `#ff9f0a` in dark it passes, 30 pairs a theme.
+  - *Seven hand-made breaks of the check's inputs,* on a copy in the scratchpad, each named by the pair that should name
+    it: the old colour in light (the three pairs above); a colour that clears the card and not the fill, `#c27300`
+    (2.84:1, the fill's pair alone, so the card's pairs would have let it through); no dark value, so that dark inherits
+    light's (2.95:1, 2.95:1, 2.52:1); a dark value too dark, `#8f4b00` (1.75:1, 1.75:1, 1.49:1); a stronger fill,
+    `SHADING` 0.5 (1.92:1 on the fill); a darker picture ground, `#a0a0a0` for light (2.53:1 on the fill); and the
+    token missing (each of the three pairs says "style.css does not define --chart-limit"). A first try at the ground,
+    `#ffffff`, passed, rightly: a lighter ground only helps a dark line.
+  - *The drawing test failed first on the old drawing,* `share.test.mjs`'s new test, "each chart's dashed 90% line is drawn
+    over the shading under its line and under the line, so the shading never dulls it": "Claude Work, ..., chart 1: the
+    dashed line is drawn before the shading, which then dulls it", the 14 others passing. Five hand-made breaks of
+    `drawChart` are each caught by it: the old order, the dashed line over the share's own line, a fill of 0.2 and not
+    `SHADING`, no dashed line, no fill (and three of the five by an older test as well).
+  - *The window's side of the token,* which nothing held until now (the picture's reading of `--chart-limit` was tested;
+    the window's rule was only written to match): the last test in `share.test.mjs` reads `style.css` and requires
+    `.chart .limit` to stroke with `var(--chart-limit)`. It passes as the stylesheet stands, so it did not fail first; three
+    hand-made breaks of the rule, on a copy, are each caught by it: the stroke pointed at `--bar-warning`, no stroke, and the
+    rule renamed.
+  - *The pictures,* made by the window check from `dist/` before and after, in both themes, from the website's accounts
+    (`--fixtures ./scripts/site-fixtures.mjs`) and from an account made to sit above 90% (a scratch fixtures module,
+    not in the repository), diffed pixel by pixel with the check's own PNG reader: the dark pictures of the website's
+    accounts are identical to `main`'s, and in light only the dashed lines' pixels change (History: 3,096
+    `#ff9f0a` to `#b87000` and 6 antialiased where a line crosses a dash; the picture of Claude Work: 2,313 and the
+    dash's antialiased rows, y 661 to 665 only). For the account above 90%, dark changes only where the fill used to
+    tint the line (612 pixels of `#d89a31` to `#ff9f0a`), and light by the colour and the same.
+  - *The window check's verdicts,* the picture's own pixels among them, pass as they did: 3,064 checks over the website's two
+    History views before the change, after the token, after the drawing order and after the colour, and 3,192 over the
+    account above 90% on `main`'s build and on this branch's.
+- **The pictures** are kept outside the repository, for the coordinator to attach: `before.<view>.<theme>.png` and
+  `after.<view>.<theme>.png`, light and dark, in the scratchpad's `threshold-line/`. `history` is one account's card as the
+  window draws it at 2x (the website's Work, cropped from the whole view, which is in `raw/`), and `share` is Claude Work
+  over 7 days as `--share-images` saves it, 2400 by 1350. Extras: `share-high`, the same picture for an account made to
+  sit above 90%, in both themes, which is where the drawing order shows; and `history-zoom` and `share-high-zoom`, the
+  light line enlarged three times. In the repository, `site/public/images/app/history-light.png` is captured again with
+  `site/scripts/app-pictures.mjs`, and only that one, by the rule at the top of these notes: the line is the only thing
+  that changed in it and it changes in light; `history-dark.png` is what `main` makes, so a recapture would differ from
+  the committed file only by the 316 antialiased pixels of the Chrome that made it (as the notes of D-136 found), and
+  the accounts and Settings pictures do not draw a chart. The recapture also carries the 210 antialiased pixels that a
+  fresh capture of `main` has against the committed file, 198 in the two heatmaps and 12 at the corners of the period
+  control, each one level off.
+- **Calls where the brief left room:**
+  - *A token of its own, and dark left as it was.* One name, `--chart-limit`, with a value for each theme; the dark value
+    is `--bar-warning`'s, written out, so a later change to the meter's orange cannot move the line.
+  - *The drawing order,* the one change beyond the colour and its check, for the reason above. D-137 says the fill is under
+    the share's line only, which still holds.
+  - *No pair for History on a fill,* since it draws none; if it ever does, its pair belongs with it.
+  - *No verdict on the dash's own pixels in `share-picture.mjs`.* The brief asks for the pairs in the contrast check and for
+    the picture's verdicts to still pass, and they do; a verdict that reads the line's pixels would be another piece of
+    that reader with its own tests, so the measurement is in this record and the verdict is left.
+  - *`docs/ACCESSIBILITY.md`* says History's lines have "at least 3:1, in both themes", which the dashed line now meets,
+    so it is left as written.
+  - *No D.* The manager's decision on #73 settles the rule, and the PRD sets no colour; the colour, the token's name and
+    the drawing order are implementation of it, recorded here.
+- **#52's list, gone down:** *found and fixed:* the fill that tinted the line in the picture (above), which a check on
+  the token alone would have passed. *Held:* every colour pair in both themes, 30 a theme; no new dependency; no Rust
+  changed; the window's JavaScript 38.2 KB of its 150, as it was. *Left for later:* the picture's own chart line
+  against its own soft fill in dark, which is 2.71:1 (3.12:1 in light), found while measuring: the existing pair holds
+  the line on the card only (3.18:1 in dark), and the line is the fill's own hue, so a stronger line or a weaker fill
+  (`SHADING`, which the check reads now) is a decision of its own; a verdict on the dash's pixels, above; and the "#?" in
+  this record and in the M6 row, which is the pull request's number once it has one.
+- **Counts:** the tray's `npm test` 55, up from 53 (the drawing order, and the window's side of the token); the contrast
+  check 30 pairs a theme, up from 27; the window check 12,425 checks over 24 views, as the notes of D-136 give for `main`
+  (no window check was added or changed), and 3,064 over the website's two History views before and after every
+  commit; the website's accounts in all their views 4,250 over 8; the window's JavaScript 38.2 KB of its 150, as it was.
+  No Rust changed, so the Rust counts are `main`'s own: the workspace 801 passed (1 ignored) and the example build 798
+  (2 ignored), the app's `--lib` tests 99 in both builds. The website: its types, its 17 pages built, and 90 tests; the
+  scripts' own tests 40, one skipped.
+- **Checks run here,** through the scratchpad's `safe.sh`, with the tray's build and tests run again on the final
+  sources after the last test and the check's last comment went in (the Rust and the website do not read them):
+  `cargo fmt --check` in the workspace and the app; clippy with `-D warnings` and `--locked` on the workspace and the
+  app, default and `fake`; the workspace tests, default and `fake`; the app's `--lib` tests, default and `fake`; the
+  tray's `npm run build` (types, size, contrast), `npm test` and `npm run check:window`, with the CLI the app bundles made
+  first, the example's for the `fake` runs and the default one again after; the website's `npm run check`,
+  `npm run build` and `npm test`, since a picture and `CHANGELOG.md`, which the website's changelog page renders,
+  changed; `scripts/privacy.sh --check`, `scripts/public-prd.sh --check`, `node --test scripts/*.test.mjs` and
+  `scripts/release-notes.sh` for the version in `Cargo.toml`, all passing. The changelog line went in before the Rust
+  tests ran, since the app's tests read the file.
+- **Not run:** Windows and Linux builds (CI's), `cargo deny`, `cargo audit`, `npm audit`, actionlint and shellcheck (not on
+  the brief's list, and no dependency, workflow or script changed), `tests/icon_press.rs` (as briefed: the app's tests
+  ran with `--lib`), the app itself and QuotaDial Example (never launched), `npx tauri build` (never), and VoiceOver by hand.
+- **Safety on this Mac:** every cargo and npm run and every run in Chrome went through `safe.sh`: `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad, no token in the
+  environment, four build jobs, one heavy job at a time; the Node-only scripts that read the stylesheet and the PNGs read
+  only the repository and the scratchpad. Chrome ran headless with a profile of its own, answering from a server on
+  127.0.0.1 and showing the window's made-up accounts. No provider's CLI ran, no sign-in or keychain item was read, and nothing
+  touched `~/Library/Application Support/quotadial`, the example's folders or the owner's Downloads folder. No `rm` was run
+  by hand or in a script of mine; `check-window.mjs` and `app-pictures.mjs`, which the brief has run, remove their own
+  temporary folders. The one other command line was `gh`, reading #73's comment and its time.
 
 ### M6: the toolbar stays at the window's foot while the accounts scroll (D-136)
 
