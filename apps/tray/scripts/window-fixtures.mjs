@@ -15,24 +15,29 @@
 // the stale Codex account's from the cache, Antigravity's, the example account's one window) and under
 // each window of the one card whose windows do not (a Codex account's, which no provider makes today),
 // as the app's view model sends it (D-135).
-// Three copies of the app: Pro, with the
+// Four copies of the app: Pro, with the
 // week's cost, a key kept and a Share image button on each account in History; Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
-// daemon sends it, with no panel, and an example account, its provider shown once; and Many, Pro
-// with nine accounts, which carry every view far past the window's tallest height (D-136).
+// daemon sends it, with no panel, and an example account, its provider shown once; Many, Pro
+// with ten accounts, which carry every view far past the window's tallest height (D-136); and
+// Crowded, Pro with one Claude account of seven windows, whose History alone is checked, for the
+// picture to share of an account with many windows, where each share must be written whole in
+// every system's own font.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
 /** @typedef {import("../src/meter").HistoryView} HistoryView */
 /** @typedef {import("../src/meter").AccountHistory} AccountHistory */
+/** @typedef {import("../src/meter").WindowChart} WindowChart */
 /** @typedef {import("../src/meter").HelpView} HelpView */
 /** @typedef {import("../src/meter").UpdateView} UpdateView */
 /**
- * @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView, forScrolling?: boolean }} Copy
+ * @typedef {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView, forScrolling?: boolean, panels?: ("accounts" | "history" | "settings" | "help")[] }} Copy
  * `forScrolling` marks a copy made to scroll: the check puts the window's scrolling through its
  * tests over this copy, once, in the light theme (the keys, the wheel, each view's top, the other
  * sizes), and, since what it holds is checked on the other copies, does not press each of its
  * controls from a window opened afresh or draw each account's picture to share over again.
+ * `panels` names the only views of a copy that are checked, where the copy is made for one.
  */
 
 const LONG_NAME = "a.very.long.account.name.that.keeps.going@engineering.example.com";
@@ -303,9 +308,10 @@ const ACCOUNTS = [
 ];
 
 /**
- * Three more accounts, which with the six above make nine: as many as a person with a few
+ * Three more accounts, which with those above make ten, as many as a person with a few
  * subscriptions each for work and for play has, and enough to carry the popover well past its
- * tallest, so that its toolbar has to stay put while they scroll (D-136).
+ * tallest, so that its toolbar has to stay put while they scroll (D-136). The copy of them was
+ * called Nine, before an account with one window was added to those above (D-137).
  * @type {Meter["accounts"]}
  */
 const MORE_ACCOUNTS = [
@@ -419,8 +425,8 @@ const MORE_ACCOUNTS = [
   },
 ];
 
-/** Nine accounts: the six above and three more. */
-const NINE = [...ACCOUNTS, ...MORE_ACCOUNTS];
+/** Every account above and three more: the Many copy's. */
+const MANY_ACCOUNTS = [...ACCOUNTS, ...MORE_ACCOUNTS];
 
 /**
  * An account as the example build sends it (D-117): called Example under the provider Example, so
@@ -706,7 +712,7 @@ export const pro = {
 };
 
 /**
- * QuotaDial Pro with nine accounts (D-136): the popover's accounts, and each panel's, run far past
+ * QuotaDial Pro with ten accounts (D-136): the popover's accounts, and each panel's, run far past
  * the window's tallest height, so the check sees the toolbar stay at the window's foot while they
  * scroll, from the top to the last card.
  *
@@ -714,10 +720,111 @@ export const pro = {
  */
 export const many = {
   ...pro,
-  meter: { ...pro.meter, accounts: NINE },
-  settings: { ...SETTINGS, accounts: choices(NINE) },
-  history: { 7: history(7, null, NINE), 30: history(30, null, NINE) },
+  meter: { ...pro.meter, accounts: MANY_ACCOUNTS },
+  settings: { ...SETTINGS, accounts: choices(MANY_ACCOUNTS) },
+  history: { 7: history(7, null, MANY_ACCOUNTS), 30: history(30, null, MANY_ACCOUNTS) },
   forScrolling: true,
+};
+
+/**
+ * A Claude account with seven windows, as one has when Anthropic scopes weekly limits to a model or
+ * a feature: the session, the week, Opus, Sonnet, OAuth apps, Cowork and one limit more, three of
+ * them at 90% or more and one at 100%. Its picture to share has seven narrow columns, where each
+ * share must be written whole, never cut short, in each system's own font, whose widths are not in
+ * proportion to its size (the manager on #73, 2026-10-27).
+ * @type {Meter["accounts"][number]}
+ */
+const CROWDED_ACCOUNT = {
+  key: "claude:max@example.com",
+  alias: null,
+  summary: "Claude max@example.com (Max 20x): Weekly 100%, resets in 2 d 6 h",
+  provider: "Claude",
+  name: "max@example.com",
+  plan: "Max 20x",
+  status: "ok",
+  ok: true,
+  fetched: "from the API 1 min ago",
+  windows: [
+    ["Session", 64, "normal", "resets in 1 h 40 min"],
+    ["Weekly", 100, "high", "resets in 2 d 6 h"],
+    ["Weekly (Opus)", 7, "normal", "resets in 2 d 6 h"],
+    ["Weekly (Sonnet)", 99, "high", "resets in 2 d 6 h"],
+    ["Weekly (OAuth apps)", 12, "normal", "resets in 2 d 6 h"],
+    ["Weekly (Cowork)", 38, "normal", "resets in 2 d 6 h"],
+    ["Weekly (Example model)", 91, "high", "resets in 2 d 6 h"],
+  ].map(([label, used_pct, level, resets]) => ({
+    label: String(label),
+    used_pct: Number(used_pct),
+    level: /** @type {"normal" | "high"} */ (level),
+    resets: String(resets),
+    fetched: null,
+    unconfirmed: false,
+    pace: null,
+    runs_out: false,
+  })),
+  extra_usage: null,
+  note: null,
+  sign_in: CLAUDE_SIGN_IN,
+};
+
+/**
+ * `chart` as a window reads that was full in the middle of the period and has reset since: its
+ * readings climb to 100%, fall to nothing and climb to its share now, so that its highest share,
+ * 100%, is more than its latest, which makes the widest "highest" line a picture to share draws.
+ * A window at 100% now has no higher share.
+ *
+ * @param {number} days
+ * @returns {(chart: WindowChart) => WindowChart}
+ */
+const fullBefore = (days) => (chart) => {
+  if (Math.floor(chart.latest) >= 100) {
+    return chart;
+  }
+  /** @type {[number, number][]} */
+  const points = Array.from({ length: 28 }, (_, index) => [
+    index / 27,
+    index <= 15 ? (100 * index) / 15 : (chart.latest * (index - 16)) / 11,
+  ]);
+  return {
+    ...chart,
+    points,
+    highest: 100,
+    summary: `${chart.label}: latest ${Math.floor(chart.latest)}%, highest 100% in the last ${days} days`,
+  };
+};
+
+/**
+ * The crowded account's History over `days`.
+ *
+ * @param {7 | 30} days
+ * @returns {HistoryView}
+ */
+function crowdedHistory(days) {
+  const view = history(days, null, [CROWDED_ACCOUNT]);
+  return {
+    ...view,
+    accounts: view.accounts.map((account) => ({ ...account, windows: account.windows.map(fullBefore(days)) })),
+  };
+}
+
+/**
+ * Pro with the crowded account alone, over History alone: its pictures to share, each with seven
+ * columns, in both themes.
+ *
+ * @type {Copy}
+ */
+export const crowded = {
+  ...pro,
+  meter: {
+    ...pro.meter,
+    percent: 100,
+    level: "high",
+    headline: "Weekly · Claude max@example.com · resets in 2 d 6 h",
+    accounts: [CROWDED_ACCOUNT],
+  },
+  settings: { ...SETTINGS, accounts: choices([CROWDED_ACCOUNT]) },
+  history: { 7: crowdedHistory(7), 30: crowdedHistory(30) },
+  panels: ["history"],
 };
 
 /** @type {Copy} */

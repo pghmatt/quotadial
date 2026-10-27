@@ -233,8 +233,11 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A property test for the window's `codeSpans` | Done (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
 | The share picture in the cards' language | Done (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
 | The toolbar stays at the window's foot while the accounts scroll | Done (PR #94, D-136) | The toolbar and the origin line, which scrolled away with the accounts once the window reached its 640 px, stay at its foot while the summary and the accounts or a panel scroll above them: layout and not overlap, so nothing is drawn under the toolbar and the material needs no backdrop, with a hairline over the toolbar only while content is hidden below it. Chosen from two layouts in pictures (the footer alone, or with the summary pinned too). Held by the manager on #73 to 200% zoom, and pinned in any window 300 px tall or more; below that the page scrolls as one, since the app zooms on to 500% and past. The app is told what the scrolling part holds beyond its edge (`neededHeight`, which the new check found a pixel short at first), each view opens at its top, and the part is a Tab stop only when nothing in it is. The window check gains a copy of nine accounts and checks of the frame at every place along the scroll, the keys, the wheel, the reading order and what the app is told, each first failed on a window broken on purpose; `--window-pictures` takes pictures of the window as it is shown. The first CI run (#94 at 299b8d5) failed on three causes, found and fixed in the same PR (D-136): a classic scroll bar narrowing what the window holds once it scrolls, a Tab stop left stale when no size changed, and the check reading a glide too early |
-| The dashed 90% line at 3:1 | In review (PR #97) | The manager's decision on #73 (2026-10-27, 04:25 UTC), on what #94's and #95's self-reviews found: the line that marks the alert threshold is a graphical object (WCAG 1.4.11), and it was 1.96:1 on a light card and 1.60:1 on the share picture's soft fill. It has a colour token of its own, `--chart-limit`, which History's stylesheet and the share picture both read: `#b87000` in light, the old orange's hue darkened only as far as 3:1 on the fill needs (3.73:1 on the card, 3.04:1 on the fill), and in dark the system's `#ff9f0a` as it was (5.64:1 and 4.81:1, already enough). The picture draws the line over its soft fill and not under it, so a share above 90% no longer tints it. `check-contrast.mjs` holds three pairs a theme more, 30 in all, and fails first on the old colour (1.96:1, 1.96:1, 1.60:1); the website's light History picture is captured again. No D: nothing the PRD left open. |
+| The dashed 90% line at 3:1 | Done (PR #97) | The manager's decision on #73 (2026-10-27, 04:25 UTC), on what #94's and #95's self-reviews found: the line that marks the alert threshold is a graphical object (WCAG 1.4.11), and it was 1.96:1 on a light card and 1.60:1 on the share picture's soft fill. It has a colour token of its own, `--chart-limit`, which History's stylesheet and the share picture both read: `#b87000` in light, the old orange's hue darkened only as far as 3:1 on the fill needs (3.73:1 on the card, 3.04:1 on the fill), and in dark the system's `#ff9f0a` as it was (5.64:1 and 4.81:1, already enough). The picture draws the line over its soft fill and not under it, so a share above 90% no longer tints it. `check-contrast.mjs` holds three pairs a theme more, 30 in all, and fails first on the old colour (1.96:1, 1.96:1, 1.60:1); the website's light History picture is captured again. No D: nothing the PRD left open. |
+| A window's share is one token, in the window and in the picture | In review (PR #98) | The manager's decision on #73 (2026-10-27, 04:25 UTC), which D-136's self-review left for it: at 200% zoom a long label beside a share left it on two lines, "64" over "%" in this Mac's overlay bars and "6", "4" and "%" in the window check's. The body's `overflow-wrap: anywhere` let a flex row squeeze a share to the width of one character, so the number under the summary, each window's share and the shares in a History caption are `white-space: nowrap`, and a window's share keeps its width (`flex: none`), so that it is the label that wraps. The window check reads each share's own line boxes (`whole-shares.mjs`) at 100%, 200%, 300% and 500% zoom in every view of every copy, and holds every figure and its sign anywhere in the window's text to one line at 100% and 200%; it fails first on `main` (506 of 17,306 checks). The picture to share, drawn from the same numbers, cut a share short in Chrome's own font from 6 windows ("100…", then "highest 10…"), which its arithmetic and its unit tests could not show: it now measures each size where it is written, and an account of seven windows joins the check's copies, over History alone (D-138) |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
+| Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
+| Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
 
 ## Kickoff
 
@@ -446,6 +449,168 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: a window's share is one token, in the window and in the picture (D-138)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 04:25 UTC), on what D-136's self-review left for a later PR ("at
+  200% a percentage can break over two lines, "64" above "%", where a long label takes the room"): "A window's share is
+  one token and never breaks: `white-space: nowrap` on the figure and its sign (or the equivalent in the meter's own
+  layout), and whatever is beside it gives way instead. The window check runs the nine-account copy at 200% and fails if
+  any share spans two lines, failing first against the current build. Check the share picture's share as well, since it
+  is drawn from the same numbers." And the coordinator's brief of the same day: heavy builds held until the builder of
+  the dashed 90% line had built, and the branch rebased onto it. Built on `fix/share-never-wraps` from `main` at 634ff55,
+  rebased onto f3c3af6 (#97) before the commits, in five: the Many copy named for its ten accounts (dfff671), the fix
+  (473ac3d), the check (6e6e563), the picture (b3d2ac6) and these records. In review as #98.
+- **What it looked like,** in the window check's Chrome, whose scroll bars take room as Windows' and Linux's do, from
+  `main` at f3c3af6: at 200% four shares break in the popover's windows, in every copy and both themes, "64%"
+  (Antigravity's "Weekly (Claude and GPT)") on three lines, as "6", "4" and "%", and "74%" (Claude Work's "Weekly Opus"),
+  "25%" ("5-hour (Gemini)") and "6%" ("Weekly (Gemini)") on two. In this Mac's own overlay bars, which lie over the page
+  and keep no room, it is "64" over "%", as #94's builder saw. At 300% the number under the summary breaks too ("91" over
+  "%"), so does every window's share and a few of History's caption shares, and at 500% most of History's captions do.
+  Nothing breaks at 100%. `many`, which the
+  brief and the manager call the nine-account copy, has ten accounts since #95 added the one with one window; its constant
+  was `NINE` and is `MANY_ACCOUNTS`.
+- **The cause** is not the row's CSS as such but the body's `overflow-wrap: anywhere` (#52: a long name wraps rather than
+  being cut off) beside it. `anywhere` counts a break between any two characters when the least room a flex item can be
+  given is worked out, so in a flex row of a label and its share, the share's least width is one character's, and the row
+  shrinks both in proportion to their widths, so beside "Weekly (Claude and GPT)" the share is given less than its own
+  width and breaks: between its figures in the check's Chrome, and before its sign in this Mac's.
+- **The fix:** `white-space: nowrap` on the number under the summary (`.percent`), a window's share (`.row .used`) and the
+  two shares of a History caption (`.nobreak`, spans in `history.tsx`), and `flex: none` on a window's share, so it
+  keeps its width and the label, which wraps, gives way. Each of nowrap and `flex: none` holds a window's share in Chrome
+  by itself (broken on purpose, below); both are kept, for a later `overflow: hidden` that would let a nowrap item shrink
+  and for a row that is no longer a flex row, and the app is drawn by WebKit on macOS and Linux, which the check does not
+  run. A window too narrow to hold a share cuts it off at its edge, which is not breaking it; the check holds a share to one
+  line to 500% zoom, and asks that it fits only as far as 200%, where the rest of the window is held to fit. The
+  "unconfirmed" tag is not part of the share: the window draws it in the line under the bar, after the reset, so it may
+  still wrap with that line.
+- **The check** (`scripts/whole-shares.mjs`, with `check-window.mjs`): each share the window writes is found in the page,
+  across the text nodes Preact splits it into ("64" and "%" are two: the page runs `sharesIn`, the function the tests hold,
+  from its own source), and judged by the line boxes the browser draws it in (a range's client rects, grouped by the height
+  they share), not by a height. In every view of every copy, in both themes: the places the window draws a share (`.percent`,
+  `.row .used`, `.chart figcaption .detail`) must hold exactly the shares the copy has, in order (`expectedShares`), so a
+  check that finds none cannot pass, at 100%, 200%, 300% and 500%; and at 100% and 200% every figure and its sign anywhere
+  in the window's text is held to one line too, so a place the window comes to draw one in, which the list does not name,
+  is held as well. 300% is where the page scrolls as one and the summary's number first breaks, and 500% is where
+  History's captions do; the app zooms to 500% and on. `crowded`, one Claude account of seven windows, is a fourth copy,
+  checked over History alone (`panels`), for the picture below. The first run found no free text split at 100% or 200%
+  by the scan of the whole window, so it adds no failure of its own to `main` and is held by its own break (below).
+- **Proof, the window:**
+  - *The check failed first on `main`.* With the check's commit (6e6e563) on `main` at f3c3af6's window: 400 of 13,657 checks
+    over 24 views fail, all shares, 24 at 200% (the four above in six views each), 116 at 300% and 260 at 500%, none at
+    100% and none of any other kind. With every part of the check, `crowded` included: 506 of 17,306, 446 shares in the
+    window (52 in the summary's number, 184 in a window's share, 210 in History's captions) and 60 in the picture.
+  - *Eight windows broken on purpose, in Chrome,* one file changed in a copy of the tree in the scratchpad, built and
+    checked on the views it needs, six failing each for its own reason and two, as predicted, passing: the summary's number
+    out of the rule, which fails at 300% and 500%, 2 of 158 checks in `pro, light, help`, the number only; a window's share
+    out of the rule and its `flex: none` out as well, which fails at 200% ("74%" on two lines, "64%" on three), 26 of 594 in
+    `pro, light, accounts`, and at 300% and 500%; History's captions out of the rule, and separately out of the markup,
+    which fail at 300% and 500%, 24 of 2,914 in `pro, light, history`; the caption without its highest share, where the
+    shares written are not the copy's, 4 of 2,870, at every zoom; the pace line made two characters wide, outside the
+    places, where "2.0%" and "8.5%" split at 100% and 200%, 6 of 594, which only the scan of the whole window sees; and a
+    window's share without `flex: none`, and without nowrap, each of which passes alone.
+  - *The stylesheet's rule is held without a browser too:* `whole-shares.test.mjs` reads `style.css` and fails, as it did on
+    `main`'s, when `.percent`, `.row .used` or `.nobreak` is not nowrap, or a window's share can be squeezed.
+  - *`whole-shares.test.mjs`, 18 tests with no browser:* the share found across nodes, with where it starts and ends; what
+    is not a share; a property test of 5,000 strings cut into random nodes, a new seed each run (the seed is in every failure,
+    `QUOTADIAL_TEST_SEED=<seed>` runs the same strings again); the line boxes (a taller box on the line is no second line,
+    boxes that overlap a little are two, the order they come in does not matter); each verdict; the shares each copy
+    should write; and the page's own code run against a stand-in for the page, a share in two nodes and in different inline
+    elements, in the middle of a text, across blocks (not one), what is not shown and what is for a screen reader. 46
+    hand-made breaks of `whole-shares.mjs` each fail a test: the first round of 40 left eight standing, and the tests were
+    made to reach them (the order boxes come in, which also showed that widening a line's extent was needless, and it went;
+    the order of a chart's latest and highest; rounding up; the other period; text grouped by its parent and not its
+    block; an element drawn inline; and a range's start).
+- **The picture, and what the first reading got wrong:**
+  - *What I first said:* from the drawing's arithmetic, that the big figures could not break (a canvas does not wrap) or clip
+    (`number` is sized so that "100%" fits its column), the label being on its own line above, and that only the smaller
+    "highest N%" could be cut, from six or seven windows. That is wrong for a real font, and the check showed it: the
+    committed copy `crowded`, drawn by Chrome 156's own font, cut the big figure itself.
+  - *What Chrome shows,* for an account of seven windows (Session, Weekly, Opus, Sonnet, OAuth apps, Cowork and one more,
+    as a heavy Claude account has them): a window at 100% writes "100…", and each "highest 100%" "highest 10…". By window count, from `main`: nothing is cut at 5 and fewer; "100…" at 6; "100…" and "highest 10…" at 7;
+    "100…" and "highest…" at 8. The size was worked out in proportion, `floor(84 * column / width of "100%" at 84 px)`,
+    and a browser rounds each glyph's advance, so the width at that size is a little over the column's, and `Pen.fit` cut
+    it. Sizing the highest line the same way (my first fix) still wrote "highest 100…" in Chrome with every unit test
+    passing, since the tests' canvas measures in proportion.
+  - *The fix:* `Pen.fitted` finds the largest whole size, up to 84 px for the figures and 21 px for the highest line, at
+    which every share a column may hold fits it, measuring at each size from the largest down; the same size in every
+    column; counting "100%" and "highest 100%" and the shares being drawn (History says what was read, which a provider
+    could send above 100%). Three windows and fewer are 84 and 21 px as before, so those pictures do not change. It is the
+    name above that is cut. In the window check, `listingVerdicts` no longer takes "highest 1…" for the start of "highest 100%".
+  - *Proof, the picture:* the committed copy `crowded` fails on `main` in the picture 60 times ("highest 10…" and "100…",
+    both themes, 7 and 30 days) and passes on this branch; the first fix, in proportion, fails it 30 times in a break on
+    purpose; so do a highest line written in half its room (26), figures written in 80% of theirs (4) and figures at the
+    largest size whatever the room (22). `share.test.mjs` gains a measuring model on its recording canvas that rounds each
+    glyph's advance up, a semibold that is wider than regular and a 1 narrower than the other figures, and holds each
+    share whole and inside its column for 1 to 10 windows with the longest label (an Antigravity limit's name can be 64
+    characters), with shares above 100%, in both models; where the room sets a size, it is the largest that fits; the sizes
+    do not change with the numbers; and the account of seven windows joins the tests of the drawing, one of which, for a
+    plate, now tells a plate from the shading under a line that reached 100%. 5 new tests. 28 of 29 hand-made breaks of the
+    new code each fail a test; the other, `<` for `<=` where a text is exactly the column's width, differs only there.
+- **Pictures,** from the window check on `main` at f3c3af6 and on this branch, in the scratchpad's `share-wrap/`
+  (`before-` and `after-`, light, 200% unless named): `200-light-antigravity-card` (the card at the top of the window,
+  "6", "4", "%" and "64%", in bars that take room, as the check has them) and `200-light-antigravity-card-overlay-bars`
+  ("64" over "%" and "64%", in this Mac's own bars), `200-light-gemini-windows` ("25" over "%" and "6" over "%", and
+  whole), `300-light-summary` ("91" over "%" and whole), and `picture-seven-windows` (the picture to share, 2400 by 1350,
+  light, 7 days); the whole of the Many copy's four views at 200%, top and half way down, in `pictures-final/`, with this
+  Mac's overlay bars and with bars that take room.
+- **Calls where the brief left room:**
+  - *The "unconfirmed" tag* is not part of the share, as above: it is not beside it.
+  - *The summary's number and History's captions* are shares too, so they are held, though only the rows break at 200%;
+    the check's 300% and 500% are what make those two rules provable.
+  - *Both nowrap and `flex: none`,* each enough alone in Chrome.
+  - *A share too wide for its window is cut off, not broken,* past 200%.
+  - *The check's reach:* the places at four zooms and the whole window's text at two, not only the nine-account copy at
+    200%; `crowded` as a fourth copy, over one view, so the real font draws a crowded picture on each system in CI.
+  - *The picture's sizes are measured,* not worked out; the same in every column; "100%" and "highest 100%" counted whatever
+    the numbers.
+  - *`NINE` is `MANY_ACCOUNTS`,* and three comments say ten.
+  - *A D:* D-138, since the picture's sizes and the rule that a share is never cut or broken are choices the PRD leaves open;
+    D-137's "its highest at 21 px" stays true where there is room.
+- **Counts:** the tray's `npm test` 78, up from 55 on `main` at f3c3af6 (18 in `whole-shares.test.mjs` and 5 in
+  `share.test.mjs`); the window check 17,450 checks over 26 views in 3 minutes 19 seconds, up from 12,425 over 24 views on `main`, as
+  D-136's and #97's notes give it (1,232 for the shares in the 24 views, 3,793 for `crowded`'s two); the contrast check 30 pairs a theme, as on `main`; the
+  window's JavaScript 38.5 KB, up from 38.2, of its 150. No Rust changed, so the Rust counts are `main`'s own: the workspace
+  801 passed (1 ignored) and the example build 798 (2 ignored), the app's `--lib` tests 99 in both builds. The website: its
+  types, its 17 pages built and 90 tests; the release scripts' tests 40, one skipped. The website's eight pictures of the
+  window and its six pictures to share, which the window check makes from the website's two accounts (`--fixtures
+  ./scripts/site-fixtures.mjs`), are byte for byte the same from `main` and from this branch, so none was captured again; on
+  `main`'s window, with the new check, that copy fails 58 of its 4,454 checks, all shares (the Work account's "74%" beside
+  "Weekly (Opus)" breaks at 200% in both themes, and more shares at 300% and 500%), and on this branch it passes all 4,454.
+- **Checks run here,** through the scratchpad's `safe.sh` with four build jobs, one heavy job at a time, on the rebased tree:
+  `cargo fmt --check` in the workspace and the app; clippy with `-D warnings` and `--locked` on the workspace and the app,
+  default and `fake`; the workspace tests, default and `fake`; the app's `--lib` tests, default and `fake` (the example's CLI
+  bundled with `npm run cli -- --fake`, then `npm run cli` again) and the default once more, since they read `CHANGELOG.md`;
+  the tray's `npm run build` (types, size, contrast), `npm test` and `npm run check:window` on this branch's code, and the
+  first two on clean exports of the check's commit and the picture's, with the window check in full on the first (13,657
+  checks over 24 views, passing; and failing 400 on `main`'s window); the website's `npm run check`, `npm run build` and
+  `npm test`, since `CHANGELOG.md`, which its changelog page renders, changed; `scripts/privacy.sh --check`,
+  `scripts/public-prd.sh --check`, `node --test scripts/*.test.mjs` and `scripts/release-notes.sh` for the version in
+  `Cargo.toml`. All passed. The release scripts' tests, run in an environment with nothing but PATH, HOME and LANG, fail
+  three of the install-command ones for want of something in an ordinary environment, and pass in it.
+- **Not run:** WebKit, which draws the app on macOS and Linux (the window check drives Chrome, which is WebView2's engine on
+  Windows), so how it squeezes a flex row of a label and a share is unseen; the fix is `white-space: nowrap` and `flex: none`,
+  which every engine honours; Windows and Linux builds (CI's); `cargo deny`, `cargo audit`, actionlint and shellcheck (no
+  dependency, workflow or script changed); `tests/icon_press.rs` (as briefed); the app itself and QuotaDial Example (never
+  launched); VoiceOver by hand.
+- **Safety on this Mac:** every cargo and npm run and every run in Chrome went through the scratchpad's `safe.sh`:
+  `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad,
+  `TMPDIR` there too, no token in the environment, four build jobs, one heavy job at a time; the Node-only tests and
+  hand-made breaks read and write only the repository and the scratchpad. No provider's CLI ran, no sign-in or keychain item
+  was read, and nothing touched `~/Library/Application Support/quotadial`, the example's folders or the owner's Downloads
+  folder. No `rm` was run by hand or in a script of mine; `check-window.mjs` removes its own temporary Chrome profile, in
+  the scratchpad here. The one other command line was `gh`, reading #73's comment, and `git fetch`.
+- **#52's list, gone down:** *found and fixed:* the share broken in the popover's windows (above); the same in the
+  number under the summary and History's captions, which the fixtures' own widths did not show at 200% and the check's
+  300% and 500% do; and in the picture, a share cut short in Chrome's font from six windows, which the drawing's
+  arithmetic and its unit tests could not show. *Held:* every colour pair (30 a theme); tabular figures; no address in the
+  picture; no new dependency or network address; the window's JavaScript within its budget; the pictures of three windows
+  and fewer, which do not change (the website's two accounts', which have two and three, are as they were). *Left for later:*
+  History's caption at 200% breaks a short label mid-word beside the latest and highest shares ("Wee" over "kly", "5-"
+  over "hour"), as it did before this PR (the pictures before and after are the same there), which is the layout's choice
+  and not a share's; `--window-zoom 3` fails in `check-window.mjs`
+  ("Emulation.setDeviceMetricsOverride: Invalid parameters", since 640 / 3 is not a whole number of pixels), which my
+  scratch capture rounds; WebKit, above; and a share the window cuts off at its edge past 200% in a window too narrow for it.
 
 ### M6: the dashed 90% line is 3:1, in the window and in the share picture
 

@@ -315,6 +315,24 @@ ul {
   color: var(--high);
 }
 
+/* A window's share is one token, such as "64%": it never breaks over two lines, and whatever is
+   beside it gives way instead. The body's `overflow-wrap: anywhere` counts a break between any two
+   characters when it works out the least room a flex item can be given, so a long label beside a
+   share squeezed it down to one character's width and, at 200% zoom, left "64" over "%". nowrap
+   keeps the figure and its sign together. The number under the summary and the shares in a History
+   chart's caption are shares too. A window too narrow to hold a share cuts it off at its edge,
+   which is not breaking it. */
+.percent,
+.row .used,
+.nobreak {
+  white-space: nowrap;
+}
+
+/* The share keeps its width, so the label beside it wraps in the room that is left. */
+.row .used {
+  flex: none;
+}
+
 /* WebKit (macOS, Linux) and WebView2 (Windows) both draw these parts of a meter. */
 meter {
   display: block;

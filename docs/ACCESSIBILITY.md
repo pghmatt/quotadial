@@ -63,7 +63,8 @@ support@quotadial.com.
 
 - **Larger text:** Command and = (Control and = on Windows and Linux) zooms the window in, Command
   and - zooms it out, and Command and 0 sets it back. The window grows with its text to its tallest
-  and then scrolls; nothing is cut off at 200%, and a long account name or address wraps. The
+  and then scrolls; nothing is cut off at 200%, and a long account name or address wraps. A share
+  used, such as 64%, is never split over two lines: the name beside it wraps instead. The
   toolbar stays at the window's foot while the accounts scroll, at 200% too, where it and the line
   under it take about a third of the window. The window zooms on, to 500% and more, and past about
   210% they would take most of it, so there the whole window scrolls as one, with the toolbar at
@@ -84,11 +85,12 @@ support@quotadial.com.
   itself ([`check-contrast.mjs`](../apps/tray/scripts/check-contrast.mjs)).
 - CI opens the built window in Chrome on macOS, Windows and Linux
   ([`check-window.mjs`](../apps/tray/scripts/check-window.mjs)), over the accounts, Settings,
-  History and Help, in both themes, for QuotaDial Free and Pro and for a Pro copy with nine
-  accounts, with made-up accounts, one of them with a very long address. It presses Tab through every control and checks the order and the
+  History and Help, in both themes, for QuotaDial Free and Pro and for a Pro copy with ten
+  accounts, and over History for a Pro account with seven limits, with made-up accounts, one of them with a very long address. It presses Tab through every control and checks the order and the
   focus ring, presses each control with the keyboard and checks that it did something, checks
   what a screen reader is told of each, that a panel takes the focus and Done gives it back, that
-  no text is cut off at 100% and 200%, that each account is a card of its own, apart from the next,
+  no text is cut off at 100% and 200%, that no share used, such as 64%, is drawn on two lines, at
+  those and on to 500%, whatever name is beside it, that each account is a card of its own, apart from the next,
   with its email address shown inside it and read as part of its heading, that the line under the
   number names the account, that where and when an account's limits were read is said once for its
   card, in a quiet line under them and above its sign-in, which stays above it when the sign-in
@@ -97,7 +99,7 @@ support@quotadial.com.
   that what the window holds is as wide when it scrolls as when it does not, with the cards the
   same distance from each side and in line with the toolbar's labels, where a scroll bar takes room,
   that the toolbar stays inside the window and is what a click at its middle reaches at every
-  place along the scroll of nine accounts, with nothing drawn under it and a faint line over it
+  place along the scroll of ten accounts, with nothing drawn under it and a faint line over it
   only while there is more below, that the keys and the wheel scroll the accounts and Tab brings a
   control into view with its ring, that a screen reader reads the number's line, the accounts or
   the panel, the toolbar and where the numbers come from in that order, that the app is told how

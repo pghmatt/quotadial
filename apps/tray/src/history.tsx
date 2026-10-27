@@ -157,7 +157,9 @@ function AccountCharts({
 
 /**
  * A window's share used over the period, drawn with no plate under it: a hairline at 0%, a faint
- * line at 100% to show the scale, and a dashed line at 90%.
+ * line at 100% to show the scale, and a dashed line at 90%. Its caption names the window and says
+ * the latest and the highest share, each of them one token that never breaks (`nobreak`), so that
+ * it is the label, and the words around the shares, that wrap when there is little room.
  */
 function Chart({ chart }: { chart: WindowChart }) {
   const line = chart.points
@@ -168,7 +170,8 @@ function Chart({ chart }: { chart: WindowChart }) {
       <figcaption>
         <span>{chart.label}</span>
         <span class="detail">
-          latest {Math.floor(chart.latest)}%, highest {Math.floor(chart.highest)}%
+          latest <span class="nobreak">{Math.floor(chart.latest)}%</span>, highest{" "}
+          <span class="nobreak">{Math.floor(chart.highest)}%</span>
         </span>
       </figcaption>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={chart.summary}>

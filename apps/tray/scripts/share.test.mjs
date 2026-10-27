@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
 import { site } from "./site-fixtures.mjs";
 import { themes } from "./stylesheet.mjs";
-import { pro } from "./window-fixtures.mjs";
+import { crowded, pro } from "./window-fixtures.mjs";
 
 /** The theme's colours: a different one for each use, so a use of the wrong one is seen. */
 const LOOKS = {
@@ -56,9 +56,12 @@ const same = (a, b) => Math.abs(a - b) < 1e-9;
 /**
  * A canvas that records what is drawn on it, in the picture's CSS pixels: every filled rectangle,
  * every path filled or stroked with its bounds, and every piece of text with where it starts, its
- * size and weight, and the width it is given: `WIDE` of its size a character, a figure wider.
+ * size and weight, and the width it is given: 0.56 of its size a character, a figure 0.6 and a 1
+ * 0.48, all 8% wider in semibold. In the `rounded` model each glyph's advance is rounded up to a
+ * whole pixel, as a browser may round it, so that a string is wider than its size says and widths
+ * are not in proportion to the size.
  */
-function recorder() {
+function recorder(model = "linear") {
   const ops = [];
   const KEYS = ["fillStyle", "strokeStyle", "lineWidth", "lineJoin", "lineCap", "globalAlpha", "font", "textAlign", "textBaseline"];
   const saved = [];
@@ -122,8 +125,11 @@ function recorder() {
       });
     },
     measureText(text) {
-      const size = Number(context.font.match(/([0-9.]+)px/)[1]);
-      return { width: Array.from(text).length * size * (/^[0-9]+$/.test(text) ? 0.6 : 0.56) };
+      const [, weight, size] = context.font.match(/^(\d+) ([0-9.]+)px/);
+      // Semibold is wider than regular, and a 1 is narrower than the other figures, as in a font whose figures are not tabular.
+      const wide = (Number(weight) >= 600 ? 1.08 : 1) * (text === "1" ? 0.8 : 1);
+      const advance = (factor) => (model === "rounded" ? Math.ceil(size * wide * factor) : size * wide * factor);
+      return { width: Array.from(text).length * advance(/^[0-9]+$/.test(text) ? 0.6 : 0.56) };
     },
     fillText(text, x, y) {
       const [, weight, size] = context.font.match(/^(\d+) ([0-9.]+)px/);
@@ -148,17 +154,18 @@ function bounds(points) {
   return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
 }
 
-/** What drawing `account` of `view` in `theme` does on a canvas. */
-function draw(view, account, theme) {
-  const { context, ops } = recorder();
+/** What drawing `account` of `view` in `theme` does on a canvas that measures as `model` says. */
+function draw(view, account, theme, model = "linear") {
+  const { context, ops } = recorder(model);
   drawShare(context, view, account, LOOKS[theme]);
   return ops;
 }
 
-/** The accounts drawn: the window check's Pro copy over 7 and 30 days, and the website's two. */
+/** The accounts drawn: the window check's Pro copy over 7 and 30 days, the account of seven windows, and the website's two. */
 const ACCOUNTS = [
   ...pro.history[7].accounts.map((account) => [pro.history[7], account]),
   [pro.history[30], pro.history[30].accounts[0]],
+  ...crowded.history[7].accounts.map((account) => [crowded.history[7], account]),
   ...site.history[7].accounts.map((account) => [site.history[7], account]),
 ];
 
@@ -216,11 +223,29 @@ test("no plate is drawn behind a chart: after the card, only the line's own shad
       for (const fill of fills) {
         assert.equal(fill.fill, LOOKS[theme].line, `${account.label}: a fill in ${fill.fill}`);
       }
-      // The shading under a line is faint; a plate is not.
+      // The shading under a line is faint, and is the area under that line, from its chart's foot up to its highest
+      // reading and across its readings, which for a window that was full is all of the chart: a plate is a fill that
+      // covers a whole chart and is not that.
       const boxes = chartBoxes(account.windows.length);
       const shading = fills.filter((fill) => fill.alpha === 0.16);
       assert.equal(shading.length, account.windows.length, account.label);
-      for (const fill of fills) {
+      for (const [index, fill] of shading.entries()) {
+        const { points } = account.windows[index];
+        const box = boxes[index];
+        const held = (value, least, most) => Math.min(most, Math.max(least, value));
+        const along = points.map(([at]) => held(at, 0, 1));
+        const highest = Math.max(...points.map(([, used]) => held(used, 0, 100)));
+        const under = {
+          x0: box.x + Math.min(...along) * box.width,
+          x1: box.x + Math.max(...along) * box.width,
+          y0: box.y + ((100 - highest) / 100) * box.height,
+          y1: box.y + box.height,
+        };
+        for (const side of ["x0", "x1", "y0", "y1"]) {
+          assert.ok(Math.abs(fill.box[side] - under[side]) < 0.01, `${account.label}, chart ${index + 1}: the shading's ${side} is ${fill.box[side]}, not the area under its line, ${under[side]}`);
+        }
+      }
+      for (const fill of fills.filter((one) => !shading.includes(one))) {
         const covers = boxes.some(
           (box) => fill.box.x0 <= box.x + 0.5 && fill.box.x1 >= box.x + box.width - 0.5 && fill.box.y0 <= box.y + 0.5 && fill.box.y1 >= box.y + box.height - 0.5,
         );
@@ -415,6 +440,161 @@ test("a long label is cut short before it reaches the brand, and a short one is 
   assert.ok(end <= nearest - 48 + 0.5, "at least 48 px between the label and the brand or the address");
   const [view, short] = ACCOUNTS.find(([, one]) => one.label === "Claude Work");
   assert.equal(texts(draw(view, short, "dark")).filter((piece) => piece.size === 47).map((piece) => piece.text).join(""), "Claude Work");
+});
+
+/**
+ * What a picture of `count` windows writes in each window's column: the pieces of its name, of its
+ * latest share, of its highest and of the label at its 90% line, each joined into the string they
+ * make with where it ends. A piece belongs to the column it starts in, so a string that runs on
+ * into the next column is seen as running past its own.
+ */
+function columns(ops, count) {
+  const pieces = texts(ops);
+  const boxes = chartBoxes(count);
+  const top = boxes[0].y;
+  // The baselines of the windows' names and of their latest shares, in order down the card.
+  const [nameAt, latestAt] = [...new Set(pieces.filter((piece) => piece.weight === 600 && piece.y > 160 && piece.y < top).map((piece) => piece.y))].sort((a, b) => a - b);
+  return boxes.map((box, index) => {
+    // The column runs from its chart's left to the end of the room kept after it for the 90% label.
+    const [left, right, next] = [box.x, box.x + box.width + 48, boxes[index + 1]?.x ?? Number.POSITIVE_INFINITY];
+    const own = pieces.filter((piece) => piece.x >= left - 0.5 && piece.x < next - 0.5);
+    const written = (keep) => {
+      const kept = own.filter(keep);
+      return { text: kept.map((piece) => piece.text).join(""), end: Math.max(...kept.map((piece) => piece.x + piece.width)), size: kept[0]?.size };
+    };
+    return {
+      left,
+      right,
+      name: written((piece) => piece.y === nameAt),
+      latest: written((piece) => piece.y === latestAt),
+      highest: written((piece) => piece.weight === 400 && piece.y > latestAt && piece.y < top),
+      mark: written((piece) => piece.size === 16 && piece.y > top && piece.y < top + 70),
+    };
+  });
+}
+
+/** `account` with `count` windows, each as its first but for the name and the shares `shape` gives it. */
+function widened(account, count, name, shape) {
+  const wide = structuredClone(account);
+  wide.windows = Array.from({ length: count }, (_, index) => {
+    const { latest, highest } = shape(index);
+    return {
+      ...structuredClone(account.windows[0]),
+      label: name,
+      latest,
+      highest,
+      summary: `${name}: latest ${Math.floor(latest)}%, highest ${Math.floor(highest)}%`,
+    };
+  });
+  return wide;
+}
+
+/** The two ways a canvas can measure text: in proportion to its size, and as a browser that rounds each glyph's advance does. */
+const MODELS = ["linear", "rounded"];
+
+test("a share is written whole and inside its own column, whatever the label above it and however many windows share the picture", () => {
+  // A name as long as one Antigravity gives a limit it does not know (64 characters of group, and its length).
+  const name = "Weekly (a group of models named as long as Antigravity lets a name be, and then some more)";
+  const latests = [64, 100, 7, 99, 0, 38, 12, 91, 55, 3];
+  for (const model of MODELS) {
+    for (const count of [1, 2, 3, 4, 5, 6, 7, 8, 10]) {
+      for (const theme of ["light", "dark"]) {
+        // Each window's highest is 100%, the widest it can be, where its latest is not 100% too.
+        const account = widened(withWindows(3), count, name, (index) => ({ latest: latests[index], highest: 100 }));
+        const shown = columns(draw(pro.history[7], account, theme, model), count);
+        assert.equal(shown.length, count);
+        for (const [index, column] of shown.entries()) {
+          const where = `${model} measure, ${count} windows, ${theme}, column ${index + 1}`;
+          const latest = latests[index];
+          assert.equal(column.latest.text, `${latest}%`, `${where}: the latest share`);
+          assert.equal(column.highest.text, latest === 100 ? "" : "highest 100%", `${where}: the highest share`);
+          assert.equal(column.mark.text, "90%", `${where}: the label at the 90% line`);
+          for (const [what, written] of [["latest share", column.latest], ["highest share", column.highest], ["90% label", column.mark]]) {
+            if (written.text) {
+              assert.ok(written.end <= column.right + 0.5, `${where}: the ${what} runs ${(written.end - column.right).toFixed(1)} px past its column`);
+            }
+          }
+          // The name is what gives way: cut short, and clear of the next column.
+          assert.ok(column.name.text.endsWith("…") && name.startsWith(column.name.text.slice(0, -1)), `${where}: the name is "${column.name.text}"`);
+          assert.ok(column.name.end <= column.right + 0.5, `${where}: the name runs past its column`);
+        }
+        // Where the room is what sets a size, it is the largest that fits: a step more, in proportion, would not.
+        if (model === "linear" && count >= 2) {
+          // The second window is the one at 100%, the widest figure, and the first has the widest highest share to a column.
+          for (const [what, column, written, most] of [["figures", shown[1], shown[1].latest, 84], ["highest share", shown[0], shown[0].highest, 21]]) {
+            const room = column.right - column.left;
+            if (written.size < most) {
+              const next = ((written.end - column.left) * (written.size + 1)) / written.size;
+              assert.ok(next > room, `${count} windows, ${theme}: the ${what} are ${written.size} px and ${written.size + 1} px would still fit (${next.toFixed(1)} of ${room.toFixed(1)})`);
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+test("a share above 100% is written whole too: History says what was read, and a provider could send more", () => {
+  // The popover holds a window to 100% (`meter.rs`); History says what was read, which a provider could send above that.
+  for (const model of MODELS) {
+    for (const count of [1, 3, 6]) {
+      const account = widened(withWindows(3), count, "Weekly", () => ({ latest: 1500.4, highest: 25000 }));
+      for (const [index, column] of columns(draw(pro.history[7], account, "light", model), count).entries()) {
+        const where = `${model} measure, ${count} windows, column ${index + 1}`;
+        assert.equal(column.latest.text, "1500%", `${where}: the latest share`);
+        assert.equal(column.highest.text, "highest 25000%", `${where}: the highest share`);
+        assert.ok(column.latest.end <= column.right + 0.5 && column.highest.end <= column.right + 0.5, `${where}: a share runs past its column`);
+      }
+    }
+  }
+});
+
+test("the figures and the highest share are as large as they were where the room is there, and no larger", () => {
+  for (const model of MODELS) {
+    // Three windows and fewer have room for 84 px figures and 21 px highest lines, as before.
+    for (const count of [1, 2, 3]) {
+      const account = widened(withWindows(3), count, "Weekly", () => ({ latest: 64, highest: 100 }));
+      for (const column of columns(draw(pro.history[7], account, "light", model), count)) {
+        assert.equal(column.latest.size, 84, `${model} measure, ${count} windows: the figures`);
+        assert.equal(column.highest.size, 21, `${model} measure, ${count} windows: the highest share`);
+      }
+    }
+    // Where the room is not, they are set smaller, all alike, so that the columns stay level, though
+    // a share in one column is narrower than the widest.
+    for (const count of [6, 8]) {
+      const account = widened(withWindows(3), count, "Weekly", (index) => ({ latest: index === 1 ? 7 : 64, highest: index === 1 ? 70 : 100 }));
+      const shown = columns(draw(pro.history[7], account, "light", model), count);
+      assert.ok(shown.every((column) => column.latest.size < 84 && column.latest.size === shown[0].latest.size), `${model} measure, ${count} windows: the figures`);
+      assert.ok(shown.every((column) => column.highest.size < 21 && column.highest.size === shown[0].highest.size), `${model} measure, ${count} windows: the highest share`);
+    }
+  }
+});
+
+test("the sizes depend on how many windows there are and not on the shares they show, so a picture's type does not change from one day to the next", () => {
+  for (const model of MODELS) {
+    for (const count of [6, 8]) {
+      const sizes = (latest, highest) => {
+        const account = widened(withWindows(3), count, "Weekly", () => ({ latest, highest }));
+        const [first] = columns(draw(pro.history[7], account, "light", model), count);
+        return [first.latest.size, first.highest.size];
+      };
+      // The shares 4% and 9% are narrower than the widest a share can be, 100%, and are no smaller for it.
+      assert.deepEqual(sizes(4, 9), sizes(64, 100), `${model} measure, ${count} windows`);
+    }
+  }
+});
+
+test("a font whose widths are not in proportion to its size does not cut a share short: the size is measured, not only worked out", () => {
+  // With each glyph's advance rounded up, "100%" at the size that fits in proportion is a little too wide, which Chrome's own
+  // font did in a picture of seven windows (the figure came out "100…"). The size is checked where it is drawn.
+  const account = widened(withWindows(3), 7, "Weekly", (index) => ({ latest: [64, 100, 7, 99, 12, 38, 91][index], highest: 100 }));
+  const shown = columns(draw(pro.history[7], account, "light", "rounded"), 7);
+  assert.deepEqual(shown.map((column) => column.latest.text), ["64%", "100%", "7%", "99%", "12%", "38%", "91%"]);
+  assert.ok(shown.every((column, index) => (index === 1 ? column.highest.text === "" : column.highest.text === "highest 100%")));
+  // The rounded model's widths are wider than the sizes worked out in proportion would give: the size came down at least a step.
+  const linear = columns(draw(pro.history[7], account, "light", "linear"), 7);
+  assert.ok(shown[0].latest.size <= linear[0].latest.size && shown[0].highest.size <= linear[0].highest.size);
+  assert.ok(shown[0].latest.size < linear[0].latest.size || shown[0].highest.size < linear[0].highest.size, "no step down was needed, so the case proves nothing");
 });
 
 test("what is written is what shareStrings lists, in its order, and an address is never among it", () => {

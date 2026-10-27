@@ -12,7 +12,9 @@ import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter"
  * shown small. Its text, card and chart colours and its font are the window's own, read from the
  * stylesheet, so it follows the window's theme. It is read away from the app, with nothing around
  * it to explain it, so a window's highest share is said only when it differs from its latest, and
- * the dashed line says it is at 90%.
+ * the dashed line says it is at 90%. A share is one token, as the window's is: it is written whole,
+ * set smaller where its column is narrow and never cut short, and it is the label above it that is
+ * cut when it has too little room.
  *
  * Privacy: the picture draws only what `shareStrings` returns, and that holds the account's
  * `label` (its provider and the name given it, or its plan), never its `name`, which can be its
@@ -130,6 +132,8 @@ const PERIOD_AT = 154;
 const GUTTER = 36;
 /** The largest a window's latest share is drawn. */
 const NUMBER = 84;
+/** The largest its highest share is drawn, under the latest. */
+const HIGHEST = 21;
 /** Each window's name, its latest share and its highest, by the baseline they are written on. */
 const LABEL_AT = 204;
 const LATEST_AT = 282;
@@ -293,8 +297,16 @@ export function drawShare(
   // label in small type at the line's right end, on the card.
   const { width, at } = columnsOf(said.windows.length);
   const charts = chartBoxes(said.windows.length);
-  pen.use(600, NUMBER, look.text);
-  const number = Math.min(NUMBER, Math.floor((NUMBER * width) / pen.measure("100%")));
+  // A share is written whole, never cut short or broken: the latest and the highest are each set as
+  // large as their column allows, up to their own largest, for the widest share a window can have
+  // there, the same in every column so that they stay level. A window is held to 100%, and History
+  // says what was read, which a provider could send above that, so the shares themselves are
+  // measured as well. It is the name above them that is cut short when it has too little room.
+  const number = pen.fitted(600, NUMBER, width, ["100%", ...said.windows.map((column) => column.latest)]);
+  const highest = pen.fitted(400, HIGHEST, width, [
+    "highest 100%",
+    ...said.windows.flatMap((column) => column.highest ?? []),
+  ]);
   const limitAt = CHART_TOP + ((100 - LIMIT_PCT) / 100) * CHART_HEIGHT;
   said.windows.forEach((column, index) => {
     const x = at(index);
@@ -303,7 +315,7 @@ export function drawShare(
     pen.use(600, number, column.level === "normal" ? look.text : look[column.level]);
     pen.write(column.latest, x, LATEST_AT, "left", width);
     if (column.highest !== null) {
-      pen.use(400, 21, look.muted);
+      pen.use(400, highest, look.muted);
       pen.write(column.highest, x, HIGHEST_AT, "left", width);
     }
     pen.use(400, 16, look.muted);
@@ -495,11 +507,34 @@ class Pen {
 
   /** Writes in `weight` at `size` CSS pixels, in `colour`, from here on. */
   use(weight: number, size: number, colour: string): void {
-    this.context.font = `${weight} ${size}px ${this.look.font}`;
+    this.set(weight, size);
     this.context.fillStyle = colour;
+  }
+
+  /** The font at `weight` and `size`, and with it the width the figures take, that of the widest. */
+  private set(weight: number, size: number): void {
+    this.context.font = `${weight} ${size}px ${this.look.font}`;
     this.context.textAlign = "left";
     this.context.textBaseline = "alphabetic";
     this.figure = Math.max(...[..."0123456789"].map((digit) => this.context.measureText(digit).width));
+  }
+
+  /**
+   * The largest whole size, up to `most`, at which each of `texts` fits `room` in `weight`: the one
+   * size for all of them, which a share is set at so that it is written whole. Each size is measured
+   * from `most` down, and not worked out in proportion, since a font's widths are not in proportion
+   * to its size: a browser rounds each glyph's advance, and "100%" at the size that should just fit
+   * was a pixel too wide, and cut short, in Chrome.
+   */
+  fitted(weight: number, most: number, room: number, texts: string[]): number {
+    let size = most;
+    for (; size > 1; size -= 1) {
+      this.set(weight, size);
+      if (texts.every((text) => this.measure(text) <= room)) {
+        break;
+      }
+    }
+    return size;
   }
 
   /** How wide `text` is, its figures tabular. */
