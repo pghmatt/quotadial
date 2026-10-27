@@ -27,6 +27,11 @@
 // an account with many windows, where each share must be written whole in every system's own font,
 // and where one window, full since the middle of the period, puts its dashed 90% line over the soft
 // fill under its line for half the chart, to be judged there.
+// Each History view carries the marks the app would send for its period (D-143, fixture-marks.mjs):
+// the others' week ends on a Sunday at 14:00, and Crowded's on a Wednesday at noon, so its first and
+// last days are each held half a day and have an initial, a W, the widest, at each end of the chart.
+
+import { marksOf } from "./fixture-marks.mjs";
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -567,7 +572,19 @@ const SETTINGS = {
   check_updates: true,
 };
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Each day's name, as the app writes it in a heatmap's row (`day_label`), by `getUTCDay`. */
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * When each period the copies show ends, in UTC, the copies' zone: the week on Sunday 26 April 2026
+ * and the month on Tuesday 19 May 2026, each at 14:00, so that both begin their heatmaps on Monday
+ * 20 April and each is held in part at its two ends, as the app's periods are (D-143).
+ */
+const NOW = { 7: Date.UTC(2026, 3, 26, 14), 30: Date.UTC(2026, 4, 19, 14) };
 
 /** Windows that reset within a day: a session (Claude) or a 5-hour window (Codex). */
 const SESSIONS = ["Session", "5-hour"];
@@ -596,8 +613,19 @@ function readings(window, days) {
   });
 }
 
-/** The days each period covers, as the app writes them, from Monday 20 April 2026. */
-const DATES = { 7: "20 to 26 April 2026", 30: "20 April to 19 May 2026" };
+/**
+ * The days from `first` to `last`, each a UTC midnight in milliseconds, as the app writes them
+ * within a year (`dates` in history.rs): "20 to 26 April 2026", or "20 April to 19 May 2026".
+ *
+ * @param {number} first
+ * @param {number} last
+ */
+function dates(first, last) {
+  const [from, to] = [new Date(first), new Date(last)];
+  const month = (/** @type {Date} */ day) => MONTHS[day.getUTCMonth()];
+  const start = month(from) === month(to) ? `${from.getUTCDate()}` : `${from.getUTCDate()} ${month(from)}`;
+  return `${start} to ${to.getUTCDate()} ${month(to)} ${to.getUTCFullYear()}`;
+}
 
 /** On QuotaDial Free, the line History shows where the Share image buttons would be. */
 const SHARE_LEFT_OUT = "A picture of an account's history to share is part of QuotaDial Pro: quotadial.com/pro";
@@ -614,14 +642,16 @@ function label(account) {
 }
 
 /**
- * An account's history over `days` days: a working day's use, heavier mid-week, the same each
- * run so a failure can be reproduced.
+ * An account's history over the `days` days from `first`, a UTC midnight in milliseconds: a working
+ * day's use, heavier mid-week, the same each run so a failure can be reproduced. Each day is named
+ * as the app names it, from the calendar.
  *
  * @param {Meter["accounts"][number]} account
  * @param {number} days
+ * @param {number} first
  * @returns {AccountHistory}
  */
-function accountHistory(account, days) {
+function accountHistory(account, days, first) {
   /** @type {string[]} */
   const labels = [];
   /** @type {number[][]} */
@@ -629,8 +659,9 @@ function accountHistory(account, days) {
   /** @type {string[]} */
   const said = [];
   for (let day = 0; day < days; day += 1) {
-    const label = `${DAY_NAMES[day % 7]} ${((day + 19) % 31) + 1}`;
-    const weekend = day % 7 >= 5;
+    const date = new Date(first + day * DAY);
+    const label = `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()}`;
+    const weekend = date.getUTCDay() % 6 === 0;
     const hours = Array.from({ length: 24 }, (_, hour) =>
       !weekend && hour >= 9 && hour < 18 ? Math.round((3 + ((day * 7 + hour * 3) % 9)) * 10) / 10 : 0,
     );
@@ -672,18 +703,25 @@ function accountHistory(account, days) {
 }
 
 /**
+ * History over the `days` before `now`, in milliseconds: the heatmap's days, from the last day back,
+ * the dates they cover and the marks of the period, as the app sends them (D-143).
+ *
  * @param {7 | 30} days
  * @param {string | null} shareLeftOut
  * @param {Meter["accounts"]} [accounts] the accounts it charts, those with windows
+ * @param {number} [now]
  * @returns {HistoryView}
  */
-function history(days, shareLeftOut, accounts = ACCOUNTS) {
+function history(days, shareLeftOut, accounts = ACCOUNTS, now = NOW[days]) {
+  const today = Math.floor(now / DAY) * DAY;
+  const first = today - (days - 1) * DAY;
   return {
     days,
     span: `The last ${days} days.`,
-    dates: DATES[days],
+    dates: dates(first, today),
+    marks: marksOf(days, now - days * DAY, now),
     accounts: accounts.filter((account) => account.windows.length > 0).map((account) =>
-      accountHistory(account, days),
+      accountHistory(account, days, first),
     ),
     share_left_out: shareLeftOut,
   };
@@ -940,13 +978,22 @@ const fullSince = (chart) => {
 };
 
 /**
+ * When the crowded account's periods end: Wednesday 29 April 2026 at noon. Over a week its first and
+ * last days are each held half a day, the least that has an initial, and both are Wednesdays, whose
+ * W is the widest initial, set as near the chart's edges as an initial goes; over a month it begins
+ * on a Monday, after that Monday's midnight, so it has four ticks where the other copies have five
+ * (D-143).
+ */
+const CROWDED_NOW = Date.UTC(2026, 3, 29, 12);
+
+/**
  * The crowded account's History over `days`.
  *
  * @param {7 | 30} days
  * @returns {HistoryView}
  */
 function crowdedHistory(days) {
-  const view = history(days, null, [CROWDED_ACCOUNT]);
+  const view = history(days, null, [CROWDED_ACCOUNT], CROWDED_NOW);
   return {
     ...view,
     accounts: view.accounts.map((account) => ({

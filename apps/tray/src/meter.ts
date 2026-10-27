@@ -149,10 +149,23 @@ export interface HistoryView {
   span: string;
   /** The days it covers, such as "19 to 25 October 2026". */
   dates: string;
+  /** Where the calendar's days, or over 30 days its weeks, begin along every chart of the view,
+   * and the words under each card's last chart (D-143), in order along the charts. The window
+   * draws them as they come and works nothing out. */
+  marks: Mark[];
   accounts: AccountHistory[];
   /** On QuotaDial Free, the line saying a picture of an account's history to share is part of
    * QuotaDial Pro, shown once where the Share image buttons would be; null on Pro. */
   share_left_out: string | null;
+}
+
+/** A mark under History's charts (D-143): a tick on each chart's baseline, or a word under each
+ * card's last chart. */
+export interface Mark {
+  /** Its place along the charts, from 0 to 1, as a reading's is. */
+  along: number;
+  /** Such as "M" or "27 Sep"; empty for a tick, which carries no word. */
+  word: string;
 }
 
 export interface AccountHistory {

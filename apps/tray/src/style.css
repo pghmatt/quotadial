@@ -960,6 +960,54 @@ html.solid input[type="checkbox"] {
   vector-effect: non-scaling-stroke;
 }
 
+/* A tick where a day begins, or over 30 days a week (D-143): in the baseline's colour, hanging from
+   the baseline, below the share's line, which can run along it. Its length is said here, by a dash:
+   the viewBox is stretched to the chart's box (preserveAspectRatio="none"), so a length in its units
+   is a part of the chart's height and changes with it, while vector-effect: non-scaling-stroke lays a
+   dash out in CSS pixels, as it does the stroke's width. So the line runs from the baseline down the
+   chart's own height, and only its first 4 px are drawn: enough to be seen at 100%, and clear of the
+   words under the last chart and of the next chart's caption. */
+.chart .tick {
+  stroke: var(--chart-base);
+  stroke-width: 1;
+  stroke-dasharray: 4 1000;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* The marks' words under a card's last chart (D-143), in the heatmap's hours' type (below), 6 px
+   under the baseline, clear of the ticks. Each is at its place along the chart, --along. A day's
+   initial is centred on its place in a box an em wide, which the clamp keeps inside the chart: at
+   200% where a scroll bar takes room a chart is 100 px wide, and the half day at an end of the
+   period that still has its initial is 7.1 px, narrower than a W, 9.8 px in a Mac's font, which
+   centred there would cross the chart's edge by 1.3 px. A date at an end of the period is flush
+   with that end of the chart. */
+.marks {
+  position: relative;
+  height: 10px;
+  margin-top: 6px;
+}
+
+.marks span {
+  position: absolute;
+  top: 0;
+  left: clamp(0px, calc(var(--along) * 100% - 0.5em), calc(100% - 1em));
+  width: 1em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.marks .start {
+  left: 0;
+  width: auto;
+}
+
+.marks .end {
+  left: auto;
+  right: 0;
+  width: auto;
+}
+
 .heatmap {
   margin: 4px 0 0;
 }
@@ -971,8 +1019,12 @@ html.solid input[type="checkbox"] {
   margin-top: 1px;
 }
 
+/* The heatmap's day names and hours, and the time marks' words under a card's last chart, which are
+   in the same type so they read as the same kind of label (D-143), kept apart by the heatmap's
+   caption between them. */
 .heat-day,
-.heat-hour {
+.heat-hour,
+.marks {
   color: var(--muted);
   font-size: 10px;
   line-height: 10px;

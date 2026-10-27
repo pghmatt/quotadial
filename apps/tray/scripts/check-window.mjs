@@ -52,6 +52,12 @@
 //   then no word of an address, the part between two places it may break, is drawn on two lines
 //   where it fits its line on its own (whole-addresses.mjs); and the address in a heading, its text
 //   and what a copy of it gives, is the address byte for byte, and a screen reader is told it whole;
+// - History's time marks (the manager on #73, 2026-10-27, 15:28 UTC, D-143), over 7 days and over 30,
+//   each chosen with its button, at 100% and 200% zoom: every chart's ticks are where the copy's marks
+//   put them, to half a pixel in the page and to a pixel in what is drawn under its baseline, and no
+//   others; each card has one row of the marks' words, under its last chart and its ticks and above
+//   its heatmap's caption, the copy's words in order, none over another or past the chart's edges, and
+//   a screen reader is told none of them (time-marks.mjs); and over 30 days no text is cut off either;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -76,8 +82,9 @@
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
-// half way down what scrolls (`-- --window-zoom 2` at 200% zoom, `3` at 300%: a number above 0,
-// and anything else is refused before Chrome is asked),
+// half way down what scrolls, and in History with its first card's time marks in the middle, each of
+// History's pictures over 7 days and again over 30 (`-- --window-zoom 2` at 200% zoom, `3` at 300%: a
+// number above 0, and anything else is refused before Chrome is asked),
 // `-- --share-images <folder>` saves the picture to share of each
 // account in each copy and theme, `-- --scroll-bars classic` or `system` says whether Chrome's scroll
 // bars take room, as Windows' and Linux's do (the checks' own choice), or lie over what they scroll,
@@ -111,6 +118,7 @@ import {
   textVerdicts,
   visibly,
 } from "./whole-addresses.mjs";
+import { MARKS, expectedMarks, heardVerdicts, inkVerdicts, inkedTicks, markVerdicts } from "./time-marks.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -863,6 +871,21 @@ class View {
     return String(nodes[0]?.name?.value ?? "").trim();
   }
 
+  /** Whether a screen reader is told nothing of the node `expression` gives in the page, an element
+   * or its text: the accessibility tree leaves it out, or has no node for it. Null when there is no
+   * such node. */
+  async ignored(expression) {
+    const { result } = await this.send("Runtime.evaluate", { expression });
+    if (!result.objectId) {
+      return null;
+    }
+    const { nodes } = await this.send("Accessibility.getPartialAXTree", {
+      objectId: result.objectId,
+      fetchRelatives: false,
+    });
+    return nodes.length === 0 || nodes[0].ignored === true;
+  }
+
   async close() {
     this.stop();
     await this.tools.send("Target.closeTarget", { targetId: this.targetId });
@@ -976,6 +999,9 @@ async function checkView(view, panel, operate, copy, light) {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
       await checkSources(view, copy, zoom);
+    }
+    if (panel === "history") {
+      await checkMarks(view, copy, zoom);
     }
   }
   // A share is held whole past 200% too, which the other checks stop at.
@@ -1332,6 +1358,106 @@ async function checkAddresses(view, copy, panel, zoom) {
     );
     const called = index < 0 ? null : await view.called(".help-actions button", index);
     check(label, called !== `Write to ${support}` && `a screen reader calls the button that writes to support ${visibly(called ?? "")}, not ${visibly(`Write to ${support}`)}`);
+  }
+}
+
+/**
+ * Shows History over `days` by pressing its period's button, as a person would, and answers whether
+ * the window then shows that period: the button pressed and the copy's span for it under the title.
+ */
+async function showPeriod(view, copy, days) {
+  const button = `[...document.querySelectorAll('section.history .period button')].find((button) => button.textContent.trim() === ${JSON.stringify(`${days} days`)})`;
+  await view.evaluate(`${button}?.click()`);
+  const shown = await view.eventually(
+    `${button}?.getAttribute('aria-pressed') === 'true' && document.querySelector('section.history > p.detail')?.textContent === ${JSON.stringify(copy.history[days]?.span)}`,
+  );
+  await view.settle();
+  return shown;
+}
+
+/** In the page: brings the `chart`th chart of the `card`th History card into view, and answers where
+ * its drawing now is, or null when there is none. */
+const CHART_IN_VIEW = (card, chart) => `(() => {
+  const svg = document.querySelectorAll('section.history .account-history')[${card}]?.querySelectorAll('figure.chart svg')[${chart}];
+  if (!svg) return null;
+  svg.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const { top, bottom, left, right } = svg.getBoundingClientRect();
+  return { top, bottom, left, right, scrolled: document.scrollingElement.scrollTop };
+})()`;
+
+/**
+ * History's time marks (the manager's decision on #73, 2026-10-27, 15:28 UTC, D-143), in each History
+ * view, at 100% and 200%, over 7 days and then over 30, each chosen with its button as a person
+ * chooses it: every chart's ticks are where the copy's marks put them, to half a pixel in the page and
+ * to a pixel in what is drawn under its baseline, and no others; each card has one row of the marks'
+ * words, under its last chart and above its heatmap's caption, the copy's words in order, none over
+ * another or past the chart's edges (time-marks.mjs); and, at 100%, a screen reader is told none of it.
+ * Over 30 days nothing in History is cut off either, as the check of cut-off text holds over 7. History
+ * is left showing 7 days, as it opens, for the checks after this one.
+ */
+async function checkMarks(view, copy, zoom) {
+  for (const days of [7, 30]) {
+    const label = `${view.label}, time marks over ${days} days at ${Math.round(zoom * 100)}%`;
+    if (!copy.history[days]) {
+      continue;
+    }
+    if (!(await showPeriod(view, copy, days))) {
+      check(label, `History does not show ${days} days when its button is pressed`);
+      continue;
+    }
+    const cards = await view.evaluate(MARKS);
+    const wanted = expectedMarks(copy, days);
+    for (const verdict of markVerdicts(cards, wanted, copy.history[days].accounts.length)) {
+      check(label, verdict);
+    }
+    // What is drawn under each chart's baseline, read from the page's own pixels.
+    for (const [index, card] of cards.entries()) {
+      for (let chart = 0; chart < card.charts.length; chart += 1) {
+        const drawn = await view.evaluate(CHART_IN_VIEW(index, chart));
+        if (!drawn) {
+          continue;
+        }
+        const frame = { x: Math.floor(drawn.left) - 2, y: Math.floor(drawn.bottom) - 1, zoom };
+        const { data } = await view.send("Page.captureScreenshot", {
+          format: "png",
+          clip: { x: frame.x, y: frame.y + drawn.scrolled, width: Math.ceil(drawn.right) + 2 - frame.x, height: 6, scale: 1 },
+        });
+        const places = wanted.ticks.map((along) => drawn.left + along * (drawn.right - drawn.left));
+        const ticks = inkedTicks(decodePng(Buffer.from(data, "base64")), frame, drawn.bottom);
+        for (const verdict of inkVerdicts(ticks, places, `${card.what}'s chart ${chart + 1}`)) {
+          check(label, verdict);
+        }
+      }
+    }
+    if (zoom === 1) {
+      const told = [];
+      for (const [index, card] of cards.entries()) {
+        const at = `document.querySelectorAll('section.history .account-history')[${index}]`;
+        for (const [row, { words }] of card.rows.entries()) {
+          told.push({ what: `${card.what}'s row of words`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}]`) });
+          for (const [word, { text }] of words.entries()) {
+            // Its text, which is what a screen reader reads: a span with no role of its own is left out
+            // of the tree while the words in it are read.
+            told.push({ what: `"${text}" under ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}].children[${word}].firstChild`) });
+          }
+        }
+        const ticks = card.charts.reduce((sum, chart) => sum + chart.ticks.length, 0);
+        for (let tick = 0; tick < ticks; tick += 1) {
+          told.push({ what: `a tick of ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('figure.chart .tick')[${tick}]`) });
+        }
+      }
+      for (const verdict of heardVerdicts(told)) {
+        check(label, verdict);
+      }
+    }
+    if (days !== 7) {
+      const cut = await view.evaluate(CUT_OFF);
+      check(label, cut.length > 0 && `${cut.slice(0, 6).join("; ")}`);
+    }
+  }
+  await view.evaluate(SCROLL_TO(0));
+  if (!(await showPeriod(view, copy, 7))) {
+    check(`${view.label}, time marks`, "History does not go back to 7 days when its button is pressed");
   }
 }
 
@@ -2531,39 +2657,57 @@ const WHOLE = `(() => {
 })()`;
 
 /**
- * A picture of the whole of the window's content, as the website and the README show it: the
- * window as tall as what it holds, whatever the most the app lets it be.
+ * The periods a picture of `panel` is taken over: History's 7 days, as it opens, and then its 30,
+ * which have their own time marks (D-143), named `-30-days` after the view's name; one for any other
+ * view.
  */
-async function screenshot(view, panel, folder) {
+function periodsOf(panel, copy) {
+  return panel === "history" && copy.history[30] ? [7, 30] : [7];
+}
+
+/**
+ * A picture of the whole of the window's content, as the website and the README show it: the
+ * window as tall as what it holds, whatever the most the app lets it be; and History's again over
+ * 30 days (`periodsOf`).
+ */
+async function screenshot(view, panel, folder, copy) {
   await view.load(panel);
-  await view.settle();
-  // Room to spare, so that the window is never the shorter of the two.
-  const needed = (await view.evaluate(WHOLE)) + 200;
-  await view.send("Emulation.setDeviceMetricsOverride", {
-    width: WIDTH,
-    height: Math.max(HEIGHT, needed),
-    deviceScaleFactor: 2,
-    mobile: false,
-  });
-  await view.evaluate("document.activeElement.blur()");
-  await view.settle();
-  const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
-  const { data } = await view.send("Page.captureScreenshot", {
-    format: "png",
-    captureBeyondViewport: true,
-    clip: { x: 0, y: 0, width: WIDTH, height: Math.max(120, height), scale: 1 },
-  });
-  const file = join(folder, `${view.label.replaceAll(", ", "-")}.png`);
-  writeFileSync(file, Buffer.from(data, "base64"));
-  await view.zoom(1);
+  for (const days of periodsOf(panel, copy)) {
+    if (days !== 7 && !(await showPeriod(view, copy, days))) {
+      check(view.label, `History does not show ${days} days for its picture`);
+      continue;
+    }
+    await view.settle();
+    // Room to spare, so that the window is never the shorter of the two.
+    const needed = (await view.evaluate(WHOLE)) + 200;
+    await view.send("Emulation.setDeviceMetricsOverride", {
+      width: WIDTH,
+      height: Math.max(HEIGHT, needed),
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await view.evaluate("document.activeElement.blur()");
+    await view.settle();
+    const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+    const { data } = await view.send("Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: WIDTH, height: Math.max(120, height), scale: 1 },
+    });
+    const period = days === 7 ? "" : `-${days}-days`;
+    writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${period}.png`), Buffer.from(data, "base64"));
+    await view.zoom(1);
+  }
 }
 
 /**
  * Pictures of the window as a person sees it, zoomed in as far as `zoom` says: no taller than the
  * most the app lets it be, with whatever scrolls at its top and half way down its length, `-top`
- * and `-half` after the view's name. A window that does not scroll is the same in both.
+ * and `-half` after the view's name, and in History with its first card's time marks in the middle,
+ * or its last chart in a window with none, `-marks`, over 7 days and again over 30 (`periodsOf`). A
+ * window that does not scroll is the same in each.
  */
-async function windowPictures(view, panel, folder, zoom) {
+async function windowPictures(view, panel, folder, zoom, copy) {
   await view.load(panel);
   // The window at this zoom in whole pixels, as the checks show it (viewport.mjs), with as many
   // pixels as the window has at 2x, whatever the zoom.
@@ -2575,21 +2719,43 @@ async function windowPictures(view, panel, folder, zoom) {
     mobile: false,
   });
   await view.evaluate("document.activeElement.blur()");
-  for (const [place, along] of [["top", 0], ["half", 0.5]]) {
-    await view.evaluate(`(() => {
-      const scroller = ${SCROLLER};
-      scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
-    })()`);
-    await view.settle();
-    const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
-    // The clip is in the page's own coordinates, so a page that is scrolled is clipped from where it is.
-    const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
-    const { data } = await view.send("Page.captureScreenshot", {
-      format: "png",
-      clip: { x: 0, y: scrolled, width: viewport.width, height: Math.min(viewport.height, Math.max(120 / zoom, height)), scale: 1 },
-    });
-    const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
-    writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
+  for (const days of periodsOf(panel, copy)) {
+    if (days !== 7 && !(await showPeriod(view, copy, days))) {
+      check(view.label, `History does not show ${days} days for its picture`);
+      continue;
+    }
+    const places = [["top", 0], ["half", 0.5], ...(panel === "history" ? [["marks", null]] : [])];
+    for (const [place, along] of places) {
+      const shown = await view.evaluate(
+        along === null
+          ? `(() => {
+              const card = document.querySelector('section.history .account-history');
+              const charts = card ? card.querySelectorAll('figure.chart') : [];
+              const shown = card?.querySelector('.marks') ?? charts[charts.length - 1];
+              shown?.scrollIntoView({ block: 'center', behavior: 'instant' });
+              return !!shown;
+            })()`
+          : `(() => {
+              const scroller = ${SCROLLER};
+              scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
+              return true;
+            })()`,
+      );
+      if (!shown) {
+        continue;
+      }
+      await view.settle();
+      const height = await view.evaluate("Math.ceil(document.querySelector('main').getBoundingClientRect().height)");
+      // The clip is in the page's own coordinates, so a page that is scrolled is clipped from where it is.
+      const scrolled = await view.evaluate("document.scrollingElement.scrollTop");
+      const { data } = await view.send("Page.captureScreenshot", {
+        format: "png",
+        clip: { x: 0, y: scrolled, width: viewport.width, height: Math.min(viewport.height, Math.max(120 / zoom, height)), scale: 1 },
+      });
+      const zoomed = zoom === 1 ? "" : `-zoom${Math.round(zoom * 100)}`;
+      const period = days === 7 ? "" : `-${days}-days`;
+      writeFileSync(join(folder, `${view.label.replaceAll(", ", "-")}${period}${zoomed}-${place}.png`), Buffer.from(data, "base64"));
+    }
   }
   await view.zoom(1);
 }
@@ -2649,10 +2815,10 @@ async function main() {
               await checkSharing(view, name, copy, theme, shares);
             }
             if (pictures) {
-              await screenshot(view, panel, pictures);
+              await screenshot(view, panel, pictures, copy);
             }
             if (windows) {
-              await windowPictures(view, panel, windows, windowZoom);
+              await windowPictures(view, panel, windows, windowZoom, copy);
             }
           } finally {
             await view.close();
@@ -2676,7 +2842,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +

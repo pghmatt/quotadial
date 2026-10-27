@@ -247,6 +247,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The extra-usage line in plain words | Done (PR #108) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 4, on the fourth shortfall the coordinator found reading every Pro view as a stranger would (13:17): "Extra usage: on, 12.50 of 50.00 USD used (25%)" read like data. `text::extra_usage`, which `quotadial status` and the app's window share, now says "off"; what is used when both amounts are known, "$12.50 of $50.00 used (25%)", both amounts in one form, to the cent with their thousands grouped (the coordinator's review), US dollars with the symbol before each and any other currency with its code after them as before; "25% used" when only the share is known, the call the decision left open, in the words a window's share is said in; and "on" when nothing is known of what is used, with ", 1056.44 credits left" after it as before. The JSON fields do not change, so `docs/openapi.json` and the skill do not; the CLI guide's example and one CHANGELOG line follow. No D |
 | Expiry times a person reads | Done (PR #109, D-142) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 3, on the third shortfall the coordinator found reading every Pro view as a stranger would (13:17): "This Claude Code sign-in expired at 2026-10-26T09:12:00Z." was written for a program. `text::date_and_time` in core writes "26 Oct 2026 at 09:12 UTC", the seconds dropped, with its own test, and both providers' expiry sentences call it: "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `claude` once to refresh it." and the same in Codex's; each stays in its provider's `advice.rs`. The CLI's three data lines stay RFC 3339 (the manager's hold); every other sentence with an RFC 3339 time or date is listed in the note for the manager, with a proposal for `watch`'s "Updated …" line. The window check's copy of the sentence follows; one CHANGELOG line and D-142 |
 | The launcher test waits as long as its stand-in needs | Done (PR #110) | The manager's review of #109 (2026-10-27, 15:27 UTC): "the 200 ms in `chrome.test.mjs`'s launcher test is a flake under load that two builders have now seen. Queue it as a tooling-only fix (a wait that scales with the stand-in's own start, or a longer wait with why)". "A Chrome that has not answered within the wait fails, saying what it said" gave up after 200 ms, and under load its stand-in, a new program, had not yet said anything, so the message ended at the colon. The test now measures its own stand-in's first start and launches it with five times that, never under 200 ms, still holding the whole message. Under 12 busy cores `main`'s test failed 5 of 20 runs and this one none; 30 runs at the machine's own load all passed. Tooling only: no CHANGELOG line, no D |
+| History's time marks: a tick where each day or week begins, and the days' initials or the period's dates | Done (PR #111, D-143) | The manager's decision on #73 (2026-10-27, 15:28 UTC), "Time marks: decided, with four holds", on the coordinator's proposal of 14:39 UTC: `HistoryView.marks`, one list a view, worked out in Rust from the period the charts span, in the zone the heatmap counts a day in: over 7 days a tick at each midnight inside the period and each day's initial in the part of it held, a partial day's only when the period holds half of it or more; over 30 days a tick at each Monday's midnight, four or five, and the dates of the days the period's ends are in, flush with the chart's edges. The window draws them and works nothing out: a tick hanging 4 px from every chart's baseline in `--chart-base`, its length the stylesheet's dash, and the words under each card's last chart and above the heatmap's caption, in the heatmap's hours' type (10 px, not the decision's 11, which is not the hours' size), hidden from screen readers, an initial kept inside the chart at 200%. `checkMarks` (`time-marks.mjs`) holds the ticks to half a pixel in the page and a pixel in what is drawn, and no others, and the words in order, none over another or past an edge, under the last chart and above the caption, none heard, in every History view at 100% and 200% over 7 and 30 days; it failed 2,756 of 23,834 checks on `main`'s window and on each of eight windows broken on purpose. The copies' days are named from the calendar, and the check's pictures show History over 30 days |
 
 ## Kickoff
 
@@ -459,6 +460,150 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: History's time marks, a tick where each day or week begins and the days' initials or the period's dates (D-143)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 15:28 UTC), "Time marks: decided, with four holds", on the
+  coordinator's proposal of 14:39 UTC: ticks in `--chart-base` on the baseline, words once a card under its last chart in the
+  heatmap's hours' type, initials over 7 days and the two end dates over 30, `marks` on `HistoryView` worked out once in Rust from
+  the dates the view already has, hidden from screen readers, and the share picture left alone (D-137). Hold 1: the ticks mark the
+  calendar, each day's start over 7 days and each week's, Monday 00:00, over 30, in the heatmap's zone, four or five, never a fixed
+  four. Hold 2: the period's ends are what they are; a tick at every midnight inside it, however near an end; an initial in each
+  whole day, and in a partial day at either end only when it is at least half a day wide; over 30 days the first date flush left,
+  the last flush right. Hold 3: one `marks` list a view, each mark its `along` and its word (empty for a tick), and the window
+  computes nothing; the Rust tested at 7 and 30 days, at noon and a minute after midnight, from a Monday and from a Sunday, east and
+  west of UTC; a tick a `<line>` at `along * 100` with `vector-effect: non-scaling-stroke`, its length stated in `style.css` with
+  why. Hold 4: the window check holds the ticks to a pixel and no others, the row of words in order so a check that finds none
+  cannot pass, no word over another or cut off, at 100% and 200%, in every History view of every copy, at 7 and 30 days; and the
+  words under the last chart and above the heatmap's caption, and not read by a screen reader; failing first on `main`. Built to
+  the coordinator's brief on `feat/history-time-marks` from `main` at 923dc43, in six commits of code and checks, one of the
+  website's pictures and these records, and rebased onto 0e6172f (#108 and #109), where only the decisions log and the tracker
+  clashed, both by adding beside each other, and every check below was run again; then by the coordinator onto 60a35cc
+  (#110, the launcher test), where only the tracker clashed, with the tray's `npm test` passing 165 there. In review as #111.
+- **The marks** (`marks` in `src-tauri/src/history.rs`): from the charts' own period, `since` or a younger history's first
+  reading, to now, in the zone the heatmap counts a day in. Each day of the zone the period touches, from the day its start is in
+  to the day its last moment is in (a period that ends at midnight holds none of that day): its start, its midnight or, where a
+  clock change skips midnight, its first moment (`day_start`, a quarter of an hour at a time over its first three hours), is a
+  tick when it is inside the period and, over 30 days, a Monday; over 7 days, the part of the day the period holds has the day's
+  initial at its middle when it is the whole day or at least half the day's own length. Over 30 days, the dates of the first and
+  last days, "27 Sep" and "27 Oct", at 0 and 1, or one date at 0 for a period within a day. The rule is the 7-day one for a period
+  of 7 days or fewer and the 30-day one for any longer, though the window asks for 7 and 30 only. A mark's place and a reading's
+  are one function, `along`, in whole seconds, so a tick and a reading at the same moment sit at the same place.
+- **Choices inside the holds, each for the coordinator's and the manager's eye:**
+  - *The 30-day left date is the day the period's start is in,* "19 Apr" for a period from Sunday 19 April at 14:00, though the
+    heatmap's first row and the view's `dates` begin on Monday 20: hold 2 says the period's first and last days are partial and
+    the dates are the period's first and last calendar days at its two ends, and the left edge is in that day; the first whole
+    day's date, which `dates` begins with, would put "20 Apr" at an edge that is 19 April, wrong by up to a day (at a minute after
+    midnight, by all but a minute). A one-line change in `marks` and `fixture-marks.mjs` if it should be `dates`' day.
+  - *10 px, where the decision says 11:* the heatmap's hours are 10 px (`.heat-day, .heat-hour`, since #46), and the words are in
+    that one rule, so "the heatmap's hours' type" is true by construction. 11 px is one value, for both or for the marks alone.
+  - *The ticks hang from the baseline,* 4 px down, clear of the share's line, which runs along the baseline at 0%, and of the
+    words 6 px under it; the length is the stylesheet's dash, `stroke-dasharray: 4 1000` on a line drawn from the baseline down the
+    chart's height: with `vector-effect: non-scaling-stroke` Chrome lays a dash out in CSS pixels, measured on a page of its own
+    (4 px, whatever the viewBox's stretch); WebKit is not checked here.
+  - *An initial is kept inside the chart:* at 200% where a scroll bar takes room a chart is 100 px wide (132 where it does not),
+    and the half day at an end that holds an initial is 7.1 px, narrower than a W (9.8 px at 10 px in this Mac's font; M 8.9, T
+    6.5, F 5.8, S 6.5); centred, it crossed the chart's edge by 1.3 px, so each initial is centred in a box an em wide that
+    `clamp` keeps inside the chart. The W then reaches about 2.7 px past its day's first tick.
+- **The window** (`src/history.tsx`, `src/style.css`, `src/meter.ts`): `Chart` draws a `<line class="tick">` for each mark with
+  no word, from `y1="100"` to `y2="200"` at `along * 100`, after the baseline, and the last chart of a card `MarkWords`, a
+  `<div class="marks" aria-hidden="true">` of spans, each at `--along`, `start` at 0 and `end` at 1. Nothing is worked out but
+  where to anchor a word at an end.
+- **The copies:** `scripts/fixture-marks.mjs` writes the rule again in UTC, the copies' zone, for `window-fixtures.mjs` and
+  `site-fixtures.mjs`, and `time-marks.test.mjs` holds it to marks worked out by hand, so the check's expected marks come from
+  neither the window nor the app. The week ends on Sunday 26 April at 14:00 and the month on Tuesday 19 May at 14:00; Crowded's
+  both on Wednesday 29 April at noon, so its week has eight initials, a W in the half day at each end, and its month, from
+  Monday 30 March at noon, four ticks where the others have five. In their own commit the copies name each day from the calendar:
+  the 30-day heatmap counted round a 31-day month from 20 April, "Thu 30, Fri 31, Sat 1", and ended "Tue 18" where its dates said
+  19 May.
+- **The check** (`scripts/time-marks.mjs`, with `check-window.mjs`): `checkMarks`, after the others at each zoom in History,
+  shows 7 days and then 30 with the period's buttons and goes back to 7. `MARKS` reads each card's charts, the left of each tick's
+  box and its dash, the rows of words with each word's boxes, and the heatmap's caption; `markVerdicts` holds the cards' count, each
+  chart's ticks to the copy's, in number and each to half a pixel of the chart's left plus its `along` of its width, each chart a
+  named `role="img"`; one row a card, in its last chart, the copy's words in order, hidden; each word on one line, inside the
+  chart's width, not over the next, under the chart's foot and its ticks' length and above the caption. Then each chart is
+  scrolled into view and the band 1.25 to 3.5 px under its baseline captured from the page (`inkedTicks`): each run of grey
+  columns at least 10 of 255 from the band's commonest colour is a tick, at the middle of its ink, held within a pixel of a
+  mark's place, with nothing grey where no mark is (`inkVerdicts`). Grey, since the share's line, which a sharp turn at 0% pokes
+  under the baseline (a session's reset does, by 2 to 3 px, its join's mitre), is blue: the first run took one for a tick. At
+  100% the accessibility tree is asked about each row, each word's text and each tick (`heardVerdicts`). Over 30 days the check of
+  cut-off text runs over History too.
+- **Pictures** (`--screenshots` and `--window-pictures`): History is taken again over 30 days, `-30-days`, and the window's
+  pictures add `-marks`, the first card's row in the middle of the window, or its last chart in a window with no marks.
+- **Proof, the window:**
+  - *Failed first on `main`'s window* (`main`'s source, built from a clean export, with this branch's check, copies and scripts):
+    2,756 of 23,834 checks fail, every one a mark missing, and nothing else: each chart with no ticks (94 a period and zoom, both
+    themes), each card with no row of words (38), and each tick not drawn under its baseline (658 over 7 days and 456 over 30, at
+    each zoom).
+  - *Windows broken on purpose,* each built from a clean export of this branch with one change, checked over the four light History
+    views (Pro, Free, Many, Crowded): each tick 1% of the chart's width to the right, 2,684 of 12,882 (1,114 ticks off their place
+    in the page, 785 not drawn where their marks put them and 785 drawn where none does; at 200% 1% is a pixel); the words in
+    reverse order, 344 (76 rows not in the copy's order, 268 words drawn after the next); the first word left out, 76 of 12,388, a
+    row each; the initials centred with no clamp, 2, the Crowded copy's W at each end at 200%, from 38.7 to 48.5 under a chart from
+    40 to 140, and from 131.5 to 141.3; every word at the chart's middle, 230, all over 7 days, the dates keeping their ends; the row
+    before the last chart's drawing, 344, every word over the chart; the row after the heatmap, 420 (344 words below the caption's
+    top, 76 rows in no chart); and the row not hidden, 286: 76 rows without `aria-hidden` and, at 100%, 38 rows and 172 words' text
+    in the accessibility tree. That last one first failed 114, the rows alone: the check asked about each word's span, which
+    Chrome leaves out of its tree whether or not the row is hidden, while the words in it are read; it now asks about each word's
+    text (its own commit).
+  - *This branch:* 33,728 of 33,728 checks over 26 views, where `main`'s own check on `main`'s window passes 20,654 over 26; the
+    website's eight views 6,182 of 6,182; and each History picture run below, 25,662 of 25,662 over the eight History views, with
+    the system's own scroll bars at 100% and 200% and with bars that take room at 200%.
+- **Proof, the logic with no browser:** `src-tauri/src/history.rs`, five tests: over 7 days at noon (both ends half a day, eight
+  initials), a minute after midnight (a tick a minute from the right edge, no initial in today's minute) and at midnight (no tick at
+  either edge); over 30 days from a Sunday (five ticks) and a Monday (four), a minute after midnight and at midnight (the last date
+  the day before); a younger history marked from its first reading, a period within a day, an empty one; a tick where the heatmap
+  begins a day, in a zone east (+05:30) and one west (-07:00) of UTC, with readings either side of the midnight landing in the
+  heatmap's two rows and the reading at the tick drawn at the tick's place; and a sweep every 37 minutes over three weeks in three
+  zones, every tick against midnights worked out from the zone's offset, four or five a month, seven or eight initials a week each
+  in the day it names, and the month's two dates. `scripts/time-marks.test.mjs`, 17 tests: the copies' rule against the same
+  hand-worked marks, the copies' own marks (the Crowded copy's W in each half day, its four ticks a month, its days and dates), every
+  copy with ticks and words at 7 and 30 days; the verdicts passing a card drawn as it should be at both periods and failing one with
+  no marks, a tick half a pixel and more off, one too many, a word missing, out of order or one more, two words over each other, a
+  word half a pixel and more past either edge, a date on two lines, a word with no box, a row in the ticks, over the chart or below
+  the caption, in another chart or none, twice, not hidden, ticks in a chart that is not a named image, and a row where the marks
+  have no words; the pixels read as ticks at 100% and 200%, a line between two pixels at their middle, the share's blue line and
+  faint or tinted pixels not; the ink and screen reader verdicts; the page's code; and the stylesheet's tick, dash and type.
+- **Pictures,** in the scratchpad's `time-marks/pictures/`, from the window check's own options: `before-*` from `main`'s window
+  and `after-*` from this branch's, each of the eight History views (Pro, Free, Many and Crowded, light and dark) over 7 and 30
+  days: `*-100` and `*-200`, the window as shown at 100% and 200% with the system's own scroll bars, at its top, half way and with
+  the first card's marks (or last chart) in the middle; `*-200-classic` at 200% with bars that take room, where a chart is 100 px;
+  and `*-whole`, each view whole at 100%. The website's copy, whole, in `site-whole/`.
+- **The website's pictures,** `history-light.png` and `history-dark.png`, captured again (their ticks and initials, 32 CSS px
+  taller, 720x2142), in a commit of their own; the accounts and Settings pictures do not change and are left alone, and the image
+  manifest has the new size.
+- **Counts:** the tray's `npm test` 165, from 148 on `main` (17 in `time-marks.test.mjs`); the app's `--lib` tests 104 in both
+  builds, from 99 (five in `history.rs`); the workspace's tests as on `main`, which this branch does not touch, 807 and one
+  ignored, and 804 and two ignored in the example build, at 0e6172f (801 and 798 at 923dc43); the window check 33,728 checks over
+  26 views, from 20,654, the same before and after the rebase; the website's eight views 6,182, and its two History views 4,764
+  after the rebase; the window's JavaScript 39.8 KB of its 150, from 39.3, the same build before and after the rebase; the contrast
+  check 30 pairs a theme, as on `main`.
+- **Checks run,** through the scratchpad's `safe.sh`: each code commit's window from a clean export (types, build and the tray's
+  unit tests; the first commit's export failed `chrome.test.mjs`'s 200 ms test on its first two runs and passed on reruns, the
+  flake below); `cargo fmt --check` for the workspace and the app; clippy with `-D warnings` for the workspace and the app in the
+  default and the example builds; `cargo test --workspace` in both builds; the app's `--lib` tests in both builds; the tray's
+  `npm run build`, `npm test` and `npm run check:window`; the website's `npm run check`, `npm test` (90) and `npm run build`, which
+  renders the changelog's new line; `scripts/privacy.sh --check`, `scripts/public-prd.sh --check` and the release scripts' tests
+  (40, one skipped on a Mac); and every one of them again on the branch rebased onto 0e6172f. The Rust ran after Xcode's licence
+  lapsed, with `DEVELOPER_DIR` set to the Command Line Tools as the coordinator asked; nothing of this branch's had hit it. The
+  website's History pictures captured again after the rebase are the dark one byte for byte and the light one within 1 of 255 in
+  381 pixels, a capture's own noise, so the committed pair stands. **Not run:** the app's `tests/icon_press.rs`; the real app; WebKit, which
+  the window check does not drive, so neither VoiceOver's reading nor how WebKit lays out a dash with a stroke that does not scale is
+  seen here.
+- **#52's list, gone down:** *found and fixed:* nothing said where a day began in History's charts; the copies' 30-day heatmap named
+  days round a 31-day month; a W in the half day at an end of a 100 px chart crossing its edge by 1.3 px at 200% (the clamp); and,
+  found by failing first, a check of the words' spans that a screen reader's tree leaves out either way. *Held:* the share picture,
+  its strings and its pixels, unchanged (D-137); the daemon's API, `openapi.json` and the skill, unchanged; the words at 6.74:1 in
+  light and 5.36:1 in dark on a card, as `--muted` is held; colours, 30 pairs a theme; nothing cut off at 100% or 200%, now over 30
+  days too; the bundle at 39.8 KB of 150; no dependency, no new address QuotaDial connects to. *Found and left:* the ticks are the
+  baseline's colour, as decided, 1.69:1 on a card in light and 2.15:1 in dark, under the 3:1 a chart's line is held to, a call for
+  the manager; at 200% where a scroll bar takes room, the initial in a half day at an end, kept inside the chart, sits against its
+  neighbour, "WT" and "TW" 1.2 px apart in the Crowded copy, where an initial in a part of at least about 17 hours (0.7 of a day)
+  would have room, which is hold 2's threshold to change or not; the share's line pokes 2 to 3 px under the baseline at a sharp
+  turn at 0%, its join's mitre, which this PR leaves as `main` draws it; and `chrome.test.mjs`'s test that a stand-in Chrome writes
+  within 200 ms, which failed 3 of 12 runs of that file here (2 of 6 from the first commit's export, 1 of 6 in this worktree) and 2
+  of 5 runs of the suite from `main`'s own export, untouched by this PR, as #107 found. *Left for
+  later:* the share picture's own marks, if wanted, a second pull request reading the same `marks`; VoiceOver on WebKit.
 
 ### M6: the launcher test's wait scales with its stand-in's own start
 
