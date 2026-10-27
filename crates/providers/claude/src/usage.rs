@@ -266,7 +266,9 @@ fn humanize(key: &str) -> String {
 /// `decimal_places`, which says how many; the new `spend` object spells the same thing as
 /// `amount_minor` with an `exponent`. When `decimal_places` is missing, amounts are cents, as
 /// CodexBar found: "OAuth extra usage is always in cents, including Enterprise spend-only
-/// responses".
+/// responses". `currency` is Anthropic's text, so it is kept only as a currency's three letters
+/// ([`ExtraUsage::currency_code`]); one that is missing, or anything else, is left unknown, never
+/// taken for dollars, which is how CodexBar takes a missing one (the manager's review of #108).
 fn extra_usage(value: &Value) -> Option<ExtraUsage> {
     if !value.is_object() {
         return None;
@@ -283,10 +285,7 @@ fn extra_usage(value: &Value) -> Option<ExtraUsage> {
     let currency = value
         .get("currency")
         .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|currency| !currency.is_empty())
-        .map(str::to_owned)
-        .or_else(|| (used.is_some() || limit.is_some()).then(|| "USD".to_owned()));
+        .and_then(ExtraUsage::currency_code);
     Some(ExtraUsage {
         enabled: value
             .get("is_enabled")
@@ -611,18 +610,41 @@ mod tests {
     }
 
     #[test]
-    fn extra_usage_without_a_currency_is_in_dollars() {
+    fn a_currency_is_kept_as_its_three_letters_and_anything_else_is_unknown() {
+        let currency = |currency: Option<Value>| {
+            let mut answer = json!({
+                "is_enabled": true,
+                "monthly_limit": 2000,
+                "used_credits": 150,
+                "utilization": 7.5
+            });
+            if let Some(currency) = currency {
+                answer["currency"] = currency;
+            }
+            extra_usage(&answer).expect("extra usage").currency
+        };
+
+        assert_eq!(currency(Some(json!("USD"))).as_deref(), Some("USD"));
+        assert_eq!(currency(Some(json!(" eur "))).as_deref(), Some("EUR"));
+        // Missing, or not a currency's three letters: unknown, and never taken for dollars, which
+        // would be a wrong figure for any other currency (the manager's review of #108).
+        for unknown in [
+            None,
+            Some(json!(null)),
+            Some(json!("")),
+            Some(json!("US Dollars")),
+            Some(json!("US$")),
+            Some(json!(840)),
+        ] {
+            assert_eq!(currency(unknown.clone()), None, "{unknown:?}");
+        }
         let usage = extra_usage(&json!({
             "is_enabled": true,
             "monthly_limit": 2000,
-            "used_credits": 150,
-            "utilization": 7.5
+            "used_credits": 150
         }))
         .expect("extra usage");
-
-        assert_eq!(usage.used, Some(1.5));
-        assert_eq!(usage.limit, Some(20.0));
-        assert_eq!(usage.currency.as_deref(), Some("USD"));
+        assert_eq!((usage.used, usage.limit), (Some(1.5), Some(20.0)));
     }
 
     /// Each window Anthropic answers with, holding anything.
@@ -668,5 +690,45 @@ mod tests {
                 proptest::prop_assert!(window.used_pct.is_finite());
             }
         }
+
+        /// Whatever Anthropic sends as `currency`, the snapshot keeps three capital letters or
+        /// nothing, and the line people read has the amounts with a dollar sign, a currency's code
+        /// or neither, and nothing else of what was sent.
+        #[test]
+        fn a_currency_reaches_the_line_as_three_capital_letters_or_not_at_all(
+            currency in currency(),
+        ) {
+            let usage = extra_usage(&json!({
+                "is_enabled": true,
+                "monthly_limit": 5000,
+                "used_credits": 1250,
+                "utilization": 25.0,
+                "currency": currency,
+            }))
+            .expect("extra usage");
+            let line = quotadial_core::text::extra_usage(&usage);
+            match usage.currency.as_deref() {
+                None => proptest::prop_assert_eq!(line, "12.50 of 50.00 used (25%)"),
+                Some("USD") => proptest::prop_assert_eq!(line, "$12.50 of $50.00 used (25%)"),
+                Some(code) => {
+                    proptest::prop_assert!(
+                        code.len() == 3 && code.bytes().all(|byte| byte.is_ascii_uppercase()),
+                        "{code:?}"
+                    );
+                    proptest::prop_assert_eq!(line, format!("12.50 of 50.00 {code} used (25%)"));
+                }
+            }
+        }
+    }
+
+    /// What Anthropic could send as `currency`: anything at all, any text, or a few letters with
+    /// white space around them, as often a currency's three as not.
+    fn currency() -> impl proptest::strategy::Strategy<Value = Value> {
+        use proptest::prelude::*;
+        prop_oneof![
+            quotadial_core::testing::json(),
+            any::<String>().prop_map(Value::String),
+            "\\s{0,2}[A-Za-z]{2,4}\\s{0,2}".prop_map(Value::String),
+        ]
     }
 }

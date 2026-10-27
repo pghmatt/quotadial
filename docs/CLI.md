@@ -705,10 +705,11 @@ Codex user@example.com (pro): stale
   snapshot whose status is not `ok` shows none, because its numbers are not current.
 - Extra usage, the pay-as-you-go use beyond the plan, says `off`; what is used of its monthly
   limit, such as `$12.50 of $50.00 used (25%)`, both amounts to the cent with their thousands
-  grouped (`$1,234.50 of $5,000.00`) and a currency other than US dollars written by its code
-  after them (`1,234.50 of 5,000.00 EUR`); `25% used` when the provider gives the share without
-  the amounts; or `on` when it says nothing of what is used. While it is on, credits left come
-  after, such as `on, 1056.44 credits left`.
+  grouped (`$1,234.50 of $5,000.00`), a currency other than US dollars written by its code after
+  them (`1,234.50 of 5,000.00 EUR`), and an unknown currency, one the provider does not give as
+  three letters, with neither (`1,234.50 of 5,000.00`), never as dollars; `25% used` when the
+  provider gives the share without the amounts; or `on` when it says nothing of what is used.
+  While it is on, credits left come after, such as `on, 1056.44 credits left`.
 - With no daemon running, `status` and `watch` fetch for themselves, which gives no pace, and end
   with one line that says so:
 

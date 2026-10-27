@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 02938af8ff4f606fa29d834c1f3b2011b6d90327e21ede4e888fb03c32be7fa8 # shrinks to currency = String("𖫐")

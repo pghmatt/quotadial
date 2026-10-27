@@ -736,10 +736,12 @@ pub fn duration(length: TimeDelta) -> String {
 /// used (25%)`; the share alone when only it is, such as `25% used`, in the words a window's share
 /// is said in; or `on` when nothing is known of what is used. While it is on, credits left come
 /// after, such as `on, 1056.44 credits left`. The two amounts take one form, to the cent with their
-/// thousands grouped, as the limit is set: US dollars, the currency when none is given, with the
-/// symbol before each, such as `$1,234.50 of $5,000.00`, and any other currency with its code after
-/// them, such as `1,234.50 of 5,000.00 EUR used (25%)`. Not [`usd`], which writes a cost said on
-/// its own, in whole dollars from $100, and would put two forms in one line, as `$99.50 of $150`.
+/// thousands grouped, as the limit is set: US dollars with the symbol before each, such as
+/// `$1,234.50 of $5,000.00`, any other currency with its code after them, such as `1,234.50 of
+/// 5,000.00 EUR used (25%)`, and a currency that is unknown, none given or none of three letters,
+/// with neither, such as `12.50 of 50.00 used (25%)`, never as dollars. Not [`usd`], which writes a
+/// cost said on its own, in whole dollars from $100, and would put two forms in one line, as
+/// `$99.50 of $150`.
 #[must_use]
 pub fn extra_usage(extra: &ExtraUsage) -> String {
     if !extra.enabled {
@@ -761,14 +763,18 @@ pub fn extra_usage(extra: &ExtraUsage) -> String {
     text
 }
 
-/// `used` of `limit`, both in `currency` and both [`to_the_cent`]: `$1,234.50 of $5,000.00` in US
-/// dollars, which a currency left out or blank is too, and in any other currency the amounts with
-/// its code after them, `1,234.50 of 5,000.00 EUR`.
+/// `used` of `limit`, both [`to_the_cent`], in `currency` when it is one
+/// ([`ExtraUsage::currency_code`]): `$1,234.50 of $5,000.00` in US dollars, `1,234.50 of 5,000.00
+/// EUR` with any other currency's code after them, and `1,234.50 of 5,000.00` with neither when the
+/// currency is unknown, never dollars. The provider keeps a snapshot's currency to the same rule,
+/// and the line holds to it too, so a snapshot an older QuotaDial kept, or a provider still to come,
+/// cannot put more than three letters in it.
 fn used_of_limit(used: f64, limit: f64, currency: Option<&str>) -> String {
     let (used, limit) = (to_the_cent(used), to_the_cent(limit));
-    match currency.map(str::trim).filter(|code| !code.is_empty()) {
-        Some(code) if !code.eq_ignore_ascii_case("USD") => format!("{used} of {limit} {code}"),
-        _ => format!("${used} of ${limit}"),
+    match currency.and_then(ExtraUsage::currency_code).as_deref() {
+        Some("USD") => format!("${used} of ${limit}"),
+        Some(code) => format!("{used} of {limit} {code}"),
+        None => format!("{used} of {limit}"),
     }
 }
 
@@ -2085,15 +2091,38 @@ mod tests {
             extra_usage(&spent(1_234.5, 5_000.0, Some("USD"), Some(24.69))),
             "$1,234.50 of $5,000.00 used (25%)"
         );
-        // A currency left out or blank is dollars, as the Claude provider reads one, and so is
-        // USD in any case.
-        for currency in [None, Some(""), Some(" "), Some("usd"), Some(" USD ")] {
+        // USD in any case, with white space around it.
+        for currency in ["usd", " USD "] {
             assert_eq!(
-                extra_usage(&spent(1.5, 20.0, currency, Some(7.0))),
+                extra_usage(&spent(1.5, 20.0, Some(currency), Some(7.0))),
                 "$1.50 of $20.00 used (7%)",
                 "{currency:?}"
             );
         }
+    }
+
+    #[test]
+    fn extra_usage_in_a_currency_that_is_unknown_has_no_symbol_and_no_code() {
+        // None given, or none of a currency's three letters: never dollars, which would be a
+        // wrong figure for any other currency (the manager's review of #108).
+        for currency in [
+            None,
+            Some(""),
+            Some(" "),
+            Some("US Dollars"),
+            Some("US$"),
+            Some("EURO"),
+        ] {
+            assert_eq!(
+                extra_usage(&spent(1.5, 20.0, currency, Some(7.0))),
+                "1.50 of 20.00 used (7%)",
+                "{currency:?}"
+            );
+        }
+        assert_eq!(
+            extra_usage(&spent(1_234.5, 5_000.0, None, Some(24.69))),
+            "1,234.50 of 5,000.00 used (25%)"
+        );
     }
 
     #[test]
@@ -2105,6 +2134,11 @@ mod tests {
         assert_eq!(
             extra_usage(&spent(1_234.5, 5_000.0, Some("EUR"), Some(24.69))),
             "1,234.50 of 5,000.00 EUR used (25%)"
+        );
+        // In capitals, whatever case it came in, with no white space around it.
+        assert_eq!(
+            extra_usage(&spent(12.5, 50.0, Some(" eur "), Some(25.0))),
+            "12.50 of 50.00 EUR used (25%)"
         );
     }
 
