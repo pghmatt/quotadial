@@ -871,8 +871,9 @@ class View {
     return String(nodes[0]?.name?.value ?? "").trim();
   }
 
-  /** Whether a screen reader is told nothing of the element `expression` gives in the page: the
-   * accessibility tree leaves it out, or has no node for it. Null when there is no such element. */
+  /** Whether a screen reader is told nothing of the node `expression` gives in the page, an element
+   * or its text: the accessibility tree leaves it out, or has no node for it. Null when there is no
+   * such node. */
   async ignored(expression) {
     const { result } = await this.send("Runtime.evaluate", { expression });
     if (!result.objectId) {
@@ -1435,7 +1436,9 @@ async function checkMarks(view, copy, zoom) {
         for (const [row, { words }] of card.rows.entries()) {
           told.push({ what: `${card.what}'s row of words`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}]`) });
           for (const [word, { text }] of words.entries()) {
-            told.push({ what: `"${text}" under ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}].children[${word}]`) });
+            // Its text, which is what a screen reader reads: a span with no role of its own is left out
+            // of the tree while the words in it are read.
+            told.push({ what: `"${text}" under ${card.what}'s charts`, ignored: await view.ignored(`${at}.querySelectorAll('.marks')[${row}].children[${word}].firstChild`) });
           }
         }
         const ticks = card.charts.reduce((sum, chart) => sum + chart.ticks.length, 0);
