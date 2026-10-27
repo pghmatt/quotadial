@@ -58,7 +58,8 @@
 //   a chart, each read from the PNG's own pixels (share-picture.mjs);
 // - and each chart's 90% line in it is dashed 6/6 in --chart-limit along the whole of it, over the
 //   card and over the soft fill under a chart's line, read pixel by pixel but where the chart's own
-//   line covers it (the manager on #73, 2026-10-27, 11:26 UTC; share-picture.mjs).
+//   line covers it (the manager on #73, 2026-10-27, 11:26 UTC; share-picture.mjs), and the run says
+//   how much of the lines it read and how much it left out.
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, and over History alone for
@@ -89,7 +90,7 @@ import { viewportAt, zoomOf } from "./viewport.mjs";
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
-import { MATERIAL, dashColours, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
 import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
 
@@ -133,6 +134,12 @@ const SHIFT = 8;
 
 const failures = [];
 let checks = 0;
+/**
+ * How much of the pictures' dashed 90% lines their verdicts read: of the pixels the lines cover
+ * whole (`all`), those judged and how many of them are over the soft fill, and those left out where
+ * a chart's own line covers its 90% line (`dashPlaces`); the rest are within a pixel of a dash's end.
+ */
+const dashes = { all: 0, judged: 0, overFill: 0, covered: 0 };
 
 /** Records a check: `problem` is falsy when it passed, or says what is wrong. */
 function check(view, problem) {
@@ -2294,7 +2301,8 @@ function contrastVerdicts(drawn) {
  * `--chart-limit` over the card and the soft fill. The card's fill and edge are the stylesheet's,
  * laid over the material as the canvas lays them; the dashed line's colour and the soft fill are
  * the stylesheet's and SHADING, read as the contrast check reads them (`dashColours`); the card and
- * the charts are where `src/share.ts` puts them. A PNG that cannot be read is a verdict too.
+ * the charts are where `src/share.ts` puts them. A PNG that cannot be read is a verdict too. Adds
+ * how much of each chart's dashed line was read, and left out, to `dashes`.
  */
 function pixelVerdicts(bytes, account, look) {
   let picture;
@@ -2320,6 +2328,13 @@ function pixelVerdicts(bytes, account, look) {
       points: account.windows[index].points,
     })),
   };
+  for (const { box, points } of want.charts) {
+    const { places, all, covered } = dashPlaces(box, points, want.scale);
+    dashes.all += all;
+    dashes.judged += places.length;
+    dashes.overFill += places.filter((place) => place.over === "fill").length;
+    dashes.covered += covered.length;
+  }
   return pictureVerdicts(picture, want);
 }
 
@@ -2522,6 +2537,14 @@ async function main() {
           views += 1;
         }
       }
+    }
+    if (dashes.all > 0) {
+      // So that a run shows the dashed lines were judged, and not passed by being left out.
+      console.log(
+        `The pictures' dashed 90% lines cover ${dashes.all} pixels whole: ${dashes.judged} were judged, ` +
+          `${dashes.overFill} of them over the soft fill under a chart's line, ${dashes.covered} left out where a chart's own ` +
+          `line covers its 90% line, and the rest within a pixel of a dash's end.`,
+      );
     }
     if (failures.length > 0) {
       console.error(failures.join("\n"));
