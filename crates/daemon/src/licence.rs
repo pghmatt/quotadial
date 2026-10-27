@@ -116,7 +116,8 @@ impl fmt::Display for LicenceError {
             Self::Key(error) => write!(formatter, "{error}"),
             Self::Ended(until) => write!(
                 formatter,
-                "That licence ended on {until}, so it can't add QuotaDial Pro."
+                "That licence ended on {}, so it can't add QuotaDial Pro.",
+                quotadial_core::text::date(*until)
             ),
             Self::Io(error) => write!(
                 formatter,
@@ -255,7 +256,7 @@ mod tests {
         };
         assert_eq!(
             ended.to_string(),
-            "That licence ended on 2026-10-31, so it can't add QuotaDial Pro."
+            "That licence ended on 31 Oct 2026, so it can't add QuotaDial Pro."
         );
         assert_eq!(
             standing(&dir, today).licence.map(|licence| licence.id),
@@ -271,7 +272,11 @@ mod tests {
         assert_eq!(standing(&dir, day("2026-11-30")).tier, Tier::Pro);
         let after = standing(&dir, day("2026-12-01"));
         assert_eq!(after.tier, Tier::Free);
-        assert!(after.text.contains("ended on 2026-11-30"), "{}", after.text);
+        assert!(
+            after.text.contains("ended on 30 Nov 2026"),
+            "{}",
+            after.text
+        );
     }
 
     #[test]

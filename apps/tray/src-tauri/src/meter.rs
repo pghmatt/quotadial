@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use quotadial_core::{Snapshot, Status, StatusReport, Window, text};
 use serde::Serialize;
 
@@ -251,7 +251,7 @@ impl Meter {
                 detail: format!(
                     "Read {}, at the prices of {}",
                     text::ago(cost.until, now),
-                    cost.prices_updated
+                    prices_of(&cost.prices_updated)
                 ),
                 models: if cost.models.len() > 1 {
                     cost.models.iter().map(text::model_cost).collect()
@@ -415,6 +415,15 @@ fn account_view(snapshot: &Snapshot, now: DateTime<Utc>) -> AccountView {
         extra_usage: snapshot.extra_usage.as_ref().map(text::extra_usage),
         note: snapshot.error.clone(),
     }
+}
+
+/// The day the price table was updated, `2026-10-23` in the cost, as a person reads a day alone
+/// (D-142): `23 Oct 2026`. Anything that is not a day, which QuotaDial's own table never holds, is
+/// written as it is.
+fn prices_of(updated: &str) -> String {
+    updated
+        .parse::<NaiveDate>()
+        .map_or_else(|_| updated.to_owned(), text::date)
 }
 
 /// Where and when `window` was read, such as "from the API 4 min ago".
@@ -638,7 +647,7 @@ mod tests {
             CostView {
                 provider: "Claude".into(),
                 summary: "$1,234 at API prices over the last 7 days, from 51,234 requests".into(),
-                detail: "Read 4 min ago, at the prices of 2026-10-23".into(),
+                detail: "Read 4 min ago, at the prices of 23 Oct 2026".into(),
                 models: Vec::new(),
                 notes: Vec::new(),
             }

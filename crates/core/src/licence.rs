@@ -287,16 +287,21 @@ impl Standing {
                 Some(until) if !licence.holds_on(today) => Self {
                     tier: Tier::Free,
                     text: format!(
-                        "QuotaDial Free: licence {} ended on {until}. Renewing it at {} gives a \
-                         new key.",
+                        "QuotaDial Free: licence {} ended on {}. Renewing it at {} gives a new \
+                         key.",
                         licence.id,
+                        crate::text::date(until),
                         crate::PRO_URL
                     ),
                     licence: Some(licence),
                 },
                 Some(until) => Self {
                     tier: Tier::Pro,
-                    text: format!("QuotaDial Pro until {until}, licence {}.", licence.id),
+                    text: format!(
+                        "QuotaDial Pro until {}, licence {}.",
+                        crate::text::date(until),
+                        licence.id
+                    ),
                     licence: Some(licence),
                 },
                 None => Self {
@@ -324,7 +329,7 @@ impl Standing {
     pub fn without_id(&self) -> String {
         match (&self.licence, self.tier) {
             (Some(licence), Tier::Pro) => match licence.until {
-                Some(until) => format!("QuotaDial Pro until {until}"),
+                Some(until) => format!("QuotaDial Pro until {}", crate::text::date(until)),
                 None => "QuotaDial Pro, with a licence that does not end".to_owned(),
             },
             (
@@ -333,7 +338,10 @@ impl Standing {
                 }),
                 Tier::Free,
             ) => {
-                format!("QuotaDial Free: the licence ended on {until}")
+                format!(
+                    "QuotaDial Free: the licence ended on {}",
+                    crate::text::date(*until)
+                )
             }
             // With no licence, the sentence names none.
             _ => self.text.clone(),
@@ -569,7 +577,7 @@ mod tests {
         assert_eq!(until.tier, Tier::Pro);
         assert_eq!(
             until.text,
-            "QuotaDial Pro until 2027-10-24, licence ls-1234."
+            "QuotaDial Pro until 24 Oct 2027, licence ls-1234."
         );
 
         let ended = standing(Some(&licence(Some("2026-10-31")).sign(&TEST_SEED)));
@@ -577,8 +585,8 @@ mod tests {
         assert_eq!(ended.licence, Some(licence(Some("2026-10-31"))));
         assert_eq!(
             ended.text,
-            "QuotaDial Free: licence ls-1234 ended on 2026-10-31. Renewing it at quotadial.com/pro \
-             gives a new key."
+            "QuotaDial Free: licence ls-1234 ended on 31 Oct 2026. Renewing it at \
+             quotadial.com/pro gives a new key."
         );
 
         let damaged = standing(Some("QD1.abc.def"));
@@ -606,11 +614,11 @@ mod tests {
         );
         assert_eq!(
             without(Some(&licence(Some("2027-10-24")).sign(&TEST_SEED))),
-            "QuotaDial Pro until 2027-10-24"
+            "QuotaDial Pro until 24 Oct 2027"
         );
         assert_eq!(
             without(Some(&licence(Some("2026-10-31")).sign(&TEST_SEED))),
-            "QuotaDial Free: the licence ended on 2026-10-31"
+            "QuotaDial Free: the licence ended on 31 Oct 2026"
         );
         assert_eq!(without(None), "QuotaDial Free, with no licence key.");
         for key in [
@@ -638,7 +646,7 @@ mod tests {
             serde_json::json!({
                 "tier": "pro",
                 "licence": {"id": "ls-1234", "plan": "pro", "issued": "2026-10-24", "until": "2027-10-24"},
-                "text": "QuotaDial Pro until 2027-10-24, licence ls-1234.",
+                "text": "QuotaDial Pro until 24 Oct 2027, licence ls-1234.",
             })
         );
         assert_eq!(

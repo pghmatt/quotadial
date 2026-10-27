@@ -21,7 +21,7 @@ pub struct Diagnostics {
     pub version: String,
     /// The operating system, its version and the processor, such as `macOS 26.1 (aarch64)`.
     pub system: String,
-    /// What the copy is, without the licence's id, such as `QuotaDial Pro until 2027-10-24`.
+    /// What the copy is, without the licence's id, such as `QuotaDial Pro until 24 Oct 2027`.
     pub licence: String,
     /// The data folder.
     pub data_folder: String,

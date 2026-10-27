@@ -258,7 +258,7 @@ const ACCOUNTS = [
       'antigravity status-line", "stack_with_default": true }` is in ' +
       "~/.gemini/antigravity-cli/settings.json. Antigravity CLI gives an amount left and no share " +
       'for one more limit, which QuotaDial leaves out of its windows: "Credits", 120 left, ' +
-      "resetting at 2026-05-01T00:00:00Z.",
+      "resetting on 1 May 2026 at 00:00 UTC.",
   },
   // An account whose windows were not read together: the 5-hour window from the API a minute ago,
   // the weekly one from the Codex CLI's local logs nine minutes ago. No provider makes a card like
@@ -777,7 +777,7 @@ export const pro = {
       {
         provider: "Claude",
         summary: "$1,234 at API prices over the last 7 days, from 51,234 requests",
-        detail: "From the logs read 2 min ago, at the prices of 1 October 2026.",
+        detail: "Read 2 min ago, at the prices of 1 Oct 2026",
         models: ["Claude Opus: $1,010", "Claude Sonnet: $224"],
         notes: ["Leaves out requests made outside Claude Code."],
       },
@@ -823,7 +823,7 @@ export const many = {
       {
         provider: "Codex",
         summary: "$312 at API prices over the last 7 days, from 8,120 requests",
-        detail: "From the logs read 2 min ago, at the prices of 1 October 2026.",
+        detail: "Read 2 min ago, at the prices of 1 Oct 2026",
         models: [`${LONG_MODEL}: $201`, "Codex Mini: $111"],
         notes: [],
       },

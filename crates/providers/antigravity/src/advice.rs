@@ -2,11 +2,12 @@
 //! sign-in, carrying the exact block to add to Antigravity CLI's settings (the manager's rule (b)(3)
 //! on #73, P-020's rule 2), and the one line under an account whose numbers are not current.
 //!
-//! A time is written as RFC 3339 in UTC, never as "3 min ago", so a line stays the same while the
-//! numbers it is about do, and the daemon's history, which keeps a snapshot only when its time,
-//! status or line changes, keeps one for it rather than one a minute.
+//! A time is written as a person reads it, in UTC (D-142), never as "3 min ago", so a line stays
+//! the same while the numbers it is about do, and the daemon's history, which keeps a snapshot only
+//! when its time, status or line changes, keeps one for it rather than one a minute.
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Utc};
+use quotadial_core::text;
 
 use crate::windows::Amount;
 use crate::{FOLDER, ID, command};
@@ -55,18 +56,18 @@ pub(crate) fn waiting() -> String {
 /// Numbers handed over longer ago than two polls (#52).
 pub(crate) fn stale(handed_over: DateTime<Utc>) -> String {
     format!(
-        "Antigravity CLI last handed over its numbers at {}: they update when it runs again, and a \
+        "Antigravity CLI last handed over its numbers on {}: they update when it runs again, and a \
          limit that has reset since is left out until then.",
-        timestamp(handed_over)
+        text::date_and_time(handed_over)
     )
 }
 
 /// A handover that leaves nothing to show: each limit turned off, or reset since.
 pub(crate) fn nothing(handed_over: DateTime<Utc>) -> String {
     format!(
-        "Antigravity CLI handed over no limit that counts now at {}: each is turned off or has \
+        "On {}, Antigravity CLI handed over no limit that counts now: each is turned off or has \
          reset since.",
-        timestamp(handed_over)
+        text::date_and_time(handed_over)
     )
 }
 
@@ -90,7 +91,7 @@ pub(crate) fn amounts(amounts: &[Amount], beside_windows: bool) -> String {
                 number(amount.left)
             );
             if let Some(at) = amount.resets_at {
-                limit.push_str(&format!(", resetting at {}", timestamp(at)));
+                limit.push_str(&format!(", resetting on {}", text::date_and_time(at)));
             }
             limit
         })
@@ -124,11 +125,6 @@ fn number(amount: f64) -> String {
     } else {
         format!("{}", (amount * 10.0).round() / 10.0)
     }
-}
-
-/// `at` as RFC 3339 in UTC, to the second.
-fn timestamp(at: DateTime<Utc>) -> String {
-    at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 #[cfg(test)]
@@ -180,10 +176,14 @@ mod tests {
 
         assert_eq!(
             stale(handed_over),
-            "Antigravity CLI last handed over its numbers at 2026-10-25T22:30:00Z: they update \
+            "Antigravity CLI last handed over its numbers on 25 Oct 2026 at 22:30 UTC: they update \
              when it runs again, and a limit that has reset since is left out until then."
         );
-        assert!(nothing(handed_over).contains(" at 2026-10-25T22:30:00Z: "));
+        assert_eq!(
+            nothing(handed_over),
+            "On 25 Oct 2026 at 22:30 UTC, Antigravity CLI handed over no limit that counts now: \
+             each is turned off or has reset since."
+        );
     }
 
     #[test]
@@ -201,19 +201,19 @@ mod tests {
         assert_eq!(
             amounts(&one, false),
             "Antigravity CLI gives an amount left and no share for this limit, so QuotaDial shows \
-             no share for it: \"Weekly (Gemini)\", 120 left, resetting at 2026-10-31T00:00:00Z."
+             no share for it: \"Weekly (Gemini)\", 120 left, resetting on 31 Oct 2026 at 00:00 UTC."
         );
         assert_eq!(
             amounts(&two, false),
             "Antigravity CLI gives an amount left and no share for these limits, so QuotaDial \
-             shows no share for them: \"Weekly (Gemini)\", 120 left, resetting at \
-             2026-10-31T00:00:00Z; \"Credits 'plus'\", 12.6 left."
+             shows no share for them: \"Weekly (Gemini)\", 120 left, resetting on \
+             31 Oct 2026 at 00:00 UTC; \"Credits 'plus'\", 12.6 left."
         );
         assert_eq!(
             amounts(&one, true),
             "Antigravity CLI gives an amount left and no share for one more limit, which QuotaDial \
-             leaves out of its windows: \"Weekly (Gemini)\", 120 left, resetting at \
-             2026-10-31T00:00:00Z."
+             leaves out of its windows: \"Weekly (Gemini)\", 120 left, resetting on \
+             31 Oct 2026 at 00:00 UTC."
         );
         assert!(amounts(&two, true).contains("for more limits, which"));
         assert_eq!(number(0.0), "0");

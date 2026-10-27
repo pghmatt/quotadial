@@ -249,6 +249,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The launcher test waits as long as its stand-in needs | Done (PR #110) | The manager's review of #109 (2026-10-27, 15:27 UTC): "the 200 ms in `chrome.test.mjs`'s launcher test is a flake under load that two builders have now seen. Queue it as a tooling-only fix (a wait that scales with the stand-in's own start, or a longer wait with why)". "A Chrome that has not answered within the wait fails, saying what it said" gave up after 200 ms, and under load its stand-in, a new program, had not yet said anything, so the message ended at the colon. The test now measures its own stand-in's first start and launches it with five times that, never under 200 ms, still holding the whole message. Under 12 busy cores `main`'s test failed 5 of 20 runs and this one none; 30 runs at the machine's own load all passed. Tooling only: no CHANGELOG line, no D |
 | History's time marks: a tick where each day or week begins, and the days' initials or the period's dates | Done (PR #111, D-143) | The manager's decision on #73 (2026-10-27, 15:28 UTC), "Time marks: decided, with four holds", on the coordinator's proposal of 14:39 UTC: `HistoryView.marks`, one list a view, worked out in Rust from the period the charts span, in the zone the heatmap counts a day in: over 7 days a tick at each midnight inside the period and each day's initial in the part of it held, a partial day's only when the period holds half of it or more; over 30 days a tick at each Monday's midnight, four or five, and the dates of the days the period's ends are in, flush with the chart's edges. The window draws them and works nothing out: a tick hanging 4 px from every chart's baseline in `--chart-base`, its length the stylesheet's dash, and the words under each card's last chart and above the heatmap's caption, in the heatmap's hours' type (10 px, not the decision's 11, which is not the hours' size), hidden from screen readers, an initial kept inside the chart at 200%. `checkMarks` (`time-marks.mjs`) holds the ticks to half a pixel in the page and a pixel in what is drawn, and no others, and the words in order, none over another or past an edge, under the last chart and above the caption, none heard, in every History view at 100% and 200% over 7 and 30 days; it failed 2,756 of 23,834 checks on `main`'s window and on each of eight windows broken on purpose. The copies' days are named from the calendar, and the check's pictures show History over 30 days |
 | A currency is three capital letters or unknown | Done (PR #112) | The manager's review of #108 (2026-10-27, 15:27 UTC): "Keep a currency only when, trimmed, it is three ASCII letters (ISO 4217), upper-cased; anything else is treated as unknown, and the amounts are then written with no symbol and no code, "12.50 of 50.00 used (25%)", never as dollars". `ExtraUsage::currency_code` in core holds the rule; the Claude provider keeps Anthropic's `currency` to it where it reads it, so a snapshot carries three capitals or nothing; and `text::extra_usage`, the one writer of the line, writes an unknown currency with neither symbol nor code. A missing currency, which the provider had taken for dollars after CodexBar, is unknown too: the live answer names its currency "USD" beside an amount, so nothing a person sees changes for a real answer. A property test holds that no currency makes the reading panic or reaches the line as more than three letters. Rust only: no CHANGELOG line, no D |
+| Every other time and day a sentence writes, as a person reads it | Done (PR #113, D-142) | The manager's review of #109 (2026-10-27, 15:27 UTC), on its note's two proposals: `watch`'s "Updated …" takes D-142's form and `history`'s "Since …" and "No readings since …" stay RFC 3339, since `--since` takes them back; every other sentence on #109's list takes it too, the poll gate's four, Codex's session log and Antigravity's three; and a day alone takes the new `text::date`'s "24 Oct 2027", which `date_and_time` takes its day from: the licence's "until" and both "ended on" sentences, and the window's price-table day. D-142's row is extended, with one CHANGELOG line; each sentence's test holds its new words; the JSON, the API and the CSV's and picture's file names stay as they are |
 
 ## Kickoff
 
@@ -461,6 +462,95 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: every other time and day a sentence writes, as a person reads it (D-142)
+
+- **The ask:** the manager's review of #109 (2026-10-27, 15:27 UTC), "Decided, your two proposals, as one follow-up PR
+  after the time marks PR": (1) `watch`'s "Updated …" follows D-142, since only a person reads it, and `history`'s
+  "Since …" and "No readings since …" stay RFC 3339, because `--since` takes that form back; (2) every other sentence
+  addressed to a person from #109's list follows D-142, and a day alone takes the day form without the time, "24 Oct
+  2027", through a new `text::date` beside `date_and_time`, with its own test, so the two cannot drift. The JSON, the
+  API, and the CSV's and the picture's file names stay; D-142's row is extended rather than a D added; one CHANGELOG
+  line; each sentence's test updated to the words, the poll gate's in `quotadial-poll`. Built on `fix/times-for-people`
+  from `main` at 0e6172f, after #109, and rebased onto 60a35cc once #110 merged and onto cd653ae once #111 merged,
+  where the tracker and D-142's row clashed, D-143 having come in beside it. In review as #113, after #112; rebased
+  onto 42e880e (#112) once it merged, where only the tracker clashed.
+- **What changed:**
+  - Core: `text::date(day)` writes `24 Oct 2027` (`%-d %b %Y`), and `text::date_and_time` now takes its day from it,
+    adding ` at 09:12 UTC`, so a moment's day and a day alone cannot be written two ways; its test holds the decision's
+    example, a single-figure day, the epoch, each month, and a moment's day as its day alone. The licence's sentences
+    write their day with it: "QuotaDial Pro until 24 Oct 2027, licence ls-1234.", "QuotaDial Free: licence ls-1234
+    ended on 31 Oct 2026. Renewing it at quotadial.com/pro gives a new key.", and the two `doctor` writes without the
+    licence's id. The JSON keeps `until` as `2027-10-24`, beside the sentence in `text`, which a test holds.
+  - The daemon's "That licence ended on 31 Oct 2026, so it can't add QuotaDial Pro."
+  - `quotadial-poll`: the gate's four sentences take `date_and_time`, and its RFC 3339 `timestamp` is gone, having no
+    other use: "QuotaDial asks Anthropic at most every 5 minutes, so the next request is after 1 Jan 2099 at 00:05
+    UTC.", "Anthropic is rate-limiting usage requests, so QuotaDial will ask again after …", "… Showing the last numbers
+    fetched; QuotaDial asks again after …" and "The request sent on … has no recorded answer, perhaps because QuotaDial
+    was stopped." Their tests are in the gate's own, and every provider test that holds one of them follows: 10 in
+    Claude's, 9 in Codex's.
+  - Codex: "From the Codex CLI's session log of 23 Oct 2026 at 12:14 UTC, because ChatGPT's usage endpoint could not
+    be read just now."; its RFC 3339 helper is gone. Antigravity: "Antigravity CLI last handed over its numbers on …",
+    "On 25 Oct 2026 at 22:30 UTC, Antigravity CLI handed over no limit that counts now: each is turned off or has reset
+    since." and a limit's "resetting on …"; its module note keeps why a time there is never "3 min ago". The test of
+    the second held only a fragment of it and now holds the whole sentence.
+  - The CLI: `watch` ends "Updated 1 Jan 2099 at 00:04 UTC. Refreshes every minute. …"; `history`'s two lines keep the
+    CLI's `timestamp`, whose comment now says why.
+  - The app's view model: the week's cost says "Read 4 min ago, at the prices of 23 Oct 2026", reading the price table's
+    `2026-10-23` as a day (anything else, which QuotaDial's own table never holds, as it is).
+- **Words around a time, a call named in the PR:** where a sentence said "at" before its time, it now says "on" ("sent
+  on", "handed over its numbers on", "resetting on") or "of" ("the Codex CLI's session log of"), so the preposition
+  does not meet the form's own "at"; "after" stays. Antigravity's "handed over no limit that counts now at …" puts the
+  time first, "On …, Antigravity CLI handed over no limit that counts now", since "counts now on …" would read as the
+  day the limit counts.
+- **Copies and docs:** the window check's copy follows the app: Antigravity's panel says "resetting on 1 May 2026 at
+  00:00 UTC.", and both copies' cost line is now exactly what the app sends, "Read 2 min ago, at the prices of 1 Oct
+  2026", where it said "From the logs read 2 min ago, at the prices of 1 October 2026." since #65, words the app never
+  sent. `docs/CLI.md`'s example gives Codex's sentence, and its licence table both sentences in the day form, the
+  second as the code writes it ("Renewing it at quotadial.com/pro gives a new key."), where it had quoted "A new key
+  brings QuotaDial Pro back.", which the CLI has not printed since the renewal address came in (#58). The website's
+  pictures show none of these lines, and its pages render the CLI guide and the changelog as text.
+- **A records change carried for #111:** the manager's review of #111 (2026-10-27, 18:25 UTC), item 3, asked for one
+  clause in D-143's "The edge" in the next pull request that touches `docs/DECISIONS.md`, which is this one: at the
+  narrowest chart, 100 px at 200% with scroll bars that take room, an end's half-day initial, kept inside the chart
+  by the clamp, can sit 1.2 px from its neighbour, as "WT" or "TW", the known limit the half-day rule accepts for
+  the initial's worth at every other width. It is added, in a commit of its own.
+- **For the manager, left as it is:** History's period writes its days with the month in full, "21 to 27 October
+  2026" (`history.rs`), where D-142's day has three letters, so the window says a day in two forms. It is a heading,
+  not one of the sentences listed, and not changed here.
+- **Proof:** with `main`'s code put back under the new tests in the eight files it changes (a patch kept in the
+  scratchpad, applied and taken off with `git apply`), 36 tests fail: 34 in the workspace (core's and the daemon's
+  licence tests 5, the gate's 6, Claude's and Codex's tests of the gate's sentences 16, Codex's advice test,
+  Antigravity's 4 and the CLI's 2 of `watch`), the app's test of the week's cost, and Antigravity's test of numbers
+  older than two polls. That last one held the old time as a fragment, "at 2026-01-05T22:30:00Z", so `cargo check`
+  passed it and only the full run failed it on the branch; it now holds "on 5 Jan 2026 at 22:30 UTC", in the
+  providers' commit, and fails on `main`'s code too. `text::date`'s own test is new and has nothing on `main` to fail
+  against. With the branch's code all pass.
+- **Pictures,** for the PR: the Pro copy's accounts view, before and after, light and dark, at 100%, from one build of
+  the window, whose code is the same on `main` and the branch: the before with `main`'s words put back in every copy
+  through `--fixtures`, and each sign-in panel opened for the picture by a line added to the check's `screenshot` for
+  both runs and taken out with `git checkout`. Antigravity's panel ends "120 left, resetting on 1 May 2026 at 00:00
+  UTC." where it ended "resetting at 2026-05-01T00:00:00Z.", in the same number of lines; above the week's cost the
+  views differ in that line alone. The cost line fits one line, "Read 2 min ago, at the prices of 1 Oct 2026", where
+  the old copy took two and broke the day from its month, "1" over "October 2026.", so that card is 16 px shorter.
+- **Counts,** on `main` at cd653ae: the workspace's tests 808 with 1 ignored, and 805 with 2 ignored in the example
+  build, each 1 more than `main`'s 807 and 804 (`text::date`'s test); the app's `--lib` tests 104 in both builds, the
+  tray's `npm test` 165 and the website's 90, as on `main`; the window check 33,728 checks over 26 views, the same as
+  on `main`'s words, measured by running it with them; the window's JavaScript 39.8 KB of its 150, and the contrast
+  check's 30 pairs a theme. The proof and the pictures were made on 60a35cc, before #111, which changes none of the
+  eight files the patch restores (it still applies) and only History's styles, so the accounts view is as pictured.
+- **Checks run,** on cd653ae through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the workspace
+  and the app; clippy with `-D warnings` in the default and example builds, for the workspace and the app; `cargo test
+  --workspace` in both builds; the app's `--lib` tests in both builds, which read `CHANGELOG.md`; the tray's `npm run
+  build`, `npm test` and `npm run check:window`; the website's `npm run check`, `npm run build` and `npm test` (its
+  built `/cli` page carries Codex's sentence and the licence table's, and `/changelog` the new line);
+  `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; and, for the changelog, the repository scripts'
+  tests (39 pass, and one skips on macOS, needing GNU `sha256sum`) and `scripts/release-notes.sh 0.2.0`. All of it ran
+  on 60a35cc as well. **Not run:** the real app, `tests/icon_press.rs`, Windows and Linux (CI covers them), and
+  `cargo deny`, `cargo audit`, shellcheck and actionlint, since no dependency, script or workflow changed.
+- **#52's list, gone down:** *held:* one form for a moment and one for a day, each written by one function, for every
+  sentence a person reads; the data a program reads (the JSON, the API, `history`'s lines, the file names) keeps RFC
+  3339; the copy the window check shows now says what the app sends. *Left for the manager:* History's period, above.
 
 ### M6: a currency is three capital letters or unknown
 

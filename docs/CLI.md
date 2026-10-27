@@ -467,8 +467,8 @@ adds:
 | --- | --- |
 | `QuotaDial Free, with no licence key.` | No key is kept |
 | `QuotaDial Pro, licence 1234.` | The key holds a licence that does not end |
-| `QuotaDial Pro until 2027-10-24, licence 1234.` | The licence's last day is 2027-10-24. It holds through that day |
-| `QuotaDial Free: licence 1234 ended on 2027-10-24. A new key brings QuotaDial Pro back.` | That day has passed |
+| `QuotaDial Pro until 24 Oct 2027, licence 1234.` | The licence's last day is 24 Oct 2027. It holds through that day |
+| `QuotaDial Free: licence 1234 ended on 24 Oct 2027. Renewing it at quotadial.com/pro gives a new key.` | That day has passed |
 | `QuotaDial Free: its licence key doesn't check out. …` | The kept key was changed or damaged |
 | `QuotaDial Free: its licence key is for a newer QuotaDial. Update QuotaDial to use it.` | The key is for a plan or format this version does not know |
 
@@ -688,7 +688,7 @@ Claude user@example.com (max): ok
 Codex user@example.com (pro): stale
   Weekly: 54% used, resets in 6 d 5 h, from local logs 2 min ago
   Extra usage: on
-  From the Codex CLI's session log at 2026-10-23T12:14:11Z, because ChatGPT's usage endpoint could not be read just now.
+  From the Codex CLI's session log of 23 Oct 2026 at 12:14 UTC, because ChatGPT's usage endpoint could not be read just now.
 ```
 
 - The first line of each account names the provider, the account, its plan and the snapshot's
