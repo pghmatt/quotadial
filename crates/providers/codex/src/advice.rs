@@ -1,7 +1,7 @@
 //! The one sentence QuotaDial shows when it has no fresh numbers for a ChatGPT account, naming the
 //! fix.
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Utc};
 use quotadial_core::text;
 
 pub(crate) const SIGNED_OUT: &str =
@@ -40,17 +40,14 @@ pub(crate) fn failed(status: u16, message: Option<&str>) -> String {
     }
 }
 
-/// Numbers from the Codex CLI's session log, shown when ChatGPT could not be asked.
+/// Numbers from the Codex CLI's session log of `at`, written as a person reads it (D-142), shown
+/// when ChatGPT could not be asked.
 pub(crate) fn from_session_log(at: DateTime<Utc>) -> String {
     format!(
-        "From the Codex CLI's session log at {}, because ChatGPT's usage endpoint could not be \
+        "From the Codex CLI's session log of {}, because ChatGPT's usage endpoint could not be \
          read just now.",
-        timestamp(at)
+        text::date_and_time(at)
     )
-}
-
-fn timestamp(at: DateTime<Utc>) -> String {
-    at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 #[cfg(test)]
@@ -84,7 +81,7 @@ mod tests {
         );
         assert_eq!(
             from_session_log(ts("2099-01-01T00:00:00Z")),
-            "From the Codex CLI's session log at 2099-01-01T00:00:00Z, because ChatGPT's usage \
+            "From the Codex CLI's session log of 1 Jan 2099 at 00:00 UTC, because ChatGPT's usage \
              endpoint could not be read just now."
         );
     }

@@ -567,7 +567,7 @@ mod tests {
             snapshot
                 .error
                 .as_deref()
-                .is_some_and(|line| line.contains("at 2026-01-05T22:30:00Z")),
+                .is_some_and(|line| line.contains("on 5 Jan 2026 at 22:30 UTC")),
             "the handover's time, in words"
         );
         assert_eq!(
@@ -599,8 +599,8 @@ mod tests {
             snapshot.error.as_deref(),
             Some(
                 "Antigravity CLI gives an amount left and no share for these limits, so QuotaDial \
-                 shows no share for them: \"Weekly (Gemini)\", 120 left, resetting at \
-                 2026-01-10T00:00:00Z; \"Weekly (Claude and GPT)\", 3.5 left."
+                 shows no share for them: \"Weekly (Gemini)\", 120 left, resetting on \
+                 10 Jan 2026 at 00:00 UTC; \"Weekly (Claude and GPT)\", 3.5 left."
             )
         );
         assert_eq!(
@@ -629,7 +629,7 @@ mod tests {
             format!(
                 "{} Antigravity CLI gives an amount left and no share for one more limit, which \
                  QuotaDial leaves out of its windows: \"Weekly (Claude and GPT)\", 120 left, \
-                 resetting at 2026-01-10T00:00:00Z.",
+                 resetting on 10 Jan 2026 at 00:00 UTC.",
                 advice::sign_in_use()
             )
         );
