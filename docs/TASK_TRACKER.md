@@ -420,8 +420,6 @@ so they became #10.
 - Test count: 162 (core 12, Claude 132 plus the opt-in Keychain test, Codex 3, CLI unit 11, CLI
   binaries 4).
 
-The notes below run newest first; the setup notes above them are the oldest.
-
 ### Pictures of the window, and when each is captured again
 
 The pictures of the app's window, and what makes each one out of date. Each is captured again in the PR
@@ -443,6 +441,8 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   (`--window-zoom 2` for 200%): each view no taller than 640 px, at its top and half way down what scrolls.
   Not kept in the repository: they are the before and after of a PR that changes how the window scrolls, such
   as D-136's, which `--screenshots` cannot show.
+
+The notes below run newest first; the setup notes above them are the oldest.
 
 ### M6: the toolbar stays at the window's foot while the accounts scroll (D-136)
 
