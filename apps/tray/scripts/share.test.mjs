@@ -5,9 +5,10 @@
 // what is held about where things sit is held for any font as wide, and the real font's is held by
 // the window check. The accounts are the window check's own made-up ones.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { CARD, MATERIAL, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
+import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
 import { site } from "./site-fixtures.mjs";
 import { themes } from "./stylesheet.mjs";
 import { pro } from "./window-fixtures.mjs";
@@ -254,6 +255,30 @@ test("each chart has the scale History draws: a faint line at 100%, a hairline a
   }
 });
 
+test("each chart's dashed 90% line is drawn over the shading under its line and under the line, so the shading never dulls it", () => {
+  // The contrast check holds the dashed line at 3:1 against the shading as it is, in the line's own
+  // colour, which is what a share above 90% shows only when nothing is laid over the dashed line.
+  assert.equal(SHADING, 0.16);
+  for (const theme of ["light", "dark"]) {
+    const look = LOOKS[theme];
+    for (const [view, account] of ACCOUNTS) {
+      const ops = draw(view, account, theme);
+      const where = (found) => ops.flatMap((op, index) => (found(op) ? [index] : []));
+      // Each chart draws one of each, and the charts are drawn in turn.
+      const shading = where((op) => op.op === "fill" && op.alpha === SHADING);
+      const limits = where((op) => op.op === "stroke" && op.stroke === look.limit);
+      const lines = where((op) => op.op === "stroke" && op.stroke === look.line);
+      const counts = [shading.length, limits.length, lines.length];
+      assert.deepEqual(counts, Array(3).fill(account.windows.length), `${account.label}: a shading, a dashed line and a line for each chart`);
+      account.windows.forEach((_, chart) => {
+        const what = `${account.label}, chart ${chart + 1}`;
+        assert.ok(shading[chart] < limits[chart], `${what}: the dashed line is drawn before the shading, which then dulls it`);
+        assert.ok(limits[chart] < lines[chart], `${what}: the line is drawn before the dashed line, which then crosses it`);
+      });
+    }
+  }
+});
+
 test("a chart runs for the column's width less the room of its 90% label, which is written after it", () => {
   const widest = chartBoxes(1)[0];
   // One window has the whole room: the card's contents, 80 px to 1120 px, less 48 px for the label.
@@ -442,7 +467,7 @@ test("the picture's look is read from the stylesheet's own properties in each th
     base: "--chart-base",
     top: "--chart-top",
     line: "--bar-normal",
-    limit: "--bar-warning",
+    limit: "--chart-limit",
   };
   try {
     for (const [theme, colours] of themes()) {
@@ -470,4 +495,13 @@ test("the picture's look is read from the stylesheet's own properties in each th
   }
   assert.deepEqual([...asked].sort(), Object.values(FROM).sort());
   assert.equal(asked.has("--background"), false);
+});
+
+test("History's dashed 90% line is drawn in the property the picture reads for its own, so the two cannot drift", () => {
+  // The window and the picture are held to one colour, which check-contrast.mjs holds to 3:1: the
+  // picture reads `--chart-limit` (the test above), and the window's rule must stroke with it.
+  const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+  const rule = css.match(/\.chart \.limit\s*\{([^}]*)\}/);
+  assert.ok(rule, "style.css has no .chart .limit rule");
+  assert.match(rule[1], /\bstroke:\s*var\(--chart-limit\);/);
 });
