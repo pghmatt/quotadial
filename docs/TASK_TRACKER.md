@@ -238,8 +238,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The daemon's footprint over a day | Done (PR #99): levels off | The 24-hour run of QuotaDial Example's `quotadial daemon` (from 2026-10-26, 06:53 UTC; a sample every 10 minutes, 145 in all; `vmmap` every hour): the heap's allocated bytes rose about 235 KiB an hour for ten hours, from 538 KiB to 2,875 KiB, and then held at 2,880 to 2,888 KiB for the next fourteen, SQLite's default page cache of about 2 MB a connection full, as #80 predicted; the footprint 3.72 to 6.84 MiB, 6.10 MiB on average and 6.81 to 6.84 MiB over the last six hours, against #52's 40 MB (D-123); CPU 3.78 s in 24 hours, 0.004% of one core. No `cache_size` change; every reading is in the log's note |
 | Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
 | Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
-| Queued: History's caption keeps a short label whole at 200% | Queued | The manager's review of #98 (2026-10-27, 06:24 UTC): at 200% History's caption breaks a short label mid-word ("Wee" over "kly"), the same before and after #98. The body's `overflow-wrap: anywhere` is for addresses and long names that would otherwise be cut off; a short label should wrap between words first. Find whether `overflow-wrap: break-word` on the caption's label, or `anywhere` kept to the address and name lines, keeps #52's long-name rule while leaving "Weekly" whole, held by the window check |
-| The window check's `--window-zoom 3` | In review (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
+| History's caption keeps a short label whole at 200% | Done (D-139) | The manager's decision on #73 (2026-10-27, 08:30 UTC), on the review of #98 (06:24 UTC): at 200% History's caption broke a short label in the middle, "Wee" over "kly". The body's `overflow-wrap: anywhere` is gone: it is on fifteen selectors, the lines that can carry text from outside, or a file name or a host, with no spaces in it (an account's heading, a window's label, the summary's line, a provider's incident, a note, a problem, a sign-in panel, the week's cost, a command, what History says under its period and about each heatmap, Settings' cards, Help's cards and the update on offer), so QuotaDial's own words keep the browser's default and break between words; History's caption wraps, so its label, which can be a model's name, and the shares beside it are never squeezed together. The window check's new `checkWords` holds the captions the window draws to the ones each copy has, in order, with their words, and no word of four letters or more in one is drawn on two lines at 100% and 200% unless it is wider than its caption; it failed first on `main`'s window (100 of 18,750 checks, all at 200% in History). The Many copy has text from outside as long as it gets, with no space to break at, in each place the window shows some, so the long-name rule is held at 100% and 200% in every place, each failing when taken off the list, and a command is held at 200% too. The manager's fallback, `break-word` on the caption's label alone, was tried and is not enough. The website's pictures are unchanged |
+| The window check's `--window-zoom 3` | Done (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
+| Queued: the window check's `--window-zoom` refuses what is not a zoom | Queued | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139) |
 
 ## Kickoff
 
@@ -452,6 +453,176 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
 
 The notes below run newest first; the setup notes above them are the oldest.
 
+### M6: History's caption keeps a short label whole at 200% (D-139)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 08:30 UTC), on the review of #98 (06:24 UTC), which found that at 200% History's
+  caption breaks a short label mid-word ("Wee" over "kly"), the same before and after #98: "Prefer scoping over a second rule.
+  `overflow-wrap: anywhere` on `body` (style.css:106) is there for #52's long-name rule, which is about the address and the account's
+  name, not every word in the window. The first thing to try is moving `anywhere` off `body` and onto the address and name lines (and
+  anything else that can carry text from outside with no spaces in it), leaving the rest of the window at the browser's default, which
+  breaks between words first. `break-word` on the caption's label is the fallback if scoping turns out to touch more lines than it
+  saves." The long-name rule "still holds, and is checked", in the nine-account copy, at 100% and 200%; the new check "fails if a word of
+  four letters or more in any caption is broken across two lines at 100% or 200%, failing first on today's build, and it holds the places
+  to the captions the copy has, in order, before it judges lines, as `checkShares` does"; and the records: a CHANGELOG line, a D, the
+  tracker rows (this one Done, and the 3.78/3.79 note under the footprint table) and pictures of History in both themes at 200%. And the
+  coordinator's brief of the same day: commits local only, heavy builds first. Built on `fix/caption-words-whole` from `main` at b6b6611
+  and rebased onto 43ab677 after #100 (the viewport rule) merged, as the coordinator asked: the code commits merged without a clash, and
+  the tracker's table and notes are merged by hand (this section above #100's, its row marked Done). In six commits: what the checks of
+  shares and of words share, the Many copy's text from outside, a command held at 200%, the fix, the check of words and these records.
+  In review as the pull request the coordinator opens.
+- **What it looked like,** at 200% in History, from `main` at b6b6611. In the window check's Chrome, whose scroll bars take room as
+  Windows' and Linux's do, so that a card's text is about 100 px wide: "Weekly" on three lines or two, "Session" on three, "Gemini" and
+  "hour" (of "5-hour") on two, and in the account of seven windows "Weekl" over "y", "(Sonn" over "et)" and "(Opu" over "s)". In this
+  Mac's overlay bars, where the text is about 130 px wide, it is "(Sonnet" over ")" and "(OAuth" over "apps)". Nothing breaks at 100%.
+- **The cause** is D-138's, the same property: the body's `overflow-wrap: anywhere` counts a break between any two letters when the
+  least room a flex item can be given is worked out, so History's caption, a flex row of the window's label and the words and shares
+  beside it, gave each a share of the room in proportion to its width and squeezed the label below its own word. D-138 had put
+  `white-space: nowrap` and `flex: none` on a share, so that what is beside it gives way; a label has nothing to give it way for.
+- **The fix, in three parts.** (1) `overflow-wrap: anywhere` is off the body and on fifteen selectors, the lines that can carry text
+  from outside with no spaces in it (D-139 lists them with why, and `style.css`'s comment says so above the rule), so QuotaDial's own
+  words keep the browser's default. (2) History's caption `flex-wrap: wrap`, and its label is `class="label"`, which is on the list: a
+  label can be a model's name, and two parts that may both shrink would squeeze the label below its words, while a caption that wraps
+  puts the shares under the label when they do not both fit, as at 200%, and keeps them beside it when they do. (3) The comment on D-138's
+  share rule no longer says the body breaks anywhere.
+- **How the list was made.** Going down every string the window shows, from `meter.ts`, the components and the providers' code
+  (`outside_text` keeps a name, a plan or a limit's name to 64 characters, an address to 254 and a server's message to 200, and breaks
+  nothing up), then letting the check find what that missed: with thirteen selectors the window check failed 10 of its 18,642 checks, 6 of
+  them Help's "support@quotadial.com", a word of 21 characters in QuotaDial's own button, which ran past the window's edge at 200% in
+  bars that take room in every copy (so Help's button joined the list), and 4 the Many copy's long label, which with the label at
+  the default held History's caption open and ran its shares past the edge at 100% and 200% (so the caption wraps). Then, going back
+  over what Help really shows and not what its fixture says: the fixture's two short sentences had hidden that the real changelog's
+  lines and the real privacy text hold "QuotaDial_universal.dmg", "docs/ACCESSIBILITY.md", "CLAUDE_CONFIG_DIR=~/'.[user]-work'" and
+  "release-assets.githubusercontent.com" (a word of 36 characters), which the body's `anywhere` had wrapped. With such lines in the
+  fixture the scoped rule ran Help past the window's edge at 200% (1 of 160 checks in `pro, light, help`), so Help's cards and the
+  update on offer, whose notes are changelog lines, joined the list in place of the button's own entry, which they cover, and the
+  Many copy's Help and update carry those lines, the changelog's and the privacy text's real ones.
+- **The check** (`scripts/whole-words.mjs`, with `check-window.mjs`): `checkWords`, beside `checkShares`, at 100% and 200%, in every view
+  of every copy and both themes. The captions the window draws are the line saying where and when an account's windows were read (`.source`),
+  each History chart's caption and each heatmap's; they must be exactly the ones the copy has, in order (`expectedCaptions`: the cards
+  that have a line, and for each History account its charts' captions, with "latest" and "highest" rounded down as the window writes them,
+  and then its heatmap's when it was used at all), and the words found in each must be the words its text has, before any line is
+  judged, so that a check that finds none cannot pass. A word is four letters or more in a row, in any script ("5-hour" holds "hour";
+  "GPT" and "and" are not words); each is judged by its own line boxes, a range's client rects, and is a verdict when it is on more than
+  one line, unless it is wider than its whole caption (the boxes of a broken word are as wide together as the word), which has to break
+  somewhere or be cut off, which the check of cut-off text holds. What is shared with the check of shares moved into
+  `whole-shares.mjs`: `matchesIn`, which finds a match across the nodes Preact writes a text in, `sharesIn` as a use of it, and `PAGE_TEXT`,
+  the page's reading of its text by the block each piece is drawn in; the tests' stand-in for the page is `page-stand-in.mjs`, their
+  random strings `random-text.mjs` and the stylesheet's rules `stylesheet.mjs`'s `rules()`. A command is selected whole by a click at
+  200% too, where the long one wraps (`checkCommands` takes the zoom).
+- **The Many copy** (the manager's "nine-account" copy: ten accounts since #95) has, in a place of its own, text from outside as long as
+  it gets, with nothing in it to break at: a name the person gave its first account (which sets the number, so the summary's line, the
+  card's heading and History's card carry it), a plan, a window named for a model (its row, History's caption and its heatmap's caption),
+  a note and a sign-in panel naming a folder, a problem with a folder and the `chmod` command that holds it, an incident, the week's cost
+  of a model, in Settings an alert the person wrote, a webhook's host and a problem with `config.json`, and in Help and the update on
+  offer lines of the real changelog and the real privacy text, with their file names and their longest host, and an update whose notes
+  are one of them. The accounts, Settings, History and Help pass on `main`'s stylesheet with all of it, since `anywhere` on the body
+  breaks everything, except for the four caption words that the long label squeezes ("latest" and "highest", in both themes), so it
+  holds the rule once it is scoped and adds those four to `main`'s failures.
+- **Proof, the window:**
+  - *The check failed first on `main`'s window:* the final scripts and fixtures against `main`'s stylesheet and History markup: 100 of
+    18,750 checks fail, all of them caption words at 200% and all in History, in all eight views (Pro 11 and 11, Free 11 and 11, Many 19
+    and 19, Crowded 9 and 9, light and dark), none at 100% and none of any other kind: "Weekly" 50 times (32 on three lines, 18 on two),
+    "hour" 14, "Session" 12, "Gemini" 12, and "Sonnet", "Opus", "Example", "Cowork", "latest" and "highest" twice each. (With `main`'s own
+    fixtures it was 96 of 18,562, before the Many copy's long label added "latest" and "highest".)
+  - *The long-name rule, held in the Many copy, at 100% and 200%:* each selector taken off the list in a copy of the tree in the
+    scratchpad, built and checked on the views it shows in. The heading (`.card-head`) fails 9 of 2,206 in `many, light`: at 100% the
+    Codex account's address runs past the window's edge and is not inside its card, at 200% so do the long name and the long plan and
+    more addresses, and in History at both; the label (`.label`) 3 of 2,206: the model's name runs past the edge in the popover at 100%
+    and 200% and in History's caption at 200%; the summary's line (`.headline`) 1 of 1,184; the incident (`.incident`) 2 of 1,184, at 100%
+    and 200%; a note (`.note`) 1; a problem (`.problems`) 1; the week's cost (`.costs`) 1; the sign-in panels (`.sign-in`) 1, QuotaDial's
+    own sentences too, at 200%; the update on offer (`.update-offer`) 1, its note, at 200%; Settings' cards (`.settings .card`) 1 of 287;
+    Help's cards (`.help .card`) 1 of 174, where the changelog's lines and the support address run past the edge at 200%; and the
+    heatmap's caption (`.heatmap figcaption`) 1 of 561. Twelve of the fifteen fail, then, and three pass and are said so: `code`, since
+    every command is inside a line that already breaks; and `.history > p` and `.account-history > .detail`, which hold what History says
+    after a share was saved or failed and for a heatmap with no use, which no copy shows. The list and the test hold those three.
+  - *The caption, and the manager's fallback:* the caption without `flex-wrap` fails 48 of 5,952 in the four light History views (the
+    label, which is on the list, squeezed with the shares: "Weekly", "Session", "Gemini", "hour", "Sonnet", "Opus", "Example", "Cowork");
+    `anywhere` on the whole caption without the wrap, 50; with the wrap, nothing, and `anywhere` back on the body with the wrap passes
+    too (the wrap is what keeps the caption whole, and the stylesheet test is what holds the body: see below). The manager's fallback,
+    `anywhere` left on the body and `break-word` on the caption's label alone, with the caption as it was, fails 8 of 5,952: "highest"
+    beside "(Cowork)" and "(Example model)" at 200%, "latest" and "highest" beside the long label at 100% and 200%, and the long
+    label past the edge at both. Scoping, at fifteen selectors, is what the check passes.
+  - *The stylesheet is held without a browser too:* `whole-words.test.mjs` reads `style.css` and `history.tsx` and fails if any rule that
+    breaks words (`overflow-wrap`, `word-wrap`, `word-break`, `line-break`, `hyphens`) is anything but `overflow-wrap: anywhere` on
+    exactly the fifteen selectors, if the body or any line that reaches every line is among them, if History's caption does not wrap, or
+    its label is not the `.label` that may break.
+  - *`whole-words.test.mjs`, 15 tests with no browser:* a word found across the nodes it is written in, with where it starts and ends; what
+    is not a word; a property test of 5,000 strings cut into random nodes, in Latin, accented and other scripts and in a character of two
+    UTF-16 units, a new seed each run (the seed is in every failure, `QUOTADIAL_TEST_SEED=<seed>` runs the same strings again); the
+    captions each copy should draw, in order, and that every copy has some, each with a word to judge; the verdict on the captions drawn
+    (missing, extra, out of order, another text, words not found); the line boxes (two boxes on a line are one, a taller box is no second
+    line, the order does not matter, the half pixel); and the page's own code against the stand-in for the page, a caption in two blocks,
+    a word the browser broke, and what is not shown. The check's own code, what it shares and the stylesheet were broken by hand 40 ways in a copy of the tree, and each fails a test: a word as three letters, five, ASCII only, or with a digit; each part of a caption's text (a card with no line, a missing space, a share rounded up or to the nearest, the heatmap's window not in lower case, a heatmap for no use, before the charts, the 30 days, a caption in Settings); each way of holding the captions (a missing one, an extra one, only the first, the words not held, the order not held); each edge of a verdict (three lines and not two, a word that fits excused, one wider not, the half pixel, a word's first box for its width, a word with no box); the page's code (the blocks run together, the room, the first block only, the range's end and its start); what the check of shares shares (a match found in its first node only, an offset that ignores its node's start, hidden text, text for a screen reader, inline elements as blocks); and the stylesheet (the body breaking anywhere, a line added to the list or taken off it, `word-break` on a line, the caption without its wrap, its label without the class).
+- **Pictures,** from the window check, in the scratchpad's `caption-wrap/`, History at 200% (`--window-pictures --window-zoom 2`), light
+  and dark, at the top and half way down, from `main` at b6b6611 (`before-`) and from this branch (`after-`): `before.history.<theme>.png`
+  and `after.history.<theme>.png` are the account of seven windows (Crowded) half way down, in bars that take room (where "Weekl" over "y"
+  and "(Sonn" over "et)" were, and "Weekly (Sonnet)" is whole); the same two with `.mac-bars` are in this Mac's own overlay bars, where "(Sonnet"
+  was over ")"; the whole of every view, Pro, Free, Many and Crowded, is in `before-classic/`, `after-classic/`, `before-overlay/` and
+  `after-overlay/`, and `many-before-classic/` is the Many copy with its long text drawn by `main`'s stylesheet, for its after. The
+  website's pictures: `main`'s and this branch's rendering of the website's eight views are byte for byte the same in both themes, accounts, Settings, History and Help (three of the six committed ones, Settings in both themes and History in dark, are not what this Mac's Chrome draws of `main` either, so the committed files are left as they are); so none is captured again.
+- **Calls where the brief left room:**
+  - *Scoping, not the fallback,* and fifteen selectors: it is the list the long-name rule needs, it passes the check, and the fallback
+    fails the manager's own check (above).
+  - *The caption wraps,* which the manager's text does not say: a label from outside has to be able to break and the words beside it must
+    not, and two parts that may both shrink cannot give both (above, and the first run of the scoping).
+  - *Help's cards and the update on offer* are on the list for QuotaDial's own words that have no space in them, file names, commands and
+    hosts in the changelog's lines and the privacy text, and the support address, which a long word needs as much as text from outside
+    does: found by reading what Help really shows, which its fixture's two short sentences had hidden, and held by the check since.
+  - *A word* is four letters or more in a row, in any script; a break at a hyphen, as "5-" over "hour", is not a word broken. A word wider
+    than its whole caption is no verdict.
+  - *Which captions:* the card's line saying where and when its windows were read, each History chart's caption and each heatmap's (the
+    manager's "any caption", by the vocabulary of D-135's check and the markup's `figcaption`s). Settings and Help have none, and are held
+    to have none.
+  - *The Many copy,* not a new copy, since the manager asked for it there; its text from outside is in one place each, and Pro, Free and
+    Crowded are as they were. It keeps its name, with a comment that it has ten accounts.
+  - *The shared pieces* (`matchesIn`, `PAGE_TEXT`, `page-stand-in.mjs`, `random-text.mjs`, `rules()`) rather than a second copy of the
+    check of shares: `whole-shares.test.mjs` still has its 18 tests and passes unchanged in what it holds.
+  - *Commands at 200%:* `checkCommands` moved into the zoom loop, with its label saying the zoom, since a long command wraps at both.
+  - *The queued row for `--window-zoom abc`* is added as the manager asked in the review of #100 (09:22 UTC), and #100's own rows are its.
+  - *No PR number* in the Done row: the pull request is the coordinator's to open.
+- **Counts:** the tray's `npm test` 97, up from 82 on `main` at 43ab677, where #100 had made it 82 from 78 (15 in `whole-words.test.mjs`;
+  the 18 in `whole-shares.test.mjs` are unchanged in what they hold); the window check 18,750 checks over 26 views in
+  3 minutes 24 seconds on the rebased tree, up from 17,450 over 26 views in 3 minutes 19 seconds on `main` (1,112 for the captions and their
+  words, 80 for the Many copy's long text, 68 for the commands at 200% and 40 for its Help and update lines); the website's eight views
+  4,454 checks on `main`'s window and 4,578 on this branch's, the 124 more being the caption check; the contrast check 30 pairs a theme,
+  as on `main`; the window's JavaScript 38.5 KB of its 150, as it was (one class name). No Rust changed, so the Rust counts are `main`'s
+  own, run again here: the workspace 801 passed (1 ignored) and the example build 798 (2 ignored), the app's `--lib` tests 99 in both builds. The website: its types, its pages built and its 90 tests; the release scripts' tests 40, one skipped.
+- **Checks run here,** through the scratchpad's `safe.sh` (a copy of the previous builders' with `TMPDIR` in the scratchpad), with four
+  build jobs and one heavy job at a time: `cargo fmt --check` in the workspace and the app; clippy with `-D warnings` and `--locked` on the
+  workspace and the app, default and `fake`; the workspace tests, default and `fake`; the app's `--lib` tests, default and `fake` (the
+  example's CLI bundled with `npm run cli -- --fake`, then `npm run cli` again), after the CHANGELOG line went in, since they read
+  `CHANGELOG.md`; the tray's `npm run build` (types, size, contrast), `npm test` and `npm run check:window` on the rebased tree, the final sources; the
+  website's `npm run check`, `npm run build` and `npm test`, since `CHANGELOG.md`, which its changelog page renders, changed;
+  `scripts/privacy.sh --check`, `scripts/public-prd.sh --check` and `node --test scripts/*.test.mjs`. All passed, but three of the release scripts'
+  install-command tests, which fail with `TMPDIR` in the scratchpad (they expect a `mktemp` folder to be a new one) and pass in an ordinary
+  environment, where they were run. The first run against `main`'s stylesheet and the hand-made breaks were made in copies of the tree before
+  the rebase onto #100, which moved only the viewport rule's call sites; the window check, the pictures and the website's pictures were made
+  again on the rebased tree.
+- **Not run:** WebKit, which draws the app on macOS and Linux (the window check drives Chrome, which is WebView2's engine on Windows),
+  so how it sizes a flex row of a label and its neighbour with `anywhere` is unseen: the fix takes `anywhere` away from every row where a
+  word could be squeezed and makes the caption wrap, which every engine does the same; Windows and Linux builds (CI's); `cargo deny`,
+  `cargo audit`, actionlint and shellcheck (no dependency, workflow or script changed); `tests/icon_press.rs` (as briefed); the app itself
+  and QuotaDial Example (never launched); VoiceOver by hand.
+- **Safety on this Mac:** every cargo and npm run and every run in Chrome went through the scratchpad's `safe.sh`: `QUOTADIAL_DATA_DIR`,
+  `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad, `TMPDIR` there too, no token in the
+  environment, four build jobs. No provider's CLI ran, no sign-in or keychain item was read, and nothing touched
+  `~/Library/Application Support/quotadial`, the example's folders or the owner's Downloads folder. One `rm` was run by hand, by mistake:
+  `rm -f /dev/null`, typed onto the end of a command line that wrote a script, which the system did not allow and which changed nothing
+  (`/dev/null` was looked at straight after); no other `rm` was run by hand or in a script of mine: `check-window.mjs` removes its own
+  temporary Chrome profile (in the scratchpad here), and `vite build` and `next build` empty their own output folders, as they always do. The hand-made breaks were made in copies of the tree in the scratchpad, overwritten from the
+  working tree with `rsync` and never deleted; the repository was never changed to break it. The other command lines were `gh`, reading
+  #73's comment and the manager's review of #100 and #100's list of files, and `git fetch`.
+- **#52's list, gone down:** *found and fixed:* a short word broken in History's caption at 200% (above), and the long text the window
+  could not have shown at 200% had the rule been taken off the body without the check: Help's support address, which ran past the window's
+  edge in bars that take room, and a long label from outside in History's caption. *Held:* a long name, address, plan, label, folder,
+  command, incident, host and alert wrap rather than being cut off, at 100% and 200%, in every place the window shows them, now by a
+  check of each place and not of an address alone; a command is selected whole by one click at 200% as at 100%; every colour pair in both
+  themes (30 a theme); tabular figures; no address in the picture; no new dependency or network address; the window's JavaScript within its
+  budget; Tab order, focus rings, names and roles, reduced motion and the toolbar at the foot, all in the same window check, passing.
+  *Left for later:* WebKit, above; `.history > p` and `.account-history > .detail` are on the list by reasoning and no copy exercises
+  them (a share that was saved under a long name, or failed, and a heatmap with no use); and the queued row below this one in M6's table,
+  the window check's `--window-zoom` refusing what is not a zoom, which the manager's review of #100 asked for.
+
 ### Main's CI, a third flake: the API test of questions asked while a host stops
 
 - **What happened:** #100's CI at 349c8f1 failed once in `check (ubuntu-latest)`, in a test #100 does
@@ -610,6 +781,8 @@ The notes below run newest first; the setup notes above them are the oldest.
 | 23 | 6.83 to 6.84 | 6,993 | 2,888 | 2,945 | 3.76 |
 | 24 | 6.83 to 6.83 |  |  |  | 3.79 |
 
+- **The last column** is the process's own CPU so far (0.01 s at the first sample, 3.79 s at the stop
+  sample), and the day's 3.78 s, below, is what it used between them.
 - **The hour the heap stopped:** hour 10. The heap's allocated bytes rose about 235 KiB an hour, from
   538 KiB at the start to 2,875 KiB at hour 10, then held: 2,880 KiB from hour 11 to hour 13, and
   2,888 KiB (2,945 blocks) from hour 14 to the end. That is SQLite's default page cache, about 2 MB a
