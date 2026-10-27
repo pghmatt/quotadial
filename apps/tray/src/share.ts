@@ -59,7 +59,7 @@ const PROPERTIES = {
   /** A chart's line and the heatmap's squares. */
   line: "--bar-normal",
   /** The dashed line at 90%. */
-  limit: "--bar-warning",
+  limit: "--chart-limit",
 } as const;
 
 /** The colours and font the picture takes from the window's stylesheet, and the theme it is in. */

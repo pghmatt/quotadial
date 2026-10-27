@@ -442,7 +442,7 @@ test("the picture's look is read from the stylesheet's own properties in each th
     base: "--chart-base",
     top: "--chart-top",
     line: "--bar-normal",
-    limit: "--bar-warning",
+    limit: "--chart-limit",
   };
   try {
     for (const [theme, colours] of themes()) {

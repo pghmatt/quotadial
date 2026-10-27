@@ -37,6 +37,8 @@
   /* A chart's hairline at 0%, and its faint line at 100%. */
   --chart-base: rgb(0 0 0 / 22%);
   --chart-top: rgb(0 0 0 / 8%);
+  /* A chart's dashed line at 90%, in History and in the picture to share, which read this one colour. */
+  --chart-limit: #ff9f0a;
   --focus: #0071e3;
   /* The edge of a text field, 3:1 against the ground and a card. */
   --field: #78787d;
@@ -880,7 +882,7 @@ html.solid input[type="checkbox"] {
 }
 
 .chart .limit {
-  stroke: var(--bar-warning);
+  stroke: var(--chart-limit);
   stroke-width: 1;
   stroke-dasharray: 3 3;
   vector-effect: non-scaling-stroke;
