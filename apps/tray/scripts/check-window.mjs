@@ -29,6 +29,12 @@
 // - what the window holds is as wide when its scrolling part scrolls as when it does not, in a Chrome
 //   whose scroll bars take room as Windows' and Linux's do, with the cards the same distance from
 //   each side and in line with the toolbar's labels (D-136);
+// - a window's share is one token (the manager on #73, 2026-10-27): no share, such as 64%, is ever
+//   drawn on two lines, whichever label is beside it, which wraps instead: the number under the
+//   summary, each window's share in an account and the latest and highest share in each History
+//   chart's caption, at 100% and 200% zoom and on at 300% and 500%, and every figure and its sign
+//   anywhere in the window's text at 100% and 200%, judged by each share's own line boxes
+//   (whole-shares.mjs);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -68,6 +74,7 @@ import { waitForScrollEnd } from "./quiet.mjs";
 // types), so the check holds the drawing to it.
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
 import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { PLACES, SHARES, expectedShares, lineVerdicts } from "./whole-shares.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -914,11 +921,18 @@ async function checkView(view, panel, operate, copy, light) {
     const cut = await view.evaluate(CUT_OFF);
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
     await checkFrame(view, zoom);
+    await checkShares(view, copy, panel, zoom);
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
       await checkSources(view, copy, zoom);
     }
+  }
+  // A share is held whole past 200% too, which the other checks stop at.
+  for (const zoom of SHARE_ZOOMS_PAST_200) {
+    await view.zoom(zoom);
+    await view.settle();
+    await checkShares(view, copy, panel, zoom);
   }
   await view.zoom(1);
   // What the app is told does not change with the theme, nor does how the window scrolls: once.
@@ -1163,6 +1177,35 @@ async function checkSummary(view, copy, zoom) {
   check(label, Math.floor(window.used_pct) !== meter.percent && `the copy's number ${meter.percent}% is not its fullest window's`);
   check(label, !summary.text.includes(window.label) && `the line under the number does not name the window, ${window.label}`);
   check(label, !summary.text.includes(named) && `the line under the number does not name the account, "${named}"`);
+}
+
+/**
+ * The zooms past 200%, where the other checks stop, that a share is held whole at as well: 300%,
+ * where the page scrolls as one, and 500%, which the app zooms to and on past, where a window is
+ * too narrow for almost anything and a share is cut off at its edge, which is not broken.
+ */
+const SHARE_ZOOMS_PAST_200 = [3, 5];
+
+/**
+ * A window's share is one token (the manager's decision on #73, 2026-10-27): such as 64%, it is
+ * never drawn on two lines, as "64" over "%", whatever label is beside it, which wraps instead.
+ * In each view at each zoom, the places the window draws a share (the number under the summary,
+ * each window's share in the accounts, the latest and highest in each History chart's caption)
+ * hold exactly the shares the copy has, in order, so that a check that finds none cannot pass; and,
+ * at 100% and 200%, every figure and its sign anywhere in the window's text is held to one line
+ * too, so that a place the window comes to draw one in, which the list of places does not name, is
+ * held as well. Each share is judged by its own line boxes (whole-shares.mjs).
+ */
+async function checkShares(view, copy, panel, zoom) {
+  const label = `${view.label}, shares at ${Math.round(zoom * 100)}%`;
+  const places = await view.evaluate(SHARES(PLACES));
+  const written = places.map((share) => share.text);
+  const wanted = expectedShares(copy, panel);
+  check(label, written.join(" ") !== wanted.join(" ") && `the window writes the shares ${JSON.stringify(written)}, not the ${JSON.stringify(wanted)} its copy has`);
+  const everywhere = zoom <= 2 ? await view.evaluate(SHARES("main")) : places;
+  for (const verdict of lineVerdicts(everywhere)) {
+    check(label, verdict);
+  }
 }
 
 /** The space between two windows of a card, in CSS pixels, as style.css sets it. */
@@ -2430,7 +2473,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
