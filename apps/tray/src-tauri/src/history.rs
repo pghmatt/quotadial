@@ -1,12 +1,15 @@
 //! The history view (D-095): each shown account's windows charted over the last 7 or 30 days, a
 //! heatmap of when it was used by hour of the day, and an export of every reading as CSV. It also
 //! carries what the window needs to draw a picture of an account's history to share (D-115): each
-//! account's label, the days covered, and on QuotaDial Free the line said in the buttons' place.
+//! account's label, the days covered, and on QuotaDial Free the line said in the buttons' place;
+//! and the marks under the charts that say where the calendar's days or weeks begin (D-143).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, TimeZone, Timelike, Utc};
+use chrono::{
+    DateTime, Datelike, NaiveDate, NaiveTime, TimeDelta, TimeZone, Timelike, Utc, Weekday,
+};
 use quotadial_core::{ProFeature, Tier, WindowKind, text};
 use quotadial_daemon::{History, Series, SeriesQuery, write_csv};
 use serde::Serialize;
@@ -28,11 +31,26 @@ pub struct HistoryView {
     /// The days the view covers, as people write them, such as "19 to 25 October 2026": from the
     /// period's first day, or the history's when it began since, to today.
     pub dates: String,
+    /// Where the calendar's days or weeks begin along the charts, and the words under them (D-143):
+    /// one list for every chart of the view, which all span the same period, so the window draws it
+    /// and works nothing out.
+    pub marks: Vec<Mark>,
     pub accounts: Vec<AccountHistory>,
     /// On QuotaDial Free, the line saying a picture of an account's history to share is part of
     /// QuotaDial Pro ([`ProFeature::ShareImage`]), which the view shows once where the Share image
     /// buttons would be; `None` on Pro, which shows them (D-100, D-115).
     pub share_left_out: Option<String>,
+}
+
+/// A mark under History's charts (D-143): a tick on each chart's baseline where a day, or over 30
+/// days a week, begins, or a word in the row under each card's last chart, such as a day's initial
+/// or the date at one end of the period.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Mark {
+    /// Its place along the charts, from 0 to 1, as a reading's is ([`WindowChart::points`]).
+    pub along: f64,
+    /// The word, such as "M" or "27 Sep"; empty for a tick, which carries none.
+    pub word: String,
 }
 
 /// One account's history.
@@ -142,6 +160,7 @@ pub fn view<Tz: TimeZone>(
         days,
         span,
         dates: dates(first_day, today),
+        marks: marks(days, start, now, zone),
         accounts,
         share_left_out: (!tier.allows(ProFeature::ShareImage))
             .then(|| ProFeature::ShareImage.line()),
@@ -291,24 +310,35 @@ fn account<Tz: TimeZone>(
     }
 }
 
+/// Where `at` falls along charts that span `start` to `now`, from 0 to 1, in whole seconds: one
+/// rule for a reading's place and a mark's, so a tick and a reading at the same moment are drawn at
+/// the same place (D-143).
+fn along(at: DateTime<Utc>, start: DateTime<Utc>, now: DateTime<Utc>) -> f64 {
+    let span = (now - start).num_seconds().max(1) as f64;
+    ((at - start).num_seconds() as f64 / span).clamp(0.0, 1.0)
+}
+
 fn chart(series: &Series, since: DateTime<Utc>, now: DateTime<Utc>, period: &str) -> WindowChart {
-    let span = (now - since).num_seconds().max(1) as f64;
     let readings = &series.readings;
     let step = readings.len().div_ceil(CHART_POINTS).max(1);
     let mut points: Vec<[f64; 2]> = readings
         .iter()
         .step_by(step)
         .map(|point| {
-            let along = (point.fetched_at - since).num_seconds() as f64 / span;
-            [along.clamp(0.0, 1.0), point.used_pct.clamp(0.0, 100.0)]
+            [
+                along(point.fetched_at, since, now),
+                point.used_pct.clamp(0.0, 100.0),
+            ]
         })
         .collect();
     // The latest reading always ends the line.
     if let Some(last) = readings.last()
         && !(readings.len() - 1).is_multiple_of(step)
     {
-        let along = (last.fetched_at - since).num_seconds() as f64 / span;
-        points.push([along.clamp(0.0, 1.0), last.used_pct.clamp(0.0, 100.0)]);
+        points.push([
+            along(last.fetched_at, since, now),
+            last.used_pct.clamp(0.0, 100.0),
+        ]);
     }
     let latest = readings.last().map_or(0.0, |point| point.used_pct);
     let highest = readings
@@ -412,6 +442,93 @@ fn day_label(day: NaiveDate) -> String {
     day.format("%a %-d").to_string()
 }
 
+/// The marks under charts that span `start` to `now`, for a period of `days`, in the days of
+/// `zone`, the heatmap's, so a tick is where one of its rows begins (D-143).
+///
+/// The ticks mark the calendar: over a week, each day's start, and over a longer period each
+/// week's, Monday's, wherever one falls inside the period, however near either end. The words: over
+/// a week, each day's initial, centred in the part of the day the period holds, for a whole day,
+/// and for a part at either end only when that is at least half its day, so that none is centred in
+/// a sliver; over a longer period, the dates of the period's first and last days at its two ends,
+/// or the one date at its start when it holds a single day. The period is the charts' own, from
+/// `since`, or the first reading of a younger history, to now, and is not moved to whole days.
+fn marks<Tz: TimeZone>(
+    days: u32,
+    start: DateTime<Utc>,
+    now: DateTime<Utc>,
+    zone: &Tz,
+) -> Vec<Mark> {
+    if now <= start {
+        return Vec::new();
+    }
+    let by_day = days <= 7;
+    let first = start.with_timezone(zone).date_naive();
+    // The day of the period's last moment: a period that ends as a day begins holds none of it.
+    let last = (now - TimeDelta::nanoseconds(1))
+        .with_timezone(zone)
+        .date_naive();
+    let mut marks = Vec::new();
+    for day in first.iter_days().take_while(|day| *day <= last) {
+        let Some(begins) = day_start(day, zone) else {
+            continue;
+        };
+        if begins > start && begins < now && (by_day || day.weekday() == Weekday::Mon) {
+            marks.push(Mark {
+                along: along(begins, start, now),
+                word: String::new(),
+            });
+        }
+        let Some(ends) = day.succ_opt().and_then(|next| day_start(next, zone)) else {
+            continue;
+        };
+        // The part of the day the period holds, which is all of it but at the period's ends.
+        let (from, to) = (begins.max(start), ends.min(now));
+        let held = to - from;
+        if by_day && held > TimeDelta::zero() && held * 2 >= ends - begins {
+            marks.push(Mark {
+                along: along(from + held / 2, start, now),
+                word: initial(day),
+            });
+        }
+    }
+    if !by_day {
+        marks.push(Mark {
+            along: 0.0,
+            word: short_date(first),
+        });
+        if last > first {
+            marks.push(Mark {
+                along: 1.0,
+                word: short_date(last),
+            });
+        }
+    }
+    marks.sort_by(|a, b| a.along.total_cmp(&b.along));
+    marks
+}
+
+/// When `day` begins in `zone`, as the heatmap counts a day there: at its midnight, or where a
+/// clock change skips midnight, at the first moment the day has, looked for a quarter of an hour
+/// at a time over its first three hours. `None` for a day the zone gives no start in that time.
+fn day_start<Tz: TimeZone>(day: NaiveDate, zone: &Tz) -> Option<DateTime<Utc>> {
+    let midnight = day.and_time(NaiveTime::MIN);
+    (0..=12).find_map(|quarter| {
+        zone.from_local_datetime(&(midnight + TimeDelta::minutes(15 * quarter)))
+            .earliest()
+            .map(|at| at.with_timezone(&Utc))
+    })
+}
+
+/// A day's initial, the first letter of its name as the heatmap writes it: "M" for a Monday.
+fn initial(day: NaiveDate) -> String {
+    day.format("%a").to_string().chars().take(1).collect()
+}
+
+/// A day as the marks of a month write it, such as "27 Sep".
+fn short_date(day: NaiveDate) -> String {
+    day.format("%-d %b").to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -443,6 +560,7 @@ mod tests {
         );
     }
 
+    use chrono::FixedOffset;
     use quotadial_core::{Account, Snapshot, Source, Status, Window};
 
     use super::*;
@@ -796,6 +914,343 @@ mod tests {
             chart.points.len()
         );
         assert_eq!(chart.points.last().map(|point| point[1]), Some(99.9));
+    }
+
+    /// Holds `marks` to `expected`, each `(along, word)`, in order, each place to within a
+    /// thousand-millionth.
+    fn assert_marks(marks: &[Mark], expected: &[(f64, &str)]) {
+        let found: Vec<(f64, &str)> = marks
+            .iter()
+            .map(|mark| (mark.along, mark.word.as_str()))
+            .collect();
+        assert_eq!(found.len(), expected.len(), "{found:?}");
+        for ((along, word), (wanted, said)) in found.iter().zip(expected) {
+            assert_eq!(word, said, "{found:?}");
+            assert!(
+                (along - wanted).abs() < 1e-9,
+                "{word:?} is at {along}, not {wanted}: {found:?}"
+            );
+        }
+    }
+
+    /// The marks of the `days` before `now`, in `zone`, for a history older than the period.
+    fn marks_before<Tz: TimeZone>(days: u32, now: &str, zone: &Tz) -> Vec<Mark> {
+        let now = at(now);
+        marks(days, now - TimeDelta::days(i64::from(days)), now, zone)
+    }
+
+    #[test]
+    fn over_7_days_a_tick_marks_each_midnight_and_an_initial_each_day_held_half_or_more() {
+        // Tuesday noon: the period begins at noon a week ago, so its first and last days are each
+        // half held, and each has its initial, centred in its half.
+        let week = |hours: f64| hours / 168.0;
+        assert_marks(
+            &marks_before(7, "2026-10-27T12:00:00Z", &Utc),
+            &[
+                (week(6.0), "T"),
+                (week(12.0), ""),
+                (week(24.0), "W"),
+                (week(36.0), ""),
+                (week(48.0), "T"),
+                (week(60.0), ""),
+                (week(72.0), "F"),
+                (week(84.0), ""),
+                (week(96.0), "S"),
+                (week(108.0), ""),
+                (week(120.0), "S"),
+                (week(132.0), ""),
+                (week(144.0), "M"),
+                (week(156.0), ""),
+                (week(162.0), "T"),
+            ],
+        );
+        // A minute after midnight: a tick a minute before the right edge, however near; the
+        // minute of today is a sliver, with no initial, and the first day, held all but a minute,
+        // has its initial in the middle of what is held.
+        let seconds = |seconds: i64| seconds as f64 / 604_800.0;
+        assert_marks(
+            &marks_before(7, "2026-10-27T00:01:00Z", &Utc),
+            &[
+                (seconds(43_170), "T"),
+                (seconds(86_340), ""),
+                (seconds(129_540), "W"),
+                (seconds(172_740), ""),
+                (seconds(215_940), "T"),
+                (seconds(259_140), ""),
+                (seconds(302_340), "F"),
+                (seconds(345_540), ""),
+                (seconds(388_740), "S"),
+                (seconds(431_940), ""),
+                (seconds(475_140), "S"),
+                (seconds(518_340), ""),
+                (seconds(561_540), "M"),
+                (seconds(604_740), ""),
+            ],
+        );
+        // A period that ends as a day begins: seven whole days, no tick at either edge.
+        let day = |days: f64| days / 7.0;
+        assert_marks(
+            &marks_before(7, "2026-10-28T00:00:00Z", &Utc),
+            &[
+                (day(0.5), "W"),
+                (day(1.0), ""),
+                (day(1.5), "T"),
+                (day(2.0), ""),
+                (day(2.5), "F"),
+                (day(3.0), ""),
+                (day(3.5), "S"),
+                (day(4.0), ""),
+                (day(4.5), "S"),
+                (day(5.0), ""),
+                (day(5.5), "M"),
+                (day(6.0), ""),
+                (day(6.5), "T"),
+            ],
+        );
+    }
+
+    #[test]
+    fn over_30_days_a_tick_marks_each_monday_and_the_two_ends_are_dated() {
+        let month = |hours: f64| hours / 720.0;
+        // From a Sunday at noon: five Mondays inside the period, the first twelve hours in.
+        assert_marks(
+            &marks_before(30, "2026-10-27T12:00:00Z", &Utc),
+            &[
+                (0.0, "27 Sep"),
+                (month(12.0), ""),
+                (month(180.0), ""),
+                (month(348.0), ""),
+                (month(516.0), ""),
+                (month(684.0), ""),
+                (1.0, "27 Oct"),
+            ],
+        );
+        // From a Monday at noon: that Monday began before the period, so four, never a fixed number.
+        assert_marks(
+            &marks_before(30, "2026-10-28T12:00:00Z", &Utc),
+            &[
+                (0.0, "28 Sep"),
+                (month(156.0), ""),
+                (month(324.0), ""),
+                (month(492.0), ""),
+                (month(660.0), ""),
+                (1.0, "28 Oct"),
+            ],
+        );
+        // A minute after midnight: today holds a minute and is still the last date.
+        let seconds = |seconds: i64| seconds as f64 / 2_592_000.0;
+        assert_marks(
+            &marks_before(30, "2026-10-27T00:01:00Z", &Utc),
+            &[
+                (0.0, "27 Sep"),
+                (seconds(86_340), ""),
+                (seconds(691_140), ""),
+                (seconds(1_295_940), ""),
+                (seconds(1_900_740), ""),
+                (seconds(2_505_540), ""),
+                (1.0, "27 Oct"),
+            ],
+        );
+        // From a Monday at midnight to a Wednesday at midnight: no tick at the left edge, and the
+        // last date is Tuesday's, since the period holds none of Wednesday.
+        let day = |days: f64| days / 30.0;
+        assert_marks(
+            &marks_before(30, "2026-10-28T00:00:00Z", &Utc),
+            &[
+                (0.0, "28 Sep"),
+                (day(7.0), ""),
+                (day(14.0), ""),
+                (day(21.0), ""),
+                (day(28.0), ""),
+                (1.0, "27 Oct"),
+            ],
+        );
+    }
+
+    #[test]
+    fn a_younger_history_is_marked_from_its_first_reading_as_its_charts_are() {
+        // The charts of a history younger than the period begin at its first reading, Monday 5 at
+        // 09:10, and so do the marks: here to Wednesday 7 at midnight, 38 h 50 min.
+        let (_dir, history) = history();
+        let now = at("2099-01-07T00:00:00Z");
+        let seconds = |seconds: f64| seconds / 139_800.0;
+
+        let week = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+        let month = view(&history, &Settings::default(), 30, now, &Utc, Tier::Pro).expect("reads");
+
+        assert_eq!(
+            week.accounts[0].windows[0].points[0][0], 0.0,
+            "the charts begin at the first reading"
+        );
+        // Monday is held from 09:10, more than half of it, so its initial is centred in that part.
+        assert_marks(
+            &week.marks,
+            &[
+                (seconds(26_700.0), "M"),
+                (seconds(53_400.0), ""),
+                (seconds(96_600.0), "T"),
+            ],
+        );
+        // No Monday begins inside the period; its two dates are the days of its two ends.
+        assert_marks(&month.marks, &[(0.0, "5 Jan"), (1.0, "6 Jan")]);
+        // A period inside one day has one date, at its start, and over a week no initial unless it
+        // is half a day.
+        let start = at("2099-01-07T09:00:00Z");
+        assert_marks(
+            &marks(30, start, at("2099-01-07T11:00:00Z"), &Utc),
+            &[(0.0, "7 Jan")],
+        );
+        assert_marks(&marks(7, start, at("2099-01-07T11:00:00Z"), &Utc), &[]);
+        assert_marks(
+            &marks(7, start, at("2099-01-07T21:00:00Z"), &Utc),
+            &[(0.5, "W")],
+        );
+        assert_marks(&marks(7, start, start, &Utc), &[]);
+    }
+
+    #[test]
+    fn a_tick_is_where_the_heatmap_begins_a_day_in_a_zone_east_and_one_west_of_utc() {
+        // Readings either side of the zone's midnight before Tuesday 6: 10% used in Monday's last
+        // second, 15% at Tuesday's first. The heatmap counts the first in Monday's row at 23:00 and
+        // the second in Tuesday's at 0:00; the tick is at that moment, where the reading at it is drawn.
+        let cases = [
+            (
+                FixedOffset::east_opt(5 * 3600 + 30 * 60).expect("an offset"),
+                "2099-01-05T18:30:00Z",
+                "2099-01-06T06:00:00Z",
+            ),
+            (
+                FixedOffset::west_opt(7 * 3600).expect("an offset"),
+                "2099-01-06T07:00:00Z",
+                "2099-01-06T19:00:00Z",
+            ),
+        ];
+        for (zone, midnight, now) in cases {
+            let dir = tempfile::tempdir().expect("temp dir");
+            let history = History::open(&dir.path().join("history.db")).expect("opens");
+            let midnight = at(midnight);
+            for (fetched_at, used) in [
+                (midnight - TimeDelta::hours(1), 10.0),
+                (midnight - TimeDelta::seconds(1), 20.0),
+                (midnight, 35.0),
+            ] {
+                let fetched_at = fetched_at.to_rfc3339();
+                history
+                    .record(
+                        &snapshot(
+                            "claude",
+                            &[(WindowKind::Session, "Session", used)],
+                            &fetched_at,
+                        ),
+                        at(&fetched_at),
+                    )
+                    .expect("records");
+            }
+
+            let view =
+                view(&history, &Settings::default(), 7, at(now), &zone, Tier::Pro).expect("reads");
+
+            let heatmap = &view.accounts[0].heatmap;
+            assert_eq!(
+                (heatmap.days[5].as_str(), heatmap.days[6].as_str()),
+                ("Mon 5", "Tue 6"),
+                "{zone}"
+            );
+            assert_eq!(
+                (heatmap.cells[5][23], heatmap.cells[6][0]),
+                (10.0, 15.0),
+                "{zone}"
+            );
+            let ticks: Vec<f64> = view
+                .marks
+                .iter()
+                .filter(|mark| mark.word.is_empty())
+                .map(|mark| mark.along)
+                .collect();
+            let at_midnight = view.accounts[0].windows[0].points[2][0];
+            assert_eq!(ticks, [at_midnight], "{zone}: {:?}", view.marks);
+            assert_eq!(
+                view.marks,
+                marks(7, midnight - TimeDelta::hours(1), at(now), &zone),
+                "{zone}: the view's marks are those of its charts' period"
+            );
+        }
+    }
+
+    #[test]
+    fn every_tick_is_a_midnight_of_the_zone_and_every_word_names_its_day() {
+        // Every 37 minutes over three weeks, in three zones, each worked out here from the zone's
+        // offset and not by the code it checks: over 7 days a tick at each midnight inside the
+        // period and nowhere else, and seven or eight initials, each in the day it names; over 30
+        // days a tick at each Monday's midnight and nowhere else, four or five of them, and the
+        // dates of the days the period's ends are in.
+        let initials = ["M", "T", "W", "T", "F", "S", "S"];
+        let months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        for zone in [
+            FixedOffset::east_opt(0).expect("an offset"),
+            FixedOffset::east_opt(5 * 3600 + 30 * 60).expect("an offset"),
+            FixedOffset::west_opt(7 * 3600).expect("an offset"),
+        ] {
+            let offset = TimeDelta::seconds(i64::from(zone.local_minus_utc()));
+            // The day of the zone a moment is in.
+            let local_day = |at: DateTime<Utc>| (at + offset).date_naive();
+            for step in 0..(21 * 24 * 60 / 37) {
+                let now = at("2026-10-01T00:00:00Z") + TimeDelta::minutes(37 * step);
+                for days in [7, 30] {
+                    let start = now - TimeDelta::days(i64::from(days));
+                    let span = (now - start).num_seconds() as f64;
+                    let moment = |mark: &Mark| {
+                        start + TimeDelta::seconds((mark.along * span).round() as i64)
+                    };
+                    let found = marks(days, start, now, &zone);
+                    let what = format!("{days} days to {now} in {zone}: {found:?}");
+                    assert!(
+                        found.windows(2).all(|pair| pair[0].along < pair[1].along),
+                        "{what}"
+                    );
+                    let ticks: Vec<DateTime<Utc>> = found
+                        .iter()
+                        .filter(|mark| mark.word.is_empty())
+                        .map(moment)
+                        .collect();
+                    // The zone's midnights: UTC's, less the offset.
+                    let midnights: Vec<DateTime<Utc>> = local_day(start)
+                        .iter_days()
+                        .map(|day| Utc.from_utc_datetime(&day.and_time(NaiveTime::MIN)) - offset)
+                        .skip_while(|at| *at <= start)
+                        .take_while(|at| *at < now)
+                        .filter(|at| days == 7 || local_day(*at).weekday() == Weekday::Mon)
+                        .collect();
+                    assert_eq!(ticks, midnights, "{what}");
+                    let words: Vec<&Mark> =
+                        found.iter().filter(|mark| !mark.word.is_empty()).collect();
+                    if days == 7 {
+                        assert!((7..=8).contains(&words.len()), "{what}");
+                        for mark in words {
+                            let day = local_day(moment(mark));
+                            let letter = initials[day.weekday().num_days_from_monday() as usize];
+                            assert_eq!(mark.word, letter, "{what}");
+                        }
+                    } else {
+                        assert!((4..=5).contains(&ticks.len()), "{what}");
+                        let date = |day: NaiveDate| {
+                            format!("{} {}", day.day(), months[day.month0() as usize])
+                        };
+                        let ends = [
+                            (0.0, date(local_day(start))),
+                            (1.0, date(local_day(now - TimeDelta::nanoseconds(1)))),
+                        ];
+                        let said: Vec<(f64, String)> = words
+                            .iter()
+                            .map(|mark| (mark.along, mark.word.clone()))
+                            .collect();
+                        assert_eq!(said, ends, "{what}");
+                    }
+                }
+            }
+        }
     }
 
     #[test]
