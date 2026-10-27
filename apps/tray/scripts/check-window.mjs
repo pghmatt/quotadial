@@ -5,12 +5,16 @@
 // - every control has a name, a role and its state for a screen reader, and every chart and meter
 //   has words;
 // - a panel takes the focus when it opens, and its Done gives it back to the button that opened it;
-// - no text is cut off, at 100% and at 200% zoom, with a very long account name;
+// - no text is cut off, at 100% and at 200% zoom, with text from outside as long as it gets in every
+//   place the window shows some, none of it with a space to break at: an address, a name given to an
+//   account, a plan, a window's label, a folder and a command in a problem, an incident, a webhook's
+//   host and an alert (the copy of ten accounts has each, D-139);
 // - each account is a card of its own, apart from the next and overlapping none, whose heading
 //   names it by the name given it or its provider's, with its address, visible inside the card,
 //   selectable and read as part of the heading, at 100% and at 200%;
 // - every command a message names between backticks, such as Claude's sign-in command, shows as
-//   code with no backtick left, and one click selects the whole command, to copy it;
+//   code with no backtick left, and one click selects the whole command, to copy it, at 100% and at
+//   200%, where a long one is drawn over several lines;
 // - the line under the summary's number shows what the app sent, and names the window and the
 //   account that set the number, by the name given it or its address;
 // - where and when an account's windows were read is said once, in a quiet caption under its
@@ -903,9 +907,6 @@ async function checkView(view, panel, operate, copy, light) {
     check(label, problem);
   }
 
-  if (panel === "accounts" || panel === "settings") {
-    await checkCommands(view, copy, panel);
-  }
   if (panel === "history" || panel === "settings") {
     await checkHeadings(view, copy, panel);
   }
@@ -926,6 +927,9 @@ async function checkView(view, panel, operate, copy, light) {
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
     await checkFrame(view, zoom);
     await checkShares(view, copy, panel, zoom);
+    if (panel === "accounts" || panel === "settings") {
+      await checkCommands(view, copy, panel, zoom);
+    }
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
@@ -1370,10 +1374,11 @@ async function checkSources(view, copy, zoom) {
  * names between backticks, such as Claude's sign-in command in an account's note, Gemini CLI's
  * `/model`, Antigravity's block in its sign-in panel or config.json's chmod in Settings, shows as
  * code, whole, with no backtick left in the message's words; and a click on it selects the whole
- * command, so it can be copied as it must be pasted.
+ * command, so it can be copied as it must be pasted, at 100% and at 200% zoom, where a long command,
+ * such as the `chmod` of a folder with a long name, is drawn over several lines (D-139).
  */
-async function checkCommands(view, copy, panel) {
-  const label = `${view.label}, commands`;
+async function checkCommands(view, copy, panel, zoom) {
+  const label = `${view.label}, commands at ${Math.round(zoom * 100)}%`;
   const said =
     panel === "accounts"
       ? [
