@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { AccountHeading } from "./account";
 import { usePanelFocus } from "./focus";
-import type { AccountHistory, Heatmap, HistoryView, WindowChart } from "./meter";
+import type { AccountHistory, Heatmap, HistoryView, Mark, WindowChart } from "./meter";
 import { ACCOUNT_HEADER, heatmapWords, lookOf, shareImage } from "./share";
 
 /** How far back the view can go, in days. */
@@ -100,6 +100,7 @@ export function HistoryPanel() {
           key={account.key}
           account={account}
           index={index}
+          marks={view.marks}
           onShare={view.share_left_out === null ? () => share(account) : null}
         />
       ))}
@@ -123,22 +124,29 @@ export function HistoryPanel() {
   );
 }
 
-/** One account's history, as a card headed as the popover heads the account's card (D-132). */
+/**
+ * One account's history, as a card headed as the popover heads the account's card (D-132). Every
+ * chart has the view's ticks, and the last has the marks' words under it, once for the card, since
+ * every chart in it spans the same period (D-143).
+ */
 function AccountCharts({
   account,
   index,
+  marks,
   onShare,
 }: {
   account: AccountHistory;
   index: number;
+  marks: Mark[];
   onShare: (() => void) | null;
 }) {
   const heading = `history-account-${index}`;
+  const last = account.windows.length - 1;
   return (
     <section class="account-history card" aria-labelledby={heading}>
       <AccountHeading who={account} id={heading} level={3} />
-      {account.windows.map((chart) => (
-        <Chart key={chart.label} chart={chart} />
+      {account.windows.map((chart, at) => (
+        <Chart key={chart.label} chart={chart} marks={marks} worded={at === last} />
       ))}
       <HeatmapGrid heatmap={account.heatmap} />
       {onShare && (
@@ -159,9 +167,12 @@ function AccountCharts({
  * A window's share used over the period, drawn with no plate under it: a hairline at 0%, a faint
  * line at 100% to show the scale, and a dashed line at 90%. Its caption names the window and says
  * the latest and the highest share, each of them one token that never breaks (`nobreak`), so that
- * it is the label, and the words around the shares, that wrap when there is little room.
+ * it is the label, and the words around the shares, that wrap when there is little room. A tick
+ * hangs from the baseline at each mark with no word, where a day, or over 30 days a week, begins,
+ * inside the figure the screen reader hears by its summary; and under a card's last chart (`worded`)
+ * are the marks' words (D-143).
  */
-function Chart({ chart }: { chart: WindowChart }) {
+function Chart({ chart, marks, worded }: { chart: WindowChart; marks: Mark[]; worded: boolean }) {
   const line = chart.points
     .map(([along, used]) => `${(along * 100).toFixed(2)},${(100 - used).toFixed(2)}`)
     .join(" ");
@@ -177,10 +188,52 @@ function Chart({ chart }: { chart: WindowChart }) {
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={chart.summary}>
         <line class="top" x1="0" y1="0" x2="100" y2="0" />
         <line class="base" x1="0" y1="100" x2="100" y2="100" />
+        {marks.map(
+          (mark) =>
+            mark.word === "" && (
+              // From the baseline down the chart's own height, of which the stylesheet draws the
+              // tick's length.
+              <line
+                class="tick"
+                key={mark.along}
+                x1={mark.along * 100}
+                y1="100"
+                x2={mark.along * 100}
+                y2="200"
+              />
+            ),
+        )}
         <line class="limit" x1="0" y1="10" x2="100" y2="10" />
         <polyline class="used" points={line} />
       </svg>
+      {worded && <MarkWords marks={marks} />}
     </figure>
+  );
+}
+
+/**
+ * The marks' words under a card's last chart (D-143), each at its place along the period: over 7
+ * days each day's initial, centred in the day, and over 30 the dates of the period's two ends, each
+ * flush with its end of the chart. Hidden from a screen reader, which hears the period in each
+ * chart's summary and each day in the heatmap's lines.
+ */
+function MarkWords({ marks }: { marks: Mark[] }) {
+  const words = marks.filter((mark) => mark.word !== "");
+  if (words.length === 0) {
+    return null;
+  }
+  return (
+    <div class="marks" aria-hidden="true">
+      {words.map((mark) => (
+        <span
+          key={mark.along}
+          class={mark.along <= 0 ? "start" : mark.along >= 1 ? "end" : undefined}
+          style={{ "--along": mark.along }}
+        >
+          {mark.word}
+        </span>
+      ))}
+    </div>
   );
 }
 

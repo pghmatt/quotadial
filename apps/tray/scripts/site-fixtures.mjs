@@ -6,6 +6,8 @@
 //
 //   node scripts/check-window.mjs --fixtures ./scripts/site-fixtures.mjs --screenshots <folder>
 
+import { marksOf } from "./fixture-marks.mjs";
+
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
 /** @typedef {import("../src/meter").HistoryView} HistoryView */
@@ -164,6 +166,9 @@ const DAY = 24 * 60 * 60 * 1000;
 /** Today, Tuesday 27 October 2026, the last day of every period History shows. */
 const TODAY = Date.UTC(2026, 9, 27);
 
+/** Now, at 14:10 today, when every period History shows ends, in UTC, the copy's zone. */
+const NOW = TODAY + (14 * 60 + 10) * 60 * 1000;
+
 /** Wednesday 21 October 2026, the first day of the example week, which every period repeats. */
 const WEEK_BEGINS = Date.UTC(2026, 9, 21);
 
@@ -313,6 +318,8 @@ function history(days) {
     days,
     span: `The last ${days} days.`,
     dates: dates(covered),
+    // As the app marks the period it charts (D-143).
+    marks: marksOf(days, NOW - days * DAY, NOW),
     accounts: ACCOUNTS.map((account) => accountHistory(account, covered)),
     share_left_out: null,
   };

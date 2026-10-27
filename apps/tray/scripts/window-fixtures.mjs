@@ -27,6 +27,11 @@
 // an account with many windows, where each share must be written whole in every system's own font,
 // and where one window, full since the middle of the period, puts its dashed 90% line over the soft
 // fill under its line for half the chart, to be judged there.
+// Each History view carries the marks the app would send for its period (D-143, fixture-marks.mjs):
+// the others' week ends on a Sunday at 14:00, and Crowded's on a Wednesday at noon, so its first and
+// last days are each held half a day and have an initial, a W, the widest, at each end of the chart.
+
+import { marksOf } from "./fixture-marks.mjs";
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -577,7 +582,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 /**
  * When each period the copies show ends, in UTC, the copies' zone: the week on Sunday 26 April 2026
  * and the month on Tuesday 19 May 2026, each at 14:00, so that both begin their heatmaps on Monday
- * 20 April, and each day is named from the calendar, as the app names it.
+ * 20 April and each is held in part at its two ends, as the app's periods are (D-143).
  */
 const NOW = { 7: Date.UTC(2026, 3, 26, 14), 30: Date.UTC(2026, 4, 19, 14) };
 
@@ -699,7 +704,7 @@ function accountHistory(account, days, first) {
 
 /**
  * History over the `days` before `now`, in milliseconds: the heatmap's days, from the last day back,
- * and the dates they cover, as the app writes them.
+ * the dates they cover and the marks of the period, as the app sends them (D-143).
  *
  * @param {7 | 30} days
  * @param {string | null} shareLeftOut
@@ -714,6 +719,7 @@ function history(days, shareLeftOut, accounts = ACCOUNTS, now = NOW[days]) {
     days,
     span: `The last ${days} days.`,
     dates: dates(first, today),
+    marks: marksOf(days, now - days * DAY, now),
     accounts: accounts.filter((account) => account.windows.length > 0).map((account) =>
       accountHistory(account, days, first),
     ),
@@ -972,13 +978,22 @@ const fullSince = (chart) => {
 };
 
 /**
+ * When the crowded account's periods end: Wednesday 29 April 2026 at noon. Over a week its first and
+ * last days are each held half a day, the least that has an initial, and both are Wednesdays, whose
+ * W is the widest initial, set as near the chart's edges as an initial goes; over a month it begins
+ * on a Monday, after that Monday's midnight, so it has four ticks where the other copies have five
+ * (D-143).
+ */
+const CROWDED_NOW = Date.UTC(2026, 3, 29, 12);
+
+/**
  * The crowded account's History over `days`.
  *
  * @param {7 | 30} days
  * @returns {HistoryView}
  */
 function crowdedHistory(days) {
-  const view = history(days, null, [CROWDED_ACCOUNT]);
+  const view = history(days, null, [CROWDED_ACCOUNT], CROWDED_NOW);
   return {
     ...view,
     accounts: view.accounts.map((account) => ({
