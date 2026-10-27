@@ -73,7 +73,9 @@ support@quotadial.com.
   the end.
 - **Contrast:** text has at least 4.5:1 against what is behind it, an account's card, the
   capsules on it and a field's hint included, and the focus ring, the edges of text fields and
-  History's lines at least 3:1, in both themes (WCAG 2.2 AA).
+  History's lines at least 3:1, in both themes (WCAG 2.2 AA). The picture to share holds its
+  charts' lines at 3:1 on its card too, in both themes, and the dashed 90% line on the soft fill
+  under a chart's line as well.
 - **Colour is never the only sign:** each bar has its percentage beside it in text, and the period
   History shows is bold as well as raised.
 - **Less motion:** with Reduce motion on (macOS, Windows or your desktop's setting), nothing in the
