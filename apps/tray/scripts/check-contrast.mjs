@@ -6,12 +6,13 @@
 // the pair, when one falls short.
 //
 // On macOS the system draws the popover material behind a transparent page; the page's own colour,
-// which Windows, Linux and the pictures show, is a grey like it, and stands in for it here. The
-// bars' fill against their track is left out: each bar has its percentage beside it in text, which
-// is checked, so the bar is never the only way to tell.
-import { readFileSync } from "node:fs";
-
-const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+// which Windows and Linux show, is a grey like it, and stands in for it here. The picture to share
+// is drawn on a material of its own choosing, not the page's (D-137), so the text and the chart line
+// it uses are held on that ground, `--picture` below, taken from src/share.ts. The bars' fill
+// against their track is left out: each bar has its percentage beside it in text, which is checked,
+// so the bar is never the only way to tell.
+import { MATERIAL } from "../src/share.ts";
+import { themes } from "./stylesheet.mjs";
 
 /** Each pair: the colour, the grounds under it from the bottom up, the ratio it needs, and where
  * the window uses it. */
@@ -37,19 +38,15 @@ const PAIRS = [
   ["--field", ["--background"], 3, "the edge of a text field"],
   ["--field", ["--background", "--card"], 3, "the edge of a text field in a card, in Settings"],
   ["--bar-normal", ["--background", "--card"], 3, "a chart's line in History, on its card"],
+  // The picture to share (D-137): the account's card on the picture's material, which is its own
+  // choice. It writes only in these five text colours, and draws its chart's line in the bars' blue.
+  ["--text", ["--picture", "--card"], 4.5, "the share picture's title, window names, shares and QuotaDial, on its card"],
+  ["--secondary", ["--picture", "--card"], 4.5, "the share picture's period and its dates, on its card"],
+  ["--muted", ["--picture", "--card"], 4.5, "the share picture's quotadial.com, highest share, 90% label and heatmap's words, on its card"],
+  ["--warning", ["--picture", "--card"], 4.5, "a share past 70% in the share picture, on its card"],
+  ["--high", ["--picture", "--card"], 4.5, "a share past 90% in the share picture, on its card"],
+  ["--bar-normal", ["--picture", "--card"], 3, "the share picture's chart line, on its card"],
 ];
-
-/** The custom properties in the first `:root` block after `from`. */
-function variables(from) {
-  const start = css.indexOf(":root", from);
-  const open = css.indexOf("{", start);
-  const close = css.indexOf("}", open);
-  const found = {};
-  for (const [, name, value] of css.slice(open + 1, close).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
-    found[name] = value.trim();
-  }
-  return found;
-}
 
 /** `value` as `[r, g, b, a]`, from `#rrggbb` or `rgb(r g b / a%)`. */
 function parse(value) {
@@ -85,15 +82,10 @@ function ratio(a, b) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-const light = variables(0);
-const darkAt = css.indexOf("prefers-color-scheme: dark");
-const themes = [
-  ["light", light],
-  ["dark", { ...light, ...variables(darkAt) }],
-];
-
 let failed = false;
-for (const [theme, colours] of themes) {
+for (const [theme, stylesheet] of themes()) {
+  // The picture's ground is its own, in the theme's name; the rest are the stylesheet's.
+  const colours = { ...stylesheet, "--picture": MATERIAL[theme] };
   for (const [foreground, grounds, needed, where] of PAIRS) {
     const missing = [foreground, ...grounds].find((name) => colours[name] === undefined);
     if (missing) {
@@ -113,7 +105,7 @@ for (const [theme, colours] of themes) {
   }
 }
 if (failed) {
-  console.error("Change the colour in src/style.css until each pair reaches its ratio.");
+  console.error("Change the colour in src/style.css, or the share picture's ground, MATERIAL in src/share.ts, until each pair reaches its ratio.");
   process.exit(1);
 }
 console.log(`Every colour pair meets WCAG AA in both themes (${PAIRS.length} pairs each).`);

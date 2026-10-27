@@ -7,6 +7,7 @@
 // Gemini CLI says rather than Claude's sentence (P-020), and one Antigravity's, whose windows come
 // from its CLI's status line and whose panel carries the block to add to Antigravity CLI's
 // settings and a limit with an amount and no share, the longest text the popover shows (D-126).
+// One is a Codex Pro account with a single window, whose picture to share has one column (D-137).
 // Commands sit between backticks, as QuotaDial writes them: Claude's sign-in command in an
 // account's note, Gemini CLI's `/model`, Antigravity's block in its sign-in panel and, in Free's
 // Settings, config.json's chmod; the window shows each as code (the manager's note on #85).
@@ -256,6 +257,35 @@ const ACCOUNTS = [
         fetched: "from local logs 9 min ago",
         unconfirmed: false,
         pace: null,
+        runs_out: false,
+      },
+    ],
+    extra_usage: null,
+    note: null,
+    sign_in: CODEX_SIGN_IN,
+  },
+  // An account with one window, as a Codex Pro sign-in has (its single weekly window, D-039): its
+  // picture to share has one column, the widest chart and the largest number, which no other
+  // account of the copy shows (D-137).
+  {
+    key: "codex:solo@example.com",
+    alias: "Personal",
+    summary: "Codex Personal: Weekly 63%",
+    provider: "Codex",
+    name: "solo@example.com",
+    plan: "Pro",
+    status: "ok",
+    ok: true,
+    fetched: "from the API 2 min ago",
+    windows: [
+      {
+        label: "Weekly",
+        used_pct: 63,
+        level: "normal",
+        resets: "resets in 3 d 5 h",
+        fetched: null,
+        unconfirmed: false,
+        pace: "at 0.4%/h, lasts until it resets",
         runs_out: false,
       },
     ],

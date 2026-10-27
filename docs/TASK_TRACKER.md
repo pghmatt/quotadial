@@ -231,6 +231,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Doctor's `[user]` mask and a user named `claude` | In review (PR #93, D-134) | Doctor hid every whole word that was the user's name, a command's own words and `~/.claude` included, so for a Mac user called `claude` it wrote `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.[user]`, and the same for `codex`, `status`, `history`, `daemon` and any other word it writes (queued by the manager's review of #85, and put next by the review of #87). `text::hide_user_in`, beside `tilde_in`, writes `[user]` only where the name is a whole name inside a place outside the home folder (a root, `/`, `\` or a drive, read as `tilde_in` reads a path; a word in single quotes whole; a web address no place), so a command, a sentence and a place that starts at `~` keep every word for any user; where it must guess it hides, and D-134 lists where; hidden again, a text is what it was, for any name; 21 new tests and five properties among them, 18 failing first against the old rule, and 28 of 31 hand-made breaks failing a test, the other three having broken code no test could tell from its absence, or repeated another |
 | A line once per card for a window's source and time, when every window agrees | Done (PR #89, D-135) | The manager's review of #86 (2026-10-26, 19:28 UTC) put it on the M6 queue, keeping each window's own line until then (#52: each window carries its own time and origin). The view model gives an account a `fetched`, such as "from the API 3 min ago", when every window was read from the same source at exactly the same moment, as the windows of one answer are, and then each window says only its reset and pace; when they differ, each says its own, as before. A card with one window says it for the card too, so the line does not jump when a limit leaves a card after its reset. The rule is `fetched_together` in `meter.rs`, not the window's script. The line is a quiet caption under the windows and above the sign-in, which opens below it, chosen from three placements shown in pictures; the window check's new `checkSources` holds it, and the site's test and pictures follow. #52 holds: the data, the API, the CLI, `doctor` and the MCP server still say it for each window |
 | A property test for the window's `codeSpans` | Done (PR #90) | The manager's note 1 on #86: `codeSpans` parses text that can carry words from outside (a provider's error reaches `problems` through `outside_text`), and CLAUDE.md asks of every such parser a test that no input breaks it, while `code.test.mjs` held its shape with three cases. A fourth feeds it 5,000 random strings a run of backticks, spaces, brackets and punctuation and checks only that the spans joined give back the text, from a small seeded generator with no dependency, its seed in every failure (`QUOTADIAL_TEST_SEED=<seed>` runs the same strings again), and failing if too few strings reach a command. Note 2 on #86, checked: `.window .detail::first-letter` and `.window .pace::first-letter` capitalise nothing from outside, since every detail line begins with `text::resets`' words and every pace line with `text::pace`'s, QuotaDial's own; it stays to keep in mind if a detail line ever starts with an address or a command |
+| The share picture in the cards' language | In review (PR #95, D-137) | History's Share image redrawn as the account's card on the material (the manager's decision on #73, 23:25 UTC): the ground is the picture's own choice, `#ececec` in light and `#2c2c2e` in dark (`MATERIAL` in `share.ts`, no longer whatever the page's `--background` is), with the card on it as the window draws one (its fill, its corners and padding drawn 10/3 times as large, its hairline edge in light), the title in the card's type, the charts with no plate (a faint line at 100%, a hairline at 0%, the dashed 90% line and its label, and the soft fill under the line, kept by the coordinator's call) and the heatmap's rows spaced for a week's names. The window check reads the PNG's own pixels (the corners and the margin are the material, the card's padding its fill, its edge the hairline, no plate behind a chart) and the contrast check holds the picture's text and chart line on its ground, each failing first on a picture broken on purpose; before and after pictures in both themes go in the pull request. No Rust changed |
 | Queued: the daemon's footprint over a day | Decided after the 24-hour run (ends 2026-10-27, 06:53 UTC) | Still rising at ten hours in PR D's run (#80): the heap's allocated bytes from 973 KiB at 1 hour 51 minutes to 2,835 KiB at 9 hours 51 minutes, mostly SQLite's page buffers, which its default cache of about 2 MB per connection should stop; if the day's run does not level off, find what else grows, or set `cache_size` |
 
 ## Kickoff
@@ -419,6 +420,149 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the share picture in the cards' language (D-137)
+
+- **The ask:** the manager's decision on #73 (2026-10-26, 23:25 UTC) on the builder's second pull request
+  of that day, and the coordinator's brief of the same day: redraw History's Share image in the window's
+  card language (#86, D-132, D-135), on a background that is chosen and named, not whatever the page
+  paints; the strings `shareStrings` lists, the size, the label's no-address rule and Rust's checks on
+  the PNG unchanged; before and after pictures in both themes; and the window check holding the new
+  ground and no plate behind a chart, each failing first on a picture broken on purpose. Built on
+  `feat/share-picture-cards` from `main` at 705286f (#93), in five commits: the check's copies gain an
+  account with one window (0336979); the stylesheet reader becomes one script (cb12d47); the redraw with
+  its drawing test, contrast pairs and ground verdict (294ae25); the pixel reader and its verdicts
+  (a2f4c58); and these records. In review as #95.
+- **The ground (D-137):** `#ececec` in light and `#2c2c2e` in dark, `MATERIAL` in `share.ts`, chosen for
+  the picture and read from nowhere. #86 had made the page's `--background` a grey like the material,
+  and the picture had taken it for its ground unchosen; the two are the same values today and are two
+  decisions now. The theme is `prefers-color-scheme`, the stylesheet's own test. The contrast check takes
+  the ground from `share.ts`; the window check keeps its own text of the decision in `share-picture.mjs`.
+- **What the picture is now** (`apps/tray/src/share.ts`, in CSS pixels of the 1200 by 675 picture, drawn
+  twice over): the account's card, 1120 by 595 at 40, 40, 33 px corners, 40 px of padding, filled with
+  `--card` over the ground, its 1.5 px hairline just inside the outline (`--card-edge`, clear in dark).
+  The heading: the label at 47 px semibold (the baseline at 118), the period and its dates under it at
+  25 px in `--secondary` (154), QuotaDial and quotadial.com at 24 and 20 px at the card's right on those
+  baselines. Each window: its name at 25 px semibold (204), its latest share at up to 84 px semibold (282),
+  its highest at 21 px (311, said only where it differs), its chart 58 px tall from 326, with a faint line
+  at 100%, a hairline at 0%, the dashed line at 90% and its label in the 48 px kept at the chart's right,
+  the line 3 px in `--bar-normal` and the soft fill under it at 16%. The heatmap: its words at 430, its
+  rows from 445, 18.9 px apart over a week, its hours at 598, 37 px above the card's foot. `chartBoxes`
+  and `CARD` are exported, so the window check looks where the drawing puts things.
+- **The first pictures found a flaw, and the check said so before I saw it:** with the card's padding the
+  week's rows were 15.3 px apart, and the check's contrast reading, which looks 15 px above each word,
+  found a day's name touching the one above it ("6" at 2.88:1 in light, "Mon " at 3.33:1 in dark). The
+  vertical rhythm was re-balanced (the heading and the windows 6 to 10 px higher, the chart 6 px shorter,
+  the heatmap's words 18 px higher and its foot 6 px lower) so that the rows are 18.9 px apart, and each
+  day's name is level with its row and held inside the grid, so a month's thin rows no longer push the
+  last name down towards the hours.
+- **Calls where the brief left room:**
+  - *No plan capsule.* The brief asked for it "if the label does not already say it". `AccountHistory`
+    carries no plan, and the label says it whenever no name is given; drawing it beside a name would add a
+    field to the view and a string to `shareStrings`, which the manager's decision keeps. Left for a later
+    pull request if it is wanted.
+  - *The mark stays inside the card,* at its top right on the title's and the period's baselines, as it
+    was at the top right of the picture, not on the material under the card; the card is the account, and
+    nothing is louder than the numbers.
+  - *Semibold, not bold,* for the title and the figures: the window's weights (`.percent` is 600) and the
+    card title the brief names. The period takes `--secondary`, the colour of the window's address line;
+    the picture's allowed text colours are now five, and the contrast check holds each.
+  - *The soft fill under each line stays* (the coordinator's call on the first pictures): History's window
+    draws the line alone, but a picture seen small in a feed needs the weight. D-137 names it as the
+    picture's own choice, with that reason. The faint line at 100% and the dashed line at 90% sit close at
+    each chart's top, as they do in History; the 30-day pictures do not make them crowded, so they stay.
+  - *The scale is 10/3:* the window's 336 px card in its 360 px popover, 12 px in from each side, drawn at
+    1120 px and 40 px in from the picture's sides. The 10 px corners are 33 px (33.3), and the 0.5 px
+    hairline is 1.5 px, three device pixels, so it lands on whole pixels and shows when the picture is
+    small.
+  - *A card with no margin is a verdict, not a crash:* the first broken picture in Chrome, a card out to
+    the picture's edges, stopped the check with a range error, since the margin it reads was outside the
+    picture. A place off the picture is now read from the nearest pixel on it, and a card closer than 8 px
+    to an edge says so, naming the edge; a test holds each edge in turn.
+  - *One more account in the check's copies,* a Codex Pro with a single weekly window, so that the picture
+    of one column (the widest chart, the largest figure) is checked in both themes; it is in the Free
+    copy too, which lists every account. The check passes with it on the unchanged picture.
+  - *The before pictures come from `main` itself:* `git archive origin/main apps/tray` into the
+    scratchpad (not a worktree), its dependencies linked, built and run there with
+    `check-window.mjs --share-images`, with the new fixtures file laid over its own (data only) so that
+    both pictures show the same accounts. The website's accounts (`--fixtures ./scripts/site-fixtures.mjs
+    --only ", history"`) give Claude Work, the README's; the check's own copy gives the account with one
+    window. All 2400 by 1350, kept outside the repository and attached to the pull request.
+  - *`scripts/stylesheet.mjs`* reads the stylesheet's two themes for `check-contrast.mjs`, which did it
+    itself, and for the drawing test, so that the reading is written once.
+- **Proof:**
+  - The window check now reads the PNG (`scripts/share-picture.mjs`): the four corners and the middle of
+    each margin are the material exactly; the card's padding is its fill laid over it; its outline is the
+    hairline; the empty band above each chart's dashed line is the card's fill, at up to six places where
+    its line is not; and the first thing drawn is the material over the whole picture.
+  - *Each failed first on a picture broken on purpose, in Chrome* (`--only "pro, light, history"`, then
+    dark where it differs): a ground one step off (`#ededed`: "has #ededed at its top left corner, not the
+    material #ececec", 18 of 2,704 checks failed); a ground never painted (44, "has #00000000 at its top
+    left corner"); a ground in the card's fill (44); no card (26, "has #ececec in the card's left padding,
+    not the card's fill #f9f9f9"); a card out to the picture's edges (6, "has the card 0 px from its left
+    edge, with no margin for the material to show in", after the crash above); a card of the wrong fill
+    (26); no hairline (6, "has #fdfdfd on the card's left edge, not its hairline #e8e8e8"); a plate behind
+    each chart (14, "draws a plate behind Weekly's chart: #e2e2e2 4% along its empty band above 90%,
+    where only the card's fill #f9f9f9 should be"); a plate over a chart's left half (6); and a text
+    colour the stylesheet does not have (50). In dark: the ground one step off (`#2d2c2e`, 18), no card
+    (26), a card out to the edges (6), a wrong fill (202) and a plate (14). The contrast check fails the
+    picture's pairs when its ground is chosen badly: with `#000000` for light, five pairs, `--secondary`
+    4.31:1 to the chart line 1.91:1; with `#808080`, `--high` and the line.
+  - `share-picture.test.mjs`, 22 tests with no browser: the reader gives back pixels made with each of the
+    five filters, RGB and RGBA, a PNG cut short anywhere or changed at any byte is refused, and each
+    verdict passes a picture drawn the way the window draws one in both themes and fails the one broken its
+    way, and only that one: every place a verdict reads is marked in turn and found by name. 32 hand-made
+    breaks of `share-picture.mjs` each failed a test; the first round of 18 left five standing, and the
+    tests were made to reach them (a Paeth predictor that never chose the pixel above and to the left, a
+    corner or padding spot not read, a chart's line never drawn, a ground of the right colour with no
+    opacity, a plate over only part of a chart).
+  - `share.test.mjs`, 14 tests on a canvas that records its calls: the material first, then the card, no
+    fill that could be a plate, the scale of each chart, the heading's size, weight and colour, the figures'
+    colours, five text colours and no others, nothing outside the card's padding or over anything else
+    (against a fixed width a character, and against the charts and the heatmap's squares), a long label
+    cut clear of the mark, no `@`, and the eleven properties `lookOf` asks the real stylesheet for, never
+    `--background`. 50 hand-made breaks of `share.ts` each failed a test; the first run left five
+    standing, and the tests were made to reach them (the hairline's width, which share got which colour, a
+    chart over writing, a heatmap past the padding, and the label's room next to the wider of the mark's
+    two lines).
+- **Counts:** the tray's `npm test` 45, up from 9 (22 and 14 new); the window check 7,781 checks over 16
+  views, up from 6,721 (984 for the new account on the picture as it was, 76 for the new checks: four
+  verdicts, and one more for each chart, in each of 12 pictures), and the website's accounts 2,858, up
+  from 2,818; the
+  contrast check 27 pairs a theme, up from 21; the window's JavaScript 36.4 KB, up from 35.5, of its 150.
+  No Rust changed, so the Rust counts are `main`'s own: the workspace 801 passed (1 ignored) and the
+  example build 798 (2 ignored), the app's `--lib` tests 99 in both builds.
+- **#52's list, gone down:** *found and fixed:* the crowded day names the contrast check caught on the
+  first pictures (above), and the check that stopped instead of failing on a card with no margin. *Held:*
+  every colour pair in both themes, the picture's among them (27); tabular figures; no address anywhere
+  (`shareStrings`, and a test that no drawn text of the made-up accounts holds an `@`); the privacy text,
+  "drawn on your machine and saved in your Downloads folder, and QuotaDial sends it nowhere", still true;
+  no new dependency, the PNG reader being a script on Node's `zlib`; the window's JavaScript within its
+  budget. *Left for later:* an account with readings and no use in the period shows its sentence ("No use
+  in session readings in this period.") over an empty foot of the card, as D-115's picture left that room
+  on the ground; the dashed 90% line's colour is 1.96:1 on the light card (5.64:1 in dark), as it is in the
+  window's History since before this, and the "90%" beside it says in text what it marks; the heatmap's
+  caption for a window named in brackets reads "(weekly (gemini))", D-115's words; the saved PNG has no
+  text alternative, as before; and the M6 row for #93 still says "In review" though #93 is on `main`.
+- **Checks run here:** `cargo fmt --check` in the workspace and the app; clippy with `-D warnings`
+  and `--locked` on the workspace and the app, default and `fake`; the workspace tests, default and
+  `fake`; the app's `--lib` tests, default and `fake`; `scripts/privacy.sh --check` and
+  `scripts/public-prd.sh --check`, all passing, run after the changelog line was in, since the app's
+  tests read it. The tray's `npm run build` (types, size, contrast), `npm test` and `npm run check:window`
+  on the final tree, and each of those on a clean export of the third commit's tree, which passes alone
+  (23 tests, 7,705 window checks). Before the go-ahead I ran only Node: the two new test files and
+  `check-contrast.mjs`, and the hand-made breaks.
+- **Not run:** Windows and Linux builds (CI's), `cargo deny`, `cargo audit` and actionlint (not on the
+  brief's list, and nothing they cover changed), `tests/icon_press.rs` (as briefed), the app itself, and
+  VoiceOver by hand.
+- **Safety on this Mac:** every cargo and npm run and every run in Chrome went through the
+  scratchpad's `safe.sh`: `QUOTADIAL_DATA_DIR`, `QUOTADIAL_FAKE_DATA_DIR`, `CLAUDE_CONFIG_DIR`,
+  `CODEX_HOME` and `GEMINI_CLI_HOME` in the scratchpad, no token in the environment, four build jobs,
+  one heavy job at a time; the Node-only unit tests and hand-made breaks, which read and write only the
+  repository and the scratchpad, were run directly. No provider's CLI ran, no sign-in or keychain item was read, and nothing touched
+  `~/Library/Application Support/quotadial`, the example's folders or the owner's Downloads folder; the
+  window check's stand-in saved the pictures in the scratchpad. The one other command line was `gh`,
+  reading #73's comment, #52 and the open pull requests.
 
 ### M6: doctor hides the user's name only where it names the user (D-134)
 

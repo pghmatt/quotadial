@@ -45,6 +45,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - QuotaDial's own messages, such as a history it could not open, a warning about `config.json` or where `quotadial daemon` keeps its history, write your home folder as `~` too, and `doctor` no longer cuts into a folder whose name only starts like it, such as `/Users/anna` beside `/Users/ann`.
 - The app's window says where and when an account's numbers were read once for the account, such as "From the API 3 min ago", in a line under its windows, when all of them were read from the same source at the same moment, where it said it under every window before; when they differ, each window still says its own.
 - The app's window is redesigned: each account is a card of its own, headed by the name you gave it or its provider, with its email address on a line under it; the line under the number says which account it is, as the tooltip of QuotaDial's icon now does; a command QuotaDial asks you to run shows as code that one click selects; and History, Settings and Help use the same cards.
+- The picture History's Share image saves now draws the account as the window does, as a card on a plain grey ground that is light or dark to match the window, with no grey plate behind its charts. It still shows the plan or the name you gave the account, never its email address.
 
 ### Fixed
 
