@@ -64,6 +64,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A window's share used, such as 64%, is never split over two lines: at 200% zoom a long window name beside it used to leave "64" over "%", and now the name wraps instead, and the number under the summary and the shares in History's captions never split either. The picture Share image saves no longer cuts a share short, such as "100…", for an account with many windows: its figures are set smaller to fit their columns.
 - History's captions no longer break a short word in the middle at 200% zoom, such as "Weekly" as "Wee" over "kly": a caption wraps between its words, and only a long name, address, folder, file name or command is still broken where it has to be to fit.
 - History says when an account was used in one sentence that names its window as the provider writes it, such as "When it was used, by hour, from Weekly (Gemini) readings", where it lowercased the name and put it in brackets of its own, as "(weekly (gemini))"; the picture Share image saves says the same, and a screen reader hears the same words. A note with nothing for you to fix, such as Gemini CLI's, is no longer in the warning colour.
+- A long email address that has to go over two lines now breaks before its @ or a dot, such as "a.very.long.account.name.that.keeps.going" over "@engineering.example.com", where it used to break in the middle of a word; copying it still gives the address exactly, and a screen reader still reads it whole.
 
 ## [0.2.0] - 2026-10-24
 

@@ -243,6 +243,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The window check's `--window-zoom` refuses what is not a zoom | Done (PR #103) | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139), and on #73 (11:26 UTC) a negative is tested too. `zoomOf` in `scripts/viewport.mjs` refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%, not "abc"`, and the check asks it before it makes a folder or looks for Chrome; a unit test and a run of the check itself with `abc`, `0`, `-2` and nothing after the flag hold it, the second failing first on `main`'s check. Check tooling only: no CHANGELOG line, no D |
 | Queued: the window check says a `CHROME` that is not there was not found | Queued | The manager's review of #103 (2026-10-27, 12:37 UTC), on what #103 found and left: a `CHROME` that is not there crashes the check with Node's unhandled `spawn ... ENOENT` and leaves its Chrome profile folder in the temporary folder. "Queue it as a tracker row, not its own PR. Fold it into the next PR that already touches Chrome's start in `check-window.mjs` or `chrome.mjs`: say Chrome was not found at that path, as the check does when it finds none, and remove the profile folder on the way out. Not before then." Queued in #104's records |
 | History's heatmap caption names its window as written, and a note that only explains is not a warning | Done (PR #106) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 1 of the four the coordinator found going over every Pro view in both themes, with the smaller "unsupported" note folded in as he allowed. The caption said "When it was used, by hour (weekly (gemini))", lowercasing a model's name inside brackets of its own, while the figure's name said "from Weekly (Gemini) readings"; `heatmapWords` (`share.ts`) now writes one sentence, "When it was used, by hour, from Weekly (Gemini) readings" (or "No use from Weekly (Gemini) readings in this period."), for the caption, the figure's name and the picture to share. Gemini CLI's note, with nothing for the person to fix, takes the detail colour; `checkNotes` holds every note's colour. The website's History pictures are captured again. Copy and colour only: one CHANGELOG line, no D |
+| An address breaks before its `@` and each `.`, never inside a word | Done (PR #107, D-141) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 2, approving the coordinator's proposal with three holds: wherever the window writes an address, a `<wbr>` before its `@` and before each `.`, never a character, so "a.very.long.account.name.that.keeps.going" goes over "@engineering.example.com" where it broke inside "engineering", with D-139's `overflow-wrap: anywhere` the last resort for a part wider than the line; each `<wbr>` hidden from screen readers, since Chrome names a heading, a field or a button with a space at each `<wbr>` it can see; in each account's heading in the popover and History, Settings' names, the line under the number and Help's support address. `checkAddresses` (`whole-addresses.mjs`) holds every address written whole and in order, no word of one broken where it fits its line, the headings' text and copy byte for byte and the address heard whole; it failed 174 of 20,446 checks on `main`'s window, 128 on one with a bare `<wbr>` and 83 of 4,179 on one with a zero-width space; the website's pictures captured again, changed only along each address |
 
 ## Kickoff
 
@@ -439,7 +440,8 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   the README shows `accounts-light` and `accounts-dark`: `node scripts/app-pictures.mjs` in `site/`, from
   the window check answering with the website's two example accounts (`site-fixtures.mjs`), each the whole
   of the window's content as tall as it needs, at 2x. Captured again when the window's drawing of those two
-  accounts changes (D-132 did; D-135 and D-136 did not change the two accounts pictures).
+  accounts changes (D-132 did; D-135 and D-136 did not change the two accounts pictures; D-141 did, by a fraction of a
+  pixel along each address, and all six were captured again).
 - **The README's first-run recording,** `docs/images/first-run.gif` (and the same as `first-run.mp4`): QuotaDial
   Example's first run, recorded through ScreenCaptureKit with Matt's menu bar set to stay visible, so it
   waits for a change worth his menu bar again (the manager's note on #91, 2026-10-26): it is captured again
@@ -454,6 +456,140 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: an address breaks before its `@` and before each `.`, never inside a word (D-141)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 13:26 UTC), item 2: "Addresses break before the `@` and before each
+  `.`. Approved, with three holds. (a) The break opportunities are `<wbr>` elements, never a zero-width space or any other
+  character: the address is selectable (`.address .name { user-select: text }`, D-132), and what a person copies must be the
+  address, byte for byte. (b) The window check holds that, too: the heading's `textContent` (and what a copy of the selection
+  gives) equals the address unchanged, beside the break check you describe. (c) The share picture is out of it ... A screen
+  reader reads through `<wbr>`, so the address is still heard whole; say so in the D. The D is D-141, and pictures of the long
+  address at 100% and 200% go in the PR." The proposal it approves: wherever the window writes an address, break opportunities
+  before the `@` and each `.`, D-139's `overflow-wrap: anywhere` kept as the last resort, and a window check that fails where a
+  word of an address is split though a break before its `@` or a dot would have let it fit. Built to the coordinator's brief on
+  `fix/address-breaks` from `main` at 2d98661, in three commits (the Many copy's long address, the fix, the check) and these
+  records; the coordinator put them onto 550cce0 (#106), where only the changelog and the tracker clashed, and left out a fourth
+  commit of the website's pictures (below). In review as #107.
+- **What it looked like,** in `main`'s window: in the pictures (the Pro copy, the system's own scroll bars) the popover's Codex card
+  wrote "a.very.long.account.name.that.keeps.going@engineeri" over "ng.example.com" at 100%, Settings' names "...going@eng" over
+  "ineering.example.com", and at 200% the card "a.very.long.account.na" over "me.that.keeps.going@" and on; in the window check's
+  Chrome, whose scroll bars take room, short addresses broke at 200% too, such as "dev@example.com" inside ".com", and Help's
+  "support@quotadial.com" inside "@quotadial". An address had no place to break but the one `anywhere` gives, wherever the line
+  ends.
+- **The fix:** `addressParts` (`src/address.ts`) gives the parts an address breaks between: a new one at each `@` and `.` after
+  its first character, none at its start, the parts joined the address. `Address` (`src/account.tsx`), the one way the window
+  writes an address, writes a `<wbr>` between the parts and no character, so a line too short for the address breaks there first:
+  "a.very.long.account.name.that.keeps.going" over "@engineering.example.com" at 100%, and at 200% "a.very.long.account",
+  ".name.that.keeps", ".going@engineering" and ".example.com". `overflow-wrap: anywhere` stays on those lines for a part wider
+  than the line, and `style.css`'s comment on the list says so. An address that fits its line is drawn as before, wider by about
+  a tenth of a pixel at most for each `<wbr>` (0.02 px for "dev@example.com", 1.1 px over the long address's ten, in Chrome).
+- **What a screen reader is told, found by the check:** a bare `<wbr>` is not read through in Chrome, WebView2's engine. The first
+  full run with them failed 128 of 20,446 checks, every one a name with a space at each `<wbr>`: each card's in the popover and
+  History ("Codex Pro stale a .very .long .account .name .that .keeps .going @engineering .example .com"), each of Settings' name
+  fields ("both @example .com Codex") and Help's button ("Write to support @quotadial .com"). A page of its own in the same
+  Chrome (156.0.8078.48) settled what removes it, with "dev@example.com" in a labelled section's heading, a button, a labelled
+  field and a line of text: a bare `<wbr>` gives "dev @example .com" in each of the four names; `role="none"` on it the same;
+  `aria-hidden="true"` on it gives "dev@example.com" in each, with the text and a selection's text unchanged; and the line of
+  text is the same pieces one after another in every case, `<wbr>` or not, since the parts are text nodes of their own. So each
+  `<wbr>` is `aria-hidden`: still a `<wbr>` element and no character, as hold (a) asks, and D-141 says the screen reader reads
+  through a `<wbr>` hidden from it. HTML-AAM gives `wbr` no role and maps it to nothing on UIA, a line break made there being a
+  line of its container's text on IA2 and ATK. WebKit's tree, which VoiceOver reads, is not checked here.
+- **Every place an address is written,** found from `meter.ts`'s types, the view model (`meter.rs`, `help.rs`), the providers'
+  messages and the components: each account's heading in the popover and in History, whose second line is the address
+  (`AccountHeading`, `.address .name`); Settings' names, where the address heads the account (`.name-choice .title`); the line
+  under the number, which names the account whose window sets the number by its address when it has no name given
+  (`Meter::headline`), where `WithAddresses` finds that address standing in the line with a space or its end on either side
+  (`addressRuns`, so "ops@example.com" is never found inside "devops@example.com"); and Help's "Write to support@quotadial.com".
+  The address line holds the account's own name, which for an account with no address is what names it (a Claude sign-in's file,
+  Keychain item or variable, Codex's "ChatGPT account", Gemini CLI's "Google account"): `Address` writes them all, and one with
+  no `@` and no `.` as it was. *Not in the window's text:* the tray's menu and tooltip (the system draws them, a line each, and
+  never wraps them), notifications, the picture to share (the account's label only, hold (c); nothing in `share.ts` changes),
+  and every note, problem, sign-in panel, incident, caption and cost, since no provider's message names an account's address.
+  A webhook's host in Settings is a host and keeps D-139's rule; the same `<wbr>` before each dot would suit hosts, and Help's
+  privacy text's "release-assets.githubusercontent.com" still breaks anywhere at 200%, a separate call.
+- **The checks that read an address, after the change,** each passing for its own reason: the check of cut-off text reads each
+  text node, so an address cut into parts is read a part at a time, each held inside the window; the cards' check reads the
+  `.name`'s `textContent`, which a `<wbr>` adds nothing to, and now says apart whether the address is missing, its text is not
+  the address or a copy of it is not, writing an invisible character as its code point; the heading's name for a screen reader
+  holds the address whole because the `<wbr>`s are hidden, as above; the line under the number, read as several entries once it
+  names an address, is found where its entries begin, one after another (`heardAt`), so the check of reading order still holds
+  that it comes before the accounts; `checkWords`' captions hold no address; and the picture to share draws no `@` and lists
+  none, as before, from strings that never held an address.
+- **The check** (`scripts/whole-addresses.mjs`, with `check-window.mjs`): `checkAddresses`, beside `checkShares` and
+  `checkWords`, at 100% and 200% in every view of every copy and both themes. It looks for every address the copy has
+  (`knownAddresses`) in the window's shown text, read by the block each piece is drawn in, as the checks of shares and caption
+  words read it; the addresses found must be exactly the ones the copy writes in that view, whole and in order
+  (`expectedAddresses`: the line under the number's, then each card's, each History account's or each Settings name's, or Help's
+  support address), so that a check that finds none cannot pass, and an address with a character added, which is not found
+  whole, fails there. Then each word of each address, the part between two places it may break (its start, each `@` and `.`, and
+  each space), is judged by its own line boxes: on two lines or more it is a verdict where it fits its block's line on its own,
+  since a break before its `@` or dot would have let it go to the next line whole, and not where it is wider, which the
+  stylesheet's last resort breaks and the check of cut-off text holds. Hold (b): the address in each heading in the popover and
+  History, its `textContent` and what a copy of a selection of the whole of it gives (`COPIED`: the selection's own text), is the
+  address byte for byte, each its own verdict, and Settings' title too; a verdict writes what draws nothing as its code point,
+  as "dev\u{200b}@example\u{200b}.com". And a screen reader is told it whole in each History card's name, each of Settings' name
+  fields' and Help's button's, as in each popover card's before.
+- **The Many copy** has an address whose name before the `@` is 64 characters with no dot, as long as one may be (the sandbox
+  account's): a part wider than the window at 100% and 200%, which only the last resort breaks, in the popover, History and
+  Settings, and the check of cut-off text holds it whole.
+- **Proof, the window:**
+  - *Failed first on `main`'s window:* the final check and fixtures against `main`'s window (its source stashed and built): 174 of
+    20,446 checks fail, every one an address broken inside a word, and nothing else: 12 at 100% ("@engineering" of the long
+    address in the popover's card and History's, in the Free, Many and Pro copies, both themes) and 162 at 200%, in the cards'
+    address lines (112), Settings' names (54), Help's button (6) and the crowded copy's line under the number (2), the words
+    ".com" 82 times, "@example" 20, "@engineering" and ".account" 18 each, ".keeps" 12, and "@quotadial" and ".example" 6 each.
+  - *A bare `<wbr>`:* 128 of 20,446, every one a screen reader's name with a space at each `<wbr>` (above).
+  - *A zero-width space in place of each `<wbr>`,* a break on purpose, built and checked over the Pro copy's four light views:
+    83 of 4,179 fail: the address's text and its copy in each popover card at 100% and 200% and each History card, Settings'
+    titles, the second lines, the addresses not written whole in every view, and every screen reader's name; the window put back
+    with `git checkout` and built again.
+  - *This branch:* 20,446 of 20,446 over 26 views; `main`'s own check on `main`'s window passes 18,918 over 26 views. The
+    website's eight views through the check: 4,760 of 4,760, where `main`'s window fails 6 of them with the new checks, at 200%
+    with the system's own scroll bars: Settings' "dev@example.com" and "you@example.com" inside ".com", and Help's address inside
+    "@quotadial", in both themes.
+- **Proof, the logic with no browser:** `scripts/address.test.mjs`, 13 tests, failing first with the module not there: where the
+  parts go, none at the start, an address with no dot or no `@`, what names an account with no address, a long part with no dot,
+  two dots together, and a property test over 5,000 random strings each run (the parts joined are the address; each after the
+  first starts at its `@` or dot); where an address stands in a line, never inside a longer word, the longest where two begin at
+  one place, with a property test; and that `account.tsx` writes each break as an `aria-hidden` `<wbr>` and holds no invisible
+  character or its escape. `scripts/whole-addresses.test.mjs`, 20 tests: an address's words; an address found across the nodes a
+  `<wbr>` cuts it into, and not when a zero-width space, a soft hyphen, a word joiner, a byte order mark or a space is added; one
+  inside a longer word or in brackets not standing; a property test over random cuts; the addresses each copy writes in each
+  view, the long one in the popover, History and Settings, the crowded copy's line under the number, the 64-character part;
+  the verdicts on the list, on a word broken where it fits (with `main`'s "@engineering" boxes) and not where it is wider, to half
+  a pixel, on a word with no box; `visibly`; the text and copy verdicts, a zero-width space failing each; `heardAt`; and the
+  page's own code against the stand-in page, `main`'s one-node address among it.
+- **Pictures,** in the scratchpad's `address-breaks/`, from a script of their own (not committed) that opens the built window with
+  the window check's own stand-in for the app, scrolled to the long address, with the system's own scroll bars:
+  `before.<view>.<zoom>.<theme>.png` from `main`'s window and `after.<view>.<zoom>.<theme>.png` from this branch's, for the
+  popover's Codex card, History's, Settings' names and Help's button, at 100 and 200, light and dark, 32 in all.
+- **The website's pictures** changed, only along each address: where a `<wbr>` parts the text its letters are placed a fraction
+  of a pixel apart from before (1,248 to 1,564 pixels a picture against `main`'s build, by at most 132 of 255, nothing else
+  moving), so the six were captured again in a commit of their own, which would also have taken up the noise `main`'s own build
+  already had against three of them (12 pixels by at most 7 of 255 in Settings', 316 by 1 in History's dark). The coordinator
+  left that commit out: nothing in them changes that a person can see, and the rule at the top of these notes leaves a picture
+  that looks as it did alone.
+- **Counts,** on the branch from 2d98661 (rebased onto 550cce0, `npm test` is 148, over #106's 115, and CI counts the window check with #106's checks in it): the tray's `npm test` 147, up from 114 on `main` at 2d98661 (13 in `address.test.mjs`, 20 in
+  `whole-addresses.test.mjs`); the window check 20,446 checks over 26 views, up from 18,918; the website's eight views 4,760; the
+  window's JavaScript 39.4 KB of its 150, up from 38.5; the contrast check 30 pairs a theme, as on `main`.
+- **Checks run,** through the scratchpad's `safe.sh`: each code commit built and unit-tested from a clean export (the first
+  passing on a second run, the flake below); the tray's `npm run build`, `npm test` and `npm run check:window`; the
+  website's `npm run check`, `npm test` (90) and `npm run build`, which renders the changelog's new line; `cargo fmt --check` for
+  the workspace and the app; clippy with `-D warnings` for the workspace and the app in the default and the example builds;
+  `scripts/privacy.sh --check`, `scripts/public-prd.sh --check` and the release scripts' tests (39, one skipped on a Mac as on
+  `main`). **Not run:** `cargo test` and the app's `--lib` tests, since no Rust changed; WebKit, which the window check does not
+  drive, so VoiceOver's reading is not seen; the real app and `tests/icon_press.rs`.
+- **#52's list, gone down:** *found and fixed:* an address broken inside a word, at 100% for a long one and at 200% for short ones
+  too, in the cards, Settings, the line under the number and Help's button; and, found by the check, a bare `<wbr>` making
+  Chrome name each card, field and button with a space at every break, which a screen reader would have read out. *Held:* the
+  address copied and its text byte for byte; nothing cut off at 100% or 200%, with a part of 64 characters; the share picture's
+  strings and pixels; colours, 30 pairs a theme; the bundle at 39.4 KB of 150; no dependency, no new address QuotaDial connects
+  to. *Found and left:* `chrome.test.mjs`'s "a Chrome that has not answered within the wait fails, saying what it said" gives
+  its stand-in Chrome, a Node process, 200 ms to write its first words, and on this Mac it failed 2 of 20 runs in this worktree
+  and 2 of 5 from a clean export of the first commit, the words coming after the timer; nothing here touches it, for the manager
+  to queue or not. *Left for later:* VoiceOver on WebKit, unseen; hosts, such as a webhook's and the privacy text's, still break
+  anywhere, which the same `<wbr>` before each dot would part as an address is parted, a call for the manager.
 
 ### M6: History's heatmap caption names its window as written, and a note that only explains is not a warning
 

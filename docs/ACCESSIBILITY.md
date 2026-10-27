@@ -38,7 +38,8 @@ support@quotadial.com.
   the keys can scroll them, and they become one as soon as the last control in them goes.
 - A command QuotaDial asks you to run, such as the one that signs a Claude Code folder in again,
   is shown as code, and one click selects all of it, ready to copy. An account's email address can
-  be selected and copied too.
+  be selected and copied too, and what is copied is the address exactly as it is, wherever its line
+  breaks.
 - Escape hides the window.
 
 ## With a screen reader
@@ -46,7 +47,7 @@ support@quotadial.com.
 - Every control says its name, what it is and its state: a box ticked or not, a disclosure open or
   closed, the period History shows.
 - Each account is a section named by its heading: the name you gave it, or its provider, then its
-  email address, so two accounts of one provider are told apart. The line under the number names
+  email address, read whole however its line breaks, so two accounts of one provider are told apart. The line under the number names
   the account it belongs to, and so does the tooltip of QuotaDial's icon.
 - Each limit's bar is read with its words, such as "Weekly, 91% used, resets in 2 d 4 h".
 - Where and when an account's limits were read is said once, after its last limit and before "What
@@ -64,7 +65,9 @@ support@quotadial.com.
 - **Larger text:** Command and = (Control and = on Windows and Linux) zooms the window in, Command
   and - zooms it out, and Command and 0 sets it back. The window grows with its text to its tallest
   and then scrolls; nothing is cut off at 200%, and a long account name, address, folder, file name or
-  command is broken where it must be to fit. A share used, such as 64%, is never split over two lines: the
+  command is broken where it must be to fit. An email address breaks before its @ or a dot, such as
+  "a.very.long.account.name.that.keeps.going" over "@engineering.example.com", and inside a word only
+  when that word is wider than the window. A share used, such as 64%, is never split over two lines: the
   name beside it wraps instead. A short word, such as "Weekly" in History's captions, is never
   broken either: a caption wraps between its words. The
   toolbar stays at the window's foot while the accounts scroll, at 200% too, where it and the line
@@ -96,7 +99,9 @@ support@quotadial.com.
   no text is cut off at 100% and 200%, that no share used, such as 64%, is drawn on two lines, at
   those and on to 500%, whatever name is beside it, that no word of four letters or more in a
   caption, such as "Weekly", is broken across two lines at 100% and 200%, that each account is a card of its own, apart from the next,
-  with its email address shown inside it and read as part of its heading, that the line under the
+  with its email address shown inside it and read as part of its heading, that an address breaks
+  only before its @ or a dot unless one part of it is wider than its line, and that its text, what a
+  copy of it gives and what a screen reader is told hold the address unchanged, that the line under the
   number names the account, that where and when an account's limits were read is said once for its
   card, in a quiet line under them and above its sign-in, which stays above it when the sign-in
   opens, or under each limit when they differ, and is told to a screen reader, that each command is
