@@ -63,8 +63,10 @@ support@quotadial.com.
 
 - **Larger text:** Command and = (Control and = on Windows and Linux) zooms the window in, Command
   and - zooms it out, and Command and 0 sets it back. The window grows with its text to its tallest
-  and then scrolls; nothing is cut off at 200%, and a long account name or address wraps. A share
-  used, such as 64%, is never split over two lines: the name beside it wraps instead. The
+  and then scrolls; nothing is cut off at 200%, and a long account name, address, folder, file name or
+  command is broken where it must be to fit. A share used, such as 64%, is never split over two lines: the
+  name beside it wraps instead. A short word, such as "Weekly" in History's captions, is never
+  broken either: a caption wraps between its words. The
   toolbar stays at the window's foot while the accounts scroll, at 200% too, where it and the line
   under it take about a third of the window. The window zooms on, to 500% and more, and past about
   210% they would take most of it, so there the whole window scrolls as one, with the toolbar at
@@ -86,11 +88,12 @@ support@quotadial.com.
 - CI opens the built window in Chrome on macOS, Windows and Linux
   ([`check-window.mjs`](../apps/tray/scripts/check-window.mjs)), over the accounts, Settings,
   History and Help, in both themes, for QuotaDial Free and Pro and for a Pro copy with ten
-  accounts, and over History for a Pro account with seven limits, with made-up accounts, one of them with a very long address. It presses Tab through every control and checks the order and the
+  accounts, and over History for a Pro account with seven limits, with made-up accounts, one of them with a very long address and others with a long name, plan, limit, folder, command and host, none with a space to break at. It presses Tab through every control and checks the order and the
   focus ring, presses each control with the keyboard and checks that it did something, checks
   what a screen reader is told of each, that a panel takes the focus and Done gives it back, that
   no text is cut off at 100% and 200%, that no share used, such as 64%, is drawn on two lines, at
-  those and on to 500%, whatever name is beside it, that each account is a card of its own, apart from the next,
+  those and on to 500%, whatever name is beside it, that no word of four letters or more in a
+  caption, such as "Weekly", is broken across two lines at 100% and 200%, that each account is a card of its own, apart from the next,
   with its email address shown inside it and read as part of its heading, that the line under the
   number names the account, that where and when an account's limits were read is said once for its
   card, in a quiet line under them and above its sign-in, which stays above it when the sign-in

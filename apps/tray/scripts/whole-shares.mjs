@@ -2,18 +2,21 @@
 // one token: drawn on two lines, as "64" over "%", it reads as two things, and at 200% zoom a long
 // label beside it left it so. The window check (check-window.mjs) finds, in the page, each share the
 // window writes and the boxes the browser draws it in; what it makes of them, and which shares the
-// window should be writing, is here, so that tests which need no browser hold it.
+// window should be writing, is here, so that tests which need no browser hold it. The same reading
+// of the page, by the block each piece of text is drawn in and the boxes of a range of it, holds a
+// caption's words whole as well (whole-words.mjs), which is why `matchesIn`, `PAGE_TEXT` and
+// `linesOf` are shared.
 
 /**
- * Where each share is in the text of one block, which `texts` gives as the text of its nodes, in
- * order: the share's own text and the node and offset it starts at and ends at, `to` being the
- * end, exclusive. A share runs on from one node to the next, since Preact writes "64" and "%" as
- * two text nodes. A share is a figure and its sign, such as "64%" or "6.22%".
+ * Where each match of `pattern`, a regular expression with the `g` flag, is in the text of one
+ * block, which `texts` gives as the text of its nodes, in order: the match's own text and the node
+ * and offset it starts at and ends at, `to` being the end, exclusive. A match runs on from one node
+ * to the next, since Preact writes "64" and "%" as two text nodes.
  *
- * The page runs this very function (`SHARES` puts its source in the page's code), so what the tests
- * hold is what the check runs; it names nothing outside itself.
+ * The page runs this very function (`SHARES` and `CAPTION_WORDS` put its source in the page's code), so what
+ * the tests hold is what the check runs; it names nothing outside itself.
  */
-export function sharesIn(texts) {
+export function matchesIn(texts, pattern) {
   const ends = [];
   let total = 0;
   for (const text of texts) {
@@ -23,18 +26,49 @@ export function sharesIn(texts) {
   // The node that holds the character at `position`, and where that node begins.
   const nodeAt = (position) => ends.findIndex((end) => position < end);
   const beginsAt = (node) => ends[node] - texts[node].length;
-  const shares = [];
-  for (const found of texts.join("").matchAll(/\d+(?:[.,]\d+)?%/g)) {
+  const matches = [];
+  for (const found of texts.join("").matchAll(pattern)) {
     const first = nodeAt(found.index);
     const last = nodeAt(found.index + found[0].length - 1);
-    shares.push({
+    matches.push({
       text: found[0],
       from: { node: first, offset: found.index - beginsAt(first) },
       to: { node: last, offset: found.index + found[0].length - beginsAt(last) },
     });
   }
-  return shares;
+  return matches;
 }
+
+/**
+ * Where each share is in the text of one block (`matchesIn`'s answer): a figure and its sign, such as
+ * "64%" or "6.22%". The page runs this too, beside `matchesIn`, which it names.
+ */
+export const sharesIn = (texts) => matchesIn(texts, /\d+(?:[.,]\d+)?%/g);
+
+/**
+ * The code, for the page, that reads its text by the block each piece is drawn in: `named`, an
+ * element as its tag and its classes; `shown`, whether an element is drawn and not only for a
+ * screen reader; `blockOf`, the nearest ancestor of a text node that is not drawn inline; and
+ * `addBlocks(root, blocks, seen)`, which adds to the Map `blocks` each block under `root` with its
+ * shown text nodes, in order, leaving out those already in the Set `seen`, which it adds them to.
+ */
+export const PAGE_TEXT = `
+    const named = (element) => element.tagName.toLowerCase() + [...element.classList].map((name) => '.' + name).join('');
+    const shown = (element) => element.getClientRects().length > 0 && !element.closest('.visually-hidden') && getComputedStyle(element).visibility !== 'hidden';
+    const blockOf = (node) => {
+      let element = node.parentElement;
+      while (element.parentElement && ['inline', 'contents'].includes(getComputedStyle(element).display)) element = element.parentElement;
+      return element;
+    };
+    const addBlocks = (root, blocks, seen) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (seen.has(node) || !shown(node.parentElement)) continue;
+        seen.add(node);
+        const block = blockOf(node);
+        blocks.set(block, [...(blocks.get(block) ?? []), node]);
+      }
+    };`;
 
 /**
  * The places a window's share is drawn as text, in the order the window writes them: the number
@@ -52,24 +86,13 @@ export const PLACES = ".percent, .row .used, .chart figcaption .detail";
  */
 export function SHARES(roots) {
   return `(() => {
+    const matchesIn = ${matchesIn};
     const sharesIn = ${sharesIn};
-    const named = (element) => element.tagName.toLowerCase() + [...element.classList].map((name) => '.' + name).join('');
-    const shown = (element) => element.getClientRects().length > 0 && !element.closest('.visually-hidden') && getComputedStyle(element).visibility !== 'hidden';
-    const blockOf = (node) => {
-      let element = node.parentElement;
-      while (element.parentElement && ['inline', 'contents'].includes(getComputedStyle(element).display)) element = element.parentElement;
-      return element;
-    };
+    ${PAGE_TEXT}
     const blocks = new Map();
     const seen = new Set();
     for (const root of document.querySelectorAll(${JSON.stringify(roots)})) {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (seen.has(node) || !shown(node.parentElement)) continue;
-        seen.add(node);
-        const block = blockOf(node);
-        blocks.set(block, [...(blocks.get(block) ?? []), node]);
-      }
+      addBlocks(root, blocks, seen);
     }
     const found = [];
     for (const [block, nodes] of blocks) {

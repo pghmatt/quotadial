@@ -5,12 +5,16 @@
 // - every control has a name, a role and its state for a screen reader, and every chart and meter
 //   has words;
 // - a panel takes the focus when it opens, and its Done gives it back to the button that opened it;
-// - no text is cut off, at 100% and at 200% zoom, with a very long account name;
+// - no text is cut off, at 100% and at 200% zoom, with text from outside as long as it gets in every
+//   place the window shows some, none of it with a space to break at: an address, a name given to an
+//   account, a plan, a window's label, a folder and a command in a problem, an incident, a webhook's
+//   host and an alert (the copy of ten accounts has each, D-139);
 // - each account is a card of its own, apart from the next and overlapping none, whose heading
 //   names it by the name given it or its provider's, with its address, visible inside the card,
 //   selectable and read as part of the heading, at 100% and at 200%;
 // - every command a message names between backticks, such as Claude's sign-in command, shows as
-//   code with no backtick left, and one click selects the whole command, to copy it;
+//   code with no backtick left, and one click selects the whole command, to copy it, at 100% and at
+//   200%, where a long one is drawn over several lines;
 // - the line under the summary's number shows what the app sent, and names the window and the
 //   account that set the number, by the name given it or its address;
 // - where and when an account's windows were read is said once, in a quiet caption under its
@@ -35,6 +39,12 @@
 //   chart's caption, at 100% and 200% zoom and on at 300% and 500%, and every figure and its sign
 //   anywhere in the window's text at 100% and 200%, judged by each share's own line boxes
 //   (whole-shares.mjs);
+// - a caption's words are whole (the manager on #73, 2026-10-27, 08:30 UTC): no word of four letters or
+//   more, such as "Weekly", in the line saying where an account's windows were read, a History chart's
+//   caption or a heatmap's is ever drawn on two lines, as "Wee" over "kly", at 100% and 200% zoom,
+//   unless it, with what is written against it, such as a model's name in its brackets, is wider
+//   than the caption, and the captions are held to the ones each copy has, in order, before any is
+//   judged (whole-words.mjs);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -77,6 +87,7 @@ import { viewportAt } from "./viewport.mjs";
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
 import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
+import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -903,9 +914,6 @@ async function checkView(view, panel, operate, copy, light) {
     check(label, problem);
   }
 
-  if (panel === "accounts" || panel === "settings") {
-    await checkCommands(view, copy, panel);
-  }
   if (panel === "history" || panel === "settings") {
     await checkHeadings(view, copy, panel);
   }
@@ -926,6 +934,10 @@ async function checkView(view, panel, operate, copy, light) {
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
     await checkFrame(view, zoom);
     await checkShares(view, copy, panel, zoom);
+    await checkWords(view, copy, panel, zoom);
+    if (panel === "accounts" || panel === "settings") {
+      await checkCommands(view, copy, panel, zoom);
+    }
     if (panel === "accounts") {
       await checkCards(view, copy, zoom);
       await checkSummary(view, copy, zoom);
@@ -1212,6 +1224,27 @@ async function checkShares(view, copy, panel, zoom) {
   }
 }
 
+/**
+ * A caption's words are whole (the manager's decision on #73, 2026-10-27, 08:30 UTC, D-139): in each
+ * caption the window draws (the line saying where and when an account's windows were read, each
+ * History chart's caption and each heatmap's), at 100% and 200%, no word of four letters or more,
+ * such as "Weekly", is drawn on two lines, as "Wee" over "kly", unless its run, the word with what
+ * is written against it, such as a model's name in its brackets, is wider than the whole caption:
+ * that has to break somewhere or be cut off, which the check of cut-off text holds, and the browser
+ * breaks it where the line ends, inside the word if that is where. The captions the window draws
+ * must be exactly the ones the copy has, in order, with the words each has, before any line is
+ * judged, so that a check that finds none cannot pass. Each word is judged by its own line boxes,
+ * and its run by its own (whole-words.mjs).
+ */
+async function checkWords(view, copy, panel, zoom) {
+  const label = `${view.label}, caption words at ${Math.round(zoom * 100)}%`;
+  const captions = await view.evaluate(CAPTION_WORDS(CAPTIONS));
+  check(label, captionVerdict(captions, expectedCaptions(copy, panel)));
+  for (const verdict of wordVerdicts(captions)) {
+    check(label, verdict);
+  }
+}
+
 /** The space between two windows of a card, in CSS pixels, as style.css sets it. */
 const WINDOW_GAP = 10;
 
@@ -1370,10 +1403,11 @@ async function checkSources(view, copy, zoom) {
  * names between backticks, such as Claude's sign-in command in an account's note, Gemini CLI's
  * `/model`, Antigravity's block in its sign-in panel or config.json's chmod in Settings, shows as
  * code, whole, with no backtick left in the message's words; and a click on it selects the whole
- * command, so it can be copied as it must be pasted.
+ * command, so it can be copied as it must be pasted, at 100% and at 200% zoom, where a long command,
+ * such as the `chmod` of a folder with a long name, is drawn over several lines (D-139).
  */
-async function checkCommands(view, copy, panel) {
-  const label = `${view.label}, commands`;
+async function checkCommands(view, copy, panel, zoom) {
+  const label = `${view.label}, commands at ${Math.round(zoom * 100)}%`;
   const said =
     panel === "accounts"
       ? [
@@ -2482,7 +2516,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares and caption words kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +

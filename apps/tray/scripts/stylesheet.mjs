@@ -1,6 +1,7 @@
-// The window's colours as src/style.css gives them, for the checks that hold them to something
-// (check-contrast.mjs, share.test.mjs): each theme's custom properties, light and dark, read from
-// the stylesheet itself so that a colour changed there is the colour checked.
+// What src/style.css says, for the checks that hold it to something: the window's colours
+// (check-contrast.mjs, share.test.mjs), each theme's custom properties, light and dark, and the
+// rules themselves (whole-shares.test.mjs, whole-words.test.mjs), read from the stylesheet itself so
+// that what is changed there is what is checked.
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
@@ -25,4 +26,16 @@ export function themes() {
     ["light", light],
     ["dark", { ...light, ...variables(darkAt) }],
   ];
+}
+
+/**
+ * The stylesheet as its rules, each with the selectors it is for and the declarations it makes, in
+ * the order it has them, comments left out. A rule inside a media query is one of them, with no
+ * trace of its condition, so a test that needs one reads the stylesheet's text.
+ */
+export function rules() {
+  return [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({
+    selectors: selector.split(",").map((name) => name.trim()),
+    declarations: body.split(";").map((declaration) => declaration.replace(/\s+/g, " ").trim()).filter(Boolean),
+  }));
 }

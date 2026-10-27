@@ -4,11 +4,13 @@
 // write. The page's own code runs here against a small stand-in for the page, and the browser's
 // part, which boxes a share is drawn in, is held by the window check itself.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { Script, runInNewContext } from "node:vm";
+import { Script } from "node:vm";
 
-import { PLACES, SHARES, expectedShares, isShare, lineVerdicts, linesOf, sharesIn } from "./whole-shares.mjs";
+import { inPage, tag, text } from "./page-stand-in.mjs";
+import { between, randomTexts, seeded, seedOfThisRun } from "./random-text.mjs";
+import { rules } from "./stylesheet.mjs";
+import { PAGE_TEXT, PLACES, SHARES, expectedShares, isShare, lineVerdicts, linesOf, matchesIn, sharesIn } from "./whole-shares.mjs";
 import { crowded, free, many, pro } from "./window-fixtures.mjs";
 
 test("a share is found whole across the nodes it is written in, with where it starts and ends", () => {
@@ -38,36 +40,9 @@ test("what is not a figure and its sign is not a share", () => {
   assert.deepEqual(sharesIn(["at 8.5%/h"]).map((share) => share.text), ["8.5%"]);
 });
 
-/**
- * A seeded generator of numbers from 0 up to 1 (mulberry32), as code.test.mjs has: the same seed
- * makes the same strings, so a failing input is found again from its seed.
- */
-function seeded(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
-    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
-    return ((mixed ^ (mixed >>> 14)) >>> 0) / 2 ** 32;
-  };
-}
-
-/** What a share's start and end give back: the text from one to the other, across the nodes. */
-function between(texts, from, to) {
-  if (from.node === to.node) {
-    return texts[from.node].slice(from.offset, to.offset);
-  }
-  return texts[from.node].slice(from.offset) + texts.slice(from.node + 1, to.node).join("") + texts[to.node].slice(0, to.offset);
-}
-
 test("however the text is cut into nodes, each share found is the text between its start and end, and none is missed", () => {
   // A new seed each run; the seed is in every failure, and QUOTADIAL_TEST_SEED=<seed> runs the same strings again.
-  const given = process.env.QUOTADIAL_TEST_SEED;
-  const seed = given === undefined ? Math.floor(Math.random() * 2 ** 32) : Number(given);
-  assert.ok(
-    Number.isInteger(seed) && seed >= 0 && seed < 2 ** 32,
-    `QUOTADIAL_TEST_SEED is "${given}", not a whole number from 0 to 2 ** 32 - 1`,
-  );
+  const seed = seedOfThisRun();
   const next = seeded(seed);
   // Figures and signs, which make shares, and what breaks one: a space, a line break, a letter, a
   // bracket, a stop, a comma, and a character that takes two UTF-16 units.
@@ -75,19 +50,8 @@ test("however the text is cut into nodes, each share found is the text between i
   const cases = 5000;
   let withShares = 0;
   for (let index = 0; index < cases; index += 1) {
-    let joined = "";
-    for (let at = Math.floor(next() * 24); at > 0; at -= 1) {
-      joined += pieces[Math.floor(next() * pieces.length)];
-    }
     // Cut at random places, in the middle of a share as often as not, leaving some nodes empty.
-    const texts = [];
-    let from = 0;
-    for (let cuts = Math.floor(next() * 6); cuts >= 0; cuts -= 1) {
-      const to = cuts === 0 ? joined.length : Math.min(joined.length, from + Math.floor(next() * (joined.length - from + 1)));
-      texts.push(joined.slice(from, to));
-      from = to;
-    }
-    texts[texts.length - 1] += joined.slice(from);
+    const texts = randomTexts(next, pieces);
     const where = `seed ${seed}, case ${index}, ${JSON.stringify(texts)} (QUOTADIAL_TEST_SEED=${seed} runs it again)`;
     const wanted = [...texts.join("").matchAll(/\d+(?:[.,]\d+)?%/g)].map((found) => found[0]);
     const found = sharesIn(texts);
@@ -211,89 +175,22 @@ test("a share of the picture is a figure and its sign, or 'highest' and one, and
   }
 });
 
-// A stand-in for the page, with as much of the DOM as the code `SHARES` makes asks for.
-
-/** A text node. */
-const text = (textContent) => ({ textContent, parentElement: null });
-
-/**
- * An element with `children`. Drawn `display` and `shown` (an element is shown when it and all above
- * it are) are what the page's own styles and layout would say.
- */
-function tag(name, { classes = [], display = "inline", shown = true } = {}, ...children) {
-  const element = {
-    tagName: name.toUpperCase(),
-    classList: classes,
-    style: { display, visibility: "visible" },
-    shown,
-    children,
-    parentElement: null,
-    get textContent() {
-      return children.map((child) => child.textContent).join("");
-    },
-    getClientRects() {
-      for (let above = element; above; above = above.parentElement) {
-        if (!above.shown) {
-          return [];
-        }
-      }
-      return [{}];
-    },
-    // The selectors the code asks with: a class, or a list of tags.
-    closest(selector) {
-      const wanted = selector.split(",").map((part) => part.trim());
-      for (let above = element; above; above = above.parentElement) {
-        if (wanted.some((part) => (part.startsWith(".") ? above.classList.includes(part.slice(1)) : above.tagName.toLowerCase() === part))) {
-          return above;
-        }
-      }
-      return null;
-    },
-  };
-  for (const child of children) {
-    child.parentElement = element;
-  }
-  return element;
-}
-
-/** Every text node under `node`, in order. */
-const textsUnder = (node) => (node.children ? node.children.flatMap(textsUnder) : [node]);
+// The page's own code, run against a stand-in for the page (page-stand-in.mjs).
 
 /**
  * What `SHARES(roots)` finds in a page whose roots are `roots`, with `drawnIn(start, end)` giving the
  * boxes a range from `start` to `end`, each `[node, offset]`, is drawn in.
  */
-function found(roots, drawnIn) {
-  const page = {
-    querySelectorAll: () => roots,
-    createTreeWalker: (root) => {
-      const nodes = textsUnder(root);
-      let at = 0;
-      return { nextNode: () => nodes[at++] ?? null };
-    },
-    createRange: () => {
-      const range = {
-        setStart: (node, offset) => (range.start = [node, offset]),
-        setEnd: (node, offset) => (range.end = [node, offset]),
-        getClientRects: () => drawnIn(range.start, range.end),
-      };
-      return range;
-    },
-  };
-  const result = runInNewContext(SHARES(".percent"), {
-    document: page,
-    getComputedStyle: (element) => element.style,
-    NodeFilter: { SHOW_TEXT: 4 },
-  });
-  // From another realm, as the page's own answer is.
-  return JSON.parse(JSON.stringify(result));
-}
+const found = (roots, drawnIn) => inPage(SHARES(".percent"), roots, drawnIn);
 
 test("the code for the page is valid, names the places it is given and carries the function the tests hold", () => {
   const code = SHARES(PLACES);
   assert.doesNotThrow(() => new Script(code));
   assert.ok(code.includes(JSON.stringify(PLACES)));
   assert.ok(code.includes(String(sharesIn)));
+  // What `sharesIn` calls, and what reads the page's text, are in the page's code too.
+  assert.ok(code.includes(String(matchesIn)));
+  assert.ok(code.includes(PAGE_TEXT));
 });
 
 test("in the page, a share written as two text nodes is one share, and its boxes are those of its range", () => {
@@ -367,17 +264,8 @@ test("in the page, what is not shown, or is for a screen reader only, is left ou
   assert.deepEqual(found([everything, open], drawn).map((share) => share.text), ["91%"]);
 });
 
-/** style.css as its rules, each with the selectors it is for and the declarations it makes. */
-function rulesOf(css) {
-  return [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({
-    selectors: selector.split(",").map((name) => name.trim()),
-    declarations: body.split(";").map((declaration) => declaration.replace(/\s+/g, " ").trim()).filter(Boolean),
-  }));
-}
-
 test("style.css keeps each share on one line, and a window's share its width, so the label beside it is what wraps", () => {
-  const rules = rulesOf(readFileSync(new URL("../src/style.css", import.meta.url), "utf8"));
-  const declaring = (selector) => rules.filter((rule) => rule.selectors.includes(selector));
+  const declaring = (selector) => rules().filter((rule) => rule.selectors.includes(selector));
   // The summary's number, a window's share and a share in History's caption.
   for (const selector of [".percent", ".row .used", ".nobreak"]) {
     const spaces = declaring(selector).flatMap((rule) => rule.declarations.filter((declaration) => declaration.startsWith("white-space")));
