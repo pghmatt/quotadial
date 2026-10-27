@@ -1310,17 +1310,18 @@ const PINNED_FROM = 300;
 
 /**
  * The least room, in CSS pixels, that what scrolls is left in a window that keeps its toolbar at its
- * foot, with the toolbar and the origin line at their tallest, at the check's narrowest width: a
- * card's heading and a window. At 200% zoom it is about 200, and in the shortest window that keeps
- * the toolbar, 300 px tall, about 170 (D-136).
+ * foot, with the toolbar and the origin line at their tallest, at the check's narrowest width: about
+ * a card's heading and a window. With a Mac's fonts it is 204 at 200% zoom and 169 in the shortest
+ * window that keeps the toolbar, 300 px tall; the floor is lower so that a wider font, as Windows
+ * and Linux have, wrapping the toolbar onto one more row, still meets it (D-136).
  */
-const ROOM = 160;
+const ROOM = 120;
 
 /**
  * In the page: how the window is held together: the window, the page's own scroll, the part that
  * scrolls with how far it is scrolled, and the footer with where it is, the line drawn along its
- * head and, for each button of its toolbar, where it is and whether a click at its middle would
- * reach it. A window with no part that scrolls of its own is read as one whose whole page is that
+ * head, where the origin line under its toolbar is and, for each button of its toolbar, where it
+ * is and whether a click at its middle would reach it. A window with no part that scrolls of its own is read as one whose whole page is that
  * part, which is how it scrolls.
  */
 const FRAME = `(() => {
@@ -1340,6 +1341,7 @@ const FRAME = `(() => {
     page: { top: page.scrollTop, height: page.scrollHeight },
     region: { ...rect(region), overflow: getComputedStyle(region).overflowY, top: region.scrollTop, height: region.scrollHeight, shown: region.clientHeight },
     footer: { ...rect(footer), line: getComputedStyle(footer).boxShadow },
+    origin: footer.querySelector('.origin') ? rect(footer.querySelector('.origin')) : null,
     buttons: [...footer.querySelectorAll('.toolbar > button')].map((button) => {
       const box = button.getBoundingClientRect();
       const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -1372,8 +1374,8 @@ function hairline(shadow) {
  * The toolbar stays at the window's foot while the accounts scroll above it (D-136, from the
  * owner's ask of 2026-10-26 to make the window more professional): in a window at least
  * `PINNED_FROM` tall, at each of five places along the scroll from the top to the end, every button
- * of the toolbar is inside the window and is what a click at its middle reaches, the toolbar has
- * not moved, the part that scrolls ends where the toolbar begins, so nothing is drawn under it, the
+ * of the toolbar and the line under it are inside the window, each button is what a click at its
+ * middle reaches, the toolbar has not moved, the part that scrolls ends where the toolbar begins, so nothing is drawn under it, the
  * page itself does not scroll but that part does, to its very end, with no animation, and a
  * hairline is drawn along the toolbar's head exactly while content is hidden below it; and that
  * part is left at least `ROOM` to scroll. In a shorter window everything scrolls as one, as it did
@@ -1407,6 +1409,7 @@ async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
     check(label, range > 1 && Math.abs(end.page.top - range) > 1.5 && `the page scrolls to ${end.page.top}, not to its end at ${range}`);
     check(label, end.buttons.some((button) => button.top < -0.5 || button.bottom > end.window.height + 0.5) && "the toolbar is not in the window at the end of the page");
     check(label, end.buttons.some((button) => !button.reachable) && "a click at the middle of a toolbar button at the end of the page would not reach it");
+    check(label, end.origin && (end.origin.top < -0.5 || end.origin.bottom > end.window.height + 0.5) && "the line saying where the numbers come from is not in the window at the end of the page");
     for (const along of [0, 1]) {
       check(label, hairline((await go(along)).footer.line) && "a line is drawn above the toolbar though the whole page scrolls as one");
     }
@@ -1421,6 +1424,7 @@ async function checkFrame(view, zoom, height = Math.round(HEIGHT / zoom)) {
     const names = now.buttons.map((button) => button.text).join(", ");
     check(label, now.buttons.some((button) => button.top < -0.5 || button.bottom > now.window.height + 0.5) && `the toolbar (${names}) is not inside the window at ${at}`);
     check(label, now.buttons.some((button) => !button.reachable) && `a click at the middle of a toolbar button (${names}) at ${at} would not reach it`);
+    check(label, now.origin && (now.origin.top < -0.5 || now.origin.bottom > now.window.height + 0.5) && `the line saying where the numbers come from is not inside the window at ${at}`);
     check(label, Math.abs(now.footer.top - top.footer.top) > 0.5 && `the toolbar moves at ${at}, from ${top.footer.top} to ${now.footer.top}`);
     check(label, now.region.bottom > now.footer.top + 0.5 && `the part that scrolls reaches ${(now.region.bottom - now.footer.top).toFixed(1)} px under the toolbar at ${at}`);
     check(label, (now.page.top !== 0 || now.page.height > now.window.height + 1) && `the page itself scrolls at ${at}, not only the accounts`);
