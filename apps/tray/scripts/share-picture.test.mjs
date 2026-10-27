@@ -10,8 +10,8 @@ import assert from "node:assert/strict";
 import { crc32, deflateSync } from "node:zlib";
 import { test } from "node:test";
 
-import { CARD, SHADING, chartBoxes } from "../src/share.ts";
-import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { CARD, SHADING, chartBoxes, heatBoxes } from "../src/share.ts";
+import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, heatVerdicts, pictureVerdicts } from "./share-picture.mjs";
 import { site } from "./site-fixtures.mjs";
 import { crowded } from "./window-fixtures.mjs";
 
@@ -767,4 +767,76 @@ test("a chart whose own line covers the whole of its 90% line leaves nothing to 
 test("a picture drawn for the other theme fails, whichever way round", () => {
   assert.match(pictureVerdicts(picture("dark"), wanted("light")).find(Boolean), /corner/);
   assert.match(pictureVerdicts(picture("light"), wanted("dark")).find(Boolean), /corner/);
+});
+
+/**
+ * A picture of the card's fill with `heatmap` drawn on it as the window draws one: a square in each
+ * hour's box (`heatBoxes`) with a cell, in the chart line's colour at the alpha its use gives, and
+ * none for an hour with no cell (D-144); then a faint square for each of `extra`, `[row, hour]`, and
+ * none for each of `skip`.
+ */
+function heatPicture(theme, heatmap, { extra = [], skip = [] } = {}) {
+  const want = wanted(theme);
+  const raster = new Raster(2400, 1350);
+  raster.fill(0, 0, 2400, 1350, want.fill.map((channel) => Math.round(channel)));
+  const { line } = dashColours(theme, want.fill);
+  const boxes = heatBoxes(heatmap.cells.length);
+  const paint = (row, hour, alpha) => {
+    const { x, y, width, height } = boxes[row][hour];
+    for (let down = Math.ceil(y * 2); down < Math.floor((y + height) * 2); down += 1) {
+      for (let across = Math.ceil(x * 2); across < Math.floor((x + width) * 2); across += 1) {
+        raster.lay(across, down, line, alpha);
+      }
+    }
+  };
+  heatmap.cells.forEach((hours, row) => {
+    hours.forEach((used, hour) => {
+      if (used !== null && !skip.some(([at, of]) => at === row && of === hour)) {
+        paint(row, hour, used > 0 ? 0.15 + (0.85 * used) / heatmap.most : 0.06);
+      }
+    });
+  });
+  for (const [row, hour] of extra) {
+    paint(row, hour, 0.06);
+  }
+  return decodePng(png(raster));
+}
+
+/** What a picture's heatmap must hold, as check-window.mjs works it out from `heatmap`. */
+const heatWanted = (theme, heatmap) => ({ ...wanted(theme), heat: { days: heatmap.days, cells: heatmap.cells, boxes: heatBoxes(heatmap.cells.length) } });
+
+test("a heatmap drawn with a square for each hour the period holds and none outside it passes, a week and a month, in both themes", () => {
+  for (const theme of ["light", "dark"]) {
+    for (const heatmap of [account.heatmap, crowdedWeek.heatmap, crowdedMonth.heatmap]) {
+      const verdicts = heatVerdicts(heatPicture(theme, heatmap), heatWanted(theme, heatmap));
+      assert.deepEqual(verdicts, [false, false], `${theme}, ${heatmap.days.length} rows`);
+    }
+  }
+  // A picture with no heatmap has nothing to hold.
+  assert.deepEqual(heatVerdicts(heatPicture("light", account.heatmap), { ...wanted("light"), heat: null }), []);
+});
+
+test("a square for an hour outside the period fails, at either end, as one drawn for every hour does", () => {
+  const heatmap = crowdedWeek.heatmap;
+  for (const theme of ["light", "dark"]) {
+    // The first row holds no hour before noon, and the last none from noon.
+    const [first] = heatVerdicts(heatPicture(theme, heatmap, { extra: [[0, 3]] }), heatWanted(theme, heatmap));
+    assert.match(first, /^draws a square for "Wed 22" at 3:00, an hour the period holds none of: #[0-9a-f]{6} where only the card's fill #[0-9a-f]{6} should be \(1 hour in all\)$/);
+    const [last] = heatVerdicts(heatPicture(theme, heatmap, { extra: [[7, 23]] }), heatWanted(theme, heatmap));
+    assert.match(last, /draws a square for "Wed 29" at 23:00/);
+    // Every hour drawn, as `main`'s picture draws a row: 24 at either end, less those held.
+    const every = heatmap.cells.flatMap((hours, row) => hours.flatMap((cell, hour) => (cell === null ? [[row, hour]] : [])));
+    const [all] = heatVerdicts(heatPicture(theme, heatmap, { extra: every }), heatWanted(theme, heatmap));
+    assert.match(all, /draws a square for "Wed 22" at 0:00, .*\(24 hours in all\)$/);
+  }
+});
+
+test("a square missing for an hour the period holds fails, however faint the square would be", () => {
+  const heatmap = crowdedWeek.heatmap;
+  for (const theme of ["light", "dark"]) {
+    // Thursday 23's 2:00 had no use: its square is the faintest a heatmap draws.
+    assert.equal(heatmap.cells[1][2], 0);
+    const verdicts = heatVerdicts(heatPicture(theme, heatmap, { skip: [[1, 2]] }), heatWanted(theme, heatmap));
+    assert.deepEqual(verdicts.filter(Boolean), [`draws no square for "Thu 23" at 2:00, an hour the period holds: the card's fill ${verdicts[1].match(/#[0-9a-f]{6}/)[0]} there (1 hour in all)`]);
+  }
 });
