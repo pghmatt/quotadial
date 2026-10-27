@@ -208,10 +208,23 @@ interface Words {
   hours: string[];
 }
 
+/**
+ * What History says of when an account was used, one sentence for eyes and ears alike: the
+ * heatmap's caption, which is also its figure's name, or the line in its place when the readings
+ * show no use. The window is named as its provider writes it, never lowercased or put in brackets
+ * of its own, so "Weekly (Gemini)" stays a model's name (the manager on #73, 2026-10-27, 13:26 UTC).
+ * The window and the picture to share both say it from here.
+ */
+export function heatmapWords({ most, window: label }: { most: number; window: string }): string {
+  if (most > 0) {
+    return label ? `When it was used, by hour, from ${label} readings` : "When it was used, by hour";
+  }
+  return label ? `No use from ${label} readings in this period.` : "No use in this period.";
+}
+
 function words(view: HistoryView, account: AccountHistory): Words {
   const heatmap = account.heatmap;
   const used = heatmap.most > 0;
-  const counted = heatmap.window.toLowerCase();
   const step = heatmap.days.length <= 7 ? 1 : 7;
   return {
     brand: "QuotaDial",
@@ -230,9 +243,7 @@ function words(view: HistoryView, account: AccountHistory): Words {
         chart.latest >= HIGH_PCT ? "high" : chart.latest >= WARNING_PCT ? "warning" : "normal",
       chart,
     })),
-    heatmap: used
-      ? `When it was used, by hour${counted ? ` (${counted})` : ""}`
-      : `No use in ${counted || "its"} readings in this period.`,
+    heatmap: heatmapWords(heatmap),
     // Every day of a week is named; over a month, every seventh, so the names keep their room.
     days: used ? heatmap.days.flatMap((text, row) => (row % step === 0 ? [{ row, text }] : [])) : [],
     hours: used ? ["0", "6", "12", "18"] : [],

@@ -929,6 +929,9 @@ async function checkView(view, panel, operate, copy, light) {
     await checkHeadings(view, copy, panel);
   }
   await checkToolbar(view, panel);
+  if (panel === "accounts") {
+    await checkNotes(view, copy);
+  }
   // The order does not change with the theme.
   if (light) {
     await checkOrder(view, copy, panel);
@@ -1309,6 +1312,48 @@ const SOURCES = `(() => {
     };
   });
 })()`;
+
+/**
+ * In the page: each account's card, in order, with its note, if it has one, as its text and its
+ * colour as a canvas writes it back, so that it compares with `window.__check.colour`.
+ */
+const NOTES = `[...document.querySelectorAll('main .content > section.account')].map((card) => {
+  const note = card.querySelector(':scope > p.note');
+  if (!note) return null;
+  const context = document.createElement('canvas').getContext('2d');
+  context.fillStyle = getComputedStyle(note).color;
+  return { text: note.textContent.replace(/\\s+/g, ' ').trim(), colour: String(context.fillStyle) };
+})`;
+
+/**
+ * Each account's note is in the colour of what it is (the manager on #73, 2026-10-27, 13:26 UTC):
+ * one that only explains, for a provider whose terms keep QuotaDial from reading it ("unsupported"),
+ * in the detail colour, `--muted`, since there is nothing for the person to fix; every other, which
+ * names a fix, in the warning colour. The notes are held to the ones the copy has, card by card, so
+ * that a check that finds none cannot pass.
+ */
+async function checkNotes(view, copy) {
+  const label = `${view.label}, notes`;
+  const [muted, warning] = await view.evaluate(`['--muted', '--warning'].map(window.__check.colour)`);
+  const notes = await view.evaluate(NOTES);
+  const accounts = copy.meter.accounts;
+  check(label, notes.length !== accounts.length && `the window shows ${notes.length} account cards for ${accounts.length} accounts`);
+  for (const [index, account] of accounts.entries()) {
+    const note = notes[index];
+    const what = [account.provider, account.alias, account.name].filter(Boolean).join(" ");
+    if (account.ok || !account.note) {
+      check(label, note && `${what}'s card shows a note, "${note.text}", which the app sent none of`);
+      continue;
+    }
+    if (!note) {
+      check(label, `${what}'s card shows no note, though the app sent one`);
+      continue;
+    }
+    const explains = account.status === "unsupported";
+    const wanted = explains ? muted : warning;
+    check(label, note.colour !== wanted && `${what}'s note is ${note.colour}, not ${explains ? "the detail colour" : "the warning colour"} ${wanted}`);
+  }
+}
 
 /**
  * Where and when each account's windows were read (#52: nothing reaches a person without its age

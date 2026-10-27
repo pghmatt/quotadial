@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
+import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, heatmapWords, lookOf, shareStrings } from "../src/share.ts";
 import { site } from "./site-fixtures.mjs";
 import { themes } from "./stylesheet.mjs";
 import { crowded, pro } from "./window-fixtures.mjs";
@@ -612,12 +612,24 @@ test("what is written is what shareStrings lists, in its order, and an address i
   }
 });
 
+test("the heatmap's words name its window as the provider writes it, with no brackets round it, used or not", () => {
+  // The manager on #73 (2026-10-27, 13:26 UTC): one sentence for eyes and ears, as History's
+  // caption, its figure's name and the picture all say it. Before, the caption lowercased the label
+  // and put it in brackets, "When it was used, by hour (weekly (gemini))".
+  assert.equal(heatmapWords({ most: 9, window: "Weekly (Gemini)" }), "When it was used, by hour, from Weekly (Gemini) readings");
+  assert.equal(heatmapWords({ most: 0, window: "Weekly (Gemini)" }), "No use from Weekly (Gemini) readings in this period.");
+  assert.equal(heatmapWords({ most: 1, window: "5-hour (Claude and GPT)" }), "When it was used, by hour, from 5-hour (Claude and GPT) readings");
+  // With no window to name, the sentence stops short rather than naming nothing.
+  assert.equal(heatmapWords({ most: 9, window: "" }), "When it was used, by hour");
+  assert.equal(heatmapWords({ most: 0, window: "" }), "No use in this period.");
+});
+
 test("a heatmap with no use draws no squares and no words under its caption", () => {
   const unused = structuredClone(withWindows(3));
   unused.heatmap.cells = unused.heatmap.cells.map((row) => row.map(() => 0));
   unused.heatmap.most = 0;
   const ops = draw(pro.history[7], unused, "light");
-  assert.ok(texts(ops).some((piece) => piece.text.startsWith("No use in")), "it says there was no use");
+  assert.ok(texts(ops).some((piece) => piece.text === `No use from ${unused.heatmap.window} readings in this period.`), "it says there was no use");
   assert.equal(texts(ops).some((piece) => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(piece.text)), false);
   // Its fills are the card and the charts' shading, no heatmap squares.
   assert.equal(ops.filter((op) => op.op === "fill").length, 1 + 3);

@@ -38,7 +38,7 @@ test("a word is four letters, not three: a short word, a figure and a sign are n
   assert.deepEqual(wordsOf("Weekly (Claude and GPT)"), ["Weekly", "Claude"]);
   assert.deepEqual(wordsOf("latest 64%, highest 100%"), ["latest", "highest"]);
   assert.deepEqual(wordsOf("from the API 4 min ago"), ["from"]);
-  assert.deepEqual(wordsOf("When it was used, by hour (weekly)"), ["When", "used", "hour", "weekly"]);
+  assert.deepEqual(wordsOf("When it was used, by hour, from Weekly (Gemini) readings"), ["When", "used", "hour", "from", "Weekly", "Gemini", "readings"]);
 });
 
 test("a word's run is the word and what is written against it, up to a space, across the nodes it is written in", () => {
@@ -138,7 +138,7 @@ test("the captions a copy should draw: in the accounts the line for each card th
   assert.deepEqual(expectedCaptions(small, "history"), [
     "Weekly latest 63%, highest 99%",
     "5-hour (Gemini) latest 0%, highest 12%",
-    "When it was used, by hour (5-hour (gemini))",
+    "When it was used, by hour, from 5-hour (Gemini) readings",
     "Session latest 8%, highest 11%",
   ]);
   // History opens on 7 days; the other period is not asked for.
@@ -344,7 +344,7 @@ test("in the page, a word broken by the browser is a word on two lines, and the 
 
 test("in the page, each caption is read apart, in the page's order, and what is not shown or is for a screen reader is left out", () => {
   const source = tag("p", { classes: ["source"], display: "block", width: 90 }, text("from the API 3 min ago"));
-  const heatmap = tag("figcaption", { classes: ["detail"], display: "block", width: 97 }, text("When it was used, by hour ("), text("weekly"), text(")"));
+  const heatmap = tag("figcaption", { classes: ["detail"], display: "block", width: 97 }, text("When it was used, by hour, from "), text("Weekly"), text(" readings"));
   const hidden = tag("figcaption", { display: "flex", shown: false }, tag("span", { display: "block" }, text("Session")));
   const aside = tag("figcaption", { classes: ["visually-hidden"], display: "block" }, text("Mon 20: used 9:00 to 18:00"));
   const drawn = () => [{ top: 0, bottom: 14, left: 0, right: 30 }];
@@ -352,7 +352,7 @@ test("in the page, each caption is read apart, in the page's order, and what is 
   assert.deepEqual(found.map((caption) => caption.text), [
     "from the API 3 min ago",
     "5-hour latest 12%, highest 12%",
-    "When it was used, by hour (weekly)",
+    "When it was used, by hour, from Weekly readings",
     "",
     "",
   ]);
@@ -360,12 +360,12 @@ test("in the page, each caption is read apart, in the page's order, and what is 
   assert.deepEqual(found.map((caption) => caption.words.map((word) => word.text)), [
     ["from"],
     ["hour", "latest", "highest"],
-    ["When", "used", "hour", "weekly"],
+    ["When", "used", "hour", "from", "Weekly", "readings"],
     [],
     [],
   ]);
   // A caption the window does not draw is not one it is held to, so the copy's has to be missing it.
-  assert.match(captionVerdict(found, ["from the API 3 min ago", "5-hour latest 12%, highest 12%", "When it was used, by hour (weekly)", "Session latest 8%, highest 8%"]), /caption 4 is "", where its copy has "Session latest 8%, highest 8%"/);
+  assert.match(captionVerdict(found, ["from the API 3 min ago", "5-hour latest 12%, highest 12%", "When it was used, by hour, from Weekly readings", "Session latest 8%, highest 8%"]), /caption 4 is "", where its copy has "Session latest 8%, highest 8%"/);
 });
 
 /**
