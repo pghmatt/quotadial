@@ -239,7 +239,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Queued: the share picture's chart line on its own soft fill | Queued | The picture's chart line against the soft fill under it, which is the line's own hue at 16% (`SHADING`): 2.71:1 in dark and 3.12:1 in light, where the contrast check holds the line on the card only (3.18:1 in dark). Found while measuring in #97 and left; a stronger line or a weaker `SHADING` is a decision of its own (the manager's review of #97) |
 | Queued: a pixel verdict for the dashed 90% line in `share-picture.mjs` | Queued | #97 measured the dashed line's colour from the pixels of the pictures the window check writes and recorded it in its notes, but nothing checks it: the pairs in `check-contrast.mjs` hold the colour the stylesheet gives, and the window check's pixel verdicts read the picture's corners, margin, padding, edge and plates, not the dash (the manager's review of #97) |
 | Queued: History's caption keeps a short label whole at 200% | Queued | The manager's review of #98 (2026-10-27, 06:24 UTC): at 200% History's caption breaks a short label mid-word ("Wee" over "kly"), the same before and after #98. The body's `overflow-wrap: anywhere` is for addresses and long names that would otherwise be cut off; a short label should wrap between words first. Find whether `overflow-wrap: break-word` on the caption's label, or `anywhere` kept to the address and name lines, keeps #52's long-name rule while leaving "Weekly" whole, held by the window check |
-| The window check's `--window-zoom 3` | In review (PR #?) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
+| The window check's `--window-zoom 3` | In review (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -463,7 +463,7 @@ The notes below run newest first; the setup notes above them are the oldest.
   `CHANGELOG.md` line is not needed since nothing people see changes; a tracker row is." And the coordinator's brief of
   the same day: heavy builds held until it allowed them, then allowed with the byte-for-byte comparison in full. Built on
   `test/window-zoom-viewport` from `main` at b6b6611, in three commits: the rule and its tests (da465ca), the call sites
-  and the test that holds them to it (c55eaec) and these records. In review as #?.
+  and the test that holds them to it (c55eaec) and these records. In review as #100.
 - **What failed,** on `main` at b6b6611: `node scripts/check-window.mjs --window-pictures <folder> --window-zoom 3` ends 7
   seconds in, at the first view's first picture, with `Emulation.setDeviceMetricsOverride: Invalid parameters`, and has
   written none. Chrome takes the viewport's width and height in whole CSS pixels. The popover is 360 wide and at most 640
@@ -546,7 +546,7 @@ The notes below run newest first; the setup notes above them are the oldest.
   1 scopes, here in a window 120 px wide where a short label shares it with the latest share; the name and the address
   break inside words ("Antigravit" over "y", "ag@exampl" over "e.com"), which is #52's long-name rule, as it should be;
   shares stay whole ("64%"), as #98's check holds them to 500%.
-- **The tracker:** the queued row is "In review (PR #?)", without its "Queued:", and the line above that says how the
+- **The tracker:** the queued row is "In review (PR #100)", without its "Queued:", and the line above that says how the
   pictures of the window are made now says `3` for 300%; the number comes when the coordinator gives it.
 
 ### M6: the daemon's footprint over a day levels off
