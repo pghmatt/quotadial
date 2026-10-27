@@ -35,7 +35,7 @@ support@quotadial.com.
   opened, the first of those keys scrolls them. Tab reaches what they hold in the order shown
   and the toolbar after it, and scrolls each control into view; each view opens at its top. If they
   hold nothing Tab reaches, they are a Tab stop of their own, named for a screen reader, so that
-  the keys can scroll them.
+  the keys can scroll them, and they become one as soon as the last control in them goes.
 - A command QuotaDial asks you to run, such as the one that signs a Claude Code folder in again,
   is shown as code, and one click selects all of it, ready to copy. An account's email address can
   be selected and copied too.
@@ -94,6 +94,8 @@ support@quotadial.com.
   card, in a quiet line under them and above its sign-in, which stays above it when the sign-in
   opens, or under each limit when they differ, and is told to a screen reader, that each command is
   shown whole as code and selected by one click,
+  that what the window holds is as wide when it scrolls as when it does not, with the cards the
+  same distance from each side and in line with the toolbar's labels, where a scroll bar takes room,
   that the toolbar stays inside the window and is what a click at its middle reaches at every
   place along the scroll of nine accounts, with nothing drawn under it and a faint line over it
   only while there is more below, that the keys and the wheel scroll the accounts and Tab brings a
