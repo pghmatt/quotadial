@@ -39,17 +39,18 @@
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
 //   works from the keyboard and sends the app a whole 2400 by 1350 PNG for that account, drawn only
-//   with the strings `shareStrings` lists (the label, never an address), in the stylesheet's text
-//   colours and the window's font, with tabular figures; on QuotaDial Free there is no button and
-//   the feature's line shows once (D-115);
+//   with the strings `shareStrings` lists (the label, never an address), every share in it written
+//   whole and none cut short, in the stylesheet's text colours and the window's font, with tabular
+//   figures; on QuotaDial Free there is no button and the feature's line shows once (D-115);
 // - that picture is the account's card on the theme's material, #ececec in light and #2c2c2e in dark
 //   (D-137): its corners are that colour, so is the margin round the card, the card's padding is the
 //   card's fill laid over it, its edge is the card's hairline, and nothing is drawn as a plate behind
 //   a chart, each read from the PNG's own pixels (share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
-// QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, with the made-up accounts
-// in window-fixtures.mjs answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
+// QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, and over History alone for
+// a Pro copy with one account of seven windows, with the made-up accounts in window-fixtures.mjs
+// answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
 // CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
@@ -74,7 +75,7 @@ import { waitForScrollEnd } from "./quiet.mjs";
 // types), so the check holds the drawing to it.
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
 import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
-import { PLACES, SHARES, expectedShares, lineVerdicts } from "./whole-shares.mjs";
+import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -2173,12 +2174,15 @@ function readingVerdicts(strings, account) {
 /**
  * Verdicts holding what a picture wrote, string by string, to what `shareStrings` lists: each
  * written string is a listed one, or the start of one cut short with "…", and each listed string
- * is written, so the list is the whole of the picture's words and nothing in it goes unseen.
+ * is written, so the list is the whole of the picture's words and nothing in it goes unseen. A
+ * label, a title or a date may be cut short when it has too little room; a share may not (the
+ * manager on #73, 2026-10-27): "highest 1…" is a share broken, and is two verdicts, that the
+ * picture writes what is not listed and never writes what is.
  */
 function listingVerdicts(strings, listed) {
   const verdicts = [];
   const isStart = (written, whole) =>
-    written === whole || (written.endsWith("…") && whole.startsWith(written.slice(0, -1)));
+    written === whole || (!isShare(whole) && written.endsWith("…") && whole.startsWith(written.slice(0, -1)));
   for (const written of strings) {
     verdicts.push(
       !listed.some((whole) => isStart(written.text, whole)) && `writes "${written.text}", which shareStrings does not list`,
@@ -2439,7 +2443,7 @@ async function main() {
     let views = 0;
     for (const [name, copy] of Object.entries(COPIES)) {
       for (const theme of THEMES) {
-        for (const panel of PANELS) {
+        for (const panel of copy.panels ?? PANELS) {
           const label = `${name}, ${theme}, ${panel}`;
           if (!label.includes(only ?? "")) {
             continue;

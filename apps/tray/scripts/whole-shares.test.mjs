@@ -9,7 +9,7 @@ import { test } from "node:test";
 import { Script, runInNewContext } from "node:vm";
 
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts, linesOf, sharesIn } from "./whole-shares.mjs";
-import { free, many, pro } from "./window-fixtures.mjs";
+import { crowded, free, many, pro } from "./window-fixtures.mjs";
 
 test("a share is found whole across the nodes it is written in, with where it starts and ends", () => {
   // Preact writes {percent}% as two text nodes.
@@ -167,7 +167,7 @@ test("the shares a copy should write are the summary's, then each window's, and 
   assert.equal(expectedShares(free, "accounts").at(-1), "91%");
   // History: two for each chart after the summary's.
   const charts = (copy) => copy.history[7].accounts.reduce((sum, account) => sum + account.windows.length, 0);
-  for (const copy of [pro, free, many]) {
+  for (const copy of [pro, free, many, crowded]) {
     const history = expectedShares(copy, "history");
     assert.equal(history.length, 1 + 2 * charts(copy));
     assert.ok(history.every((share) => /^\d+%$/.test(share)));
@@ -181,6 +181,8 @@ test("the shares a copy should write are the summary's, then each window's, and 
   assert.equal(at, 1 + 2 * 2, "after the summary's number, Weekly's two and Weekly Opus's two");
   // History opens on 7 days; the other period is not asked for.
   assert.deepEqual(expectedShares({ ...pro, history: { 7: pro.history[7] } }, "history"), history);
+  // The account of seven windows: the summary's 100%, then each chart's latest and its highest, 100% in every one.
+  assert.deepEqual(expectedShares(crowded, "history"), ["100%", "64%", "100%", "100%", "100%", "7%", "100%", "99%", "100%", "12%", "100%", "38%", "100%", "91%", "100%"]);
   // Settings and Help show the summary's number and no more; with no number there is nothing.
   assert.deepEqual(expectedShares(pro, "settings"), ["91%"]);
   assert.deepEqual(expectedShares(pro, "help"), ["91%"]);
