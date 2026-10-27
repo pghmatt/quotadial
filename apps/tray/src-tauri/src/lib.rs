@@ -471,6 +471,7 @@ fn help() -> help::HelpView {
             .map(|credit| (*credit).to_owned())
             .collect(),
         privacy: help::blocks(quotadial_core::privacy::PRIVACY),
+        hosts: help::hosts(),
     }
 }
 
