@@ -4,30 +4,41 @@
 // that the addresses the window writes are held to those before any line is judged; that a word of
 // an address, the part between two places it may break, is broken only where it is wider than its
 // line; and that the text of an address in a heading, and what a copy of it gives, is the address
-// byte for byte. The page's own code runs here against a small stand-in for the page, and the
-// browser's part, which boxes a word is drawn in and what a selection gives, is held by the window
-// check itself.
+// byte for byte. A host in a sentence is held the same way (D-141, extended to a host by the
+// manager's review of #107): found only from the lists the app sends, where it stands as a word of a
+// sentence does, exactly where the window writes one as a host; which hosts a copy should write, in
+// Settings and Help; and the lines that name them, their text and what a copy gives, byte for byte.
+// The page's own code runs here against a small stand-in for the page, and the browser's part, which
+// boxes a word is drawn in and what a selection gives, is held by the window check itself.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { Script } from "node:vm";
 
+import { addressParts, hostRuns } from "../src/address.ts";
 import { inPage, tag, text } from "./page-stand-in.mjs";
 import { between, randomTexts, seeded, seedOfThisRun } from "./random-text.mjs";
 import {
   ADDRESSES,
   COPIED,
+  HOSTS,
   addressVerdict,
   addressWordsIn,
   addressesIn,
   breakVerdicts,
   expectedAddresses,
+  expectedHosts,
   heardAt,
+  hostsIn,
   knownAddresses,
+  knownHosts,
+  linesWithHosts,
   textVerdicts,
   visibly,
+  writtenVerdicts,
 } from "./whole-addresses.mjs";
 import { PAGE_TEXT, matchesIn } from "./whole-shares.mjs";
-import { crowded, free, many, pro } from "./window-fixtures.mjs";
+import { DESTINATIONS, crowded, free, many, pro } from "./window-fixtures.mjs";
 
 const LONG = "a.very.long.account.name.that.keeps.going@engineering.example.com";
 const LONG_WORDS = ["a", ".very", ".long", ".account", ".name", ".that", ".keeps", ".going", "@engineering", ".example", ".com"];
@@ -335,4 +346,281 @@ test("in the page, an address with a zero-width space slipped in is not found, s
   const found = inPage(ADDRESSES(["dev@example.com"]), [slipped], () => [box(0, 15)]);
   assert.deepEqual(found, []);
   assert.match(addressVerdict(found, ["dev@example.com"]), /^the window's address 1 written whole is no address, where its copy has "dev@example\.com"/);
+});
+
+// A host in a sentence (D-141, extended to a host: the manager's review of #107).
+
+const RELEASES = "release-assets.githubusercontent.com";
+const LONG_HOST = "alerts.engineering.platform.internal.corp.example.co.uk";
+
+/** The hosts found in `texts`, as text. */
+const hostsOf = (texts, hosts = DESTINATIONS) => hostsIn(texts, hosts).map((host) => host.text);
+
+test("a host cut into nodes, as the window writes one with a <wbr> before each dot, is one host with its words, and the mark after it is in none", () => {
+  const texts = ["", "release-assets", ".githubusercontent", ".com", ", GitHub's, where an update's files are fetched from."];
+  const [found] = hostsIn(texts, DESTINATIONS);
+  assert.equal(found.text, RELEASES);
+  assert.deepEqual(found.from, { node: 1, offset: 0 });
+  assert.deepEqual(found.to, { node: 3, offset: 4 });
+  assert.deepEqual(found.words, [
+    { text: "release-assets", from: { node: 1, offset: 0 }, to: { node: 1, offset: 14 } },
+    { text: ".githubusercontent", from: { node: 2, offset: 0 }, to: { node: 2, offset: 18 } },
+    { text: ".com", from: { node: 3, offset: 0 }, to: { node: 3, offset: 4 } },
+  ]);
+  // As main's window writes Settings' line, in one node, with the stop that ends the sentence.
+  const said = `Also sent to hooks.slack.com, ${LONG_HOST}.`;
+  const hosts = hostsIn([said], ["hooks.slack.com", LONG_HOST]);
+  assert.deepEqual(hosts.map((host) => host.text), ["hooks.slack.com", LONG_HOST]);
+  assert.deepEqual(hosts[0].words.map((word) => word.text), ["hooks", ".slack", ".com"]);
+  assert.deepEqual(hosts[1].words.map((word) => word.text), ["alerts", ".engineering", ".platform", ".internal", ".corp", ".example", ".co", ".uk"]);
+  assert.deepEqual(hosts[1].words.at(-1), { text: ".uk", from: { node: 0, offset: said.length - 4 }, to: { node: 0, offset: said.length - 1 } });
+  // A bracket before it is in no word either.
+  assert.deepEqual(hostsIn(["(api.anthropic.com)"], DESTINATIONS)[0].words.map((word) => word.text), ["api", ".anthropic", ".com"]);
+});
+
+test("a host stands after the line's start, a space, a bracket or a quotation mark, and before its end, a space, a mark or the stop that ends the sentence", () => {
+  assert.deepEqual(hostsOf(["api.anthropic.com, Anthropic's, with your Claude Code sign-in."]), ["api.anthropic.com"]);
+  assert.deepEqual(hostsOf(["status.claude.com and status.openai.com, the providers' public status pages."]), ["status.claude.com", "status.openai.com"]);
+  assert.deepEqual(hostsOf(["Updates come from github.com."]), ["github.com"]);
+  for (const [open, close] of [["(", ")"], ["[", "]"], ['"', '"'], ["'", "'"]]) {
+    assert.deepEqual(hostsOf([`See ${open}chatgpt.com${close} now`]), ["chatgpt.com"], `${open}${close}`);
+  }
+  for (const mark of [",", ";", ":", "!", "?", ".", ""]) {
+    assert.deepEqual(hostsOf([`Is it github.com${mark}`]), ["github.com"], JSON.stringify(mark));
+    assert.deepEqual(hostsOf([`github.com${mark} then`]), ["github.com"], JSON.stringify(mark));
+  }
+});
+
+test("a host is never found inside a longer name, an address or a link, nor with a character added", () => {
+  for (const written of [
+    "api.github.com",
+    "github.com.au",
+    "github.com.example",
+    "github.comx",
+    "github.com-mirror",
+    "github.com/pghmatt/quotadial",
+    "https://github.com/pghmatt",
+    "someone@github.com",
+    "mygithub.com",
+    "github.com.",
+    "api\u200b.anthropic.com",
+    "api.anthropic.com\u200b",
+    "api.anthropic\u00ad.com",
+  ]) {
+    const found = hostsOf([`Not ${written} here`]);
+    // "github.com." ends with the sentence's stop only when nothing follows on; here a space does.
+    assert.deepEqual(found, written === "github.com." ? ["github.com"] : [], visibly(written));
+  }
+});
+
+test("only a host the app lists is found, never a word with a dot in it, as a file's name has", () => {
+  const line = "Open config.json, QuotaDial_universal.dmg and docs/ACCESSIBILITY.md, or models.dev.";
+  assert.deepEqual(hostsOf([line]), []);
+  assert.deepEqual(hostsOf([line], ["config.json"]), ["config.json"]);
+  assert.deepEqual(hostsOf(["github.com"], []), []);
+  assert.deepEqual(hostsOf(["github.com"], [""]), []);
+  // The longer wins where two begin at one place, and a shorter one inside a longer is not found.
+  assert.deepEqual(hostsOf([`${RELEASES}, GitHub's`], ["githubusercontent.com", RELEASES]), [RELEASES]);
+  assert.deepEqual(hostsOf(["status.claude.com"], ["claude.com", "status.claude.com"]), ["status.claude.com"]);
+});
+
+test("however a line is cut into nodes, the hosts found in it are those the window writes as hosts, with its parts as their words", () => {
+  const seed = seedOfThisRun();
+  const next = seeded(seed);
+  const hosts = ["github.com", RELEASES, "status.claude.com", "claude.com", "a.b", "localhost"];
+  // Hosts, what may stand beside one or not, and what is added to make a break.
+  const pieces = [...hosts, ...hosts, " ", " ", ", ", ". ", ".", "(", ")", "[", "]", '"', "'", ";", "?", "@", "/", "-", "s", "api.", "config.json", "\u200b"];
+  const cases = 3000;
+  let withHosts = 0;
+  for (let index = 0; index < cases; index += 1) {
+    const texts = randomTexts(next, pieces, 8);
+    const where = `seed ${seed}, case ${index}, ${JSON.stringify(texts)} (QUOTADIAL_TEST_SEED=${seed} runs it again)`;
+    const found = hostsIn(texts, hosts);
+    const written = hostRuns(texts.join(""), hosts).filter((run) => run.host).map((run) => run.text);
+    assert.deepEqual(found.map((host) => host.text), written, `the hosts found are not those the window writes as hosts: ${where}`);
+    for (const host of found) {
+      assert.equal(between(texts, host.from, host.to), host.text, `a host's start and end give other text: ${where}`);
+      assert.deepEqual(host.words.map((word) => word.text), addressParts(host.text), `a host's words are not the parts the window writes: ${where}`);
+      for (const word of host.words) {
+        assert.equal(between(texts, word.from, word.to), word.text, `a word's start and end give other text: ${where}`);
+      }
+    }
+    withHosts += found.length > 0 ? 1 : 0;
+  }
+  assert.ok(withHosts >= cases / 10, `only ${withHosts} of ${cases} lines held a host, seed ${seed}`);
+});
+
+/** A copy in the shape the host functions read: two webhooks, and Help's privacy text naming hosts in a list and a paragraph. */
+const hosted = {
+  settings: { alert_targets: ["hooks.slack.com", LONG_HOST] },
+  help: {
+    hosts: ["api.anthropic.com", "github.com", RELEASES],
+    privacy: [
+      { kind: "paragraph", text: "QuotaDial connects to these, and nothing else:" },
+      { kind: "list", items: ["api.anthropic.com, Anthropic's.", `${RELEASES} and github.com, GitHub's.`] },
+      { kind: "paragraph", text: "Updates come from github.com." },
+    ],
+  },
+};
+
+test("the hosts a copy should write: each webhook's in Settings, each place QuotaDial connects to as Help's privacy text names it, in order, and none elsewhere", () => {
+  assert.deepEqual(expectedHosts(hosted, "settings"), ["hooks.slack.com", LONG_HOST]);
+  assert.deepEqual(expectedHosts(hosted, "help"), ["api.anthropic.com", RELEASES, "github.com", "github.com"]);
+  assert.deepEqual(expectedHosts(hosted, "accounts"), []);
+  assert.deepEqual(expectedHosts(hosted, "history"), []);
+  // With no webhook, Settings has no line naming one.
+  assert.deepEqual(expectedHosts({ ...hosted, settings: { alert_targets: [] } }, "settings"), []);
+  // Every host the copy can write is looked for, once, in every view.
+  assert.deepEqual(knownHosts(hosted), ["hooks.slack.com", LONG_HOST, "api.anthropic.com", "github.com", RELEASES]);
+});
+
+test("the lines a copy writes hosts in: Settings' line naming the webhooks', and each line of Help's privacy text, in order", () => {
+  assert.deepEqual(linesWithHosts(hosted, "settings"), [
+    { what: "Settings' line saying where alerts are also sent", line: `Also sent to hooks.slack.com, ${LONG_HOST}.` },
+  ]);
+  assert.deepEqual(linesWithHosts(hosted, "help"), [
+    { what: "line 1 of Help's text of what QuotaDial reads and sends", line: "QuotaDial connects to these, and nothing else:" },
+    { what: "line 2 of Help's text of what QuotaDial reads and sends", line: "api.anthropic.com, Anthropic's." },
+    { what: "line 3 of Help's text of what QuotaDial reads and sends", line: `${RELEASES} and github.com, GitHub's.` },
+    { what: "line 4 of Help's text of what QuotaDial reads and sends", line: "Updates come from github.com." },
+  ]);
+  assert.deepEqual(linesWithHosts({ ...hosted, settings: { alert_targets: [] } }, "settings"), []);
+  assert.deepEqual(linesWithHosts(hosted, "accounts"), []);
+  assert.deepEqual(linesWithHosts(hosted, "history"), []);
+});
+
+test("every copy writes hosts in Help, and in Settings where it has a webhook, and the long ones in the ten accounts' copy", () => {
+  for (const [name, copy] of Object.entries({ pro, free, many, crowded })) {
+    const panels = copy.panels ?? ["accounts", "history", "settings", "help"];
+    if (panels.includes("help")) {
+      assert.ok(expectedHosts(copy, "help").length > 0, `${name} writes no host in Help, so nothing there is held`);
+    }
+    assert.equal(expectedHosts(copy, "settings").length, copy.settings.alert_targets.length, `${name}'s Settings does not name each webhook's host`);
+    for (const panel of panels) {
+      for (const host of expectedHosts(copy, panel)) {
+        assert.ok(knownHosts(copy).includes(host), `${name}'s ${JSON.stringify(host)} is not looked for`);
+      }
+    }
+  }
+  assert.deepEqual(expectedHosts(many, "settings"), ["hooks.slack.com", LONG_HOST]);
+  assert.ok(expectedHosts(many, "help").includes(RELEASES), "the long host is not held in Help");
+  assert.deepEqual(expectedHosts(free, "settings"), []);
+});
+
+test("the copies' places QuotaDial connects to are the app's own, as crates/core/src/privacy.rs lists them", () => {
+  const source = readFileSync(new URL("../../../crates/core/src/privacy.rs", import.meta.url), "utf8");
+  const list = source.match(/pub const HOSTS: \[&str; \d+\] = \[([^\]]*)\];/);
+  assert.ok(list, "privacy.rs lists no HOSTS");
+  assert.deepEqual(DESTINATIONS, [...list[1].matchAll(/"([^"]+)"/g)].map((host) => host[1]));
+  for (const copy of [pro, free, many, crowded]) {
+    assert.deepEqual(copy.help.hosts, DESTINATIONS);
+  }
+});
+
+test("the hosts written are the copy's, in order, or the verdict says which is not, as for an address", () => {
+  const host = (text) => ({ text, where: "li", room: 150, words: [] });
+  assert.equal(addressVerdict([host("hooks.slack.com")], ["hooks.slack.com"], "host"), false);
+  assert.equal(addressVerdict([], [], "host"), false);
+  assert.equal(
+    addressVerdict([], [RELEASES], "host"),
+    `the window's host 1 written whole is no host, where its copy has "${RELEASES}" (0 written whole, 1 wanted)`,
+  );
+  assert.equal(
+    addressVerdict([host("chatgpt.com")], [], "host"),
+    `the window's host 1 written whole is "chatgpt.com" (li), where its copy has none (1 written whole, 0 wanted)`,
+  );
+  // An address's verdict reads as it did.
+  assert.match(addressVerdict([], ["dev@example.com"]), /^the window's address 1 written whole is no address, where/);
+});
+
+test('a word of a host broken over two lines where it fits is a verdict, as main\'s window drew ".githubuserco" over "ntent.com"', () => {
+  const where = `li "${RELEASES}, GitHub's, where an update's files are fe…"`;
+  const found = [{ text: RELEASES, where, room: 150, words: [
+    { text: "release-assets", boxes: [box(0, 15, 0, 95)] },
+    { text: ".githubusercontent", boxes: [box(0, 15, 95, 150), box(15, 30, 0, 66)] },
+    { text: ".com", boxes: [] },
+  ] }];
+  assert.deepEqual(breakVerdicts(found, "host"), [
+    false,
+    `the host "${RELEASES}" is broken inside ".githubusercontent", over 2 lines, though ".githubusercontent" fits its line (${where})`,
+    `".com" of the host "${RELEASES}" has no box to measure (${where})`,
+  ]);
+  // A word wider than its line has to break: no verdict.
+  assert.deepEqual(breakVerdicts([{ ...found[0], room: 100, words: found[0].words.slice(1, 2) }], "host"), [false]);
+  // An address's verdicts read as they did.
+  assert.match(breakVerdicts([{ ...found[0], text: "x@y" }])[1], /^the address "x@y" is broken inside/);
+});
+
+test("a line naming a host is its text and what a copy gives, byte for byte, or the verdict says what was added", () => {
+  const line = `Also sent to hooks.slack.com, ${LONG_HOST}.`;
+  const what = "Settings' line saying where alerts are also sent";
+  assert.deepEqual(writtenVerdicts(line, { text: line, copied: line }, what, "the line"), [false, false]);
+  const slipped = line.replace(".slack", "\u200b.slack");
+  assert.deepEqual(writtenVerdicts(line, { text: slipped, copied: slipped }, what, "the line"), [
+    `${what} is written ${visibly(slipped)}, not the line byte for byte, ${visibly(line)}`,
+    `a copy of ${what} gives ${visibly(slipped)}, not the line byte for byte, ${visibly(line)}`,
+  ]);
+  assert.deepEqual(writtenVerdicts(line, { text: line, copied: `${line}\n` }, what, "the line").map(Boolean), [false, true]);
+  assert.deepEqual(writtenVerdicts(line, {}, what, "the line"), [false, false]);
+  // An address's verdicts read as they did.
+  assert.deepEqual(textVerdicts(LONG, { text: "x", copied: LONG }, "Codex"), [
+    `Codex's address is written "x", not the address byte for byte, ${visibly(LONG)}`,
+    false,
+  ]);
+});
+
+test("the code for the page that finds hosts is valid, looks for the hosts it is given and carries what the tests hold", () => {
+  const code = HOSTS(DESTINATIONS);
+  assert.doesNotThrow(() => new Script(code));
+  assert.ok(code.includes(JSON.stringify(DESTINATIONS)));
+  for (const piece of [matchesIn, addressWordsIn, hostsIn]) {
+    assert.ok(code.includes(String(piece)));
+  }
+  assert.ok(code.includes(PAGE_TEXT));
+});
+
+/** A line of Help's privacy text as the window writes it: each host a node a part, with a <wbr> between. */
+function hostItem(item, hosts, width = 150) {
+  const runs = hostRuns(item, hosts).flatMap((run) =>
+    run.host ? addressParts(run.text).flatMap((part, index) => (index === 0 ? [text(part)] : [tag("wbr", {}), text(part)])) : [text(run.text)],
+  );
+  return tag("li", { display: "list-item", width }, ...runs);
+}
+
+test("in the page, a host cut into nodes is found whole in its line, with each word's boxes and the line's room", () => {
+  const item = `${RELEASES}, GitHub's, where an update's files are fetched from, only when you choose Update.`;
+  const asked = [];
+  const found = inPage(HOSTS(DESTINATIONS), [hostItem(item, DESTINATIONS)], (start, end) => {
+    asked.push([start[0].textContent, start[1], end[0].textContent, end[1]]);
+    return [box(0, 15, 0, 30)];
+  });
+  assert.deepEqual(found.map((host) => [host.text, host.where, host.room]), [[RELEASES, `li "${item.slice(0, 59)}…"`, 150]]);
+  assert.deepEqual(found[0].words.map((word) => [word.text, word.boxes]), [
+    ["release-assets", [box(0, 15, 0, 30)]],
+    [".githubusercontent", [box(0, 15, 0, 30)]],
+    [".com", [box(0, 15, 0, 30)]],
+  ]);
+  // Each word's range is its own node, from its start to its end, and the comma after it is in none.
+  assert.deepEqual(asked, [["release-assets", 0, "release-assets", 14], [".githubusercontent", 0, ".githubusercontent", 18], [".com", 0, ".com", 4]]);
+  assert.equal(addressVerdict(found, [RELEASES], "host"), false);
+});
+
+test("in the page, main's host in one node, broken by the browser inside a word that fits the line, is a verdict", () => {
+  const item = `${RELEASES}, GitHub's, where an update's files are fetched from.`;
+  const line = tag("li", { display: "list-item", width: 150 }, text(item));
+  const found = inPage(HOSTS(DESTINATIONS), [line], (start, end) =>
+    start[1] === 14 && end[1] === 32 ? [box(0, 15, 95, 150), box(15, 30, 0, 66)] : [box(0, 15, 0, 20)],
+  );
+  assert.equal(addressVerdict(found, [RELEASES], "host"), false);
+  assert.deepEqual(breakVerdicts(found, "host").filter(Boolean), [
+    `the host "${RELEASES}" is broken inside ".githubusercontent", over 2 lines, though ".githubusercontent" fits its line (li "${item.slice(0, 59)}…")`,
+  ]);
+});
+
+test("in the page, a host with a zero-width space slipped in, or one only for a screen reader, is not found", () => {
+  const slipped = tag("p", { classes: ["detail"], display: "block", width: 280 }, text("Also sent to hooks\u200b.slack.com."));
+  const aside = tag("p", { classes: ["visually-hidden"], display: "block" }, text("Also sent to hooks.slack.com."));
+  const found = inPage(HOSTS(["hooks.slack.com"]), [slipped, aside], () => [box(0, 15)]);
+  assert.deepEqual(found, []);
+  assert.match(addressVerdict(found, ["hooks.slack.com"], "host"), /^the window's host 1 written whole is no host, where its copy has "hooks\.slack\.com"/);
 });
