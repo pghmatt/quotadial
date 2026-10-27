@@ -4,15 +4,18 @@
 // name and its domain, and the window writes a <wbr> at each of those places and never a character,
 // so the parts joined are the address, byte for byte (the manager's decision on #73, 2026-10-27,
 // 13:26 UTC, D-141). And where an address stands in a line the app writes, such as the summary's,
-// which names the account by its address when it has no name given. Both are held for the cases
-// below and for random strings (CLAUDE.md: every parser of text from outside has a property test,
-// and an account's address comes from a provider's answer or a file a CLI keeps).
+// which names the account by its address when it has no name given, and where a host stands in a
+// sentence, such as a webhook's in Settings or a place QuotaDial connects to in Help (D-141, extended
+// to a host). Each is held for the cases below and for random strings (CLAUDE.md: every parser of
+// text from outside has a property test, and an account's address comes from a provider's answer or
+// a file a CLI keeps, and a webhook's host from config.json).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { addressParts, addressRuns } from "../src/address.ts";
+import { addressParts, addressRuns, hostRuns } from "../src/address.ts";
 import { seeded, seedOfThisRun } from "./random-text.mjs";
+import { DESTINATIONS } from "./window-fixtures.mjs";
 
 const LONG = "a.very.long.account.name.that.keeps.going@engineering.example.com";
 
@@ -227,4 +230,128 @@ test("whatever the line and the addresses, the runs joined are the line, and eac
     withAddresses += runs.some((run) => run.address) ? 1 : 0;
   }
   assert.ok(withAddresses >= cases / 10, `only ${withAddresses} of ${cases} lines held an address, seed ${seed}`);
+});
+
+// A host written in a sentence, such as a webhook's in Settings or a place QuotaDial connects to in
+// Help's privacy text (D-141, extended to a host): it has no @, so it breaks before each dot, and the
+// window finds it from a list the app gives it, never by guessing at words with a dot in them, which
+// a file's name has too. `DESTINATIONS` is every place QuotaDial connects to, as the app sends them
+// to Help (whole-addresses.test.mjs holds the list to the app's).
+
+test("a host has no @, so it breaks before each dot after its first character, as an address's domain does", () => {
+  assert.deepEqual(addressParts("release-assets.githubusercontent.com"), ["release-assets", ".githubusercontent", ".com"]);
+  assert.deepEqual(addressParts("alerts.engineering.platform.internal.corp.example.co.uk"), [
+    "alerts",
+    ".engineering",
+    ".platform",
+    ".internal",
+    ".corp",
+    ".example",
+    ".co",
+    ".uk",
+  ]);
+  assert.deepEqual(addressParts("hooks.slack.com"), ["hooks", ".slack", ".com"]);
+  assert.deepEqual(addressParts("localhost"), ["localhost"]);
+});
+
+test("a host stands in a sentence after a space, a bracket or a quotation mark, and before a space, a mark of punctuation or the stop that ends it", () => {
+  assert.deepEqual(hostRuns("api.anthropic.com, Anthropic's, with your Claude Code sign-in.", DESTINATIONS), [
+    { text: "api.anthropic.com", host: true },
+    { text: ", Anthropic's, with your Claude Code sign-in.", host: false },
+  ]);
+  assert.deepEqual(hostRuns("status.claude.com and status.openai.com, the providers' public status pages.", DESTINATIONS), [
+    { text: "status.claude.com", host: true },
+    { text: " and ", host: false },
+    { text: "status.openai.com", host: true },
+    { text: ", the providers' public status pages.", host: false },
+  ]);
+  // Settings' line, its webhooks' hosts one after another, the last before the stop that ends it.
+  assert.deepEqual(hostRuns("Also sent to hooks.slack.com, alerts.example.co.uk.", ["hooks.slack.com", "alerts.example.co.uk"]), [
+    { text: "Also sent to ", host: false },
+    { text: "hooks.slack.com", host: true },
+    { text: ", ", host: false },
+    { text: "alerts.example.co.uk", host: true },
+    { text: ".", host: false },
+  ]);
+  for (const [before, after] of [["(", ")"], ['"', '"'], ["'", "'"], ["[", "]"], ["", ":"], ["", ";"], ["", "!"], ["", "?"], ["", "."]]) {
+    const line = `see ${before}github.com${after} now`;
+    assert.deepEqual(hostRuns(line, DESTINATIONS).filter((run) => run.host).map((run) => run.text), ["github.com"], line);
+  }
+  assert.deepEqual(hostRuns("github.com", DESTINATIONS), [{ text: "github.com", host: true }]);
+});
+
+test("a host inside a longer name is not it: a longer host, a path, a web address, an address or more letters", () => {
+  for (const line of [
+    "api.github.com",
+    "github.com.au",
+    "quotadial.com/key opens github.com/pghmatt",
+    "https://github.com/pghmatt/quotadial",
+    "github.comx and xgithub.com",
+    "github.com-mirror and mirror-github.com",
+    "someone@github.com",
+    "github.com.example",
+  ]) {
+    assert.deepEqual(hostRuns(line, ["github.com", "quotadial.com"]), [{ text: line, host: false }], line);
+  }
+});
+
+test("a file's name, or anything else with a dot in it, is not a host unless the list holds it", () => {
+  const line = "such as QuotaDial_universal.dmg, as docs/INSTALL.md says, in config.json.";
+  assert.deepEqual(hostRuns(line, DESTINATIONS), [{ text: line, host: false }]);
+  assert.deepEqual(hostRuns("hooks.slack.com", []), [{ text: "hooks.slack.com", host: false }]);
+  assert.deepEqual(hostRuns("hooks.slack.com", [""]), [{ text: "hooks.slack.com", host: false }]);
+  assert.deepEqual(hostRuns("", DESTINATIONS), []);
+});
+
+test("where two hosts begin at one place, the longer is the one that stands there", () => {
+  assert.deepEqual(hostRuns("see status.claude.com.", ["status.claude", "status.claude.com"]), [
+    { text: "see ", host: false },
+    { text: "status.claude.com", host: true },
+    { text: ".", host: false },
+  ]);
+});
+
+/** What a host and a sentence around it are made of: letters, figures, a hyphen, dots, and the marks a sentence has. */
+const HOST_PIECES = ["a", "b", "z", "0", "9", "-", ".", ".", "."];
+const SENTENCE_PIECES = [" ", " ", ", ", ". ", ".", "(", ")", "'", '"', ":", ";", "/", "@", "_", "x"];
+
+test("whatever the line and the hosts, the runs joined are the line, and each host run is a host standing in it", () => {
+  const seed = seedOfThisRun();
+  const next = seeded(seed);
+  const pick = (pieces) => pieces[Math.floor(next() * pieces.length)];
+  const cases = 3000;
+  let withHosts = 0;
+  for (let index = 0; index < cases; index += 1) {
+    const hosts = Array.from({ length: Math.floor(next() * 4) }, () =>
+      Array.from({ length: 1 + Math.floor(next() * 8) }, () => pick(HOST_PIECES)).join(""),
+    );
+    const line = Array.from({ length: Math.floor(next() * 8) }, () =>
+      next() < 0.5 && hosts.length > 0 ? hosts[Math.floor(next() * hosts.length)] : pick(SENTENCE_PIECES),
+    ).join("");
+    const where = `seed ${seed}, case ${index}, ${JSON.stringify(line)} with ${JSON.stringify(hosts)} (QUOTADIAL_TEST_SEED=${seed} runs it again)`;
+    let runs;
+    try {
+      runs = hostRuns(line, hosts);
+    } catch (error) {
+      assert.fail(`hostRuns threw ${error} for ${where}`);
+    }
+    assert.equal(runs.map((run) => run.text).join(""), line, `the runs joined are not the line: ${where}`);
+    assert.ok(runs.every((run) => run.text.length > 0), `a run is empty: ${where}`);
+    let at = 0;
+    for (const [number, run] of runs.entries()) {
+      if (run.host) {
+        assert.ok(hosts.includes(run.text), `run ${number + 1} is not one of the hosts: ${where}`);
+        assert.ok(at === 0 || /[\s(["']/.test(line[at - 1]), `run ${number + 1} has no space, bracket, quotation mark or start before it: ${where}`);
+        const end = at + run.text.length;
+        const after = line[end];
+        const stops = after === "." && (end + 1 === line.length || /\s/.test(line[end + 1]));
+        assert.ok(end === line.length || /[\s,;:!?)\]"']/.test(after) || stops, `run ${number + 1} has no space, mark, stop or end after it: ${where}`);
+      } else {
+        assert.ok(number === 0 || runs[number - 1].host, `two runs of words are side by side: ${where}`);
+      }
+      at += run.text.length;
+    }
+    withHosts += runs.some((run) => run.host) ? 1 : 0;
+  }
+  assert.ok(withHosts >= cases / 10, `only ${withHosts} of ${cases} lines held a host, seed ${seed}`);
 });

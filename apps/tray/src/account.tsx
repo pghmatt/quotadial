@@ -1,6 +1,6 @@
 import { Fragment, type ComponentChildren } from "preact";
 
-import { addressParts, addressRuns } from "./address";
+import { addressParts, addressRuns, hostRuns } from "./address";
 
 /** Who an account is: its provider's own name (P-020), the name the user gave it, if any, and its
  * own name, such as its email address, empty when that says nothing beyond its provider. */
@@ -111,6 +111,31 @@ export function WithAddresses({ text, addresses }: { text: string; addresses: re
     <>
       {addressRuns(text, addresses).map((run, index) =>
         run.address ? <Address key={index} text={run.text} /> : run.text,
+      )}
+    </>
+  );
+}
+
+/**
+ * A host, such as "release-assets.githubusercontent.com", written as `Address` writes an address
+ * (D-141, extended to a host in a sentence): a host has no `@`, so a line too short for it breaks
+ * it before a `.` and not inside a word, the text of its line holds it byte for byte, and a screen
+ * reader reads it whole.
+ */
+export function Host({ text }: { text: string }) {
+  return <Address text={text} />;
+}
+
+/**
+ * A sentence the app writes, with each of `hosts` that stands in it written as `Host` writes one
+ * (`hostRuns`): Help's text of what QuotaDial reads and sends, which names every place QuotaDial
+ * connects to.
+ */
+export function WithHosts({ text, hosts }: { text: string; hosts: readonly string[] }) {
+  return (
+    <>
+      {hostRuns(text, hosts).map((run, index) =>
+        run.host ? <Host key={index} text={run.text} /> : run.text,
       )}
     </>
   );
