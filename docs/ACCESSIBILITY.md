@@ -70,8 +70,10 @@ support@quotadial.com.
   and - zooms it out, and Command and 0 sets it back. The window grows with its text to its tallest
   and then scrolls; nothing is cut off at 200%, and a long account name, address, folder, file name or
   command is broken where it must be to fit. An email address breaks before its @ or a dot, such as
-  "a.very.long.account.name.that.keeps.going" over "@engineering.example.com", and inside a word only
-  when that word is wider than the window. A share used, such as 64%, is never split over two lines: the
+  "a.very.long.account.name.that.keeps.going" over "@engineering.example.com", and a web address in
+  Settings or Help before a dot, as "release-assets" over ".githubusercontent.com"; each breaks
+  inside a word only when that word is wider than the window. A share used, such as 64%, is never
+  split over two lines: the
   name beside it wraps instead. A short word, such as "Weekly" in History's captions, is never
   broken either: a caption wraps between its words. The
   toolbar stays at the window's foot while the accounts scroll, at 200% too, where it and the line
