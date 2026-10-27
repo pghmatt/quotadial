@@ -19,10 +19,12 @@
 // week's cost, a key kept and a Share image button on each account in History; Free, with what
 // Pro adds, the line said in the buttons' place, an update on offer, Codex's account as an older
 // daemon sends it, with no panel, and an example account, its provider shown once; Many, Pro
-// with ten accounts, which carry every view far past the window's tallest height (D-136); and
-// Crowded, Pro with one Claude account of seven windows, whose History alone is checked, for the
-// picture to share of an account with many windows, where each share must be written whole in
-// every system's own font.
+// with ten accounts, which carry every view far past the window's tallest height (D-136) and, in a
+// place of its own each, text from outside as long as it gets, with no spaces in it, and the changelog
+// and privacy lines and the update's notes with their real file names and hosts, so that the check
+// proves each of them breaks where it must and is never cut off (D-139); and Crowded, Pro with
+// one Claude account of seven windows, whose History alone is checked, for the picture to share of
+// an account with many windows, where each share must be written whole in every system's own font.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -41,6 +43,19 @@
  */
 
 const LONG_NAME = "a.very.long.account.name.that.keeps.going@engineering.example.com";
+
+// Text from outside as long as QuotaDial lets it be, each with nothing in it a browser breaks a line
+// at, one for each place the window shows some that is not an address (D-139): a name the person gave
+// an account, a plan the provider names, a model's name in a window's label (QuotaDial keeps 64
+// characters of it), a folder the person's machine names, a command that holds it, a provider's
+// incident and the host of a webhook. The Many copy has them all, as its header says.
+const LONG_ALIAS = "EngineeringPlatformTeamSharedAccount2026";
+const LONG_PLAN = "Enterprise_Annual_Prepaid_Seats_2026";
+const LONG_MODEL = "ClaudeSonnetFourPointFiveExtendedContextPreview";
+const LONG_FOLDER = "/Users/someone.with.a.long.name/Library/Application Support/quotadial/history.2026-10-27T09-12-00Z.damaged.sqlite3";
+const LONG_COMMAND = `chmod 600 '${LONG_FOLDER}'`;
+const LONG_INCIDENT = "ElevatedErrorsOnClaudeOpusAndSonnetAcrossAllRegionsPartialOutage";
+const LONG_HOST = "alerts.engineering.platform.internal.corp.example.co.uk";
 
 const CLAUDE_SIGN_IN =
   "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN environment " +
@@ -311,7 +326,10 @@ const ACCOUNTS = [
  * Three more accounts, which with those above make ten, as many as a person with a few
  * subscriptions each for work and for play has, and enough to carry the popover well past its
  * tallest, so that its toolbar has to stay put while they scroll (D-136). The copy of them was
- * called Nine, before an account with one window was added to those above (D-137).
+ * called Nine, before an account with one window was added to those above (D-137). The first has,
+ * in a place of its own, text from outside with no spaces in it that a window must break rather
+ * than cut off (D-139): a window named for a model (its label, in the popover and in History's
+ * caption and heatmap) and a sign-in panel that names a folder; the second a plan (its capsule).
  * @type {Meter["accounts"]}
  */
 const MORE_ACCOUNTS = [
@@ -346,10 +364,20 @@ const MORE_ACCOUNTS = [
         pace: null,
         runs_out: false,
       },
+      {
+        label: `Weekly (${LONG_MODEL})`,
+        used_pct: 12.5,
+        level: "normal",
+        resets: "resets in 5 d 7 h",
+        fetched: null,
+        unconfirmed: false,
+        pace: null,
+        runs_out: false,
+      },
     ],
     extra_usage: null,
     note: null,
-    sign_in: CLAUDE_SIGN_IN,
+    sign_in: `${CLAUDE_SIGN_IN} Its folder is ${LONG_FOLDER}.`,
   },
   {
     key: "codex:ops@example.com",
@@ -357,7 +385,7 @@ const MORE_ACCOUNTS = [
     summary: "Codex Ops: Weekly 41%",
     provider: "Codex",
     name: "ops@example.com",
-    plan: "Plus",
+    plan: LONG_PLAN,
     status: "ok",
     ok: true,
     fetched: "from the API 2 min ago",
@@ -425,8 +453,20 @@ const MORE_ACCOUNTS = [
   },
 ];
 
-/** Every account above and three more: the Many copy's. */
-const MANY_ACCOUNTS = [...ACCOUNTS, ...MORE_ACCOUNTS];
+/**
+ * Every account above and three more: the Many copy's. Its first account, whose window sets the
+ * number under the summary, has a name the person gave it with no spaces in it, which the summary's
+ * line, the card's heading and History's card each carry, and Gemini CLI's account has a note that
+ * names a folder (D-139).
+ * @type {Meter["accounts"]}
+ */
+const MANY_ACCOUNTS = [
+  { ...ACCOUNTS[0], alias: LONG_ALIAS, summary: `Claude ${LONG_ALIAS}: Weekly 91%` },
+  ...ACCOUNTS.slice(1, 3),
+  { ...ACCOUNTS[3], note: `${ACCOUNTS[3].note ?? ""} QuotaDial looked for its sign-in in ${LONG_FOLDER}.` },
+  ...ACCOUNTS.slice(4),
+  ...MORE_ACCOUNTS,
+];
 
 /**
  * An account as the example build sends it (D-117): called Example under the provider Example, so
@@ -714,15 +754,94 @@ export const pro = {
 /**
  * QuotaDial Pro with ten accounts (D-136): the popover's accounts, and each panel's, run far past
  * the window's tallest height, so the check sees the toolbar stay at the window's foot while they
- * scroll, from the top to the last card.
+ * scroll, from the top to the last card. It is also the copy whose text from outside is as long as
+ * it gets in every place the window shows some (D-139), so that the check's rule that nothing is cut
+ * off holds each of them: an address (the Codex account's, above), a name the person gave an
+ * account, a plan, a window's label, a folder and a command in a problem, a provider's incident, a
+ * webhook's host and an alert the person wrote.
  *
  * @type {Copy}
  */
 export const many = {
   ...pro,
-  meter: { ...pro.meter, accounts: MANY_ACCOUNTS },
-  settings: { ...SETTINGS, accounts: choices(MANY_ACCOUNTS) },
+  meter: {
+    ...pro.meter,
+    headline: `Weekly · ${LONG_ALIAS} · resets in 2 d 4 h`,
+    accounts: MANY_ACCOUNTS,
+    problems: [
+      ...pro.meter.problems,
+      `The history could not be opened at ${LONG_FOLDER}: it was damaged, so a new one was started. ` +
+        `If other users can read it, run \`${LONG_COMMAND}\`.`,
+    ],
+    incidents: [...pro.meter.incidents, `Codex: ${LONG_INCIDENT}`],
+    costs: [
+      ...pro.meter.costs,
+      {
+        provider: "Codex",
+        summary: "$312 at API prices over the last 7 days, from 8,120 requests",
+        detail: "From the logs read 2 min ago, at the prices of 1 October 2026.",
+        models: [`${LONG_MODEL}: $201`, "Codex Mini: $111"],
+        notes: [],
+      },
+    ],
+  },
+  settings: {
+    ...SETTINGS,
+    alerts: [
+      ...SETTINGS.alerts,
+      {
+        id: 3,
+        written: `warn me about ${LONG_ALIAS}`,
+        read_as: `when ${LONG_ALIAS} reaches 80%`,
+        enabled: true,
+        waits: false,
+      },
+    ],
+    alert_targets: [...SETTINGS.alert_targets, LONG_HOST],
+    alert_problems: [
+      `${LONG_FOLDER} holds webhook addresses, which work like passwords, and other users can read it; ` +
+        `run \`${LONG_COMMAND}\`.`,
+    ],
+    accounts: choices(MANY_ACCOUNTS),
+  },
   history: { 7: history(7, null, MANY_ACCOUNTS), 30: history(30, null, MANY_ACCOUNTS) },
+  // What Help and an update on offer say that is longer than a window's words: lines of the real
+  // changelog, which name files and commands, and the real privacy text's longest host, in a copy
+  // whose update is on offer, so that the popover's card for it and About's notes carry them too.
+  help: {
+    ...HELP,
+    whats_new: {
+      ...HELP.whats_new,
+      sections: [
+        ...HELP.whats_new.sections,
+        {
+          heading: "Changed",
+          items: [
+            "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
+            "The command that signs a Claude Code folder in again works when pasted, from doctor too: CLAUDE_CONFIG_DIR=~/'.claude-work' claude, as docs/INSTALL.md says.",
+          ],
+        },
+      ],
+    },
+    privacy: [
+      ...HELP.privacy,
+      {
+        kind: "list",
+        items: [
+          "release-assets.githubusercontent.com, GitHub's, where an update's files are fetched from, only when you choose Update.",
+        ],
+      },
+    ],
+  },
+  update: {
+    text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",
+    available: "0.4.0",
+    notes: [
+      "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
+    ],
+    busy: false,
+    progress: null,
+  },
   forScrolling: true,
 };
 
