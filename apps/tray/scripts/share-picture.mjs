@@ -1,10 +1,14 @@
 // What a share picture's pixels must say (D-137), read from the PNG the window sends the app, as
 // the person who posts it gets it: the ground is the material of the theme, the card sits on it,
-// and nothing is drawn as a plate behind a chart. check-window.mjs runs these over every picture
-// it makes; share-picture.test.mjs proves each one fails on a picture broken on purpose, with no
-// browser. The PNG is read here with no library: a signature, chunks with their checksums, one
-// zlib stream, and the five filters of a scanline.
+// nothing is drawn as a plate behind a chart, and each chart's 90% line is dashed in its own colour
+// along the whole of it (the manager on #73, 2026-10-27, 11:26 UTC). check-window.mjs runs these
+// over every picture it makes; share-picture.test.mjs proves each one fails on a picture broken on
+// purpose, with no browser. The PNG is read here with no library: a signature, chunks with their
+// checksums, one zlib stream, and the five filters of a scanline.
 import { crc32, inflateSync } from "node:zlib";
+
+import { SHADING } from "../src/share.ts";
+import { themes } from "./stylesheet.mjs";
 
 /**
  * The picture's ground in each theme, as the manager decided it on #73 (2026-10-26, 23:25 UTC) and
@@ -177,6 +181,167 @@ function firstWrong(samples, wanted, tolerance) {
 /** How much a colour the canvas composites may differ from the one worked out in full. */
 const BLEND = 2;
 
+/** `[r, g, b, a]` laid over the opaque `under`, as the canvas composites it, worked out in full. */
+function over([r, g, b, a], under) {
+  return [r, g, b].map((channel, at) => channel * a + under[at] * (1 - a));
+}
+
+/**
+ * The colours a chart's dashed 90% line is judged by in `theme`, over the card's `fill`: `limit`,
+ * the line's own, `--chart-limit`; `line`, a chart's own line, `--bar-normal`; and `shading`, the
+ * soft fill under a chart's line, `--bar-normal` at SHADING laid over `fill`. They are read from
+ * src/style.css and src/share.ts as check-contrast.mjs reads them, and not written here as MATERIAL
+ * is: the contrast check holds each of them to its ratio, so a colour or SHADING moved there is
+ * judged by that one check while this one follows it, rather than two copies of one number agreeing
+ * with each other (the manager on #73, 2026-10-27, 11:26 UTC).
+ */
+export function dashColours(theme, fill) {
+  const stylesheet = new Map(themes()).get(theme);
+  const colour = (name) => {
+    if (stylesheet?.[name] === undefined) {
+      throw new Error(`style.css does not define ${name} in the ${theme} theme`);
+    }
+    return fromHex(stylesheet[name]);
+  };
+  const line = colour("--bar-normal");
+  return { limit: colour("--chart-limit"), line, shading: over([...line, SHADING], fill) };
+}
+
+/**
+ * A chart's dashed 90% line as src/share.ts draws it, in CSS pixels, written here as the check's
+ * own text of what the picture draws, as MATERIAL is: at LIMIT_PCT of the chart's height up from its
+ * foot, LIMIT_WIDTH thick (`RULE`), dashed LIMIT_DASH, on then off from its left end
+ * (`setLineDash([6, 6])`, the manager's 6/6), as the canvas begins a pattern where its line begins.
+ * Chrome's pictures show it so: a chart that begins 233.71 CSS pixels in begins with a dash from
+ * device pixel 467.43 to 479.43, which covers pixels 468 to 478 whole and 467 and 479 in part.
+ */
+const LIMIT_PCT = 90;
+const LIMIT_WIDTH = 2;
+const LIMIT_DASH = [6, 6];
+/**
+ * A chart's own line, drawn over its dashed one, in CSS pixels: LINE_WIDTH thick (`LINE`), with
+ * round joins and ends, or, for a single reading, a ring of DOT_RADIUS round it drawn as thick.
+ */
+const LINE_WIDTH = 3;
+const DOT_RADIUS = 3;
+/**
+ * How far, in pixels, an edge must be from a pixel of the dashed line for the pixel to be judged:
+ * more than this from its square, the manager's "within a pixel of anti-aliasing". The ends of each
+ * dash and gap, the ends of the line, the sides of the soft fill and the edge of the chart's own
+ * line are each blended into the pixels they cross, so the verdicts judge a pixel only when each of
+ * them is more than a pixel from it: an end of a dash may fall anywhere within a pixel of where the
+ * 6/6 pattern puts it, and a pixel judged is one a dash or a gap covers whole.
+ */
+const ANTI_ALIASING = 1;
+/**
+ * How far a pixel the dash covers whole may be from `--chart-limit`: 0, since nothing is blended
+ * there. The dash is opaque, so the canvas writes a pixel it covers whole in the dash's own colour,
+ * whatever is under it, over the card and over the soft fill alike, as it writes the material at
+ * the corners, which is held to 0 too. A pixel the dash covers in part is a blend, and is not
+ * judged (ANTI_ALIASING). What a gap shows, the card's fill or the soft fill, is a see-through
+ * colour laid over another, which the canvas rounds, and is held within BLEND. Chrome's pictures
+ * bear this out: every pixel the verdicts judge in a dash is --chart-limit exactly, in both themes,
+ * and every one in a gap is within 1 of what is worked out for it.
+ */
+const DASH_ROUNDING = 0;
+
+/** How far `point` is from the straight line from `from` to `to`, its ends included. */
+function fromSegment([x, y], [x0, y0], [x1, y1]) {
+  const [dx, dy] = [x1 - x0, y1 - y0];
+  const length = dx * dx + dy * dy;
+  const t = length === 0 ? 0 : Math.min(1, Math.max(0, ((x - x0) * dx + (y - y0) * dy) / length));
+  return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
+}
+
+/** How far `point` is from the line through `line`'s points, or from its point when it has one. */
+function fromLine(point, line) {
+  if (line.length === 1) {
+    return fromSegment(point, line[0], line[0]);
+  }
+  let least = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < line.length; index += 1) {
+    least = Math.min(least, fromSegment(point, line[index - 1], line[index]));
+  }
+  return least;
+}
+
+/** Whether `point` is inside `outline`, closed from its last corner to its first, by the nonzero rule a canvas fills by. */
+function inside([x, y], outline) {
+  let winding = 0;
+  outline.forEach(([x0, y0], index) => {
+    const [x1, y1] = outline[(index + 1) % outline.length];
+    const side = (x1 - x0) * (y - y0) - (x - x0) * (y1 - y0);
+    if (y0 <= y && y1 > y && side > 0) {
+      winding += 1;
+    } else if (y0 > y && y1 <= y && side < 0) {
+      winding -= 1;
+    }
+  });
+  return winding !== 0;
+}
+
+/**
+ * The pixels of a chart's dashed 90% line that the verdicts judge, at `scale` pixels to a CSS
+ * pixel, worked out from the chart's `box` and its readings, `points`, as src/share.ts draws them:
+ * `all`, how many pixels the line covers whole, in each of its rows, from its left end to its
+ * right; `covered`, those of them left out because the chart's own line, drawn over the dashed one,
+ * comes within a pixel of them, worked out from the readings as `emptyPlaces` works out where the
+ * line runs, each `[x, y]`; and `places`, the rest, less those within a pixel of the end of a dash,
+ * a gap or the line or of a side of the soft fill, left to anti-aliasing. Each place is `{ x, y,
+ * along, dash, over }`: the pixel, how far along the line it is (0 to 1), whether the 6/6 pattern
+ * puts a dash there or a gap, and what the line is drawn over there: "fill", the soft fill under
+ * the chart's line, where the line is above 90%, or "card". Places run from the left end, a column
+ * at a time.
+ */
+export function dashPlaces(box, points, scale) {
+  const held = (value, least, most) => Math.min(most, Math.max(least, value));
+  const [left, right] = [box.x * scale, (box.x + box.width) * scale];
+  const [top, foot] = [box.y * scale, (box.y + box.height) * scale];
+  const middle = top + ((100 - LIMIT_PCT) / 100) * (foot - top);
+  const half = (LIMIT_WIDTH * scale) / 2;
+  const [on, off] = LIMIT_DASH.map((length) => length * scale);
+  // The chart's own line, each reading held to the chart as share.ts holds it, and how far from
+  // it the line is drawn: half its width, or out to the far side of a single reading's ring.
+  const line = points.map(([along, used]) => [
+    left + held(along, 0, 1) * (right - left),
+    top + ((100 - held(used, 0, 100)) / 100) * (foot - top),
+  ]);
+  const reach = (line.length === 1 ? DOT_RADIUS + LINE_WIDTH / 2 : LINE_WIDTH / 2) * scale;
+  // The soft fill, from the chart's foot under its first reading, along the line to its last and
+  // down to the foot again; a single reading fills nothing.
+  const outline = line.length > 1 ? [[line[0][0], foot], ...line, [line.at(-1)[0], foot]] : [];
+  const ends = [left, right, ...(line.length > 1 ? [line[0][0], line.at(-1)[0]] : [])];
+  const places = [];
+  const covered = [];
+  let all = 0;
+  for (let x = Math.ceil(left); x + 1 <= right; x += 1) {
+    for (let y = Math.ceil(middle - half); y + 1 <= middle + half; y += 1) {
+      all += 1;
+      const centre = [x + 0.5, y + 0.5];
+      // A square's farthest point is half its diagonal from its middle.
+      if (line.length > 0 && fromLine(centre, line) < reach + Math.SQRT1_2 + ANTI_ALIASING) {
+        covered.push([x, y]);
+        continue;
+      }
+      // The ends of the dashes and gaps, of the line and of the fill each cross it upright, so a
+      // pixel's square reaches half a pixel from its middle towards each.
+      const phase = (centre[0] - left) % (on + off);
+      const edge = Math.min(phase, Math.abs(phase - on), on + off - phase, ...ends.map((end) => Math.abs(centre[0] - end)));
+      if (edge < 0.5 + ANTI_ALIASING) {
+        continue;
+      }
+      places.push({
+        x,
+        y,
+        along: (centre[0] - left) / (right - left),
+        dash: phase < on,
+        over: outline.length > 0 && inside(centre, outline) ? "fill" : "card",
+      });
+    }
+  }
+  return { places, all, covered };
+}
+
 /** The least room, in CSS pixels, between the card and an edge of the picture for the material to show in. */
 const LEAST_MARGIN = 8;
 
@@ -208,16 +373,23 @@ function emptyPlaces(points) {
  * A verdict on each thing a picture's pixels must say, false where it passed or what is wrong:
  * the picture's corners and the margin between its edges and the card are the material; the card's
  * padding, where nothing is written, is the card's fill laid over the material; the card's outline
- * is its hairline edge, which is clear in dark; and the empty band above each chart's dashed line,
- * where only a plate could be, is the card's fill too. A verdict names the first place that is not.
+ * is its hairline edge, which is clear in dark; the empty band above each chart's dashed line,
+ * where only a plate could be, is the card's fill too; and each chart's 90% line, read along the
+ * whole of it (`dashPlaces`), is dashed 6/6 in `--chart-limit` over the card and over the soft fill,
+ * three verdicts a chart: a dash wherever the pattern puts one, what the line is drawn over in each
+ * gap, so that it is not solid, and each dash in `--chart-limit`. A verdict names the first place
+ * that is not, along the line from its left end, and a chart whose own line leaves no dash or no
+ * gap of its 90% line to judge fails, saying how much it covers.
  *
  * `want` holds `scale` (pixels to a CSS pixel); `card`, where the card is in CSS pixels, its `x`,
  * `y`, `width`, `height`, `padding` and `edge` (the hairline's width); `ground`, `fill` (the card's
- * fill laid over the ground) and `edge` (the hairline laid over the fill), each `[r, g, b]`; and
- * `charts`, each with its `label`, its `box` in CSS pixels and its readings, `points`.
+ * fill laid over the ground), `edge` (the hairline laid over the fill), `limit` (`--chart-limit`)
+ * and `shading` (the soft fill laid over the card's fill), each `[r, g, b]`, the last two as
+ * `dashColours` gives them; and `charts`, each with its `label`, its `box` in CSS pixels and its
+ * readings, `points`.
  */
 export function pictureVerdicts(picture, want) {
-  const { scale, card, ground, fill, edge, charts } = want;
+  const { scale, card, ground, fill, edge, limit, shading, charts } = want;
   // A place off the picture is read from the nearest one on it, so a card put where the check does
   // not expect it fails a verdict, which names what it found, and does not end the check.
   const clamp = (value, last) => Math.min(Math.max(Math.floor(value), 0), last);
@@ -316,6 +488,54 @@ export function pictureVerdicts(picture, want) {
         ),
         ([along, found]) =>
           `draws a plate behind ${label}'s chart: ${show(found)} ${(along * 100).toFixed(0)}% along its empty band above 90%, where only the card's fill ${show(fill)} should be`,
+      ),
+    );
+  }
+
+  // Each chart's dashed 90% line, every pixel of it but those its own line covers and those within a
+  // pixel of an end: a dash where the 6/6 pattern puts one, what the line is drawn over in each gap,
+  // and each dash in its own colour, whatever it is drawn over.
+  for (const { label, box, points } of charts) {
+    const { places, all, covered } = dashPlaces(box, points, scale);
+    const read = places.map((place) => ({
+      ...place,
+      found: picture.pixel(place.x, place.y),
+      under: place.over === "fill" ? shading : fill,
+    }));
+    // A pixel that is what the line is drawn over there shows nothing of the line.
+    const bare = (place) => near(place.found, place.under, BLEND);
+    const along = (place) => `${(place.along * 100).toFixed(0)}% along ${label}'s 90% line`;
+    const under = (place) =>
+      `${place.over === "fill" ? "the soft fill under its line" : "the card's fill"} ${show(place.under)}`;
+    const nothing = (what) =>
+      `has no ${what} of ${label}'s 90% line to judge: its own line, drawn over it, covers ${covered.length} of the ${all} pixels the 90% line covers whole`;
+    const dashes = read.filter((place) => place.dash);
+    const gaps = read.filter((place) => !place.dash);
+    const missing = dashes.find(bare);
+    verdicts.push(
+      dashes.length === 0
+        ? nothing("dash")
+        : verdict(
+            missing,
+            (place) => `has no dash ${along(place)}, where the 6/6 pattern puts one: ${show(place.found)} there is ${under(place)}`,
+          ),
+    );
+    const filled = gaps.find((place) => !bare(place));
+    verdicts.push(
+      gaps.length === 0
+        ? nothing("gap")
+        : verdict(
+            filled,
+            (place) =>
+              `has ${show(place.found)} in a gap ${along(place)}, where the 6/6 pattern leaves ${under(place)} to show, so the line is not dashed there`,
+          ),
+    );
+    const wrong = dashes.find((place) => !bare(place) && !near(place.found, limit, DASH_ROUNDING));
+    verdicts.push(
+      verdict(
+        wrong,
+        (place) =>
+          `draws the dash ${along(place)} in ${show(place.found)} over ${under(place)}, not in --chart-limit ${show(limit)}`,
       ),
     );
   }

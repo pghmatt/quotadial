@@ -55,7 +55,10 @@
 // - that picture is the account's card on the theme's material, #ececec in light and #2c2c2e in dark
 //   (D-137): its corners are that colour, so is the margin round the card, the card's padding is the
 //   card's fill laid over it, its edge is the card's hairline, and nothing is drawn as a plate behind
-//   a chart, each read from the PNG's own pixels (share-picture.mjs).
+//   a chart, each read from the PNG's own pixels (share-picture.mjs);
+// - and each chart's 90% line in it is dashed 6/6 in --chart-limit along the whole of it, over the
+//   card and over the soft fill under a chart's line, read pixel by pixel but where the chart's own
+//   line covers it (the manager on #73, 2026-10-27, 11:26 UTC; share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, and over History alone for
@@ -86,7 +89,7 @@ import { viewportAt, zoomOf } from "./viewport.mjs";
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
-import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { MATERIAL, dashColours, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
 import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
 
@@ -2036,7 +2039,8 @@ const HISTORY_LINES = `[...document.querySelectorAll('section.history > p')].map
  * from the keyboard, it sends the app a whole PNG of 2400 by 1350 for that account, says where it
  * went, and draws only what `shareStrings` lists, with the label and never an @, in the
  * stylesheet's text colours, the window's font and tabular figures, on a card on the theme's
- * material (D-137), with no plate behind a chart: each account over 7 days, and the first over 30.
+ * material (D-137), with no plate behind a chart and each chart's 90% line dashed in its own colour:
+ * each account over 7 days, and the first over 30.
  * On QuotaDial Free: no button, and the feature's line once. Saves each picture in `folder` when
  * one is named.
  */
@@ -2075,6 +2079,8 @@ async function checkSharing(view, name, copy, theme, folder) {
     allowed: new Set(await view.evaluate(`['--text', '--secondary', '--muted', '--warning', '--high'].map(window.__check.colour)`)),
     // Its ground is the material, the check's own text of the decision, and not the page's background.
     material: MATERIAL[theme],
+    // The theme, whose dashed line and soft fill are read as the contrast check reads them.
+    theme,
     // The card's fill and its hairline, as the canvas writes them, to be laid over the ground.
     card: await view.evaluate(`window.__check.colour('--card')`),
     edge: await view.evaluate(`window.__check.colour('--card-edge')`),
@@ -2284,9 +2290,11 @@ function contrastVerdicts(drawn) {
 /**
  * Verdicts on the picture's own pixels, as the person who posts it gets them (D-137): the ground is
  * the theme's material at the corners and in the margin, the card sits on it with its fill and its
- * hairline edge, and no plate is drawn behind a chart. The card's fill and edge are the
- * stylesheet's, laid over the material as the canvas lays them; the card and the charts are where
- * `src/share.ts` puts them. A PNG that cannot be read is a verdict too.
+ * hairline edge, no plate is drawn behind a chart, and each chart's 90% line is dashed 6/6 in
+ * `--chart-limit` over the card and the soft fill. The card's fill and edge are the stylesheet's,
+ * laid over the material as the canvas lays them; the dashed line's colour and the soft fill are
+ * the stylesheet's and SHADING, read as the contrast check reads them (`dashColours`); the card and
+ * the charts are where `src/share.ts` puts them. A PNG that cannot be read is a verdict too.
  */
 function pixelVerdicts(bytes, account, look) {
   let picture;
@@ -2297,18 +2305,22 @@ function pixelVerdicts(bytes, account, look) {
   }
   const ground = fromHex(look.material);
   const fill = rgb(look.card, ground);
-  return pictureVerdicts(picture, {
+  const { limit, shading } = dashColours(look.theme, fill);
+  const want = {
     scale: SHARED.width / PICTURE_WIDTH,
     card: CARD,
     ground,
     fill,
     edge: rgb(look.edge, fill),
+    limit,
+    shading,
     charts: chartBoxes(account.windows.length).map((box, index) => ({
       label: account.windows[index].label,
       box,
       points: account.windows[index].points,
     })),
-  });
+  };
+  return pictureVerdicts(picture, want);
 }
 
 /**
