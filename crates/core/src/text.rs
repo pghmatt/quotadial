@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
 
 use crate::{Cost, ExtraUsage, ModelCost, Pace, Source, Status};
 
@@ -707,13 +707,22 @@ pub fn ago(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
 }
 
 /// A moment as a sentence addressed to a person writes it (D-142): `26 Oct 2026 at 09:12 UTC`, the
-/// day, the month in three letters and the year, then the time to the minute, in UTC. The seconds
-/// are dropped, since nobody acts on them and the sentence is read, not sorted. UTC until the front
-/// ends write a time in the reader's own zone from a field of its own; a time a program reads stays
-/// RFC 3339, as the JSON writes it.
+/// day as [`date`] writes it, then the time to the minute, in UTC. The seconds are dropped, since
+/// nobody acts on them and the sentence is read, not sorted. UTC until the front ends write a time
+/// in the reader's own zone from a field of its own; a time a program reads stays RFC 3339, as the
+/// JSON writes it.
 #[must_use]
 pub fn date_and_time(at: DateTime<Utc>) -> String {
-    at.format("%-d %b %Y at %H:%M UTC").to_string()
+    format!("{} at {} UTC", date(at.date_naive()), at.format("%H:%M"))
+}
+
+/// A day alone as a sentence addressed to a person writes it (D-142): `24 Oct 2027`, the day with
+/// no nought before it, the month in three letters and the year, as [`date_and_time`] writes a
+/// moment's day, so the two cannot drift. A day a program reads stays `2027-10-24`, as the JSON
+/// writes it.
+#[must_use]
+pub fn date(day: NaiveDate) -> String {
+    day.format("%-d %b %Y").to_string()
 }
 
 /// For example `under a minute`, `45 min`, `2 h 10 min` or `3 d 4 h`, rounded down.
@@ -1952,6 +1961,35 @@ mod tests {
             assert_eq!(
                 date_and_time(ts(&format!("2026-{month:02}-01T12:00:00Z"))),
                 format!("1 {name} 2026 at 12:00 UTC")
+            );
+        }
+    }
+
+    #[test]
+    fn a_day_alone_is_written_as_a_person_reads_it() {
+        let day = |text: &str| text.parse::<NaiveDate>().expect("a day");
+        assert_eq!(date(day("2027-10-24")), "24 Oct 2027");
+        // A day has no nought before it.
+        assert_eq!(date(day("2026-01-05")), "5 Jan 2026");
+        assert_eq!(date(day("1970-01-01")), "1 Jan 1970");
+        for (month, name) in (1..).zip([
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ]) {
+            assert_eq!(
+                date(day(&format!("2026-{month:02}-28"))),
+                format!("28 {name} 2026")
+            );
+        }
+        // A moment's day is written as its day alone is, so the two cannot drift.
+        for at in [
+            "2026-10-26T09:12:47Z",
+            "2098-12-31T23:59:59Z",
+            "2026-01-05T00:00:00Z",
+        ] {
+            let at = ts(at);
+            assert!(
+                date_and_time(at).starts_with(&format!("{} at ", date(at.date_naive()))),
+                "{at}"
             );
         }
     }
