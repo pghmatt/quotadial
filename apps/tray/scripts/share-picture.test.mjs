@@ -2,15 +2,18 @@
 // runs over every picture the window makes). The reader is held to PNGs made here with each of the
 // five filters, and the verdicts to pictures made here the way the window draws one and then broken
 // on purpose: each verdict passes the right picture in both themes and fails the picture broken
-// its way, and only that one (D-137). The geometry and the readings are the window's own, from
-// src/share.ts and the website's made-up accounts.
+// its way, and only that one (D-137, and the manager on #73, 2026-10-27, 11:26 UTC, for the dashed
+// 90% line). The geometry and the readings are the window's own, from src/share.ts, the website's
+// made-up accounts and the window check's account of seven windows, and the colours the dashed line
+// is judged by are the stylesheet's, read as the window check reads them.
 import assert from "node:assert/strict";
 import { crc32, deflateSync } from "node:zlib";
 import { test } from "node:test";
 
-import { CARD, chartBoxes } from "../src/share.ts";
-import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { CARD, SHADING, chartBoxes } from "../src/share.ts";
+import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { site } from "./site-fixtures.mjs";
+import { crowded } from "./window-fixtures.mjs";
 
 /** A picture of `width` by `height` pixels to paint on and write as a PNG. */
 class Raster {
@@ -29,6 +32,12 @@ class Raster {
     for (let y = y0; y < y1; y += 1) {
       this.words.fill(word, y * this.width + x0, y * this.width + x1);
     }
+  }
+
+  /** Lays `[r, g, b]` over the pixel at `x, y` at `alpha`, as a canvas blends what it draws over a pixel, to whole numbers. */
+  lay(x, y, colour, alpha) {
+    const pixel = this.data.subarray((y * this.width + x) * 4, (y * this.width + x) * 4 + 4);
+    pixel.set([...colour, 255].map((channel, at) => Math.round(channel * alpha + pixel[at] * (1 - alpha))));
   }
 }
 
@@ -207,16 +216,27 @@ const STYLE = {
 /** A made-up account of the website's, with its three windows. */
 const [account] = site.history[7].accounts;
 
+/**
+ * The window check's account of seven windows, over 7 days and over 30, whose pictures it checks:
+ * its Weekly window has been full since the middle of the period, so its dashed 90% line runs over
+ * the soft fill under its line for half the chart, and the other six cross the card.
+ */
+const [crowdedWeek] = crowded.history[7].accounts;
+const [crowdedMonth] = crowded.history[30].accounts;
+
 /** What a picture of `account` in `theme` must say, as check-window.mjs works it out. */
 function wanted(theme, charts = account.windows) {
   const ground = fromHex(MATERIAL[theme]);
   const fill = over(STYLE[theme].fill, ground);
+  const { limit, shading } = dashColours(theme, fill);
   return {
     scale: 2,
     card: CARD,
     ground,
     fill,
     edge: over(STYLE[theme].edge, fill),
+    limit,
+    shading,
     charts: chartBoxes(charts.length).map((box, index) => ({
       label: charts[index].label,
       box,
@@ -225,47 +245,119 @@ function wanted(theme, charts = account.windows) {
   };
 }
 
-/** A chart's share used at `along` (0 to 1), between the readings either side of it. */
-function usedAlong(points, along) {
-  const next = points.findIndex(([at]) => at >= along);
+/** How much of `[from, to]` lies between `a` and `b`. */
+const overlap = (a, b, from, to) => Math.max(0, Math.min(b, to) - Math.max(a, from));
+
+/** How far `point` is from the line through `line`'s points, or from its one point. */
+function fromLine([x, y], line) {
+  return Math.min(
+    ...line.map(([x0, y0], index) => {
+      const [x1, y1] = line[Math.min(index + 1, line.length - 1)];
+      const length = (x1 - x0) ** 2 + (y1 - y0) ** 2;
+      const t = length === 0 ? 0 : Math.min(1, Math.max(0, ((x - x0) * (x1 - x0) + (y - y0) * (y1 - y0)) / length));
+      return Math.hypot(x - (x0 + t * (x1 - x0)), y - (y0 + t * (y1 - y0)));
+    }),
+  );
+}
+
+/** How high `line` is at `x`, between the corners either side of it. */
+function heightAt(line, x) {
+  const next = line.findIndex(([at]) => at >= x);
   if (next <= 0) {
-    return points[Math.max(0, next)][1];
+    return line[Math.max(0, next)][1];
   }
-  const [[from, before], [to, after]] = [points[next - 1], points[next]];
-  return before + ((after - before) * (along - from)) / (to - from);
+  const [[x0, y0], [x1, y1]] = [line[next - 1], line[next]];
+  return x1 === x0 ? Math.min(y0, y1) : y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
 }
 
 /**
- * Draws `chart` in `box` as the window does, with no plate: a faint line at 100%, a hairline at 0%,
- * a dashed line at 90%, the share used filled softly beneath its line, and the line, 3 px thick.
+ * Draws a chart in `box` with its readings, `points`, as src/share.ts does, with no plate, at two
+ * pixels to a CSS pixel: a faint line at 100% and a hairline at 0%; the share used filled softly
+ * beneath its line, the line's colour laid at SHADING; the dashed 90% line over that, 4 pixels thick,
+ * 12 on and 12 off from the chart's left end, in `limit`; and the line over all, 6 pixels thick with
+ * round ends and joins. A pixel any of them covers in part is blended by how much it covers, as a
+ * canvas blends an edge. `broken` changes the dashed line, over the card and the soft fill or only
+ * `where` it crosses one of them ("card" or "fill"): `dash: false` leaves it out, `pattern` draws it
+ * on another pattern, on then off in CSS pixels (`[6, 0]` is solid), `shift` starts the pattern that
+ * many pixels further along, and `limit` draws it in another colour; and `fillOver` lays the soft
+ * fill after it, as the picture did before #97, so that the fill dulls it.
  */
-function drawChart(raster, theme, box, points, fill) {
-  const device = (css) => Math.round(css * 2);
-  const [left, right, top, bottom] = [device(box.x), device(box.x + box.width), device(box.y), device(box.y + box.height)];
-  const row = (used) => top + Math.round(((100 - used) / 100) * (bottom - top));
+function drawChart(raster, theme, box, points, card, { limit, line: colour }, broken = {}) {
+  const [left, right, top, foot] = [box.x * 2, (box.x + box.width) * 2, box.y * 2, (box.y + box.height) * 2];
   const grey = theme === "light" ? [0, 0, 0] : [255, 255, 255];
-  raster.fill(left, top - 2, right, top + 2, over([...grey, 0.08], fill).map(Math.round));
-  raster.fill(left, bottom - 2, right, bottom + 2, over([...grey, 0.22], fill).map(Math.round));
-  // The dashed line's colour as the stylesheet gives it, `--chart-limit`: darker in light, for 3:1.
-  const orange = theme === "light" ? [184, 112, 0] : [255, 159, 10];
-  for (let x = left; x < right; x += 12) {
-    raster.fill(x, row(90) - 2, Math.min(right, x + 12 - 6), row(90) + 2, orange);
+  raster.fill(Math.round(left), Math.round(top) - 2, Math.round(right), Math.round(top) + 2, over([...grey, 0.08], card).map(Math.round));
+  raster.fill(Math.round(left), Math.round(foot) - 2, Math.round(right), Math.round(foot) + 2, over([...grey, 0.22], card).map(Math.round));
+  const held = (value, least, most) => Math.min(most, Math.max(least, value));
+  const line = points.map(([along, used]) => [left + held(along, 0, 1) * (right - left), top + ((100 - held(used, 0, 100)) / 100) * (foot - top)]);
+  const middle = top + 0.1 * (foot - top);
+  const shade = () => {
+    if (line.length < 2) {
+      return;
+    }
+    for (let x = Math.floor(line[0][0]); x < Math.ceil(line.at(-1)[0]); x += 1) {
+      const across = overlap(x, x + 1, line[0][0], line.at(-1)[0]);
+      const height = heightAt(line, x + 0.5);
+      for (let y = Math.floor(height); y < Math.ceil(foot); y += 1) {
+        raster.lay(x, y, colour, SHADING * across * overlap(y, y + 1, height, foot));
+      }
+    }
+  };
+  if (!broken.fillOver) {
+    shade();
   }
-  const blue = theme === "light" ? [0, 122, 255] : [10, 132, 255];
-  for (let x = left; x < right; x += 1) {
-    const at = row(usedAlong(points, (x / 2 - box.x) / box.width));
-    raster.fill(x, at, x + 1, bottom, over([...blue, 0.16], fill).map(Math.round));
-    raster.fill(x, at - 3, x + 1, at + 3, blue);
+  // Whether the break is drawn in this column: it is over the soft fill where the line is above the
+  // dashed one, and over the card elsewhere.
+  const breaks = (x) =>
+    broken.where === undefined ||
+    broken.where === (line.length > 1 && x + 0.5 > line[0][0] && x + 0.5 < line.at(-1)[0] && heightAt(line, x + 0.5) < middle ? "fill" : "card");
+  for (let x = Math.floor(left); x < Math.ceil(right); x += 1) {
+    const broke = breaks(x);
+    if (broke && broken.dash === false) {
+      continue;
+    }
+    const [on, off] = ((broke && broken.pattern) || [6, 6]).map((length) => length * 2);
+    const start = left + ((broke && broken.shift) || 0);
+    let across = 0;
+    for (let from = start + (Math.floor((x - start) / (on + off)) - 1) * (on + off); from < x + 1; from += on + off) {
+      across += overlap(x, x + 1, Math.max(left, from), Math.min(right, from + on));
+    }
+    for (let y = Math.floor(middle - 2); y < Math.ceil(middle + 2); y += 1) {
+      raster.lay(x, y, (broke && broken.limit) || limit, across * overlap(y, y + 1, middle - 2, middle + 2));
+    }
+  }
+  if (broken.fillOver) {
+    shade();
+  }
+  // The line: each pixel within 3 of it is the line's, the last pixel blended, each laid once
+  // where two pieces meet. A single reading's ring, 6 across and 6 thick, is drawn as the disc it
+  // bounds, 9 each way.
+  const reach = line.length === 1 ? 9 : 3;
+  const pieces = line.length === 1 ? [[line[0], line[0]]] : line.slice(1).map((end, index) => [line[index], end]);
+  const cover = new Map();
+  for (const [[x0, y0], [x1, y1]] of pieces) {
+    for (let x = Math.floor(Math.min(x0, x1) - reach - 1); x < Math.max(x0, x1) + reach + 1; x += 1) {
+      for (let y = Math.floor(Math.min(y0, y1) - reach - 1); y < Math.max(y0, y1) + reach + 1; y += 1) {
+        const share = held(reach + 0.5 - fromLine([x + 0.5, y + 0.5], [[x0, y0], [x1, y1]]), 0, 1);
+        const at = y * raster.width + x;
+        if (share > (cover.get(at) ?? 0)) {
+          cover.set(at, share);
+        }
+      }
+    }
+  }
+  for (const [at, share] of cover) {
+    raster.lay(at % raster.width, Math.floor(at / raster.width), colour, share);
   }
 }
 
 /**
  * A picture of 2400 by 1350 as the window draws one, written as a PNG and read back: the ground,
- * the card on it with its hairline edge and each chart on it, and each of the pieces `broken` takes
- * away or changes. `stains` are [x, y, colour] marks of 5 pixels square at those device pixels.
+ * the card on it with its hairline edge and a chart for each of `charts` on it, and each of the
+ * pieces `broken` takes away or changes (and `drawChart` the dashed line's). `stains` are
+ * [x, y, colour] marks of 5 pixels square at those device pixels, and `dots` marks of one pixel.
  */
-function picture(theme, broken = {}) {
-  const want = wanted(theme);
+function picture(theme, broken = {}, charts = account.windows) {
+  const want = wanted(theme, charts);
   const round = (colour) => colour.map((channel) => Math.round(channel));
   const raster = new Raster(2400, 1350);
   const ground = broken.ground === undefined ? want.ground : broken.ground;
@@ -302,25 +394,30 @@ function picture(theme, broken = {}) {
     raster.fill(Math.round((box.x + from * box.width) * 2), Math.round(box.y * 2), Math.round((box.x + to * box.width) * 2), Math.round((box.y + box.height) * 2), colour);
   }
   // Each chart's lines and the share used are drawn over any plate, as they are over the card.
+  const card = round(broken.fill ?? want.fill);
   for (const { box, points } of broken.card === false ? [] : want.charts) {
-    drawChart(raster, theme, box, points, round(broken.fill ?? want.fill));
+    drawChart(raster, theme, box, points, card, dashColours(theme, card), broken);
   }
   for (const [x, y, colour] of broken.stains ?? []) {
     raster.fill(Math.max(0, x - 2), Math.max(0, y - 2), Math.min(2400, x + 3), Math.min(1350, y + 3), colour);
   }
+  for (const [x, y, colour] of broken.dots ?? []) {
+    raster.fill(x, y, x + 1, y + 1, colour);
+  }
   return decodePng(png(raster));
 }
 
-/** The verdicts a picture earns in `theme`, those that are not false. */
+/** The verdicts a picture of `charts` earns in `theme`, those that are not false. */
 function faults(theme, broken = {}, charts = account.windows) {
-  return pictureVerdicts(picture(theme, broken), wanted(theme, charts)).filter(Boolean);
+  return pictureVerdicts(picture(theme, broken, charts), wanted(theme, charts)).filter(Boolean);
 }
 
 test("a picture drawn as the window draws it passes every verdict, in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const verdicts = pictureVerdicts(picture(theme), wanted(theme));
-    // The corners, the margin, the padding, the edge, and a chart each.
-    assert.equal(verdicts.length, 4 + account.windows.length);
+    // The corners, the margin, the padding, the edge, and four a chart: its plate, and its dashed
+    // line's dashes, gaps and colour.
+    assert.equal(verdicts.length, 4 + 4 * account.windows.length);
     assert.deepEqual(verdicts.filter(Boolean), [], theme);
   }
 });
@@ -428,17 +525,24 @@ test("the hairline edge is there in light, and in dark, where it is clear, is no
   assert.deepEqual(faults("dark", { edge: false }), []);
 });
 
+/** The chart a verdict names, by its plate or by its dashed 90% line. */
+const chartOf = (verdict) => verdict.match(/behind (.*)'s chart|along (.*)'s 90% line|of (.*)'s 90% line/)?.slice(1).find(Boolean);
+
 test("a plate behind a chart, in either theme, fails for that chart and no other", () => {
+  // The plate, and, since it shows in the gaps of the chart's dashed line where the card's fill
+  // should, the line's gaps.
   for (const [theme, plate] of [["light", [212, 212, 212, 255]], ["dark", [85, 85, 87, 255]], ["light", [0, 122, 255, 255]]]) {
     const found = faults(theme, { plates: { 1: plate } });
-    assert.equal(found.length, 1, `${theme} ${plate}`);
+    assert.deepEqual(found.map(chartOf), [account.windows[1].label, account.windows[1].label], `${theme} ${plate}: ${found.join(" | ")}`);
     assert.ok(found[0].includes(`draws a plate behind ${account.windows[1].label}'s chart`), found[0]);
+    assert.match(found[1], /in a gap \d+% along .*, where the 6\/6 pattern leaves the card's fill/);
   }
   const both = faults("light", { plates: { 0: [212, 212, 212, 255], 2: [212, 212, 212, 255] } });
   assert.deepEqual(
-    both.map((verdict) => verdict.match(/behind (.*)'s chart/)[1]),
+    both.filter((verdict) => verdict.includes("plate behind")).map(chartOf),
     [account.windows[0].label, account.windows[2].label],
   );
+  assert.deepEqual([...new Set(both.map(chartOf))], [account.windows[0].label, account.windows[2].label]);
 });
 
 test("a plate over a part of a chart is found wherever along it that part is", () => {
@@ -446,7 +550,7 @@ test("a plate over a part of a chart is found wherever along it that part is", (
   for (const [from, to] of [[0, 0.34], [0.33, 0.67], [0.66, 1]]) {
     for (const theme of ["light", "dark"]) {
       const found = faults(theme, { partPlates: [[2, from, to, theme === "light" ? [214, 214, 214, 255] : [90, 90, 92, 255]]] });
-      assert.equal(found.length, 1, `${theme}, ${from} to ${to}: ${found.join(" | ")}`);
+      assert.deepEqual(found.map(chartOf), [account.windows[2].label, account.windows[2].label], `${theme}, ${from} to ${to}: ${found.join(" | ")}`);
       assert.ok(found[0].includes(`draws a plate behind ${account.windows[2].label}'s chart`), found[0]);
     }
   }
@@ -460,7 +564,7 @@ test("a plate is found along the whole chart, not only where the line is low", (
 
 test("a chart whose line is high all along it has no empty place to look, and says so", () => {
   const full = [{ label: "Full", points: [[0, 100], [0.5, 99], [1, 100]] }];
-  const found = pictureVerdicts(picture("light"), wanted("light", full)).filter(Boolean);
+  const found = faults("light", {}, full);
   assert.equal(found.length, 1);
   assert.match(found[0], /no empty place on Full's chart/);
 });
@@ -468,19 +572,196 @@ test("a chart whose line is high all along it has no empty place to look, and sa
 test("a chart of two readings is looked at between them: a line from or to 100% leaves no empty place, one between 10% and 20% does", () => {
   // The line between two readings reaches the band above 90% if either one is near the top.
   for (const [label, points] of [["Climbing", [[0, 0], [1, 100]]], ["Falling", [[0, 100], [1, 0]]]]) {
-    const found = pictureVerdicts(picture("light"), wanted("light", [{ label, points }])).filter(Boolean);
+    const found = faults("light", {}, [{ label, points }]);
     assert.equal(found.length, 1, label);
     assert.match(found[0], new RegExp(`no empty place on ${label}'s chart`));
   }
   const gentle = [{ label: "Gentle", points: [[0, 10], [1, 20]] }];
-  assert.deepEqual(pictureVerdicts(picture("light"), wanted("light", gentle)).filter(Boolean), []);
+  assert.deepEqual(faults("light", {}, gentle), []);
 });
 
 test("a chart with no readings is checked for a plate too", () => {
   const empty = [{ label: "Nothing yet", points: [] }];
-  assert.deepEqual(pictureVerdicts(picture("dark"), wanted("dark", empty)).filter(Boolean), []);
-  const plated = pictureVerdicts(picture("dark", { plates: { 0: [90, 90, 90, 255] } }), wanted("dark", empty)).filter(Boolean);
+  assert.deepEqual(faults("dark", {}, empty), []);
+  const plated = faults("dark", { plates: { 0: [90, 90, 90, 255] } }, empty);
   assert.match(plated[0], /plate behind Nothing yet's chart/);
+});
+
+/** `[r, g, b]` as the verdicts write it, `#rrggbb`, each channel to the nearest whole number. */
+const hex = (colour) => `#${colour.map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}`;
+
+/** The labels of the seven windows, in order: a verdict a chart. */
+const CROWDED = crowdedWeek.windows.map((window) => window.label);
+
+test("the window check's copy has a chart whose dashed line crosses the soft fill and one whose crosses the card, in what the verdicts read", () => {
+  // Each picture the check judges: its accounts over 7 days, and the first over 30.
+  for (const [days, charts] of [[7, crowdedWeek.windows], [30, crowdedMonth.windows]]) {
+    // A reading above 90% and one below.
+    assert.ok(charts.some((chart) => chart.points.some(([, used]) => used > 90)), `${days} days: no reading above 90%`);
+    assert.ok(charts.some((chart) => chart.points.some(([, used]) => used < 90)), `${days} days: no reading below 90%`);
+    // In what the verdicts read, the dashes and the gaps each judged, in a chart, over the fill and
+    // over the card, two or more of each: a dash or a gap is a 12 pixel run of the 6/6 pattern.
+    const boxes = chartBoxes(charts.length);
+    const runs = charts.map((chart, index) => {
+      const { places } = dashPlaces(boxes[index], chart.points, 2);
+      const count = (over, dash) =>
+        new Set(places.filter((place) => place.over === over && place.dash === dash).map((place) => Math.floor((place.x - boxes[index].x * 2) / 12))).size;
+      return { label: chart.label, fill: Math.min(count("fill", true), count("fill", false)), card: Math.min(count("card", true), count("card", false)) };
+    });
+    assert.ok(runs.some((run) => run.fill >= 2), `${days} days: no chart's dashed line is judged over two dashes and two gaps of the soft fill: ${JSON.stringify(runs)}`);
+    assert.ok(runs.some((run) => run.card >= 2), `${days} days: no chart's dashed line is judged over two dashes and two gaps of the card: ${JSON.stringify(runs)}`);
+  }
+});
+
+test("each chart's dashed 90% line passes, read along the whole of it, over the card and over the soft fill, in both themes", () => {
+  for (const charts of [crowdedWeek.windows, crowdedMonth.windows]) {
+    for (const theme of ["light", "dark"]) {
+      const verdicts = pictureVerdicts(picture(theme, {}, charts), wanted(theme, charts));
+      assert.equal(verdicts.length, 4 + 4 * charts.length);
+      assert.deepEqual(verdicts.filter(Boolean), [], theme);
+    }
+  }
+});
+
+test("a picture drawn without the dashed line fails, each chart where its first dash should be, and over the soft fill too", () => {
+  for (const theme of ["light", "dark"]) {
+    const { fill, shading } = wanted(theme, crowdedWeek.windows);
+    const found = faults(theme, { dash: false }, crowdedWeek.windows);
+    assert.deepEqual(found.map(chartOf), CROWDED, `${theme}: ${found.join(" | ")}`);
+    for (const verdict of found) {
+      assert.match(verdict, new RegExp(`^has no dash \\d+% along .*'s 90% line, where the 6/6 pattern puts one: #[0-9a-f]{6} there is the card's fill ${hex(fill)}$`));
+    }
+    // With the dashes left out only where the line is drawn over the fill, the one chart that crosses it fails, there.
+    const overFill = faults(theme, { dash: false, where: "fill" }, crowdedWeek.windows);
+    assert.equal(overFill.length, 1, `${theme}: ${overFill.join(" | ")}`);
+    assert.match(overFill[0], new RegExp(`^has no dash \\d+% along Weekly's 90% line, where the 6/6 pattern puts one: #[0-9a-f]{6} there is the soft fill under its line ${hex(shading)}$`));
+  }
+});
+
+test("a picture with its 90% line drawn solid fails, each chart in its first gap, and over the soft fill too", () => {
+  for (const theme of ["light", "dark"]) {
+    const { fill, shading, limit } = wanted(theme, crowdedWeek.windows);
+    const found = faults(theme, { pattern: [6, 0] }, crowdedWeek.windows);
+    assert.deepEqual(found.map(chartOf), CROWDED, `${theme}: ${found.join(" | ")}`);
+    for (const verdict of found) {
+      assert.match(verdict, new RegExp(`^has ${hex(limit)} in a gap \\d+% along .*'s 90% line, where the 6/6 pattern leaves the card's fill ${hex(fill)} to show, so the line is not dashed there$`));
+    }
+    const overFill = faults(theme, { pattern: [6, 0], where: "fill" }, crowdedWeek.windows);
+    assert.equal(overFill.length, 1, `${theme}: ${overFill.join(" | ")}`);
+    assert.match(overFill[0], new RegExp(`^has ${hex(limit)} in a gap \\d+% along Weekly's 90% line, where the 6/6 pattern leaves the soft fill under its line ${hex(shading)} to show`));
+  }
+});
+
+test("a picture whose dashed line is #97's old colour, #ff9f0a, fails on the light card and the light fill, and passes in dark, whose colour it still is", () => {
+  const old = [255, 159, 10];
+  const { fill, shading, limit } = wanted("light", crowdedWeek.windows);
+  const found = faults("light", { limit: old }, crowdedWeek.windows);
+  assert.deepEqual(found.map(chartOf), CROWDED, found.join(" | "));
+  for (const verdict of found) {
+    assert.match(verdict, new RegExp(`^draws the dash \\d+% along .*'s 90% line in #ff9f0a over the card's fill ${hex(fill)}, not in --chart-limit ${hex(limit)}$`));
+  }
+  const overFill = faults("light", { limit: old, where: "fill" }, crowdedWeek.windows);
+  assert.equal(overFill.length, 1, overFill.join(" | "));
+  assert.match(overFill[0], new RegExp(`^draws the dash \\d+% along Weekly's 90% line in #ff9f0a over the soft fill under its line ${hex(shading)}, not in --chart-limit ${hex(limit)}$`));
+  // #97 darkened the light theme's line only; dark's --chart-limit is the old orange still.
+  assert.deepEqual(wanted("dark").limit, old);
+  assert.deepEqual(faults("dark", { limit: old }, crowdedWeek.windows), []);
+});
+
+test("the soft fill laid over the dashed line, as the picture was drawn before #97, fails where a share above 90% dulls the dashes, and there alone", () => {
+  for (const theme of ["light", "dark"]) {
+    const { shading, limit } = wanted(theme, crowdedWeek.windows);
+    const found = faults(theme, { fillOver: true }, crowdedWeek.windows);
+    assert.equal(found.length, 1, `${theme}: ${found.join(" | ")}`);
+    assert.match(found[0], new RegExp(`^draws the dash \\d+% along Weekly's 90% line in #[0-9a-f]{6} over the soft fill under its line ${hex(shading)}, not in --chart-limit ${hex(limit)}$`));
+  }
+});
+
+test("a dash a step off --chart-limit fails: it is opaque, so a pixel it covers whole is its colour exactly", () => {
+  for (const theme of ["light", "dark"]) {
+    const { limit } = wanted(theme, crowdedWeek.windows);
+    const step = [limit[0] === 255 ? 254 : limit[0] + 1, limit[1], limit[2]];
+    const found = faults(theme, { limit: step }, crowdedWeek.windows);
+    assert.deepEqual(found.map(chartOf), CROWDED, `${theme}: ${found.join(" | ")}`);
+    assert.ok(found.every((verdict) => verdict.startsWith("draws the dash")), found.join(" | "));
+  }
+});
+
+test("the dashes are held to the 6/6 pattern from the line's left end, within a pixel of where it puts each end", () => {
+  // A pattern a pixel early or late, or dashes a pixel long or short, is anti-aliasing's to blur.
+  for (const broken of [{ shift: 1 }, { shift: -1 }, { pattern: [6.5, 5.5] }, { pattern: [5.5, 6.5] }]) {
+    assert.deepEqual(faults("light", broken, crowdedWeek.windows), [], JSON.stringify(broken));
+  }
+  // Two pixels out is not, nor is another pattern: 3/3 (which is 6/6 in the picture's own pixels),
+  // 7/5, 8/8, or the gaps where the dashes should be. Each chart fails.
+  for (const broken of [{ shift: 2 }, { shift: -2 }, { pattern: [3, 3] }, { pattern: [7, 5] }, { pattern: [8, 8] }, { shift: 12 }]) {
+    const found = faults("light", broken, crowdedWeek.windows);
+    assert.deepEqual([...new Set(found.map(chartOf))], CROWDED, `${JSON.stringify(broken)}: ${found.join(" | ")}`);
+  }
+});
+
+test("a mark on the dashed line is found wherever along it the verdicts read, in a dash or a gap, over the card or the fill", () => {
+  // Weekly's line climbs to 100% by half way, so its dashed line crosses the card and then the fill.
+  const charts = crowdedWeek.windows;
+  const { places } = dashPlaces(wanted("light", charts).charts[1].box, charts[1].points, 2);
+  for (const over of ["card", "fill"]) {
+    for (const dash of [true, false]) {
+      const these = places.filter((place) => place.over === over && place.dash === dash);
+      // The first of them, the middle one and the last.
+      for (const place of [these[0], these[Math.floor(these.length / 2)], these.at(-1)]) {
+        const found = faults("light", { dots: [[place.x, place.y, [255, 0, 0]]] }, charts);
+        const what = `a mark at ${place.x}, ${place.y}, in a ${dash ? "dash" : "gap"} over the ${over}`;
+        assert.equal(found.length, 1, `${what}: ${found.join(" | ")}`);
+        assert.equal(chartOf(found[0]), "Weekly", what);
+        assert.ok(found[0].startsWith(dash ? "draws the dash" : "has #ff0000 in a gap"), `${what}: ${found[0]}`);
+      }
+    }
+  }
+});
+
+test("a chart's own line leaves out only the dashed line's pixels it comes within a pixel of", () => {
+  const charts = crowdedWeek.windows;
+  const boxes = chartBoxes(charts.length);
+  for (const [index, chart] of charts.entries()) {
+    const { places, covered, all } = dashPlaces(boxes[index], chart.points, 2);
+    // Where the line is drawn, from the readings, as the picture here draws it: each pixel within
+    // 3.5 of it, which is how far its last blended pixel reaches.
+    const box = boxes[index];
+    const line = chart.points.map(([along, used]) => [(box.x + along * box.width) * 2, (box.y + ((100 - used) / 100) * box.height) * 2]);
+    const touched = covered.filter(([x, y]) => fromLine([x + 0.5, y + 0.5], line) < 3.5);
+    // No pixel the line touches is judged, and every pixel left out is within two of one it touches.
+    assert.ok(places.every(({ x, y }) => fromLine([x + 0.5, y + 0.5], line) >= 3.5), chart.label);
+    assert.ok(touched.length > 0, `${chart.label}: its line crosses its 90% line`);
+    for (const [x, y] of covered) {
+      assert.ok(touched.some(([x0, y0]) => Math.abs(x0 - x) <= 2 && Math.abs(y0 - y) <= 2), `${chart.label}: ${x}, ${y} is left out, away from the line`);
+    }
+    assert.ok(covered.length + places.length <= all);
+  }
+  // A line that stays under 90% leaves none of it out.
+  const [wide] = chartBoxes(1);
+  assert.deepEqual(dashPlaces(wide, [[0, 10], [0.5, 60], [1, 20]], 2).covered, []);
+});
+
+test("a chart whose own line covers the whole of its 90% line leaves nothing to judge, which fails, saying how much it covers", () => {
+  const [wide] = chartBoxes(1);
+  const level = [{ label: "Level", points: [[0, 90], [1, 90]] }];
+  const { all, covered, places } = dashPlaces(wide, level[0].points, 2);
+  assert.deepEqual([covered.length, places.length], [all, 0]);
+  // Its line is over 85% all along it, so the verdict on a plate has no empty place to look in either.
+  const [plate, ...found] = faults("light", {}, level);
+  assert.match(plate, /no empty place on Level's chart/);
+  assert.deepEqual(found, [
+    `has no dash of Level's 90% line to judge: its own line, drawn over it, covers ${all} of the ${all} pixels the 90% line covers whole`,
+    `has no gap of Level's 90% line to judge: its own line, drawn over it, covers ${all} of the ${all} pixels the 90% line covers whole`,
+  ]);
+  // A single reading on the 90% line is a ring that reaches 9 pixels from it, and covers the line
+  // there and no further.
+  const middle = (wide.x + 0.5 * wide.width) * 2;
+  const dot = dashPlaces(wide, [[0.5, 90]], 2);
+  assert.ok(dot.covered.length > 0 && dot.covered.every(([x]) => Math.abs(x + 0.5 - middle) < 9 + 2), `${dot.covered.length} left out`);
+  const [none, ...dotted] = faults("dark", {}, [{ label: "Dot", points: [[0.5, 90]] }]);
+  assert.match(none, /no empty place on Dot's chart/);
+  assert.deepEqual(dotted, []);
 });
 
 test("a picture drawn for the other theme fails, whichever way round", () => {

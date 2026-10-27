@@ -24,7 +24,9 @@
 // and privacy lines and the update's notes with their real file names and hosts, so that the check
 // proves each of them breaks where it must and is never cut off (D-139); and Crowded, Pro with
 // one Claude account of seven windows, whose History alone is checked, for the picture to share of
-// an account with many windows, where each share must be written whole in every system's own font.
+// an account with many windows, where each share must be written whole in every system's own font,
+// and where one window, full since the middle of the period, puts its dashed 90% line over the soft
+// fill under its line for half the chart, to be judged there.
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -913,6 +915,27 @@ const fullBefore = (days) => (chart) => {
 };
 
 /**
+ * `chart` as a window reads that has been full since the middle of the period, when it is at 100%
+ * now: its readings climb to 100% by half way and stay there. A picture to share draws the soft
+ * fill under a chart's line up to the line, so for the second half of this chart its dashed 90%
+ * line runs over that fill, which the window check judges it on as well as on the card (the manager
+ * on #73, 2026-10-27, 11:26 UTC); a window that only passes 90% crosses the fill too briefly for its
+ * dashes to be judged there. A window below 100% now is `fullBefore`'s.
+ *
+ * @param {WindowChart} chart
+ * @returns {WindowChart}
+ */
+const fullSince = (chart) => {
+  if (Math.floor(chart.latest) < 100) {
+    return chart;
+  }
+  const last = chart.points.length - 1;
+  /** @type {[number, number][]} */
+  const points = chart.points.map(([along], index) => [along, Math.min(100, (200 * index) / last)]);
+  return { ...chart, points };
+};
+
+/**
  * The crowded account's History over `days`.
  *
  * @param {7 | 30} days
@@ -922,13 +945,16 @@ function crowdedHistory(days) {
   const view = history(days, null, [CROWDED_ACCOUNT]);
   return {
     ...view,
-    accounts: view.accounts.map((account) => ({ ...account, windows: account.windows.map(fullBefore(days)) })),
+    accounts: view.accounts.map((account) => ({
+      ...account,
+      windows: account.windows.map(fullBefore(days)).map(fullSince),
+    })),
   };
 }
 
 /**
  * Pro with the crowded account alone, over History alone: its pictures to share, each with seven
- * columns, in both themes.
+ * columns, in both themes, one of them full since the middle of the period (`fullSince`).
  *
  * @type {Copy}
  */
