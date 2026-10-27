@@ -5,6 +5,7 @@
 // what is held about where things sit is held for any font as wide, and the real font's is held by
 // the window check. The accounts are the window check's own made-up ones.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { CARD, MATERIAL, SHADING, chartBoxes, drawShare, lookOf, shareStrings } from "../src/share.ts";
@@ -494,4 +495,13 @@ test("the picture's look is read from the stylesheet's own properties in each th
   }
   assert.deepEqual([...asked].sort(), Object.values(FROM).sort());
   assert.equal(asked.has("--background"), false);
+});
+
+test("History's dashed 90% line is drawn in the property the picture reads for its own, so the two cannot drift", () => {
+  // The window and the picture are held to one colour, which check-contrast.mjs holds to 3:1: the
+  // picture reads `--chart-limit` (the test above), and the window's rule must stroke with it.
+  const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+  const rule = css.match(/\.chart \.limit\s*\{([^}]*)\}/);
+  assert.ok(rule, "style.css has no .chart .limit rule");
+  assert.match(rule[1], /\bstroke:\s*var\(--chart-limit\);/);
 });
