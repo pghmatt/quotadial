@@ -14,7 +14,7 @@ import { inPage, tag, text } from "./page-stand-in.mjs";
 import { between, randomTexts, seeded, seedOfThisRun } from "./random-text.mjs";
 import { rules } from "./stylesheet.mjs";
 import { PAGE_TEXT, matchesIn } from "./whole-shares.mjs";
-import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts, wordsIn, wordsOf } from "./whole-words.mjs";
+import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts, wordsIn, wordsOf, wordsWithRuns } from "./whole-words.mjs";
 import { crowded, free, many, pro } from "./window-fixtures.mjs";
 
 test("a word is four letters or more in a row, found whole across the nodes it is written in, with where it starts and ends", () => {
@@ -41,6 +41,25 @@ test("a word is four letters, not three: a short word, a figure and a sign are n
   assert.deepEqual(wordsOf("When it was used, by hour (weekly)"), ["When", "used", "hour", "weekly"]);
 });
 
+test("a word's run is the word and what is written against it, up to a space, across the nodes it is written in", () => {
+  const run = (texts) => wordsWithRuns(texts).map((word) => [word.text, word.run]);
+  assert.deepEqual(run(["Weekly (ClaudeSonnet)"]), [
+    ["Weekly", { text: "Weekly", from: { node: 0, offset: 0 }, to: { node: 0, offset: 6 } }],
+    ["ClaudeSonnet", { text: "(ClaudeSonnet)", from: { node: 0, offset: 7 }, to: { node: 0, offset: 21 } }],
+  ]);
+  // Cut by markup, a run is one run, as a word is.
+  assert.deepEqual(run(["Wee", "kly (Claude", ")"]), [
+    ["Weekly", { text: "Weekly", from: { node: 0, offset: 0 }, to: { node: 1, offset: 3 } }],
+    ["Claude", { text: "(Claude)", from: { node: 1, offset: 4 }, to: { node: 2, offset: 1 } }],
+  ]);
+  // The words and shares beside a label, written as History writes them: each word is a run of its own.
+  assert.deepEqual(wordsWithRuns(["latest ", "91", "%", ", highest", " ", "100", "%"]).map((word) => word.run.text), ["latest", "highest"]);
+  // A line breaks at a space or a new line, and not at a no-break space; a hyphen and a stop do not end a run.
+  assert.deepEqual(wordsWithRuns(["Claude Code\nfrom"]).map((word) => word.run.text), ["Claude", "Code", "from"]);
+  assert.deepEqual(wordsWithRuns(["Claude\u00a0Code"]).map((word) => word.run.text), ["Claude\u00a0Code", "Claude\u00a0Code"]);
+  assert.deepEqual(wordsWithRuns(["by hour (5-hour)."]).map((word) => word.run.text), ["hour", "(5-hour)."]);
+});
+
 test("however the text is cut into nodes, each word found is the text between its start and end, and none is missed", () => {
   // A new seed each run; the seed is in every failure, and QUOTADIAL_TEST_SEED=<seed> runs the same strings again.
   const seed = seedOfThisRun();
@@ -50,8 +69,10 @@ test("however the text is cut into nodes, each word found is the text between it
   const pieces = [
     ..."abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzWKLY",
     "é", "ü", "日", "本", "\u{20bb7}",
-    "0", "5", "-", "(", ")", ".", ",", "%", " ", " ", "\n", "\u{1f600}",
+    "0", "5", "-", "(", ")", ".", ",", "%", " ", " ", "\n", "\u00a0", "\u{1f600}",
   ];
+  // A space at which a line may break: not a no-break space.
+  const breaks = (character) => character === undefined || /^[^\S\u00a0\u2007\u202f]$/u.test(character);
   const cases = 5000;
   let withWords = 0;
   for (let index = 0; index < cases; index += 1) {
@@ -68,6 +89,18 @@ test("however the text is cut into nodes, each word found is the text between it
       assert.equal(between(texts, word.from, word.to), word.text, `a word's start and end give other text: ${where}`);
       assert.ok(word.from.offset < texts[word.from.node].length, `a word starts past the end of its node: ${where}`);
       assert.ok(word.to.offset >= 1 && word.to.offset <= texts[word.to.node].length, `a word ends outside its node: ${where}`);
+    }
+    // Each word's run holds the word, has no space a line may break at, and has one, or the text's
+    // start or end, on either side of it.
+    const all = texts.join("");
+    const at = ({ node, offset }) => texts.slice(0, node).join("").length + offset;
+    const withRuns = wordsWithRuns(texts);
+    assert.deepEqual(withRuns.map(({ run, ...word }) => word), found, `the words with runs are not the words: ${where}`);
+    for (const { run, ...word } of withRuns) {
+      assert.equal(between(texts, run.from, run.to), run.text, `a run's start and end give other text: ${where}`);
+      assert.ok(at(run.from) <= at(word.from) && at(word.to) <= at(run.to), `a run does not hold its word: ${where}`);
+      assert.ok(![...run.text].some(breaks), `a run holds a space a line may break at: ${where}`);
+      assert.ok(breaks(all[at(run.from) - 1]) && breaks(all[at(run.to)]), `a run stops short of a space: ${where}`);
     }
     withWords += found.length > 0 ? 1 : 0;
   }
@@ -183,6 +216,25 @@ test('a word on two lines is broken, "Wee" over "kly", unless it is wider than i
   assert.deepEqual(wordVerdicts([caption(97, box(0, 16, 0, 97), box(16, 32, 0, 23))]), [false]);
 });
 
+test("a word in a run wider than its caption, as a model's name in its brackets can be, may break inside the word; in a run that fits, it may not", () => {
+  // Windows' CI at 100% (#102's first run): the Many copy's "(ClaudeSonnetFourPointFiveExtendedContextPreview)"
+  // was wider than its caption and the name alone was not, so the browser broke the run where the
+  // line ended, inside the name. The widths are those this Mac's Chrome draws, in a caption between
+  // the name's 298.6 px and the 303.1 px of the name with its opening bracket.
+  const name = "ClaudeSonnetFourPointFiveExtendedContextPreview";
+  const text = `Weekly (${name}) latest 12%, highest 12%`;
+  const caption = (room) => ({ what: "figcaption", text, room, words: [{
+    text: name,
+    boxes: [box(15, 30, 4.6, 293.9), box(30, 45, 0, 9.3)],
+    run: { text: `(${name})`, boxes: [box(15, 30, 0, 293.9), box(30, 45, 0, 13.9)] },
+  }] });
+  assert.deepEqual(wordVerdicts([caption(300.84)]), [false]);
+  // In a caption the whole run fits, nothing made the browser break the name, so it is a verdict, which names the run.
+  assert.deepEqual(wordVerdicts([caption(310)]), [
+    `"${name}" is broken over 2 lines, though "(${name})" fits its caption (figcaption ${JSON.stringify(text)})`,
+  ]);
+});
+
 test("a word with no box to measure is a verdict, and the verdicts come in the order the words are", () => {
   const found = [
     { what: "p.source", text: "from the API 3 min ago", room: 90, words: [{ text: "from", boxes: [box(0, 14, 0, 24)] }] },
@@ -208,16 +260,17 @@ test("the code for the page is valid, names the captions it is given and carries
   assert.doesNotThrow(() => new Script(code));
   assert.ok(code.includes(JSON.stringify(CAPTIONS)));
   assert.ok(code.includes(String(wordsIn)));
+  assert.ok(code.includes(String(wordsWithRuns)));
   assert.ok(code.includes(String(matchesIn)));
   assert.ok(code.includes(PAGE_TEXT));
 });
 
 /** History's caption as the window writes it: the label, and the shares round the words after it. */
-function chartCaption(label, latest, highest) {
+function chartCaption(label, latest, highest, width = 97) {
   const share = (figure) => tag("span", { classes: ["nobreak"] }, text(String(figure)), text("%"));
   return tag(
     "figcaption",
-    { display: "flex", width: 97 },
+    { display: "flex", width },
     tag("span", { display: "block" }, text(label)),
     tag("span", { classes: ["detail"], display: "block" }, text("latest "), share(latest), text(", highest"), text(" "), share(highest)),
   );
@@ -237,8 +290,41 @@ test("in the page, a caption is its blocks apart, its words are found across the
   assert.equal(found.room, 97);
   assert.deepEqual(found.words.map((word) => word.text), ["Weekly", "latest", "highest"]);
   assert.deepEqual(found.words.map((word) => word.boxes), [[{ top: 0, bottom: 16, left: 0, right: 30 }], [{ top: 0, bottom: 16, left: 0, right: 30 }], [{ top: 0, bottom: 16, left: 0, right: 30 }]]);
-  // "latest " is its own node, 6 letters from offset 0; ", highest" starts after the comma and the space.
-  assert.deepEqual(asked, [["Weekly", 0, "Weekly", 6], ["latest ", 0, "latest ", 6], [", highest", 2, ", highest", 9]]);
+  // Each word is a run of its own here, measured as the word is.
+  assert.deepEqual(found.words.map((word) => word.run), ["Weekly", "latest", "highest"].map((run) => ({ text: run, boxes: [{ top: 0, bottom: 16, left: 0, right: 30 }] })));
+  // "latest " is its own node, 6 letters from offset 0; ", highest" starts after the comma and the
+  // space. Each word's range is asked for, then its run's.
+  const once = [["Weekly", 0, "Weekly", 6], ["latest ", 0, "latest ", 6], [", highest", 2, ", highest", 9]];
+  assert.deepEqual(asked, once.flatMap((range) => [range, range]));
+});
+
+test("in the page, a model's name in its brackets is measured as the run it is, and breaks inside the name only where the run is wider than the caption", () => {
+  const name = "ClaudeSonnetFourPointFiveExtendedContextPreview";
+  const label = `Weekly (${name})`;
+  // The browser's boxes, as this Mac's Chrome draws them in a caption 300.84 px wide: the run goes
+  // under "Weekly" and breaks before "w)", inside the name. Every other word is on one line.
+  const drawnIn = (start, end) => {
+    const range = [start[0].textContent, start[1], end[1]].join(" ");
+    if (range === `${label} 8 55`) {
+      return [{ top: 15, bottom: 30, left: 4.6, right: 293.9 }, { top: 30, bottom: 45, left: 0, right: 9.3 }];
+    }
+    if (range === `${label} 7 56`) {
+      return [{ top: 15, bottom: 30, left: 0, right: 293.9 }, { top: 30, bottom: 45, left: 0, right: 13.9 }];
+    }
+    return [{ top: 0, bottom: 15, left: 0, right: 40 }];
+  };
+  const [narrow] = inPage(CAPTION_WORDS(CAPTIONS), [chartCaption(label, 12, 12, 300.84)], drawnIn);
+  assert.deepEqual(narrow.words.map((word) => [word.text, word.run.text]), [["Weekly", "Weekly"], [name, `(${name})`], ["latest", "latest"], ["highest", "highest"]]);
+  assert.deepEqual(wordVerdicts([narrow]), [false, false, false, false]);
+  assert.equal(captionVerdict([narrow], [`${label} latest 12%, highest 12%`]), false);
+  // In a caption the run fits, the same boxes are a name broken for nothing.
+  const [wide] = inPage(CAPTION_WORDS(CAPTIONS), [chartCaption(label, 12, 12, 310)], drawnIn);
+  assert.deepEqual(wordVerdicts([wide]), [
+    false,
+    `"${name}" is broken over 2 lines, though "(${name})" fits its caption (figcaption "${label} latest 12%, highest 12%")`,
+    false,
+    false,
+  ]);
 });
 
 test("in the page, a word broken by the browser is a word on two lines, and the verdicts say so", () => {

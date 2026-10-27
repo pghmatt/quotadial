@@ -42,8 +42,9 @@
 // - a caption's words are whole (the manager on #73, 2026-10-27, 08:30 UTC): no word of four letters or
 //   more, such as "Weekly", in the line saying where an account's windows were read, a History chart's
 //   caption or a heatmap's is ever drawn on two lines, as "Wee" over "kly", at 100% and 200% zoom,
-//   unless it is wider than the caption, and the captions are held to the ones each copy has, in
-//   order, before any is judged (whole-words.mjs);
+//   unless it, with what is written against it, such as a model's name in its brackets, is wider
+//   than the caption, and the captions are held to the ones each copy has, in order, before any is
+//   judged (whole-words.mjs);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -1227,11 +1228,13 @@ async function checkShares(view, copy, panel, zoom) {
  * A caption's words are whole (the manager's decision on #73, 2026-10-27, 08:30 UTC, D-139): in each
  * caption the window draws (the line saying where and when an account's windows were read, each
  * History chart's caption and each heatmap's), at 100% and 200%, no word of four letters or more,
- * such as "Weekly", is drawn on two lines, as "Wee" over "kly", unless it is wider than the whole
- * caption, which has to break somewhere or be cut off, and which the check of cut-off text holds.
- * The captions the window draws must be exactly the ones the copy has, in order, with the words
- * each has, before any line is judged, so that a check that finds none cannot pass. Each word is
- * judged by its own line boxes (whole-words.mjs).
+ * such as "Weekly", is drawn on two lines, as "Wee" over "kly", unless its run, the word with what
+ * is written against it, such as a model's name in its brackets, is wider than the whole caption:
+ * that has to break somewhere or be cut off, which the check of cut-off text holds, and the browser
+ * breaks it where the line ends, inside the word if that is where. The captions the window draws
+ * must be exactly the ones the copy has, in order, with the words each has, before any line is
+ * judged, so that a check that finds none cannot pass. Each word is judged by its own line boxes,
+ * and its run by its own (whole-words.mjs).
  */
 async function checkWords(view, copy, panel, zoom) {
   const label = `${view.label}, caption words at ${Math.round(zoom * 100)}%`;

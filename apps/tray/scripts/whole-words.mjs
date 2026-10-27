@@ -25,6 +25,23 @@ export const CAPTIONS = ".source, .chart figcaption, .heatmap figcaption";
  */
 export const wordsIn = (texts) => matchesIn(texts, /\p{L}{4,}/gu);
 
+/**
+ * Each word `wordsIn` finds in the text of one block, with the run it is written in, as `{ text,
+ * from, to }`: the word and what is written against it with no space between, such as the brackets
+ * round a model's name in "Weekly (ClaudeSonnet...)". A line breaks at a space, and a no-break
+ * space joins a run as any other character does. A run that fits a line is drawn whole; one wider
+ * than the line has to break somewhere, and the browser breaks it where the line ends, inside the
+ * word if that is where. The page runs this too, beside `wordsIn`, which it names.
+ */
+export const wordsWithRuns = (texts) => {
+  const at = ({ node, offset }) => texts.slice(0, node).join("").length + offset;
+  const runs = matchesIn(texts, /[\S\u00a0\u2007\u202f]+/gu);
+  return wordsIn(texts).map((word) => ({
+    ...word,
+    run: runs.find((run) => at(run.from) <= at(word.from) && at(word.to) <= at(run.to)),
+  }));
+};
+
 /** The words of one caption's text, as `wordsIn` finds them. */
 export function wordsOf(text) {
   return wordsIn([text]).map((word) => word.text);
@@ -34,15 +51,24 @@ export function wordsOf(text) {
  * The code to run in the page: each caption under `captions`, a CSS selector, in the order the page
  * has them, as `{ what, text, room, words }`: the caption as an element, its text (each block of it
  * read as one, whatever nodes it is in, and the blocks, such as a label and the shares beside it,
- * apart by a space), how wide it is in CSS pixels, and each of its words as `{ text, boxes }`, the
- * boxes being those the browser draws it in, one for each line it runs over (a range's client
- * rects). What is not shown, or only for a screen reader, is left out.
+ * apart by a space), how wide it is in CSS pixels, and each of its words as `{ text, boxes, run }`,
+ * the boxes being those the browser draws it in, one for each line it runs over (a range's client
+ * rects), and its run (`wordsWithRuns`) as `{ text, boxes }`, measured the same way. What is not
+ * shown, or only for a screen reader, is left out.
  */
 export function CAPTION_WORDS(captions) {
   return `(() => {
     const matchesIn = ${matchesIn};
     const wordsIn = ${wordsIn};
+    const wordsWithRuns = ${wordsWithRuns};
     ${PAGE_TEXT}
+    // The boxes the browser draws the text of nodes between from and to in, one for each line.
+    const boxesOf = (nodes, { from, to }) => {
+      const range = document.createRange();
+      range.setStart(nodes[from.node], from.offset);
+      range.setEnd(nodes[to.node], to.offset);
+      return [...range.getClientRects()].map(({ top, bottom, left, right }) => ({ top, bottom, left, right }));
+    };
     return [...document.querySelectorAll(${JSON.stringify(captions)})].map((caption) => {
       const blocks = new Map();
       addBlocks(caption, blocks, new Set());
@@ -50,12 +76,8 @@ export function CAPTION_WORDS(captions) {
       const words = [];
       for (const nodes of blocks.values()) {
         lines.push(nodes.map((node) => node.textContent).join(''));
-        for (const word of wordsIn(nodes.map((node) => node.textContent))) {
-          const range = document.createRange();
-          range.setStart(nodes[word.from.node], word.from.offset);
-          range.setEnd(nodes[word.to.node], word.to.offset);
-          const boxes = [...range.getClientRects()].map(({ top, bottom, left, right }) => ({ top, bottom, left, right }));
-          words.push({ text: word.text, boxes });
+        for (const word of wordsWithRuns(nodes.map((node) => node.textContent))) {
+          words.push({ text: word.text, boxes: boxesOf(nodes, word), run: { text: word.run.text, boxes: boxesOf(nodes, word.run) } });
         }
       }
       return { what: named(caption), text: lines.join(' ').replace(/\\s+/g, ' ').trim(), room: caption.getBoundingClientRect().width, words };
@@ -110,20 +132,25 @@ export function captionVerdict(captions, wanted) {
 
 /**
  * A verdict on each word `CAPTION_WORDS` found: false where it is drawn on one line, or what is wrong,
- * naming the word and its caption. A word wider than its whole caption has to be broken somewhere
- * or it would be cut off, which the check of cut-off text holds, so it is not a verdict here; any
- * other, which would fit the caption on a line of its own, is whole or it is a verdict.
+ * naming the word and its caption. A word whose run, the word with what is written against it, is
+ * wider than its whole caption has to be broken somewhere or it would be cut off, which the check of
+ * cut-off text holds, so it is not a verdict here: the browser breaks the run where the line ends,
+ * and on Windows' CI that was inside a model's name in a caption a little narrower than the name with
+ * its brackets, though the name alone would have fitted (#102). Any other word, which would fit the
+ * caption on a line of its own with what is written against it, is whole or it is a verdict. A word
+ * given with no run is written alone, and is its own.
  */
 export function wordVerdicts(captions) {
   return captions.flatMap(({ what, text, room, words }) =>
-    words.map(({ text: word, boxes }) => {
+    words.map(({ text: word, boxes, run = { text: word, boxes } }) => {
       const lines = linesOf(boxes);
       if (lines === 0) {
         return `"${word}" has no box to measure (${what} ${JSON.stringify(text)})`;
       }
-      // A word broken over lines is in a box for each, which together are as wide as the word.
-      const width = boxes.reduce((sum, box) => sum + (box.right - box.left), 0);
-      return lines > 1 && width <= room + 0.5 && `"${word}" is broken over ${lines} lines, though it fits its caption (${what} ${JSON.stringify(text)})`;
+      // A run broken over lines is in a box for each, which together are as wide as the run.
+      const width = run.boxes.reduce((sum, box) => sum + (box.right - box.left), 0);
+      const fitting = run.text === word ? "it" : JSON.stringify(run.text);
+      return lines > 1 && width <= room + 0.5 && `"${word}" is broken over ${lines} lines, though ${fitting} fits its caption (${what} ${JSON.stringify(text)})`;
     }),
   );
 }
