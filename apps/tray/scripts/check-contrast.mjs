@@ -9,9 +9,7 @@
 // which Windows, Linux and the pictures show, is a grey like it, and stands in for it here. The
 // bars' fill against their track is left out: each bar has its percentage beside it in text, which
 // is checked, so the bar is never the only way to tell.
-import { readFileSync } from "node:fs";
-
-const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+import { themes } from "./stylesheet.mjs";
 
 /** Each pair: the colour, the grounds under it from the bottom up, the ratio it needs, and where
  * the window uses it. */
@@ -38,18 +36,6 @@ const PAIRS = [
   ["--field", ["--background", "--card"], 3, "the edge of a text field in a card, in Settings"],
   ["--bar-normal", ["--background", "--card"], 3, "a chart's line in History, on its card"],
 ];
-
-/** The custom properties in the first `:root` block after `from`. */
-function variables(from) {
-  const start = css.indexOf(":root", from);
-  const open = css.indexOf("{", start);
-  const close = css.indexOf("}", open);
-  const found = {};
-  for (const [, name, value] of css.slice(open + 1, close).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
-    found[name] = value.trim();
-  }
-  return found;
-}
 
 /** `value` as `[r, g, b, a]`, from `#rrggbb` or `rgb(r g b / a%)`. */
 function parse(value) {
@@ -85,15 +71,8 @@ function ratio(a, b) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-const light = variables(0);
-const darkAt = css.indexOf("prefers-color-scheme: dark");
-const themes = [
-  ["light", light],
-  ["dark", { ...light, ...variables(darkAt) }],
-];
-
 let failed = false;
-for (const [theme, colours] of themes) {
+for (const [theme, colours] of themes()) {
   for (const [foreground, grounds, needed, where] of PAIRS) {
     const missing = [foreground, ...grounds].find((name) => colours[name] === undefined);
     if (missing) {
