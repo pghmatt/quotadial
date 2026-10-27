@@ -208,7 +208,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | 12: docs | Done (PR #72) | Every download also under a name without its version, copied in the Release workflow's publish job before the checksums, so `releases/latest/download/<name>` always fetches the newest full release (D-116); /download's buttons start the download from `docs/INSTALL.md`'s links; /install and /cli render `docs/INSTALL.md` and `docs/CLI.md` whole; the site deploys only when the newest full release has every copy; the README shows the window in both themes |
 | 12, PR A: the fake provider | Done (PR #71) | `quotadial-provider-fake`, id `fake`: made-up accounts called Example, with a plan and no address, from `fixtures/fake/example.json` or the file `QUOTADIAL_FAKE_ACCOUNTS` names, every window an `example` (P-017) that fills at its pace and resets, so the daemon finds it a pace; the `fake` feature lists it alone, and keeps the copy's own data folder, cache folder and port (`quotadial-fake`, 47116); QuotaDial Example, `com.quotadial.example`, from `tauri.example.conf.json`, never updates; a `fake` CI job, and the Release workflow fails if a CLI it ships names `fake` (D-117) |
 | 12, PR C: the install check and #52's figures from Matt's copy | Done (PR #74) | `docs/INSTALL.md`'s command alone fetches the archive and `SHA256SUMS.txt` into a new folder, checks the archive and only then unpacks and installs it, making `/usr/local/bin` first, which a new Apple silicon Mac does not have (#72's review); Matt's copy's idle figures read from its processes over two hours (the tray process 0.295% of one core, 37.8 MiB of footprint, 88.2 MiB resident); #52's memory targets judged on the footprint (D-123); one changelog line |
-| 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80 |
+| 12, PR D: the example's figures | Done (PR #80) | From QuotaDial Example built at 0bd845f: first run to the number in 702.8 and 370.2 ms; the popover drawn in a median of 42.1 ms; the tray app idle with the popover closed at 0.163% of one core and 22.4 MiB of footprint; the daemon alone at 0.002% and 4.0 MiB in its hour, and 0.003% and 3.7 to 6.4 MiB over ten hours; the recording split into PR E by the manager on #80; the Graphics and Media helper takes about 245 MiB while the window is drawn and gives it back within 10 seconds (#91's run) |
 | 12, PR E: the first-run recording | Done (PR #91) | The README's recording of QuotaDial Example's first run, cropped to its icon and popover, under rule 4 on #49: `docs/images/first-run.gif` (376x600, 5.5 s) in the README and the same as an MP4, recorded on 2026-10-26 at 21:02 UTC from the example built at 485d0cf (#86) once Matt's menu bar stayed visible; the Graphics and Media helper's third reading says its 245 MiB is the window being drawn, given back within 10 seconds |
 | 6: signing and updates | Done (PR #59) | Tauri's updater from the latest full release, checked daily while Settings' switch is on and by hand from Help, installing only on Update, with the version bound into each signature; signing for macOS (Developer ID, notarization), Windows (Azure Artifact Signing) and updates, each a workflow step that runs only when its secrets exist; `latest.json` and `SHA256SUMS.txt` on each release; `docs/RELEASE.md`; one privacy text, `docs/PRIVACY.md`, in Help and the README, with every destination held to it by tests (D-103 to D-106) |
 
@@ -420,6 +420,28 @@ so they became #10.
   binaries 4).
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### Pictures of the window, and when each is captured again
+
+The pictures of the app's window, and what makes each one out of date. Each is captured again in the PR
+that changes the window enough to change the picture, and not before; a change that leaves a picture
+as it was, as D-136 left the accounts pictures, leaves the file alone.
+
+- **The website's six pictures,** `site/public/images/app/{accounts,settings,history}-{light,dark}.png`, of which
+  the README shows `accounts-light` and `accounts-dark`: `node scripts/app-pictures.mjs` in `site/`, from
+  the window check answering with the website's two example accounts (`site-fixtures.mjs`), each the whole
+  of the window's content as tall as it needs, at 2x. Captured again when the window's drawing of those two
+  accounts changes (D-132 did; D-135 and D-136 did not change the two accounts pictures).
+- **The README's first-run recording,** `docs/images/first-run.gif` (and the same as `first-run.mp4`): QuotaDial
+  Example's first run, recorded through ScreenCaptureKit with Matt's menu bar set to stay visible, so it
+  waits for a change worth his menu bar again (the manager's note on #91, 2026-10-26): it is captured again
+  when the window next changes materially, not before. It shows the window as it was at #86, each window with
+  its own source line, so #89's one line per card is not in it; D-136 would change nothing in it, since its
+  two example accounts do not reach the 640 px at which a window scrolls, and no toolbar is pinned.
+- **Pictures of the window as it is shown,** from `node scripts/check-window.mjs --window-pictures <folder>`
+  (`--window-zoom 2` for 200%): each view no taller than 640 px, at its top and half way down what scrolls.
+  Not kept in the repository: they are the before and after of a PR that changes how the window scrolls, such
+  as D-136's, which `--screenshots` cannot show.
 
 ### M6: the share picture in the cards' language (D-137)
 
@@ -1487,7 +1509,9 @@ The notes below run newest first; the setup notes above them are the oldest.
   helpers' footprints on average: Web Content 19.5 MiB, Networking 6.4 MiB, Graphics and Media 29.8
   MiB, and an audio helper, there for 19 minutes, 3.2 MiB. The Graphics and Media helper held about
   245 MiB for the first three minutes after the launch, then 10 to 21 MiB; the earlier build's
-  started at 6.4 MiB, so two runs do not say whether that is the app or macOS.
+  started at 6.4 MiB, so two runs do not say whether that is the app or macOS. PR E's third reading
+  settled it: the helper takes about 245 MiB while the window is drawn and gives it back within 10
+  seconds (#91's run).
 - **The daemon alone** (#52: under 0.5% of one core averaged over an hour, and under 40 MB, judged
   on its footprint, D-123): the example build's `quotadial daemon`, as the command-line install runs
   it, with a home and data folder of its own, on a port the system chose, listening only on
