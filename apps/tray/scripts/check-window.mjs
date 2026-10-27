@@ -29,7 +29,9 @@
 //   colours and the window's font, with tabular figures; on QuotaDial Free there is no button and
 //   the feature's line shows once (D-115);
 // - that picture is the account's card on the theme's material, #ececec in light and #2c2c2e in dark
-//   (D-137), which is the first thing it draws, over its whole size.
+//   (D-137): its corners are that colour, so is the margin round the card, the card's padding is the
+//   card's fill laid over it, its edge is the card's hairline, and nothing is drawn as a plate behind
+//   a chart, each read from the PNG's own pixels (share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, with the made-up accounts in window-fixtures.mjs answering
@@ -50,18 +52,11 @@ import { launch } from "./chrome.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
-import { ACCOUNT_HEADER, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, shareStrings } from "../src/share.ts";
+import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
+import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
-
-/**
- * The picture's ground in each theme, as the manager decided it on #73 (2026-10-26, 23:25 UTC) and
- * D-137 records it: the macOS popover material's colour. Written here as the check's own text of the
- * decision, not read from src/share.ts or the stylesheet, so a ground changed in either fails the
- * check instead of being followed by it.
- */
-const MATERIAL = { light: "#ececec", dark: "#2c2c2e" };
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const CONFIG = JSON.parse(
@@ -1296,8 +1291,9 @@ const HISTORY_LINES = `[...document.querySelectorAll('section.history > p')].map
  * from the keyboard, it sends the app a whole PNG of 2400 by 1350 for that account, says where it
  * went, and draws only what `shareStrings` lists, with the label and never an @, in the
  * stylesheet's text colours, the window's font and tabular figures, on a card on the theme's
- * material (D-137): each account over 7 days, and the first over 30. On QuotaDial Free: no button,
- * and the feature's line once. Saves each picture in `folder` when one is named.
+ * material (D-137), with no plate behind a chart: each account over 7 days, and the first over 30.
+ * On QuotaDial Free: no button, and the feature's line once. Saves each picture in `folder` when
+ * one is named.
  */
 async function checkSharing(view, name, copy, theme, folder) {
   const label = `${view.label}, Share image`;
@@ -1334,6 +1330,9 @@ async function checkSharing(view, name, copy, theme, folder) {
     allowed: new Set(await view.evaluate(`['--text', '--secondary', '--muted', '--warning', '--high'].map(window.__check.colour)`)),
     // Its ground is the material, the check's own text of the decision, and not the page's background.
     material: MATERIAL[theme],
+    // The card's fill and its hairline, as the canvas writes them, to be laid over the ground.
+    card: await view.evaluate(`window.__check.colour('--card')`),
+    edge: await view.evaluate(`window.__check.colour('--card-edge')`),
     family: await view.evaluate("getComputedStyle(document.documentElement).fontFamily"),
   };
   // Each account over 7 days, and the first over 30 where the copy has a month of its own.
@@ -1383,6 +1382,9 @@ async function checkSharing(view, name, copy, theme, folder) {
         (size.width !== SHARED.width || size.height !== SHARED.height) &&
           `${what} is ${size.width} by ${size.height}, not ${SHARED.width} by ${SHARED.height}`,
       );
+      for (const verdict of pixelVerdicts(bytes, account, look)) {
+        check(label, verdict && `${what} ${verdict}`);
+      }
     }
     if (folder) {
       const slug = account.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -1529,6 +1531,36 @@ function contrastVerdicts(drawn) {
       said.add(problem);
       return problem;
     });
+}
+
+/**
+ * Verdicts on the picture's own pixels, as the person who posts it gets them (D-137): the ground is
+ * the theme's material at the corners and in the margin, the card sits on it with its fill and its
+ * hairline edge, and no plate is drawn behind a chart. The card's fill and edge are the
+ * stylesheet's, laid over the material as the canvas lays them; the card and the charts are where
+ * `src/share.ts` puts them. A PNG that cannot be read is a verdict too.
+ */
+function pixelVerdicts(bytes, account, look) {
+  let picture;
+  try {
+    picture = decodePng(bytes);
+  } catch (error) {
+    return [`has pixels that cannot be read: ${error.message}`];
+  }
+  const ground = fromHex(look.material);
+  const fill = rgb(look.card, ground);
+  return pictureVerdicts(picture, {
+    scale: SHARED.width / PICTURE_WIDTH,
+    card: CARD,
+    ground,
+    fill,
+    edge: rgb(look.edge, fill),
+    charts: chartBoxes(account.windows.length).map((box, index) => ({
+      label: account.windows[index].label,
+      box,
+      points: account.windows[index].points,
+    })),
+  });
 }
 
 /**
