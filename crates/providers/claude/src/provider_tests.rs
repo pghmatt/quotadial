@@ -539,11 +539,12 @@ async fn an_expired_token_is_never_sent() {
     let snapshot = provider.fetch(&account).await.expect("fetch");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
+    // As a person reads it, its seconds dropped and never rounded into the next year (D-142).
     assert_eq!(
         snapshot.error.as_deref(),
         Some(
-            "This Claude Code sign-in expired at 2098-12-31T23:59:59Z. Run `claude` once to refresh \
-             it."
+            "This Claude Code sign-in expired on 31 Dec 2098 at 23:59 UTC. Run `claude` once to \
+             refresh it."
         )
     );
     assert_eq!(harness.requests().await, 0);

@@ -706,6 +706,16 @@ pub fn ago(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
     format!("{} ago", duration(now - at))
 }
 
+/// A moment as a sentence addressed to a person writes it (D-142): `26 Oct 2026 at 09:12 UTC`, the
+/// day, the month in three letters and the year, then the time to the minute, in UTC. The seconds
+/// are dropped, since nobody acts on them and the sentence is read, not sorted. UTC until the front
+/// ends write a time in the reader's own zone from a field of its own; a time a program reads stays
+/// RFC 3339, as the JSON writes it.
+#[must_use]
+pub fn date_and_time(at: DateTime<Utc>) -> String {
+    at.format("%-d %b %Y at %H:%M UTC").to_string()
+}
+
 /// For example `under a minute`, `45 min`, `2 h 10 min` or `3 d 4 h`, rounded down.
 #[must_use]
 pub fn duration(length: TimeDelta) -> String {
@@ -1901,6 +1911,43 @@ mod tests {
             "just now",
             "a clock that moved back"
         );
+    }
+
+    #[test]
+    fn a_moment_in_a_sentence_is_written_as_a_person_reads_it() {
+        assert_eq!(
+            date_and_time(ts("2026-10-26T09:12:47Z")),
+            "26 Oct 2026 at 09:12 UTC"
+        );
+        // The seconds are dropped, never rounded up into the next minute, day or year.
+        assert_eq!(
+            date_and_time(ts("2098-12-31T23:59:59.999Z")),
+            "31 Dec 2098 at 23:59 UTC"
+        );
+        // A day has no nought before it; an hour and a minute have one.
+        assert_eq!(
+            date_and_time(ts("2026-01-05T07:05:00Z")),
+            "5 Jan 2026 at 07:05 UTC"
+        );
+        assert_eq!(
+            date_and_time(DateTime::<Utc>::UNIX_EPOCH),
+            "1 Jan 1970 at 00:00 UTC"
+        );
+        // A moment from another zone is written in UTC.
+        assert_eq!(
+            date_and_time(ts("2026-10-26T10:12:00+01:00")),
+            "26 Oct 2026 at 09:12 UTC"
+        );
+        // Each month in three letters.
+        let months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        for (month, name) in (1..).zip(months) {
+            assert_eq!(
+                date_and_time(ts(&format!("2026-{month:02}-01T12:00:00Z"))),
+                format!("1 {name} 2026 at 12:00 UTC")
+            );
+        }
     }
 
     #[test]

@@ -2,6 +2,7 @@
 //! fix.
 
 use chrono::{DateTime, SecondsFormat, Utc};
+use quotadial_core::text;
 
 pub(crate) const SIGNED_OUT: &str =
     "The Codex CLI is not signed in on this machine any more. Run `codex login` to sign in.";
@@ -18,11 +19,13 @@ pub(crate) const API_KEY: &str = "The Codex CLI is signed in with an OpenAI API 
 
 pub(crate) const NO_LIMITS: &str = "ChatGPT reported no usage limits for this account.";
 
+/// The sign-in's token expired at `at`, written as a person reads it (D-142), and the Codex CLI
+/// refreshes it when it next runs.
 pub(crate) fn expired(at: DateTime<Utc>) -> String {
     format!(
-        "The Codex CLI's sign-in expired at {}. Run `codex` once to refresh it, or `codex login` \
+        "The Codex CLI's sign-in expired on {}. Run `codex` once to refresh it, or `codex login` \
          to sign in again.",
-        timestamp(at)
+        text::date_and_time(at)
     )
 }
 
@@ -65,10 +68,11 @@ mod tests {
         assert!(SIGNED_OUT.contains("codex login"));
         assert!(REJECTED.contains("codex login"));
         assert!(API_KEY.contains("codex login"));
+        // The time as a person reads it, its seconds dropped (D-142).
         assert_eq!(
-            expired(ts("2099-01-01T00:00:00Z")),
-            "The Codex CLI's sign-in expired at 2099-01-01T00:00:00Z. Run `codex` once to refresh \
-             it, or `codex login` to sign in again."
+            expired(ts("2026-10-26T09:12:47Z")),
+            "The Codex CLI's sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `codex` once to \
+             refresh it, or `codex login` to sign in again."
         );
         assert_eq!(
             failed(503, Some("Service unavailable.")),

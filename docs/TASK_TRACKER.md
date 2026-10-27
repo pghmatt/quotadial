@@ -245,6 +245,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | History's heatmap caption names its window as written, and a note that only explains is not a warning | Done (PR #106) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 1 of the four the coordinator found going over every Pro view in both themes, with the smaller "unsupported" note folded in as he allowed. The caption said "When it was used, by hour (weekly (gemini))", lowercasing a model's name inside brackets of its own, while the figure's name said "from Weekly (Gemini) readings"; `heatmapWords` (`share.ts`) now writes one sentence, "When it was used, by hour, from Weekly (Gemini) readings" (or "No use from Weekly (Gemini) readings in this period."), for the caption, the figure's name and the picture to share. Gemini CLI's note, with nothing for the person to fix, takes the detail colour; `checkNotes` holds every note's colour. The website's History pictures are captured again. Copy and colour only: one CHANGELOG line, no D |
 | An address breaks before its `@` and each `.`, never inside a word | Done (PR #107, D-141) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 2, approving the coordinator's proposal with three holds: wherever the window writes an address, a `<wbr>` before its `@` and before each `.`, never a character, so "a.very.long.account.name.that.keeps.going" goes over "@engineering.example.com" where it broke inside "engineering", with D-139's `overflow-wrap: anywhere` the last resort for a part wider than the line; each `<wbr>` hidden from screen readers, since Chrome names a heading, a field or a button with a space at each `<wbr>` it can see; in each account's heading in the popover and History, Settings' names, the line under the number and Help's support address. `checkAddresses` (`whole-addresses.mjs`) holds every address written whole and in order, no word of one broken where it fits its line, the headings' text and copy byte for byte and the address heard whole; it failed 174 of 20,446 checks on `main`'s window, 128 on one with a bare `<wbr>` and 83 of 4,179 on one with a zero-width space; the website's pictures captured again, changed only along each address |
 | The extra-usage line in plain words | Done (PR #108) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 4, on the fourth shortfall the coordinator found reading every Pro view as a stranger would (13:17): "Extra usage: on, 12.50 of 50.00 USD used (25%)" read like data. `text::extra_usage`, which `quotadial status` and the app's window share, now says "off"; what is used when both amounts are known, "$12.50 of $50.00 used (25%)", both amounts in one form, to the cent with their thousands grouped (the coordinator's review), US dollars with the symbol before each and any other currency with its code after them as before; "25% used" when only the share is known, the call the decision left open, in the words a window's share is said in; and "on" when nothing is known of what is used, with ", 1056.44 credits left" after it as before. The JSON fields do not change, so `docs/openapi.json` and the skill do not; the CLI guide's example and one CHANGELOG line follow. No D |
+| Expiry times a person reads | Done (PR #109, D-142) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 3, on the third shortfall the coordinator found reading every Pro view as a stranger would (13:17): "This Claude Code sign-in expired at 2026-10-26T09:12:00Z." was written for a program. `text::date_and_time` in core writes "26 Oct 2026 at 09:12 UTC", the seconds dropped, with its own test, and both providers' expiry sentences call it: "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `claude` once to refresh it." and the same in Codex's; each stays in its provider's `advice.rs`. The CLI's three data lines stay RFC 3339 (the manager's hold); every other sentence with an RFC 3339 time or date is listed in the note for the manager, with a proposal for `watch`'s "Updated …" line. The window check's copy of the sentence follows; one CHANGELOG line and D-142 |
 
 ## Kickoff
 
@@ -457,6 +458,82 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: expiry times a person reads (D-142)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 13:26 UTC), item 3 of the four shortfalls the coordinator
+  found at 13:17: "Your recommendation is right, and here is the form: "This Claude Code sign-in expired on 26 Oct 2026
+  at 09:12 UTC. Run …" and the same in Codex's sentence." Held to (a) one function in core's `text` that writes it,
+  with its own tests, called by both providers, nothing provider-specific moving into core; (b) the seconds dropped;
+  (c) the CLI's three `timestamp` lines ("Updated …", "Since …", "No readings since …") staying RFC 3339, a proposal
+  to change them going in the tracker; Rust only, tests pinning both sentences, one CHANGELOG line, and D-142, the rule.
+  Built on `fix/expiry-times` from `main` at 550cce0; #107 (D-141) merges first, so D-141 is left free. In review as
+  #109, after #107 and #108; rebased onto c1d6472 (#108) once both merged, where the changelog, D-142's row
+  beside D-141 and the tracker clashed, each kept whole, and the code commits are unchanged.
+- **What changed:** `text::date_and_time` writes `26 Oct 2026 at 09:12 UTC` (`%-d %b %Y at %H:%M UTC`): the day with no
+  nought before it, the month in three letters, the year, the time to the minute in UTC. Claude's and Codex's
+  `advice::expired` call it: "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `claude` once to refresh
+  it." and "The Codex CLI's sign-in expired on 26 Oct 2026 at 09:12 UTC. Run `codex` once to refresh it, or `codex
+  login` to sign in again." Each sentence stays in its provider's `advice.rs`. The tests pin both sentences in each
+  provider's advice test, with the manager's example at 09:12:47, and as each reaches a snapshot in each provider's
+  test of an expired token never being sent: Claude's at 23:59:59 on 31 Dec 2098 says "31 Dec 2098 at 23:59 UTC", and
+  Codex's, which held the snapshot to whatever `advice::expired` wrote and so could not fail, now holds the words. The
+  window check's Pro copy (its expired Claude account) and `code.test.mjs`'s example take the new sentence. D-142, and
+  one CHANGELOG line under Changed.
+- **For the manager, unchanged here:** every other sentence addressed to a person that writes an RFC 3339 time or
+  date. His text covers the two expiry sentences; D-142's rule would cover these, so each waits for his word.
+  - The poll gate (`quotadial-poll`), in a snapshot's note or an error line wherever those are shown (`quotadial
+    status`, `doctor`, the window and the API): "QuotaDial asks Anthropic at most every 5 minutes, so the next request
+    is after 2099-01-01T00:05:00Z." (`Policy::next_request`); "Anthropic is rate-limiting usage requests, so QuotaDial
+    will ask again after …"; "… Showing the last numbers fetched; QuotaDial asks again after …"; and "The request sent
+    at … has no recorded answer, perhaps because QuotaDial was stopped." The rate-limited and stale ones are the
+    likeliest to be seen, in a card's note.
+  - Codex: "From the Codex CLI's session log at 2026-10-23T12:14:11Z, because ChatGPT's usage endpoint could not be
+    read just now." (`advice::from_session_log`, in `docs/CLI.md`'s example).
+  - Antigravity: "Antigravity CLI last handed over its numbers at …", "Antigravity CLI handed over no limit that counts
+    now at …" and a limit's "resetting at …" (its `advice.rs`; the window check's copy shows the last).
+  - Dates, RFC 3339's full-date: the licence's "QuotaDial Pro until 2027-10-24, licence ls-1234.", "QuotaDial Free:
+    licence … ended on …" and "That licence ended on …, so it can't add QuotaDial Pro." (core's and the daemon's
+    `licence.rs`), and the week's cost in the window, "Read 4 min ago, at the prices of 2026-10-23" (`meter.rs`).
+  - Not sentences, so not listed for a change: the JSON and the API's fields, the history CSV's file name ("QuotaDial
+    history 2026-10-27.csv"), a damaged history's dated name and the share picture's file name. The window's History
+    already writes days and times for people ("Mon 26 at 09:12", "26 October 2026").
+- **Proposed, for the manager to decide on its own (his hold (c)):** `watch`'s "Updated … Refreshes every minute. …
+  Press Ctrl-C to stop." is a sentence a person reads as the terminal refreshes, and nothing reads its time back, so it
+  could follow D-142, "Updated 27 Oct 2026 at 13:26 UTC."; `history`'s "Since …" and "No readings since …" should stay
+  RFC 3339, since `--since` takes that form back, so a reader can copy the time into the next command.
+- **Proof:** with `main`'s two `expired` functions put back under the new tests (a patch kept in the scratchpad,
+  applied and taken off with `git apply`), the four tests that pin the sentences fail: both providers' advice tests and
+  both tests of an expired token ("expired at 2026-10-26T09:12:47Z" for "expired on 26 Oct 2026 at 09:12 UTC", and
+  "expired at 2098-12-31T23:59:59Z" for "expired on 31 Dec 2098 at 23:59 UTC"). `text::date_and_time`'s own test is
+  new and has nothing on `main` to fail against. With the branch's code all pass.
+- **Pictures,** for the PR: the expired Claude account's card in the window check's Pro copy, before and after, light
+  and dark, at 100%, from one build of the window, whose code is the same on `main` and the branch: the before with
+  `main`'s sentence put back through `--fixtures`. The whole accounts views differ only in the note, a 615 by 90 pixel
+  box at 2x; the note keeps its three lines and the card its height. The old time broke over two lines at its hyphen,
+  "2026-10-" over "26T09:12:00Z"; the new one breaks only between words.
+- **Counts:** the workspace's tests 802 with 1 ignored, and 799 with 2 ignored in the example build, each 1 more than
+  `main`'s 801 and 798 (core's new test); the app's `--lib` tests 99 in both builds, the tray's `npm test` 115 and the
+  website's 90, as on `main`; the window check 19,126 checks over 26 views, as on `main`; the window's JavaScript
+  38.5 KB of its 150, and the contrast check's 30 pairs a theme, as they were.
+- **Checks run,** through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the workspace and the app;
+  clippy with `-D warnings` in the default and example builds, for the workspace and the app; `cargo test --workspace`
+  in both builds; the app's `--lib` tests in both builds, which read `CHANGELOG.md`; the tray's `npm run build`, `npm
+  test` and `npm run check:window`; the website's `npm run check`, `npm run build` and `npm test` (its built
+  `/changelog` carries the new line); `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; and the
+  repository scripts' tests (39 pass, and one skips on macOS, needing GNU `sha256sum`) and `scripts/release-notes.sh
+  0.2.0`. **A flake, not this branch's:** the tray's `npm test` failed 3 of 4 runs on one test, `chrome.test.mjs`'s "a
+  Chrome that has not answered within the wait fails, saying what it said", whose stand-in Chrome, a script written
+  afresh for each run, must print within 200 ms: with the machine's load average between 10 and 20 and macOS's
+  XProtect busy with new programs, it printed too late, and on its own it failed 2 of 4 runs. It touches nothing this
+  branch changes and passed in PR A's runs an hour before; the fourth full run passed all 115. **Not run:** the real
+  app, `tests/icon_press.rs`, VoiceOver, Windows and Linux (CI covers them), and `cargo deny`, `cargo audit`,
+  shellcheck and actionlint, since no dependency, script or workflow changed.
+- **#52's list, gone down:** *held:* the time in plain words, as people read it, the month as a word; one function
+  writes it for both providers, so they cannot drift; nothing provider-specific in core; the JSON, the API and the
+  CLI's data lines keep RFC 3339 for programs; the note keeps its lines in the window, which passes at 100% and 200%
+  zoom. *Left for the manager:* the list and the proposal above. *Left for later:* the launcher test's 200 ms, which
+  this machine's load can outrun.
 
 ### M6: the extra-usage line in plain words
 

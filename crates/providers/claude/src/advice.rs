@@ -1,8 +1,8 @@
 //! The one sentence QuotaDial shows when it has no numbers for a Claude account, naming the fix.
 //! A sign-in kept for another config folder gets the command for that folder (#34).
 
-use chrono::{DateTime, SecondsFormat, Utc};
-use quotadial_core::Account;
+use chrono::{DateTime, Utc};
+use quotadial_core::{Account, text};
 
 use crate::login::{Login, LoginSource};
 
@@ -68,10 +68,12 @@ pub(crate) fn no_claude_login(login: &Login) -> String {
     )
 }
 
+/// The sign-in's token expired at `at`, written as a person reads it (D-142), and Claude Code
+/// refreshes it when it next runs.
 pub(crate) fn expired(login: &Login, at: DateTime<Utc>) -> String {
     format!(
-        "This Claude Code sign-in expired at {}. Run {} once to refresh it.",
-        at.to_rfc3339_opts(SecondsFormat::Secs, true),
+        "This Claude Code sign-in expired on {}. Run {} once to refresh it.",
+        text::date_and_time(at),
         login.sign_in_command()
     )
 }
@@ -234,11 +236,13 @@ mod tests {
             rejected(&work),
             format!("Anthropic rejected this Claude Code sign-in. Run {command} to sign in again.")
         );
+        // The time as a person reads it, its seconds dropped (D-142).
+        let at: DateTime<Utc> = "2026-10-26T09:12:47Z".parse().expect("a time");
         assert_eq!(
-            expired(&work, DateTime::<Utc>::UNIX_EPOCH),
+            expired(&work, at),
             format!(
-                "This Claude Code sign-in expired at 1970-01-01T00:00:00Z. Run {command} once to \
-                 refresh it."
+                "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run {command} once \
+                 to refresh it."
             )
         );
         // The folder as `text::tilde` writes it: `~` and the system's own separator (D-129).

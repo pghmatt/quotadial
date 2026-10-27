@@ -363,9 +363,13 @@ async fn an_expired_token_is_never_sent() {
     let snapshot = provider.fetch(&account).await.expect("snapshot");
 
     assert_eq!(snapshot.status, Status::AuthRequired);
+    // The sentence as it reaches a person, the time as a person reads it (D-142).
     assert_eq!(
         snapshot.error.as_deref(),
-        Some(advice::expired(ts("2025-10-23T12:00:00Z")).as_str())
+        Some(
+            "The Codex CLI's sign-in expired on 23 Oct 2025 at 12:00 UTC. Run `codex` once to \
+             refresh it, or `codex login` to sign in again."
+        )
     );
     assert_eq!(harness.usage_requests().await, 0);
 }
