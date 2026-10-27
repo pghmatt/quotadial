@@ -48,6 +48,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - The picture History's Share image saves now draws the account as the window does, as a card on a plain grey ground that is light or dark to match the window, with no grey plate behind its charts. It still shows the plan or the name you gave the account, never its email address.
 - The app's window keeps its toolbar, History, Settings and Help (Done in a panel) and Quit QuotaDial, and the line saying where the numbers come from at its foot while the accounts or a panel scroll above it, with a faint line over it while there is more below, as far as 200% zoom and a little past it; zoomed in further, where the toolbar would take most of the window, the whole window scrolls as one, as it did before. Where the system's scroll bars take room, the window keeps room for one on each side, so its cards do not change width when it starts to scroll.
 - Extra usage says what is used, such as "$12.50 of $50.00 used (25%)" where it said "on, 12.50 of 50.00 USD used (25%)", in `quotadial status` and the app's window; a currency other than US dollars keeps its code after the amounts, and an amount of a thousand or more is grouped, such as $1,234.50.
+- A Claude Code or Codex CLI sign-in that has expired says when as people read it, such as "expired on 26 Oct 2026 at 09:12 UTC" where it said "expired at 2026-10-26T09:12:00Z", in `quotadial status`, `doctor` and the app's window.
 
 ### Fixed
 
