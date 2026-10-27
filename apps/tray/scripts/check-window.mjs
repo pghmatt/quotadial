@@ -39,6 +39,11 @@
 //   chart's caption, at 100% and 200% zoom and on at 300% and 500%, and every figure and its sign
 //   anywhere in the window's text at 100% and 200%, judged by each share's own line boxes
 //   (whole-shares.mjs);
+// - a caption's words are whole (the manager on #73, 2026-10-27, 08:30 UTC): no word of four letters or
+//   more, such as "Weekly", in the line saying where an account's windows were read, a History chart's
+//   caption or a heatmap's is ever drawn on two lines, as "Wee" over "kly", at 100% and 200% zoom,
+//   unless it is wider than the caption, and the captions are held to the ones each copy has, in
+//   order, before any is judged (whole-words.mjs);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -81,6 +86,7 @@ import { viewportAt } from "./viewport.mjs";
 import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
 import { MATERIAL, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
+import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -927,6 +933,7 @@ async function checkView(view, panel, operate, copy, light) {
     check(label, cut.length > 0 && `at ${zoom * 100}%, ${cut.slice(0, 6).join("; ")}`);
     await checkFrame(view, zoom);
     await checkShares(view, copy, panel, zoom);
+    await checkWords(view, copy, panel, zoom);
     if (panel === "accounts" || panel === "settings") {
       await checkCommands(view, copy, panel, zoom);
     }
@@ -1212,6 +1219,25 @@ async function checkShares(view, copy, panel, zoom) {
   check(label, written.join(" ") !== wanted.join(" ") && `the window writes the shares ${JSON.stringify(written)}, not the ${JSON.stringify(wanted)} its copy has`);
   const everywhere = zoom <= 2 ? await view.evaluate(SHARES("main")) : places;
   for (const verdict of lineVerdicts(everywhere)) {
+    check(label, verdict);
+  }
+}
+
+/**
+ * A caption's words are whole (the manager's decision on #73, 2026-10-27, 08:30 UTC, D-139): in each
+ * caption the window draws (the line saying where and when an account's windows were read, each
+ * History chart's caption and each heatmap's), at 100% and 200%, no word of four letters or more,
+ * such as "Weekly", is drawn on two lines, as "Wee" over "kly", unless it is wider than the whole
+ * caption, which has to break somewhere or be cut off, and which the check of cut-off text holds.
+ * The captions the window draws must be exactly the ones the copy has, in order, with the words
+ * each has, before any line is judged, so that a check that finds none cannot pass. Each word is
+ * judged by its own line boxes (whole-words.mjs).
+ */
+async function checkWords(view, copy, panel, zoom) {
+  const label = `${view.label}, caption words at ${Math.round(zoom * 100)}%`;
+  const captions = await view.evaluate(CAPTION_WORDS(CAPTIONS));
+  check(label, captionVerdict(captions, expectedCaptions(copy, panel)));
+  for (const verdict of wordVerdicts(captions)) {
     check(label, verdict);
   }
 }
@@ -2487,7 +2513,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares and caption words kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
