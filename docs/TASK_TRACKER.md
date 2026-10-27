@@ -242,6 +242,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The window check's `--window-zoom 3` | Done (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
 | The window check's `--window-zoom` refuses what is not a zoom | Done (PR #103) | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139), and on #73 (11:26 UTC) a negative is tested too. `zoomOf` in `scripts/viewport.mjs` refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%, not "abc"`, and the check asks it before it makes a folder or looks for Chrome; a unit test and a run of the check itself with `abc`, `0`, `-2` and nothing after the flag hold it, the second failing first on `main`'s check. Check tooling only: no CHANGELOG line, no D |
 | Queued: the window check says a `CHROME` that is not there was not found | Queued | The manager's review of #103 (2026-10-27, 12:37 UTC), on what #103 found and left: a `CHROME` that is not there crashes the check with Node's unhandled `spawn ... ENOENT` and leaves its Chrome profile folder in the temporary folder. "Queue it as a tracker row, not its own PR. Fold it into the next PR that already touches Chrome's start in `check-window.mjs` or `chrome.mjs`: say Chrome was not found at that path, as the check does when it finds none, and remove the profile folder on the way out. Not before then." Queued in #104's records |
+| History's heatmap caption names its window as written, and a note that only explains is not a warning | Done (PR #106) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 1 of the four the coordinator found going over every Pro view in both themes, with the smaller "unsupported" note folded in as he allowed. The caption said "When it was used, by hour (weekly (gemini))", lowercasing a model's name inside brackets of its own, while the figure's name said "from Weekly (Gemini) readings"; `heatmapWords` (`share.ts`) now writes one sentence, "When it was used, by hour, from Weekly (Gemini) readings" (or "No use from Weekly (Gemini) readings in this period."), for the caption, the figure's name and the picture to share. Gemini CLI's note, with nothing for the person to fix, takes the detail colour; `checkNotes` holds every note's colour. The website's History pictures are captured again. Copy and colour only: one CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -453,6 +454,49 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: History's heatmap caption names its window as written, and a note that only explains is not a warning
+
+- **The ask:** the coordinator went over every view of the Pro copy in both themes from `main` at 2d98661 (`--window-pictures`)
+  and proposed four shortfalls on #73 (13:17 UTC); the manager decided all four (13:26 UTC), in the order 1, 2, 4, 3, one pull
+  request each, and two smaller ones after them. Item 1: "one sentence for eyes and ears, 'When it was used, by hour, from Weekly
+  (Gemini) readings', with the label as the provider writes it, and the empty case in the same voice ('No use from Weekly (Gemini)
+  readings in this period.'). The `aria-label` and the `figcaption` become the same string, so hold them to one constant, not two
+  copies. Copy only; the captions check and `share.ts`'s string list follow it; one CHANGELOG line." And of the smaller ones,
+  Gemini's "unsupported" explanation "takes the plain detail colour; the contrast check keeps covering it. Fold that into PR 1,
+  since both are copy and colour, or make it its own small PR ... your call, named in the PR": folded in, and named there. Built
+  by the coordinator on `fix/heatmap-caption` from `main` at 2d98661. In review as #106.
+- **What it was:** History's caption was `When it was used, by hour ({heatmap.window.toLowerCase()})`, so Antigravity's said
+  "When it was used, by hour (weekly (gemini))" and every card's "(session)" or "(weekly)", while the figure's `aria-label` said
+  "from Weekly (Gemini) readings"; the picture to share lowercased it the same way (`counted`), and History and the picture
+  wrote "No use in weekly (gemini) readings in this period." Gemini CLI's note, "Google's terms do not let other tools use Gemini
+  CLI's sign-in, so QuotaDial shows no numbers for it ...", was in the warning colour like every note, though there is nothing
+  for the person to fix.
+- **The fix:** `heatmapWords` in `share.ts`, which History already imports, writes the sentence in four cases (used or not, with a
+  window to name or none, when it stops short: "When it was used, by hour", "No use in this period."); History's caption and its
+  figure's `aria-label` take it from one constant, and the picture's words take it too. A note on an account whose status is
+  "unsupported" has the class `explains`, in `--muted`; every other note stays in `--warning`.
+- **The checks:** `whole-words.mjs` writes the caption it expects itself, as the check's own text, not from `share.ts`, so a change
+  there fails here; `checkNotes`, beside `checkToolbar` in each accounts view, holds every card's note to the colour of what it
+  is, against the notes the copy has, card by card. Against `main`'s window, with this branch's checks, 6 of 8,122 checks in the
+  Pro views failed: the caption at 100% and 200% in both themes ("When it was used, by hour (session)" where the copy has "When it
+  was used, by hour, from Session readings") and Gemini CLI's note (`#8f4b00`, `#ffb340` in dark, not `#58585d` and `#b0b0b5`).
+  A unit test holds `heatmapWords`' four cases, and the picture's no-use test holds the whole sentence.
+- **Pictures:** before and after, History and the popover in both themes and Antigravity's picture to share, in the PR (from the
+  scratchpad's `heatmap-caption/`). The website's History pictures change with the caption and are captured again from this
+  branch's window (the same run `site/scripts/app-pictures.mjs` makes); its accounts and Settings pictures are byte for byte what
+  `main`'s window draws, so they are left as they are.
+- **Counts:** the tray's `npm test` 115, up from 114 on `main`; the window check 19,126 checks over 26 views, up from 18,918 (the
+  caption's longer words and `checkNotes`); the contrast check 30 pairs a theme, as on `main`; the window's JavaScript 38.5 KB of
+  150; the website's tests 90.
+- **Checks run,** through the scratchpad's `safe.sh`: the tray's `npm run build`, `npm test` and `npm run check:window`, the
+  website's `npm run check`, `npm run build` and `npm test` (the changelog it renders changed), `scripts/privacy.sh --check` and
+  `scripts/public-prd.sh --check`. **Not run:** cargo, the app's `--lib` tests among them, which read `CHANGELOG.md`: no Rust
+  changed, and the new line has no backtick or link, which is what the app's test of the built-in changelog checks; CI runs them.
+- **#52's list, gone down:** *found and fixed:* the caption lowercased a model's name, nested brackets and said other words than
+  the figure's name; a note with nothing to fix was in the warning colour. *Held:* `--muted` on the card at 4.5:1 in both themes;
+  D-139's long-name rule (`.heatmap figcaption` stays on its list); the picture's string list; the JavaScript budget. *Left for
+  later:* nothing; items 2, 4 and 3 follow as their own pull requests.
 
 ### M6: the share picture's chart line is judged against its card, its soft fill part of it (D-140)
 
