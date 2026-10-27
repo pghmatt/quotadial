@@ -117,7 +117,9 @@ body {
    period and about each heatmap, which echoes a label or a path, Settings' cards, which hold what
    the person wrote and the hosts they set, and Help's cards and the update on offer, which hold the
    changelog's lines, the privacy text and an update's error, and so file names, hosts and
-   addresses, the support address among them. Only these may break anywhere, and the body may not:
+   addresses, the support address among them. An address breaks first before its @ and before each
+   dot, at the <wbr> the window writes there and never a character (D-141), and anywhere only where
+   one part of it is wider than the line. Only these may break anywhere, and the body may not:
    `overflow-wrap: anywhere` counts a break between any two letters when the least room a flex item
    can be given is worked out, so on the body it let a flex row squeeze one of its parts below its
    own words, and at 200% zoom History's caption broke "Weekly" as "Wee" over "kly". Every other

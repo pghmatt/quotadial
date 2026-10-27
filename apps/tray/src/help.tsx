@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
+import { Address } from "./account";
 import { usePanelFocus } from "./focus";
 import type { HelpView, UpdateView } from "./meter";
 import { UpdateStatus } from "./update";
@@ -65,7 +66,7 @@ export function HelpPanel({ update }: { update: UpdateView | null }) {
             Send feedback
           </button>
           <button type="button" onClick={() => run("open_link", { link: "support" })}>
-            Write to {help.support}
+            Write to <Address text={help.support} />
           </button>
         </div>
       </section>

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
+import { Address } from "./account";
 import { usePanelFocus } from "./focus";
 import type { Settings } from "./meter";
 import { Said } from "./said";
@@ -188,7 +189,9 @@ export function SettingsPanel() {
                     provider under it, or its provider alone when it has no address. */}
                 <span class="card-head">
                   <span class="title-row">
-                    <span class="title">{account.name || account.provider}</span>
+                    <span class="title">
+                      {account.name ? <Address text={account.name} /> : account.provider}
+                    </span>
                   </span>
                   {account.name && (
                     <>

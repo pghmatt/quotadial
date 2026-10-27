@@ -1,4 +1,6 @@
-import type { ComponentChildren } from "preact";
+import { Fragment, type ComponentChildren } from "preact";
+
+import { addressParts, addressRuns } from "./address";
 
 /** Who an account is: its provider's own name (P-020), the name the user gave it, if any, and its
  * own name, such as its email address, empty when that says nothing beyond its provider. */
@@ -30,7 +32,7 @@ export function AccountHeading({
       <span class="title-row">
         <span class="title">{who.alias ?? who.provider}</span> {children}
       </span>
-      <Address who={who} />
+      <AddressLine who={who} />
     </>
   );
   return level === 2 ? (
@@ -50,7 +52,7 @@ export function AccountHeading({
  * and read as a column. Nothing when the provider's name says it all, as for the example build's
  * accounts, which have no address (D-124). The address alone can be selected, to copy it.
  */
-function Address({ who }: { who: Who }) {
+function AddressLine({ who }: { who: Who }) {
   const named = who.alias !== null;
   if (!named && !who.name) {
     return null;
@@ -59,7 +61,11 @@ function Address({ who }: { who: Who }) {
     <>
       {" "}
       <span class="address">
-        {who.name && <span class="name">{who.name}</span>}
+        {who.name && (
+          <span class="name">
+            <Address text={who.name} />
+          </span>
+        )}
         {named && who.name && (
           <>
             {" "}
@@ -68,6 +74,44 @@ function Address({ who }: { who: Who }) {
         )}
         {named && <span class="provider">{who.provider}</span>}
       </span>
+    </>
+  );
+}
+
+/**
+ * An address, written the one way the window writes every address (D-141): whole, with a `<wbr>`
+ * before its `@` and before each `.` (`addressParts`), so that a line too short for it breaks it
+ * there and not inside a word. A `<wbr>` is an element and adds no character, so the text of what
+ * holds it, and what a copy of it gives, is the address byte for byte. Each is hidden from screen
+ * readers: Chrome, WebView2's engine, names a heading, a field or a button with a space where a
+ * `<wbr>` it can see is, "dev @example .com", and with none where it cannot, so the address is
+ * heard whole. An account's name with neither `@` nor `.`, such as "Google account", is written as
+ * it is.
+ */
+export function Address({ text }: { text: string }) {
+  return (
+    <>
+      {addressParts(text).map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && <wbr aria-hidden="true" />}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/**
+ * A line the app writes, with each of `addresses` that stands in it written as `Address` writes
+ * one (`addressRuns`): the summary's line, which names the account whose window sets the number by
+ * its address when it has no name given (D-132).
+ */
+export function WithAddresses({ text, addresses }: { text: string; addresses: readonly string[] }) {
+  return (
+    <>
+      {addressRuns(text, addresses).map((run, index) =>
+        run.address ? <Address key={index} text={run.text} /> : run.text,
+      )}
     </>
   );
 }
