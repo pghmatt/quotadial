@@ -255,7 +255,9 @@ function AccountSection({ account, index }: { account: Account; index: number })
         )}
       </AccountHeading>
       {!account.ok && account.note && (
-        <p class="note">
+        // A provider QuotaDial may not read leaves nothing for the person to fix, so its note
+        // explains, in the detail colour; every other note names a fix, in the warning colour.
+        <p class={account.status === "unsupported" ? "note explains" : "note"}>
           <Said text={account.note} />
         </p>
       )}

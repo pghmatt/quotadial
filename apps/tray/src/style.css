@@ -309,6 +309,13 @@ h2 {
   color: var(--warning);
 }
 
+/* A note that only explains, as for a provider whose terms keep QuotaDial from reading it, has
+   nothing for the person to fix, so it takes the detail colour and leaves the warning colour to the
+   notes that name a fix (the manager on #73, 2026-10-27, 13:26 UTC). */
+.note.explains {
+  color: var(--muted);
+}
+
 .account .note {
   margin: 10px 0 0;
   font-size: 12px;
