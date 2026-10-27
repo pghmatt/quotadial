@@ -2,7 +2,8 @@
 //! heatmap of when it was used by hour of the day, and an export of every reading as CSV. It also
 //! carries what the window needs to draw a picture of an account's history to share (D-115): each
 //! account's label, the days covered, and on QuotaDial Free the line said in the buttons' place;
-//! and the marks under the charts that say where the calendar's days or weeks begin (D-143).
+//! and the marks under the charts that say where the calendar's days or weeks begin (D-143). The
+//! dates, the heatmap's rows and the marks all follow the charts' own period (D-144).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -28,8 +29,10 @@ pub struct HistoryView {
     /// What the charts span, such as "The last 7 days." or, for a history that began since,
     /// "Since Fri 23 at 09:16, when the history begins."
     pub span: String,
-    /// The days the view covers, as people write them, such as "19 to 25 October 2026": from the
-    /// period's first day, or the history's when it began since, to today.
+    /// The days the view covers, as people write them, such as "19 to 26 October 2026": the first
+    /// and last of the calendar days the charts' period holds any part of, which are the heatmap's
+    /// first and last rows (D-144): from the day `since` is in, or a younger history's first
+    /// reading, to today, or to yesterday for a period that ends at midnight.
     pub dates: String,
     /// Where the calendar's days or weeks begin along the charts, and the words under them (D-143):
     /// one list for every chart of the view, which all span the same period, so the window draws it
@@ -91,15 +94,37 @@ pub struct WindowChart {
 pub struct Heatmap {
     /// The window the use is counted in, such as "Session".
     pub window: String,
-    /// A label per day, oldest first, such as "Mon 20".
+    /// A label per row, oldest first, such as "Mon 20": a row for each calendar day the charts'
+    /// period holds any part of, in the app's zone, so a period that does not end at midnight has a
+    /// partial row at each end, eight in a week (D-144).
     pub days: Vec<String>,
-    /// Per day, the share used in each hour, local time.
-    pub cells: Vec<[f64; 24]>,
+    /// Per row, the share used in each hour of the day, local time, for each hour the period holds
+    /// any part of, and `None` for each hour it holds none of: before the period's start in the first
+    /// row, after now in the last, or an hour a clock change skips. The window and the picture to
+    /// share draw no square for `None` and keep its place (D-144).
+    pub cells: Vec<[Option<f64>; 24]>,
     /// The largest cell, which the others are shaded against.
     pub most: f64,
     /// The same facts in words, a line per day, for a screen reader (#52): such as "Mon 20: used
-    /// 9:00 to 12:00 and 14:00 to 15:00, most at 14:00 (12%)", or "Tue 21: not used".
+    /// 9:00 to 12:00 and 14:00 to 15:00, most at 14:00 (12%)", or "Tue 21: not used". The first
+    /// row's names the hour it starts from when the period starts part way through its day, such as
+    /// "Sun 19 from 14:00: not used" (D-144).
     pub said: Vec<String>,
+}
+
+/// The period the view charts, from `start`, `since` or a younger history's first reading, to
+/// `now`, and the calendar days of the heatmap's zone it holds any part of, oldest first: the
+/// heatmap's rows (D-144).
+struct Period {
+    start: DateTime<Utc>,
+    now: DateTime<Utc>,
+    days: Vec<HeldDay>,
+}
+
+/// A calendar day the period holds any part of, and each hour of it the period holds any part of.
+struct HeldDay {
+    date: NaiveDate,
+    hours: [bool; 24],
 }
 
 /// The history view of the last `days` before `now`, with the days and hours of `zone`, under
@@ -140,26 +165,36 @@ pub fn view<Tz: TimeZone>(
     } else {
         format!("The last {days} days.")
     };
-    let today = now.with_timezone(zone).date_naive();
-    let first_day =
-        (today - TimeDelta::days(i64::from(days) - 1)).max(start.with_timezone(zone).date_naive());
+    // The heatmap's rows and the days `dates` names: the calendar days the period holds (D-144).
+    let period = Period {
+        start,
+        now,
+        days: held_days(start, now, zone),
+    };
+    let (first_day, last_day) = match (period.days.first(), period.days.last()) {
+        (Some(first), Some(last)) => (first.date, last.date),
+        _ => {
+            let today = now.with_timezone(zone).date_naive();
+            (today, today)
+        }
+    };
     let newest = newest(history)?;
     let mut accounts: Vec<AccountHistory> = Vec::new();
     let mut group: Vec<&Series> = Vec::new();
     for one in &series {
         if group.last().is_some_and(|last| !same_account(last, one)) {
-            accounts.push(account(&group, settings, &newest, days, start, now, zone));
+            accounts.push(account(&group, settings, &newest, days, &period, zone));
             group.clear();
         }
         group.push(one);
     }
     if !group.is_empty() {
-        accounts.push(account(&group, settings, &newest, days, start, now, zone));
+        accounts.push(account(&group, settings, &newest, days, &period, zone));
     }
     Ok(HistoryView {
         days,
         span,
-        dates: dates(first_day, today),
+        dates: dates(first_day, last_day),
         marks: marks(days, start, now, zone),
         accounts,
         share_left_out: (!tier.allows(ProFeature::ShareImage))
@@ -279,8 +314,7 @@ fn account<Tz: TimeZone>(
     settings: &Settings,
     newest: &Newest,
     days: u32,
-    since: DateTime<Utc>,
-    now: DateTime<Utc>,
+    period: &Period,
     zone: &Tz,
 ) -> AccountHistory {
     let first = group[0];
@@ -291,7 +325,7 @@ fn account<Tz: TimeZone>(
     let name = text::name_beside(provider, &first.account)
         .unwrap_or_default()
         .to_owned();
-    let period = format!("in the last {days} days");
+    let over = format!("in the last {days} days");
     AccountHistory {
         provider: provider.to_owned(),
         alias: alias.cloned(),
@@ -303,9 +337,9 @@ fn account<Tz: TimeZone>(
         ),
         windows: group
             .iter()
-            .map(|series| chart(series, since, now, &period))
+            .map(|series| chart(series, period.start, period.now, &over))
             .collect(),
-        heatmap: heatmap(group, days, now, zone),
+        heatmap: heatmap(group, period, zone),
         key,
     }
 }
@@ -359,8 +393,13 @@ fn chart(series: &Series, since: DateTime<Utc>, now: DateTime<Utc>, period: &str
     }
 }
 
-/// The heatmap of `group`'s shortest window: a session if there is one.
-fn heatmap<Tz: TimeZone>(group: &[&Series], days: u32, now: DateTime<Utc>, zone: &Tz) -> Heatmap {
+/// The heatmap of `group`'s shortest window, a session if there is one, over `period`: a row for
+/// each calendar day the period holds any part of and, in each row, a cell for each hour of it the
+/// period holds any part of and `None` for the rest, so nothing is drawn for an hour before the
+/// period's start or after now (D-144). Use is counted in the hour of the reading that shows it, so
+/// the hour the period starts in counts from the start. The first row's words name the hour it
+/// starts from when the period starts part way through its day.
+fn heatmap<Tz: TimeZone>(group: &[&Series], period: &Period, zone: &Tz) -> Heatmap {
     let shortest = group
         .iter()
         .min_by_key(|series| match series.kind {
@@ -371,22 +410,38 @@ fn heatmap<Tz: TimeZone>(group: &[&Series], days: u32, now: DateTime<Utc>, zone:
             WindowKind::Credits | WindowKind::Other => 4,
         })
         .copied();
-    let today = now.with_timezone(zone).date_naive();
-    let first = today - TimeDelta::days(i64::from(days) - 1);
-    let mut cells = vec![[0.0; 24]; days as usize];
-    for (at, used) in shortest.map(Series::activity).unwrap_or_default() {
-        let local = at.with_timezone(zone);
-        let day = (local.date_naive() - first).num_days();
-        if let Ok(day) = usize::try_from(day)
-            && let Some(row) = cells.get_mut(day)
-        {
-            row[local.hour() as usize] += used;
+    let mut cells: Vec<[Option<f64>; 24]> = period
+        .days
+        .iter()
+        .map(|day| day.hours.map(|held| held.then_some(0.0)))
+        .collect();
+    if let Some(first) = period.days.first().map(|day| day.date) {
+        for (at, used) in shortest.map(Series::activity).unwrap_or_default() {
+            let local = at.with_timezone(zone);
+            // Use at an hour the period holds none of, such as a reading at now itself, is not shown.
+            if let Ok(row) = usize::try_from((local.date_naive() - first).num_days())
+                && let Some(Some(cell)) = cells
+                    .get_mut(row)
+                    .map(|hours| &mut hours[local.hour() as usize])
+            {
+                *cell += used;
+            }
         }
     }
-    let most = cells.iter().flatten().copied().fold(0.0, f64::max);
-    let days: Vec<String> = (0..days)
-        .map(|offset| day_label(first + TimeDelta::days(i64::from(offset))))
-        .collect();
+    let most = cells
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .fold(0.0, f64::max);
+    let days: Vec<String> = period.days.iter().map(|day| day_label(day.date)).collect();
+    // The hour the first row starts from, when the period starts part way through its day, and that
+    // is not the day's first hour.
+    let from = period.days.first().and_then(|day| {
+        let hour = day.hours.iter().position(|held| *held)?;
+        let begins = day_start(day.date, zone)?;
+        (period.start > begins && hour > 0).then_some(hour)
+    });
     Heatmap {
         window: shortest
             .map(|series| series.window.clone())
@@ -394,7 +449,11 @@ fn heatmap<Tz: TimeZone>(group: &[&Series], days: u32, now: DateTime<Utc>, zone:
         said: days
             .iter()
             .zip(&cells)
-            .map(|(day, hours)| said(day, hours))
+            .enumerate()
+            .map(|(row, (day, hours))| match from {
+                Some(hour) if row == 0 => said(&format!("{day} from {hour}:00"), hours),
+                _ => said(day, hours),
+            })
             .collect(),
         days,
         cells,
@@ -402,8 +461,52 @@ fn heatmap<Tz: TimeZone>(group: &[&Series], days: u32, now: DateTime<Utc>, zone:
     }
 }
 
-/// One day of the heatmap in words: the hours it was used, run together, and its busiest hour.
-fn said(day: &str, hours: &[f64; 24]) -> String {
+/// The calendar days of `zone` the period from `start` to `now` holds any part of, oldest first,
+/// each with the hours of the day it holds any part of (D-144). The period holds none of `now`
+/// itself, as the marks have it (D-143), so a `now` at midnight holds none of its day and a `now` on
+/// the hour none of that hour; and an hour a clock change skips is held by no day.
+fn held_days<Tz: TimeZone>(start: DateTime<Utc>, now: DateTime<Utc>, zone: &Tz) -> Vec<HeldDay> {
+    if now <= start {
+        return Vec::new();
+    }
+    let first = start.with_timezone(zone).date_naive();
+    let last = (now - TimeDelta::nanoseconds(1))
+        .with_timezone(zone)
+        .date_naive();
+    first
+        .iter_days()
+        .take_while(|date| *date <= last)
+        .map(|date| {
+            let begins = day_start(date, zone).map_or(start, |begins| begins.max(start));
+            let ends = date
+                .succ_opt()
+                .and_then(|next| day_start(next, zone))
+                .map_or(now, |ends| ends.min(now));
+            // Each hour a moment of the day's part is in: its first moment's, then each that begins
+            // inside it, which every zone begins on a quarter hour of UTC, its offset and every clock
+            // change being whole quarter hours.
+            let mut hours = [false; 24];
+            let mut at = begins;
+            while at < ends {
+                hours[at.with_timezone(zone).hour() as usize] = true;
+                at = next_quarter(at);
+            }
+            HeldDay { date, hours }
+        })
+        .collect()
+}
+
+/// The first quarter hour of UTC after `at`.
+fn next_quarter(at: DateTime<Utc>) -> DateTime<Utc> {
+    const QUARTER: i64 = 15 * 60;
+    let next = (at.timestamp().div_euclid(QUARTER) + 1) * QUARTER;
+    DateTime::from_timestamp(next, 0).unwrap_or(at + TimeDelta::minutes(15))
+}
+
+/// One day of the heatmap in words: the hours it was used, run together, and its busiest hour. An
+/// hour the period holds none of was not used in it.
+fn said(day: &str, hours: &[Option<f64>; 24]) -> String {
+    let hours = hours.map(|used| used.unwrap_or(0.0));
     let mut runs: Vec<(usize, usize)> = Vec::new();
     for (hour, used) in hours.iter().enumerate() {
         if *used <= 0.0 {
@@ -535,32 +638,45 @@ mod tests {
 
     #[test]
     fn the_heatmap_is_said_in_words_a_day_a_line() {
-        let mut hours = [0.0; 24];
+        let mut hours = [Some(0.0); 24];
         for hour in [9, 10, 11] {
-            hours[hour] = 2.0;
+            hours[hour] = Some(2.0);
         }
-        hours[14] = 12.4;
-        hours[16] = 1.0;
-        hours[17] = 1.0;
+        hours[14] = Some(12.4);
+        hours[16] = Some(1.0);
+        hours[17] = Some(1.0);
 
         assert_eq!(
             super::said("Mon 20", &hours),
             "Mon 20: used 9:00 to 12:00, 14:00 to 15:00 and 16:00 to 18:00, most at 14:00 (12%)"
         );
-        assert_eq!(super::said("Tue 21", &[0.0; 24]), "Tue 21: not used");
-        let mut late = [0.0; 24];
-        late[23] = 3.0;
+        assert_eq!(super::said("Tue 21", &[Some(0.0); 24]), "Tue 21: not used");
+        let mut late = [Some(0.0); 24];
+        late[23] = Some(3.0);
         assert_eq!(
             super::said("Wed 22", &late),
             "Wed 22: used 23:00 to 24:00, most at 23:00 (3%)"
         );
         assert_eq!(
-            super::said("Thu 23", &[1.0; 24]),
+            super::said("Thu 23", &[Some(1.0); 24]),
             "Thu 23: used 0:00 to 24:00, most at 0:00 (1%)"
+        );
+        // An hour the period holds none of was not used in it (D-144).
+        let mut partial = [None; 24];
+        partial[14..].fill(Some(0.0));
+        partial[15] = Some(2.0);
+        partial[16] = Some(8.0);
+        assert_eq!(
+            super::said("Sun 19 from 14:00", &partial),
+            "Sun 19 from 14:00: used 15:00 to 17:00, most at 16:00 (8%)"
+        );
+        assert_eq!(
+            super::said("Sun 19 from 14:00", &[None; 24]),
+            "Sun 19 from 14:00: not used"
         );
     }
 
-    use chrono::FixedOffset;
+    use chrono::{FixedOffset, MappedLocalTime, NaiveDateTime};
     use quotadial_core::{Account, Snapshot, Source, Status, Window};
 
     use super::*;
@@ -704,17 +820,30 @@ mod tests {
 
         let heatmap = &view.accounts[0].heatmap;
         assert_eq!(heatmap.window, "Session");
-        assert_eq!(heatmap.days.len(), 7);
-        assert_eq!(heatmap.days[6], "Wed 7", "today last");
-        // 10% to 25% at 09:40 on the 5th, then 25% to 30% at 14:05 on the 6th.
-        assert_eq!(heatmap.cells[4][9], 15.0);
-        assert_eq!(heatmap.cells[5][14], 5.0);
+        // A history younger than the period: a row from its first reading's day, Monday 5 at 09:10,
+        // to the day of the period's last moment, Tuesday 6, since a now at midnight holds none of
+        // Wednesday (D-144).
+        assert_eq!(heatmap.days, ["Mon 5", "Tue 6"]);
+        // 10% to 25% at 09:40 on the 5th, counted in the hour the history begins in, then 25% to 30%
+        // at 14:05 on the 6th; no cell before the first reading's hour.
+        assert_eq!(heatmap.cells[0][9], Some(15.0));
+        assert_eq!(heatmap.cells[1][14], Some(5.0));
+        assert_eq!(heatmap.cells[0][..9], [None; 9]);
+        assert!(heatmap.cells[1].iter().all(Option::is_some));
         assert_eq!(heatmap.most, 15.0);
+        assert_eq!(
+            heatmap.said,
+            [
+                "Mon 5 from 9:00: used 9:00 to 10:00, most at 9:00 (15%)",
+                "Tue 6: used 14:00 to 15:00, most at 14:00 (5%)",
+            ]
+        );
         let codex = &view.accounts[1].heatmap;
         assert_eq!(
             codex.window, "Weekly",
             "a weekly window when there is no session"
         );
+        assert_eq!(codex.days, heatmap.days, "every card has the view's rows");
     }
 
     #[test]
@@ -820,8 +949,9 @@ mod tests {
 
         let young = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
         assert_eq!(
-            young.dates, "5 to 7 January 2099",
-            "from the history's first day, as the charts begin"
+            young.dates, "5 to 6 January 2099",
+            "from the history's first day, as the charts begin, to the last the period holds: a now \
+             at midnight holds none of the 7th (D-144)"
         );
         let later = at("2099-01-20T12:00:00Z");
         for (fetched_at, used) in [
@@ -841,8 +971,8 @@ mod tests {
         }
         let full = view(&history, &Settings::default(), 7, later, &Utc, Tier::Pro).expect("reads");
         assert_eq!(
-            full.dates, "14 to 20 January 2099",
-            "the heatmap's seven days"
+            full.dates, "13 to 20 January 2099",
+            "the heatmap's eight rows, from the day the charts begin in, the 13th at 12:30, to today"
         );
         assert_eq!(full.span, "The last 7 days.");
 
@@ -1150,17 +1280,28 @@ mod tests {
             let view =
                 view(&history, &Settings::default(), 7, at(now), &zone, Tier::Pro).expect("reads");
 
+            // The history begins at 23:00 on Monday in the zone, and now is 11:30 or 12:00 on
+            // Tuesday there: a row for each day, the first from the first reading's hour and the
+            // last to the hour now is in, holding none of the hour that begins at now (D-144).
             let heatmap = &view.accounts[0].heatmap;
+            assert_eq!(heatmap.days, ["Mon 5", "Tue 6"], "{zone}");
             assert_eq!(
-                (heatmap.days[5].as_str(), heatmap.days[6].as_str()),
-                ("Mon 5", "Tue 6"),
+                (heatmap.cells[0][23], heatmap.cells[1][0]),
+                (Some(10.0), Some(15.0)),
                 "{zone}"
             );
+            assert_eq!(heatmap.cells[0][..23], [None; 23], "{zone}");
+            assert!(heatmap.cells[1][..12].iter().all(Option::is_some), "{zone}");
+            assert_eq!(heatmap.cells[1][12..], [None; 12], "{zone}");
             assert_eq!(
-                (heatmap.cells[5][23], heatmap.cells[6][0]),
-                (10.0, 15.0),
+                heatmap.said,
+                [
+                    "Mon 5 from 23:00: used 23:00 to 24:00, most at 23:00 (10%)",
+                    "Tue 6: used 0:00 to 1:00, most at 0:00 (15%)",
+                ],
                 "{zone}"
             );
+            assert_eq!(view.dates, "5 to 6 January 2099", "{zone}");
             let ticks: Vec<f64> = view
                 .marks
                 .iter()
@@ -1175,6 +1316,266 @@ mod tests {
                 "{zone}: the view's marks are those of its charts' period"
             );
         }
+    }
+
+    /// A history of a Claude account's session, read at each of `readings`, `(when, share used)`.
+    fn session_history(readings: &[(&str, f64)]) -> (tempfile::TempDir, History) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let history = History::open(&dir.path().join("history.db")).expect("opens");
+        for (fetched_at, used) in readings {
+            history
+                .record(
+                    &snapshot(
+                        "claude",
+                        &[(WindowKind::Session, "Session", *used)],
+                        fetched_at,
+                    ),
+                    at(fetched_at),
+                )
+                .expect("records");
+        }
+        (dir, history)
+    }
+
+    /// The hours a row holds a cell for.
+    fn held(hours: &[Option<f64>; 24]) -> Vec<usize> {
+        (0..24).filter(|hour| hours[*hour].is_some()).collect()
+    }
+
+    #[test]
+    fn the_heatmap_has_a_row_for_each_day_the_period_holds_and_a_cell_only_for_its_hours() {
+        // Seven days to Tuesday 27 October 2026 at 14:25, from Tuesday 20 at 14:25: eight calendar
+        // days, the first held from 14:25 and the last to 14:25. Eight rows, the first with cells
+        // from the hour the period starts in, the last to the hour now is in, and none outside the
+        // period at either end (D-144).
+        let (_dir, history) = session_history(&[
+            ("2026-10-20T14:25:00Z", 10.0),
+            ("2026-10-20T15:10:00Z", 12.0),
+            ("2026-10-20T16:40:00Z", 20.0),
+            ("2026-10-27T14:20:00Z", 25.0),
+        ]);
+        let now = at("2026-10-27T14:25:00Z");
+
+        let view = view(&history, &Settings::default(), 7, now, &Utc, Tier::Pro).expect("reads");
+
+        let heatmap = &view.accounts[0].heatmap;
+        assert_eq!(
+            heatmap.days,
+            [
+                "Tue 20", "Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27"
+            ]
+        );
+        assert_eq!(held(&heatmap.cells[0]), (14..24).collect::<Vec<_>>());
+        for row in &heatmap.cells[1..7] {
+            assert_eq!(held(row), (0..24).collect::<Vec<_>>());
+        }
+        assert_eq!(held(&heatmap.cells[7]), (0..15).collect::<Vec<_>>());
+        assert_eq!(
+            (
+                heatmap.cells[0][15],
+                heatmap.cells[0][16],
+                heatmap.cells[7][14]
+            ),
+            (Some(2.0), Some(8.0), Some(5.0))
+        );
+        assert_eq!(
+            heatmap.said[0],
+            "Tue 20 from 14:00: used 15:00 to 17:00, most at 16:00 (8%)"
+        );
+        assert_eq!(heatmap.said[1], "Wed 21: not used");
+        assert_eq!(
+            heatmap.said[7], "Tue 27: used 14:00 to 15:00, most at 14:00 (5%)",
+            "today's words say nothing of the hours not yet come"
+        );
+        assert_eq!(
+            view.dates, "20 to 27 October 2026",
+            "the first and last rows"
+        );
+        assert_eq!(view.span, "The last 7 days.");
+    }
+
+    #[test]
+    fn a_now_at_midnight_holds_none_of_its_day_and_a_now_on_the_hour_none_of_that_hour() {
+        let settings = Settings::default();
+        // To Wednesday 28 October at midnight: seven whole days, Wednesday 21 to Tuesday 27.
+        let (_dir, history) = session_history(&[("2026-10-21T00:00:00Z", 10.0)]);
+        let midnight = view(
+            &history,
+            &settings,
+            7,
+            at("2026-10-28T00:00:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
+        let heatmap = &midnight.accounts[0].heatmap;
+        assert_eq!(
+            heatmap.days,
+            [
+                "Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27"
+            ]
+        );
+        assert!(heatmap.cells.iter().flatten().all(Option::is_some));
+        assert_eq!(
+            heatmap.said[0], "Wed 21: not used",
+            "a whole first row names no hour"
+        );
+        assert_eq!(midnight.dates, "21 to 27 October 2026");
+        // To noon: eight rows, the first from 12:00 and the last to 11:00's hour, none of noon's.
+        let (_dir, history) = session_history(&[("2026-10-20T12:00:00Z", 10.0)]);
+        let noon = view(
+            &history,
+            &settings,
+            7,
+            at("2026-10-27T12:00:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
+        let heatmap = &noon.accounts[0].heatmap;
+        assert_eq!(heatmap.days.len(), 8);
+        assert_eq!(held(&heatmap.cells[0]), (12..24).collect::<Vec<_>>());
+        assert_eq!(held(&heatmap.cells[7]), (0..12).collect::<Vec<_>>());
+        assert_eq!(heatmap.said[0], "Tue 20 from 12:00: not used");
+        assert_eq!(noon.dates, "20 to 27 October 2026");
+        // A minute after midnight: eight rows, the first held from 00:01, so in its first hour,
+        // which its words do not name, and the last for that minute's hour alone.
+        let (_dir, history) = session_history(&[("2026-10-20T00:01:00Z", 10.0)]);
+        let late = view(
+            &history,
+            &settings,
+            7,
+            at("2026-10-27T00:01:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
+        let heatmap = &late.accounts[0].heatmap;
+        assert_eq!(heatmap.days.len(), 8);
+        assert_eq!(held(&heatmap.cells[0]), (0..24).collect::<Vec<_>>());
+        assert_eq!(held(&heatmap.cells[7]), [0]);
+        assert_eq!(heatmap.said[0], "Tue 20: not used");
+    }
+
+    #[test]
+    fn over_30_days_a_row_for_each_day_and_the_left_date_names_the_first_row() {
+        let settings = Settings::default();
+        // From Sunday 27 September at 14:25 to Tuesday 27 October at 14:25: 31 rows.
+        let (_dir, history) = session_history(&[("2026-09-27T14:25:00Z", 10.0)]);
+        let month = view(
+            &history,
+            &settings,
+            30,
+            at("2026-10-27T14:25:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
+        let heatmap = &month.accounts[0].heatmap;
+        assert_eq!(heatmap.days.len(), 31);
+        assert_eq!(
+            (heatmap.days[0].as_str(), heatmap.days[30].as_str()),
+            ("Sun 27", "Tue 27")
+        );
+        assert_eq!(month.dates, "27 September to 27 October 2026");
+        // The left date, the first row and the first of `dates` are one day (D-143, D-144).
+        let words: Vec<&str> = month
+            .marks
+            .iter()
+            .filter(|mark| !mark.word.is_empty())
+            .map(|mark| mark.word.as_str())
+            .collect();
+        assert_eq!(words, ["27 Sep", "27 Oct"]);
+        // To midnight: thirty rows, to the day before.
+        let (_dir, history) = session_history(&[("2026-09-28T00:00:00Z", 10.0)]);
+        let whole = view(
+            &history,
+            &settings,
+            30,
+            at("2026-10-28T00:00:00Z"),
+            &Utc,
+            Tier::Pro,
+        )
+        .expect("reads");
+        assert_eq!(whole.accounts[0].heatmap.days.len(), 30);
+        assert_eq!(whole.dates, "28 September to 27 October 2026");
+    }
+
+    /// A zone an hour east of UTC that puts its clocks forward an hour at 01:00 UTC on Sunday
+    /// 29 March 2026, as Europe's do, so that day has no 02:00.
+    #[derive(Debug, Clone, Copy)]
+    struct SpringForward;
+
+    impl SpringForward {
+        fn change() -> DateTime<Utc> {
+            at("2026-03-29T01:00:00Z")
+        }
+
+        fn east(hours: i32) -> FixedOffset {
+            FixedOffset::east_opt(hours * 3600).expect("an offset")
+        }
+    }
+
+    impl TimeZone for SpringForward {
+        type Offset = FixedOffset;
+
+        fn from_offset(_: &FixedOffset) -> Self {
+            SpringForward
+        }
+
+        fn offset_from_local_date(&self, local: &NaiveDate) -> MappedLocalTime<FixedOffset> {
+            self.offset_from_local_datetime(&local.and_time(NaiveTime::MIN))
+        }
+
+        fn offset_from_local_datetime(
+            &self,
+            local: &NaiveDateTime,
+        ) -> MappedLocalTime<FixedOffset> {
+            // A local time is an hour east of UTC before the change and two after it; one that is
+            // neither is skipped.
+            let before = (*local - TimeDelta::hours(1)).and_utc() < Self::change();
+            let after = (*local - TimeDelta::hours(2)).and_utc() >= Self::change();
+            match (before, after) {
+                (true, false) => MappedLocalTime::Single(Self::east(1)),
+                (false, true) => MappedLocalTime::Single(Self::east(2)),
+                (true, true) => MappedLocalTime::Ambiguous(Self::east(1), Self::east(2)),
+                (false, false) => MappedLocalTime::None,
+            }
+        }
+
+        fn offset_from_utc_date(&self, utc: &NaiveDate) -> FixedOffset {
+            self.offset_from_utc_datetime(&utc.and_time(NaiveTime::MIN))
+        }
+
+        fn offset_from_utc_datetime(&self, utc: &NaiveDateTime) -> FixedOffset {
+            Self::east(if utc.and_utc() < Self::change() { 1 } else { 2 })
+        }
+    }
+
+    #[test]
+    fn an_hour_a_clock_change_skips_has_no_cell() {
+        // From Saturday 28 March at 13:00 there to Monday 30 at 14:00: Sunday has no 02:00.
+        let days = held_days(
+            at("2026-03-28T12:00:00Z"),
+            at("2026-03-30T12:00:00Z"),
+            &SpringForward,
+        );
+        let hours = |day: &HeldDay| {
+            (0..24)
+                .filter(|hour| day.hours[*hour])
+                .collect::<Vec<usize>>()
+        };
+        assert_eq!(
+            days.iter().map(|day| day.date).collect::<Vec<_>>(),
+            [day("2026-03-28"), day("2026-03-29"), day("2026-03-30")]
+        );
+        assert_eq!(hours(&days[0]), (13..24).collect::<Vec<_>>());
+        assert_eq!(
+            hours(&days[1]),
+            [0, 1].into_iter().chain(3..24).collect::<Vec<_>>()
+        );
+        assert_eq!(hours(&days[2]), (0..14).collect::<Vec<_>>());
+        assert!(held_days(at("2026-03-28T12:00:00Z"), at("2026-03-28T12:00:00Z"), &Utc).is_empty());
     }
 
     #[test]
