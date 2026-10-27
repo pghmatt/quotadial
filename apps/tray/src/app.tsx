@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
-import { AccountHeading } from "./account";
+import { AccountHeading, WithAddresses } from "./account";
 import { HelpPanel } from "./help";
 import { HistoryPanel } from "./history";
 import type { Account, Cost, Meter, UpdateView, Window } from "./meter";
@@ -160,7 +160,18 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
             <p class={`percent ${meter.level}`} aria-hidden={meter.percent === null ? "true" : undefined}>
               {meter.percent === null ? "–" : `${meter.percent}%`}
             </p>
-            <p class="headline">{meter.headline ?? "Looking for the accounts on this machine…"}</p>
+            {/* It names the account whose window sets the number, by its address when it has no
+                name given, and an address breaks there as it does in the account's heading. */}
+            <p class="headline">
+              {meter.headline === null ? (
+                "Looking for the accounts on this machine…"
+              ) : (
+                <WithAddresses
+                  text={meter.headline}
+                  addresses={meter.accounts.map((account) => account.name)}
+                />
+              )}
+            </p>
             {meter.incidents.map((incident) => (
               <p class="incident" key={incident} role="status">
                 {"\u26a0"} {incident}

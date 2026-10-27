@@ -50,7 +50,10 @@ const LONG_NAME = "a.very.long.account.name.that.keeps.going@engineering.example
 // at, one for each place the window shows some that is not an address (D-139): a name the person gave
 // an account, a plan the provider names, a model's name in a window's label (QuotaDial keeps 64
 // characters of it), a folder the person's machine names, a command that holds it, a provider's
-// incident and the host of a webhook. The Many copy has them all, as its header says.
+// incident and the host of a webhook. The Many copy has them all, as its header says, and an address
+// whose name before the @ is as long as an address's may be, 64 characters with no dot, a part wider
+// than the window that only the stylesheet's last resort can break (D-141).
+const LONG_LOCAL_PART = "continuousintegrationsandboxfortheengineeringplatformteams2026ci";
 const LONG_ALIAS = "EngineeringPlatformTeamSharedAccount2026";
 const LONG_PLAN = "Enterprise_Annual_Prepaid_Seats_2026";
 const LONG_MODEL = "ClaudeSonnetFourPointFiveExtendedContextPreview";
@@ -331,7 +334,8 @@ const ACCOUNTS = [
  * called Nine, before an account with one window was added to those above (D-137). The first has,
  * in a place of its own, text from outside with no spaces in it that a window must break rather
  * than cut off (D-139): a window named for a model (its label, in the popover and in History's
- * caption and heatmap) and a sign-in panel that names a folder; the second a plan (its capsule).
+ * caption and heatmap) and a sign-in panel that names a folder; the second a plan (its capsule);
+ * the third an address whose name before the @ is a part wider than the window (D-141).
  * @type {Meter["accounts"]}
  */
 const MORE_ACCOUNTS = [
@@ -418,11 +422,11 @@ const MORE_ACCOUNTS = [
     sign_in: CODEX_SIGN_IN,
   },
   {
-    key: "claude:sandbox@example.com",
+    key: `claude:${LONG_LOCAL_PART}@example.com`,
     alias: null,
-    summary: "Claude sandbox@example.com: Weekly 63%",
+    summary: `Claude ${LONG_LOCAL_PART}@example.com: Weekly 63%`,
     provider: "Claude",
-    name: "sandbox@example.com",
+    name: `${LONG_LOCAL_PART}@example.com`,
     plan: "Pro",
     status: "ok",
     ok: true,

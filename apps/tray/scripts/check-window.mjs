@@ -45,6 +45,13 @@
 //   unless it, with what is written against it, such as a model's name in its brackets, is wider
 //   than the caption, and the captions are held to the ones each copy has, in order, before any is
 //   judged (whole-words.mjs);
+// - an address breaks before its @ and before each dot, never inside a word (the manager on #73,
+//   2026-10-27, 13:26 UTC, D-141): the window writes exactly the addresses each copy has, whole and in
+//   order, in the line under the number, each account's heading in the popover and History,
+//   Settings' names and Help's support address, at 100% and 200% zoom, before any line is judged;
+//   then no word of an address, the part between two places it may break, is drawn on two lines
+//   where it fits its line on its own (whole-addresses.mjs); and the address in a heading, its text
+//   and what a copy of it gives, is the address byte for byte, and a screen reader is told it whole;
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -93,6 +100,17 @@ import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH,
 import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
 import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
+import {
+  ADDRESSES,
+  COPIED,
+  addressVerdict,
+  breakVerdicts,
+  expectedAddresses,
+  heardAt,
+  knownAddresses,
+  textVerdicts,
+  visibly,
+} from "./whole-addresses.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -572,9 +590,10 @@ const WORDS = `(() => {
 /**
  * In the page: every card in the window, in order, with where it is, and for an account's card its
  * heading's parts: its title, its address line and the address itself, where each is, whether it
- * is shown, and whether the address can be selected.
+ * is shown, whether the address can be selected, and what a copy of it gives (`COPIED`).
  */
 const CARDS = `(() => {
+  ${COPIED}
   const place = (element) => {
     const { top, bottom, left, right, width, height } = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -592,7 +611,7 @@ const CARDS = `(() => {
       heading: heading ? { id: heading.id, holds: [address, name].every((part) => !part || heading.contains(part)) } : null,
       title: card.querySelector('.title')?.textContent ?? null,
       address: address ? { text: address.textContent.replace(/\\s+/g, ' ').trim(), ...place(address) } : null,
-      name: name ? { text: name.textContent, select: getComputedStyle(name).userSelect, ...place(name) } : null,
+      name: name ? { text: name.textContent, copied: copied(name), select: getComputedStyle(name).userSelect, ...place(name) } : null,
     };
   });
 })()`;
@@ -949,6 +968,7 @@ async function checkView(view, panel, operate, copy, light) {
     await checkFrame(view, zoom);
     await checkShares(view, copy, panel, zoom);
     await checkWords(view, copy, panel, zoom);
+    await checkAddresses(view, copy, panel, zoom);
     if (panel === "accounts" || panel === "settings") {
       await checkCommands(view, copy, panel, zoom);
     }
@@ -1034,8 +1054,9 @@ const CARD_GAP = 8;
  * overlapping, all in one column. Its title is the name given it, or its provider's own; its
  * second line its address, after the provider's name when the title is a name given, or nothing
  * when its name says nothing beyond its provider (D-124). The address is visible, inside its card
- * and its heading, and can be selected, and a screen reader calls the card by its heading, address
- * and all.
+ * and its heading, and can be selected; its text, and what a copy of it gives, is the address byte
+ * for byte, with nothing added where it may break (D-141); and a screen reader calls the card by its
+ * heading, address and all, the address whole.
  */
 async function checkCards(view, copy, zoom) {
   const label = `${view.label}, cards at ${zoom * 100}%`;
@@ -1069,9 +1090,12 @@ async function checkCards(view, copy, zoom) {
       continue;
     }
     const name = card.name;
-    if (!name || name.text !== account.name) {
+    if (!name) {
       check(label, `${what}'s address is not shown as a part of its own, which can be selected alone`);
       continue;
+    }
+    for (const verdict of textVerdicts(account.name, name, what)) {
+      check(label, verdict);
     }
     check(label, (!name.shown || name.width <= 0 || name.height <= 0) && `${what}'s address is not visible`);
     const outside =
@@ -1084,27 +1108,32 @@ async function checkCards(view, copy, zoom) {
     if (zoom === 1) {
       const called = await view.called("main .content > section.account", index);
       const heard = called !== null && called.includes(title) && called.includes(account.name);
-      check(label, !heard && `a screen reader calls ${what}'s card "${called}", not by its name and address`);
+      check(label, !heard && `a screen reader calls ${what}'s card ${visibly(called ?? "")}, not by its name and address`);
     }
   }
 }
 
-/** In the page: each account's heading in the panel, its title and second line, and whether the
- * line is inside its card. */
-const HEADINGS = (selector) => `[...document.querySelectorAll(${JSON.stringify(selector)})].map((part) => {
-  const card = part.closest('.card');
-  const line = part.querySelector('.address');
-  const inside = (element) => {
-    if (!element || !card) return false;
-    const [inner, outer] = [element.getBoundingClientRect(), card.getBoundingClientRect()];
-    return inner.width > 0 && inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
-  };
-  return {
-    title: part.querySelector('.title')?.textContent ?? null,
-    line: line ? line.textContent.replace(/\\s+/g, ' ').trim() : null,
-    inside: !line || inside(line),
-  };
-})`;
+/** In the page: each account's heading in the panel, its title and second line, whether the line
+ * is inside its card, and the address in it, which History's has, with what a copy of it gives. */
+const HEADINGS = (selector) => `(() => {
+  ${COPIED}
+  return [...document.querySelectorAll(${JSON.stringify(selector)})].map((part) => {
+    const card = part.closest('.card');
+    const line = part.querySelector('.address');
+    const name = part.querySelector('.address .name');
+    const inside = (element) => {
+      if (!element || !card) return false;
+      const [inner, outer] = [element.getBoundingClientRect(), card.getBoundingClientRect()];
+      return inner.width > 0 && inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
+    };
+    return {
+      title: part.querySelector('.title')?.textContent ?? null,
+      line: line ? line.textContent.replace(/\\s+/g, ' ').trim() : null,
+      inside: !line || inside(line),
+      name: name ? { text: name.textContent, copied: copied(name) } : null,
+    };
+  });
+})()`;
 
 /**
  * The same heading for an account everywhere (D-132): History's cards, in the order History lists
@@ -1112,14 +1141,17 @@ const HEADINGS = (selector) => `[...document.querySelectorAll(${JSON.stringify(s
  * the provider under a name given, on the line under it, as the popover's are. Settings' names,
  * where the name to give is typed, are headed by which account it is: its address, with its
  * provider under it, or the provider alone when it has no address. Each second line is inside its
- * card.
+ * card. Each address is the address byte for byte, with nothing added where it may break (D-141):
+ * History's, its text and what a copy of it gives, and Settings', its title; and a screen reader
+ * is told it whole, in the name of History's card, by its heading, and of Settings' field for the
+ * account's name.
  */
 async function checkHeadings(view, copy, panel) {
   const label = `${view.label}, headings`;
-  const [selector, accounts] =
+  const [selector, accounts, named] =
     panel === "history"
-      ? ["section.history .account-history .card-head", copy.history[7].accounts]
-      : [".name-choice", copy.settings.accounts];
+      ? ["section.history .account-history .card-head", copy.history[7].accounts, "section.history .account-history"]
+      : [".name-choice", copy.settings.accounts, ".name-choice input"];
   const shown = await view.evaluate(HEADINGS(selector));
   check(label, shown.length !== accounts.length && `${panel} heads ${shown.length} accounts, not ${accounts.length}`);
   for (const [index, account] of accounts.entries()) {
@@ -1133,9 +1165,23 @@ async function checkHeadings(view, copy, panel) {
       title = account.alias ?? account.provider;
       line = account.alias === null ? account.name : [account.name, account.provider].filter(Boolean).join(" · ");
     }
-    check(label, heading.title !== title && `${what} is titled "${heading.title}", not "${title}"`);
-    check(label, (heading.line ?? "") !== line && `${what}'s second line is "${heading.line}", not "${line}"`);
+    check(label, heading.title !== title && `${what} is titled ${visibly(heading.title ?? "")}, not ${visibly(title)}`);
+    check(label, (heading.line ?? "") !== line && `${what}'s second line is ${visibly(heading.line ?? "")}, not ${visibly(line)}`);
     check(label, !heading.inside && `${what}'s second line is not inside its card`);
+    if (!account.name) {
+      continue;
+    }
+    if (panel === "history") {
+      if (!heading.name) {
+        check(label, `${what}'s address is not shown as a part of its own, which can be selected alone`);
+      } else {
+        for (const verdict of textVerdicts(account.name, heading.name, what)) {
+          check(label, verdict);
+        }
+      }
+    }
+    const called = await view.called(named, index);
+    check(label, !called?.includes(account.name) && `a screen reader calls ${what}'s ${panel === "history" ? "card" : "name field"} ${visibly(called ?? "")}, without its address whole`);
   }
 }
 
@@ -1256,6 +1302,36 @@ async function checkWords(view, copy, panel, zoom) {
   check(label, captionVerdict(captions, expectedCaptions(copy, panel)));
   for (const verdict of wordVerdicts(captions)) {
     check(label, verdict);
+  }
+}
+
+/**
+ * An address breaks before its @ and before each dot, never inside a word (the manager's decision on
+ * #73, 2026-10-27, 13:26 UTC, D-141): in each view, at 100% and 200%, the window writes exactly the
+ * addresses its copy has, whole and in order, in the line under the number, the accounts' headings,
+ * Settings' names and Help's support address, before any line is judged, so that a check that finds
+ * none cannot pass, and an address with a character added to make a break, which is not found
+ * whole, fails. Then no word of an address, the part between two places it may break, is drawn on
+ * two lines where it fits its line on its own: a break before its @ or dot would have let it go to
+ * the next line whole. A word wider than its line breaks by the stylesheet's last resort, and the
+ * check of cut-off text holds that it is not cut off. Each word is judged by its own line boxes
+ * (whole-addresses.mjs). At 100%, a screen reader is told Help's support address whole, in the name
+ * of its button; the headings' are held with the cards (`checkCards`, `checkHeadings`).
+ */
+async function checkAddresses(view, copy, panel, zoom) {
+  const label = `${view.label}, addresses at ${Math.round(zoom * 100)}%`;
+  const found = await view.evaluate(ADDRESSES(knownAddresses(copy)));
+  check(label, addressVerdict(found, expectedAddresses(copy, panel)));
+  for (const verdict of breakVerdicts(found)) {
+    check(label, verdict);
+  }
+  if (panel === "help" && zoom === 1) {
+    const support = copy.help.support;
+    const index = await view.evaluate(
+      `[...document.querySelectorAll('.help-actions button')].findIndex((button) => button.textContent.includes(${JSON.stringify(support)}))`,
+    );
+    const called = index < 0 ? null : await view.called(".help-actions button", index);
+    check(label, called !== `Write to ${support}` && `a screen reader calls the button that writes to support ${visibly(called ?? "")}, not ${visibly(`Write to ${support}`)}`);
   }
 }
 
@@ -1808,7 +1884,9 @@ async function checkOrder(view, copy, panel) {
   const quit = heard.indexOf("Quit QuotaDial");
   check(label, toolbar < 0 && "a screen reader does not read the toolbar's first button");
   if (meter.headline) {
-    const line = heard.indexOf(meter.headline);
+    // The line names an account by its address when it has no name given, with a <wbr> where the
+    // address may break, so it can be read as several entries, one after another (D-141).
+    const line = heardAt(heard, meter.headline);
     const body = heard.indexOf(panel === "accounts" ? first : panel[0].toUpperCase() + panel.slice(1));
     check(label, !(line >= 0 && line < body) && `a screen reader does not read the line under the number before the ${panel === "accounts" ? "first account" : "panel"}`);
   }
@@ -2598,7 +2676,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares and caption words kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
