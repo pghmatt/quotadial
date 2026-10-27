@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { START_WAIT_MS, launch } from "./chrome.mjs";
+import { START_WAIT_MS, launch, wantsClassicScrollbars } from "./chrome.mjs";
 
 // A script runs as a program only where a shebang line is honoured.
 const skip = process.platform === "win32" ? "a script stands in for Chrome only where scripts run as programs" : false;
@@ -75,6 +75,37 @@ test("a Chrome that exits first fails with its exit status", { skip }, async () 
   } finally {
     await stop(browser);
   }
+});
+
+test("Chrome's scroll bars take room unless the pictures ask for the system's own, and scrolling is at once", { skip }, async () => {
+  for (const [options, classic] of [
+    [{}, true],
+    [{ classicScrollbars: false }, false],
+  ]) {
+    const { program, profile, folder } = standIn(`
+      require("node:fs").writeFileSync(require("node:path").join(__dirname, "args.json"), JSON.stringify(process.argv.slice(2)));
+      process.stderr.write("DevTools listening on ws://127.0.0.1:9/devtools/browser/abc\\n");
+      setInterval(() => {}, 1000);
+    `);
+    const { browser, address } = launch(program, profile, options);
+    try {
+      await address;
+      const args = JSON.parse(readFileSync(join(folder, "args.json"), "utf8"));
+      assert.equal(args.some((arg) => arg.startsWith("--disable-features=") && arg.includes("OverlayScrollbar")), classic, JSON.stringify(options));
+      assert.ok(args.includes("--disable-smooth-scrolling"), JSON.stringify(options));
+      assert.equal(args.at(-1), "about:blank", "the page Chrome opens is still the last argument");
+    } finally {
+      await stop(browser);
+    }
+  }
+});
+
+test("scroll bars take room for the checks and are the system's own for the pictures, unless --scroll-bars says", () => {
+  assert.equal(wantsClassicScrollbars(undefined, false), true, "the checks");
+  assert.equal(wantsClassicScrollbars(undefined, true), false, "the pictures");
+  assert.equal(wantsClassicScrollbars("classic", true), true, "pictures of the Windows and Linux look");
+  assert.equal(wantsClassicScrollbars("system", false), false, "the checks in a Mac's own scroll bars");
+  assert.throws(() => wantsClassicScrollbars("thin", false), /^Error: --scroll-bars is "classic" or "system", not "thin"$/);
 });
 
 test("the wait leaves a slow runner a minute, three times the 20 s one runner overran", () => {

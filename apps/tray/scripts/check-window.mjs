@@ -26,6 +26,9 @@
 //   it, scrolled by the keys, the wheel and Tab, in the order Tab and a screen reader have always
 //   had, the app told the height of the whole of what it holds, and, in a window under 300 px, as at
 //   220% zoom and more, the whole page scrolling as one (D-136);
+// - what the window holds is as wide when its scrolling part scrolls as when it does not, in a Chrome
+//   whose scroll bars take room as Windows' and Linux's do, with the cards the same distance from
+//   each side and in line with the toolbar's labels (D-136);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -47,7 +50,9 @@
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
 // half way down what scrolls (`-- --window-zoom 2` at 200% zoom), `-- --share-images <folder>`
 // saves the picture to share of each
-// account in each copy and theme, `-- --only "pro, dark"` checks only the views named so, and
+// account in each copy and theme, `-- --scroll-bars classic` or `system` says whether Chrome's scroll
+// bars take room, as Windows' and Linux's do (the checks' own choice), or lie over what they scroll,
+// as a Mac's do (the pictures' own choice), `-- --only "pro, dark"` checks only the views named so, and
 // `-- --fixtures <module>` answers from another set of copies (the website's pictures use
 // `site-fixtures.mjs`). Fails, naming the view and the control, when a check does not pass.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -56,7 +61,8 @@ import { tmpdir } from "node:os";
 import { delimiter, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { launch } from "./chrome.mjs";
+import { launch, wantsClassicScrollbars } from "./chrome.mjs";
+import { waitForScrollEnd } from "./quiet.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
@@ -358,6 +364,32 @@ function stand_in(copy) {
         return String(context.fillStyle);
       },
     };
+    // When anything last scrolled and when a scroll last ended, on the page's own clock, which is how
+    // the check knows a scroll is over (quiet.mjs).
+    window.__check.lastScroll = 0;
+    window.__check.lastEnd = 0;
+    document.addEventListener("scroll", () => { window.__check.lastScroll = performance.now(); }, true);
+    document.addEventListener("scrollend", () => { window.__check.lastEnd = performance.now(); }, true);
+    // What the window's own code scrolls, and how it asks to: an assignment to scrollTop or a call to
+    // scrollTo and the like, whose behaviour is the stylesheet's unless the call says (the keys and the
+    // wheel scroll by the browser's own code, which this does not see).
+    window.__check.scrolls = [];
+    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    Object.defineProperty(Element.prototype, "scrollTop", {
+      ...scrollTop,
+      set(value) {
+        window.__check.scrolls.push({ how: "scrollTop", behavior: "the stylesheet's" });
+        scrollTop.set.call(this, value);
+      },
+    });
+    for (const how of ["scrollTo", "scrollBy", "scroll", "scrollIntoView"]) {
+      const original = Element.prototype[how];
+      Element.prototype[how] = function (...given) {
+        const behavior = given[0] && typeof given[0] === "object" && given[0].behavior ? given[0].behavior : "the stylesheet's";
+        window.__check.scrolls.push({ how, behavior });
+        return original.apply(this, given);
+      };
+    }
   })();`;
 }
 
@@ -630,18 +662,33 @@ class View {
     );
   }
 
-  /** Where what scrolls has got to once it has stopped, since a key's or a wheel's scroll glides. */
+  /**
+   * Where what scrolls has got to once the scroll an input began is over: a key's or a wheel's can
+   * start late and glide, and on a slow machine stall between frames, so the wait is for the page to
+   * say the scroll has ended, and not for the position to stop changing (quiet.mjs).
+   */
   async scrolled() {
-    let last = null;
-    for (let tries = 0; tries < 50; tries += 1) {
-      const now = await this.evaluate(`(${SCROLLER}).scrollTop`);
-      if (now === last) {
-        return now;
+    await waitForScrollEnd(() =>
+      this.evaluate("({ now: performance.now(), lastScroll: window.__check.lastScroll, lastEnd: window.__check.lastEnd })"),
+    );
+    return this.position();
+  }
+
+  /** Where what scrolls is now. */
+  position() {
+    return this.evaluate(`(${SCROLLER}).scrollTop`);
+  }
+
+  /** Whether `expression` becomes true in the page within `ms`; it is for the caller to fail the check if not. */
+  async eventually(expression, ms = WAIT) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await this.evaluate(expression)) {
+        return true;
       }
-      last = now;
-      await new Promise((done) => setTimeout(done, 50));
+      await new Promise((done) => setTimeout(done, 25));
     }
-    return last;
+    return false;
   }
 
   /**
@@ -872,6 +919,7 @@ async function checkView(view, panel, operate, copy, light) {
   // What the app is told does not change with the theme, nor does how the window scrolls: once.
   if (light) {
     await checkFit(view);
+    await checkWidth(view);
   }
   if (light && copy.forScrolling) {
     await checkKeys(view, panel);
@@ -1353,7 +1401,7 @@ const FRAME = `(() => {
 /** In the page: scrolls what scrolls to `along` of its way, 0 at its top and 1 at its end. */
 const SCROLL_TO = (along) => `(() => {
   const scroller = ${SCROLLER};
-  scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along});
+  scroller.scrollTo({ top: Math.round((scroller.scrollHeight - scroller.clientHeight) * ${along}), behavior: 'instant' });
 })()`;
 
 /**
@@ -1532,7 +1580,7 @@ async function checkKeys(view, panel) {
   if (panel === "accounts") {
     await view.press("Tab");
   }
-  let at = await view.scrolled();
+  let at = await view.position();
   const down = panel === "accounts" ? ["ArrowDown", "PageDown", "End"] : ["ArrowDown", "PageDown", "Space", "End"];
   for (const key of down) {
     await view.press(key);
@@ -1558,9 +1606,17 @@ const FOCUS_IN_VIEW = `(() => {
   const element = document.activeElement;
   const box = element.getBoundingClientRect();
   const ring = 4;
-  const region = document.querySelector('main > .scroll');
-  const scrolls = !!region && region.contains(element) && region !== element && getComputedStyle(region).overflowY !== 'visible';
-  const shows = scrolls ? region.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+  // Whatever clips what is drawn outside it, as the part that scrolls does and the footer does where
+  // it keeps the room for a scroll bar: the window, and each of those that holds the control and
+  // is not the control itself, which draws its own ring inside its edge.
+  const shows = { top: 0, bottom: window.innerHeight };
+  for (const clip of document.querySelectorAll('main > .scroll, main > footer')) {
+    const style = getComputedStyle(clip);
+    if (clip === element || !clip.contains(element) || (style.overflowX === 'visible' && style.overflowY === 'visible')) continue;
+    const edges = clip.getBoundingClientRect();
+    shows.top = Math.max(shows.top, edges.top);
+    shows.bottom = Math.min(shows.bottom, edges.bottom);
+  }
   if (box.top - ring < shows.top - 0.5) return 'is above what shows it, or its ring is cut off by that edge';
   if (box.bottom + ring > shows.bottom + 0.5) return 'is below what shows it, or its ring is cut off by that edge, or it is under the toolbar';
   return true;
@@ -1659,32 +1715,45 @@ async function checkWheel(view, panel) {
 /**
  * A keyboard can scroll the part with the accounts even when nothing in it is a control: with no
  * summary, button, link or field in it for Tab to reach, it is a Tab stop itself, named for a
- * screen reader, drawing the window's ring and scrolled by the keys that scroll a page. Chrome makes
- * such a part a Tab stop of its own accord, and WebKit, which draws the app on macOS and Linux,
- * does not.
+ * screen reader, drawing the window's ring and scrolled by the keys that scroll a page. It becomes
+ * one when the last control goes, though the window need not change size when that happens, so its
+ * size alone does not tell the app (CI's Macs found it stale, D-136). The check lets the window draw
+ * and set itself up first, as it has by the time anyone can change what it holds, then swaps each
+ * disclosure for plain text of the same height (one with its summary gone draws a default summary
+ * of the same height) and removes the other controls, so that only the change, and no resize, can
+ * wake the part; and does the same in History by disabling every button, as an update's are while
+ * it installs. Chrome makes such a part a Tab stop of its own accord, and WebKit, which draws the
+ * app on macOS and Linux, does not.
  */
 async function checkStop(view) {
   const label = `${view.label}, nothing else to reach`;
   await view.zoom(1);
   await view.load("accounts");
+  await view.settle();
   const emptied = await view.evaluate(`(() => {
     const region = document.querySelector('main > .scroll');
     if (!region) return false;
+    for (const details of region.querySelectorAll('details')) {
+      const text = document.createElement('div');
+      text.className = details.className;
+      text.style.height = details.getBoundingClientRect().height + 'px';
+      details.replaceWith(text);
+    }
     region.querySelectorAll('summary, button, a, input').forEach((control) => control.remove());
     return true;
   })()`);
   if (!emptied) {
     return;
   }
-  await view.settle();
+  const stop = await view.eventually("document.querySelector('main > .scroll').getAttribute('tabindex') === '0'", 2000);
   const found = await view.evaluate(`(() => {
     const region = document.querySelector('main > .scroll');
-    return { tab: region.getAttribute('tabindex'), role: region.getAttribute('role'), name: region.getAttribute('aria-label'), hidden: region.scrollHeight - region.clientHeight };
+    return { role: region.getAttribute('role'), name: region.getAttribute('aria-label'), hidden: region.scrollHeight - region.clientHeight };
   })()`);
   if (found.hidden <= 1) {
     return;
   }
-  check(label, found.tab !== "0" && "the part with the accounts is not a Tab stop though nothing else in it is one");
+  check(label, !stop && "the part with the accounts is not a Tab stop though nothing else in it is one, as the last control in it goes");
   check(label, (found.role !== "region" || !found.name) && `it is not a named region for a screen reader (${found.role}, "${found.name}")`);
   await view.evaluate(FOCUSABLE);
   await view.press("Tab");
@@ -1698,6 +1767,14 @@ async function checkStop(view) {
     const next = await view.scrolled();
     check(label, next <= at && `${key} does not scroll it when it has the focus (${at}, then ${next})`);
   }
+  // The same when every control in a panel is disabled, as an update's buttons are while it installs,
+  // which changes no size either.
+  await view.load("history");
+  await view.settle();
+  await view.evaluate("document.querySelectorAll('main > .scroll button').forEach((button) => { button.disabled = true; })");
+  const disabled = await view.eventually("document.querySelector('main > .scroll').getAttribute('tabindex') === '0'", 2000);
+  const room = await view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region.scrollHeight - region.clientHeight; })()");
+  check(label, room > 1 && !disabled && "the part with History in it is not a Tab stop though every control in it is disabled");
 }
 
 /**
@@ -1713,12 +1790,23 @@ async function checkTop(view) {
   if ((await room()) < 300) {
     return;
   }
+  // Where the app scrolls by its own code it asks for the scroll to be at once, whatever a stylesheet
+  // says of gliding: a view that glided to its top would, for a moment, not be at it. Whether Chrome
+  // glides depends on the system it runs on, and this check's Chrome does not, so the check reads what
+  // the app asked for: each scroll its own code has made since the check last looked.
+  const own = async (when) => {
+    for (const { how, behavior } of await view.evaluate("window.__check.scrolls.splice(0)")) {
+      check(label, behavior !== "instant" && `${when}, the app scrolls by ${how} with ${behavior} behaviour, which glides where a stylesheet says smooth, and not at once`);
+    }
+  };
+  await own("as the accounts open");
   await view.evaluate(SCROLL_TO(0.5));
   await view.settle();
   await view.open("history");
   await view.settle();
   const opened = await view.scrolled();
   check(label, opened > 0.5 && `History opens ${opened} px down, not at its top`);
+  await own("as History opens");
   if ((await room()) < 300) {
     return;
   }
@@ -1735,6 +1823,70 @@ async function checkTop(view) {
   await view.settle();
   const back = await view.scrolled();
   check(label, back > 0.5 && `Done shows the accounts ${back} px down, not from their first`);
+  await own("as Done goes back to the accounts");
+}
+
+/**
+ * In the page: how wide what the window holds is, and where the first card sits against the sides
+ * of the window and its text against the toolbar's first label.
+ */
+const WIDTHS = `(() => {
+  const region = document.querySelector('main > .scroll');
+  const content = region && region.querySelector(':scope > .content');
+  const card = document.querySelector('main .content .card');
+  const button = document.querySelector('main > footer .toolbar > button');
+  if (!region || !content || !card || !button) return null;
+  const box = card.getBoundingClientRect();
+  const label = button.getBoundingClientRect();
+  return {
+    content: content.getBoundingClientRect().width,
+    left: box.left,
+    right: window.innerWidth - box.right,
+    text: box.left + parseFloat(getComputedStyle(card).paddingLeft),
+    label: label.left + parseFloat(getComputedStyle(button).paddingLeft),
+  };
+})()`;
+
+/**
+ * What the window holds is as wide when its scrolling part scrolls as when it does not, and the
+ * cards sit as evenly, the same distance from each side of the window, and in line with the
+ * toolbar's labels, whichever it does (D-136). Where a scroll bar takes room, as it does on Windows
+ * and Linux and does in this check's Chrome on every system, one that appears when the part starts to
+ * scroll narrows what it holds, so the text wraps onto more lines and the height the app is told is
+ * not the height of the content once the window is tall enough for the bar to go: the part keeps the
+ * room for it on each side whether or not there is a bar, and the footer, which scrolls nothing,
+ * keeps the same, so its labels stay in line with the cards' text.
+ */
+async function checkWidth(view) {
+  const label = `${view.label}, as wide with and without a scroll bar`;
+  const measure = async (zoom, height) => {
+    await view.zoom(zoom, height);
+    await view.settle();
+    return view.evaluate(WIDTHS);
+  };
+  const scrolling = await measure(1);
+  if (!scrolling) {
+    check(label, "the window has no card, content or toolbar to measure");
+    return;
+  }
+  const scrolls = await view.evaluate("(() => { const region = document.querySelector('main > .scroll'); return region.scrollHeight > region.clientHeight + 1; })()");
+  const whole = await measure(1, 12000);
+  // In a window under 300 px the page scrolls as one, and its scroll bar is the window's: the part
+  // that scrolls keeps no room for one then, so the footer keeps none either.
+  const one = await measure(3);
+  await view.zoom(1);
+  await view.settle();
+  if (scrolls) {
+    check(label, Math.abs(scrolling.content - whole.content) > 0.5 && `what the window holds is ${scrolling.content} px wide when it scrolls and ${whole.content} px when it does not`);
+  }
+  for (const [when, found, even] of [
+    ["when the window scrolls", scrolling, true],
+    ["when it does not", whole, true],
+    ["when the page scrolls as one, at 300% zoom", one, false],
+  ]) {
+    check(label, even && Math.abs(found.left - found.right) > 1.5 && `the first card is ${found.left.toFixed(1)} px from the window's left side and ${found.right.toFixed(1)} px from its right ${when}`);
+    check(label, Math.abs(found.text - found.label) > 1.5 && `the toolbar's first label is ${found.label.toFixed(1)} px from the window's left side and the card's text ${found.text.toFixed(1)} ${when}`);
+  }
 }
 
 /**
@@ -2215,6 +2367,8 @@ async function main() {
   const zooming = process.argv.indexOf("--window-zoom");
   const windowZoom = zooming > 0 ? Number(process.argv[zooming + 1]) : 1;
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
+  const barsAt = process.argv.indexOf("--scroll-bars");
+  const classic = wantsClassicScrollbars(barsAt > 0 ? (process.argv[barsAt + 1] ?? "") : undefined, Boolean(pictures || windows));
   for (const folder of [pictures, shares, windows]) {
     if (folder) {
       mkdirSync(folder, { recursive: true });
@@ -2232,10 +2386,13 @@ async function main() {
   const server = await serve();
   const url = `http://127.0.0.1:${server.address().port}/`;
   const profile = mkdtempSync(join(tmpdir(), "quotadial-window-check-"));
-  const { browser, address } = launch(chrome, profile);
+  const { browser, address } = launch(chrome, profile, { classicScrollbars: classic });
   let tools;
   try {
     tools = await DevTools.connect(await address);
+    // Which browser, and which scroll bars it draws, so that a run on another machine can say what it was.
+    const { product } = await tools.send("Browser.getVersion");
+    console.log(`Window check in ${product}, ${classic ? "with scroll bars that take room" : "with the system's own scroll bars"}.`);
     let views = 0;
     for (const [name, copy] of Object.entries(COPIES)) {
       for (const theme of THEMES) {
@@ -2273,7 +2430,8 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, reduced motion, the toolbar kept at its foot and the picture to share.` +
+          `keys, zoom to 200%, long names, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
           (shares ? ` Pictures to share are in ${shares}.` : ""),

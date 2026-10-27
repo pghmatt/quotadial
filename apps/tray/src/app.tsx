@@ -112,7 +112,9 @@ function Contents({ meter, update }: { meter: Meter; update: UpdateView | null }
   // Each view starts at its top, as the popover opens at its top, and not where the last was left.
   useLayoutEffect(() => {
     if (region.current) {
-      region.current.scrollTop = 0;
+      // At once, whatever the stylesheet says of gliding: a view that glided to its top would, for a
+      // moment, not be at it.
+      region.current.scrollTo({ top: 0, behavior: "instant" });
     }
   }, [panel]);
 

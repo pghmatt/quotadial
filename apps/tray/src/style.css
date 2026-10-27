@@ -127,11 +127,13 @@ html.solid .popover {
 
 /* The summary, and the accounts or the panel under it. It is a block formatting context of its own
    in every window, so no margin runs out of it, and it ends where the footer begins: nothing in it
-   is drawn under the toolbar, so the toolbar needs no backdrop on the material behind it. */
+   is drawn under the toolbar, so the toolbar needs no backdrop on the material behind it.
+   Its bottom padding is 4 px less than the room the cards keep under them, and the footer's top
+   padding 4 px more, so the gap between the last card and the toolbar is the room it was. */
 .scroll {
   position: relative;
   display: flow-root;
-  padding: 14px 12px 12px;
+  padding: 14px 12px 8px;
   /* A control scrolled into view keeps room for its ring, which is drawn outside it. */
   scroll-padding: 8px 0;
 }
@@ -501,10 +503,12 @@ code {
 }
 
 /* The footer, in line with the cards' text: no rule above it, only the space the part above it
-   leaves. It is not in what scrolls, so it is never scrolled away. */
+   leaves. It is not in what scrolls, so it is never scrolled away. Where the window is pinned (below)
+   it clips what is drawn outside it, and a focus ring is drawn outside a control, 2 px out and 2 px
+   thick, so the room above its controls is 4 px. */
 footer {
   flex: none;
-  padding: 0 24px 10px;
+  padding: 4px 24px 10px;
   transition: box-shadow 150ms ease-out;
 }
 
@@ -519,7 +523,16 @@ footer.edge {
    or the panel under it, scrolls above it (D-136); the page itself does not scroll. That holds
    at 200% zoom, where the 640 px window is 320 px tall. The app can be zoomed far past that, to
    500% and more, where the toolbar and origin line would take the whole of a window, so in one
-   shorter than 300 px the page scrolls as one, as it did before. */
+   shorter than 300 px the page scrolls as one, as it did before.
+
+   Where a scroll bar takes room, as it does on Windows and Linux when the system's are not the
+   ones that lie over what they scroll, the part that scrolls keeps the room on both sides whether
+   or not there is a bar (D-136), so that what it holds is as wide when it scrolls as when it does
+   not, and the cards stay 12 px in from each side. A bar that came in as it began to scroll would
+   narrow what it holds by its own width: the text would wrap onto more lines, and the window would
+   be told a height that is not the height of what it holds. The footer keeps the same room, which
+   it clips to, so that its labels stay in line with the cards' text. Where the bars lie over what
+   they scroll, as on a Mac, the room is none, and nothing changes. */
 @media (min-height: 300px) {
   body {
     overflow: hidden;
@@ -532,6 +545,12 @@ footer.edge {
   .scroll {
     overflow-x: hidden;
     overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  footer {
+    overflow: hidden;
+    scrollbar-gutter: stable both-edges;
   }
 }
 

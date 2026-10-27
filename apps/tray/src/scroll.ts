@@ -34,7 +34,10 @@ export interface Scrolling {
 /**
  * What the scrolling part holds beyond its bottom edge, as it is scrolled, as the window grows or
  * shrinks and as what it holds changes; `view` names what it holds, so a new view is read at once.
- * Nothing is below while the part does not scroll.
+ * Nothing is below while the part does not scroll. Whether a Tab reaches anything in it changes when
+ * a control comes or goes or is disabled, which need not change its size, so what it holds is
+ * watched as well as its size (a window that was told only when its size changed was left with a
+ * part a keyboard could not scroll, in a window that stayed as tall).
  */
 export function useScrolling(region: RefObject<HTMLElement | null>, view: string): Scrolling {
   const [scrolling, setScrolling] = useState<Scrolling>({ below: false, stop: false });
@@ -56,9 +59,17 @@ export function useScrolling(region: RefObject<HTMLElement | null>, view: string
     for (const child of element.children) {
       observer.observe(child);
     }
+    const changes = new MutationObserver(read);
+    changes.observe(element, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["disabled", "tabindex", "href"],
+    });
     return () => {
       element.removeEventListener("scroll", read);
       observer.disconnect();
+      changes.disconnect();
     };
   }, [region, view]);
   return scrolling;
