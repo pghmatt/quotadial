@@ -24,13 +24,13 @@ export function Limits() {
         <div>
           <SectionHeading id="limits-title">Each limit, its reset and its pace</SectionHeading>
           <Lead>
-            QuotaDial lists every window you have: Claude's five-hour session, its weekly limits and the weekly limit
-            for each model, and each of Codex's windows. Each one shows the share used, when it resets, how old the
-            number is and whether, at the pace you are going, it runs out before it resets.
+            QuotaDial lists every window you have: Claude's five-hour session and its weekly limit, and each of
+            Codex's windows. Each one shows the share used, when it resets, how old the number is and whether, at the
+            pace you are going, it runs out before it resets.
           </Lead>
           <Body>
             In the menu bar or tray you see the tightest window at a glance, and one click opens the rest. Every number
-            says where it came from: the API, the cache or the Codex CLI's own logs. When a window suddenly reads 0%,
+            says where it came from: Claude Code's status line, the API, the cache or the Codex CLI's own logs. When a window suddenly reads 0%,
             QuotaDial holds it until a second fetch agrees, because a provider sometimes answers 0% by mistake.
           </Body>
         </div>
@@ -41,7 +41,7 @@ export function Limits() {
         >
           <p className="m-0 font-table text-[1.5rem] leading-[1.25] font-[600] md:text-[1.75rem]">
             {READ_ALOUD.label} {READ_ALOUD.used}%, resets in <span className="whitespace-nowrap">{READ_ALOUD.resets}</span>,
-            from the API <span className="whitespace-nowrap">{READ_ALOUD.fetched}</span>;{" "}
+            from the CLI's status line <span className="whitespace-nowrap">{READ_ALOUD.fetched}</span>;{" "}
             <span className="text-magenta">
               at {READ_ALOUD.rate}, runs out in <span className="whitespace-nowrap">{READ_ALOUD.runsOut}</span>
             </span>

@@ -31,8 +31,9 @@ export function Questions() {
       q: "Does it need an API key or a new sign-in?",
       a: (
         <p>
-          Neither. It uses the sign-in Claude Code and the Codex CLI already keep, and only reads it. If a sign-in stops
-          working, QuotaDial says so and names the command to run.
+          Neither. Claude's numbers come from Claude Code's status line once you add one line to its settings, and
+          QuotaDial never reads Claude Code's sign-in. For Codex it reads the sign-in the Codex CLI already keeps, and
+          only reads it. When numbers stop coming, QuotaDial says so and names what to do.
         </p>
       ),
     },
@@ -67,8 +68,8 @@ export function Questions() {
       q: "Can it show several Claude subscriptions?",
       a: (
         <p>
-          Yes, on Pro. Each subscription kept under its own <Code>CLAUDE_CONFIG_DIR</Code> shows as its own account
-          with its own windows. QuotaDial Free shows one account per provider and says how many more it found.
+          Yes, on Pro. Each subscription kept under its own <Code>CLAUDE_CONFIG_DIR</Code>, with the line added to that
+          folder's settings, shows as its own account with its own windows. QuotaDial Free shows one account per provider and says how many more it found.
         </p>
       ),
     },

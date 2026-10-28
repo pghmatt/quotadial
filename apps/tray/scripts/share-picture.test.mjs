@@ -12,8 +12,7 @@ import { test } from "node:test";
 
 import { CARD, SHADING, chartBoxes, heatBoxes } from "../src/share.ts";
 import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, heatVerdicts, pictureVerdicts } from "./share-picture.mjs";
-import { site } from "./site-fixtures.mjs";
-import { crowded } from "./window-fixtures.mjs";
+import { crowded, pro } from "./window-fixtures.mjs";
 
 /** A picture of `width` by `height` pixels to paint on and write as a PNG. */
 class Raster {
@@ -213,8 +212,12 @@ const STYLE = {
   dark: { fill: [255, 255, 255, 0.06], edge: [255, 255, 255, 0] },
 };
 
-/** A made-up account of the website's, with its three windows. */
-const [account] = site.history[7].accounts;
+/**
+ * A made-up account of the window check's, with its three windows, high, warning and normal. The
+ * website's Claude account has two since Claude's windows come from Claude Code's status line
+ * (D-145), so the three are the Pro copy's.
+ */
+const [account] = pro.history[7].accounts;
 
 /**
  * The window check's account of seven windows, over 7 days and over 30, whose pictures it checks:

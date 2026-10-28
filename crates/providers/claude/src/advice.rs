@@ -292,6 +292,8 @@ mod tests {
     #[test]
     fn the_window_check_shows_claude_s_lines_as_the_provider_writes_them() {
         const WINDOW: &str = include_str!("../../../../apps/tray/scripts/window-fixtures.mjs");
+        // The website's copy, which its pictures of the app are taken from.
+        const SITE: &str = include_str!("../../../../apps/tray/scripts/site-fixtures.mjs");
         let home = Path::new("/Users/someone");
         let env = env_in(home);
         let work = Folder::Named(home.join(".claude-work").display().to_string());
@@ -315,6 +317,12 @@ mod tests {
                 "window-fixtures.mjs has no {written}"
             );
         }
+        let site = format!(
+            "const CLAUDE_SIGN_IN = {};",
+            serde_json::to_string(&sign_in_use(&Folder::Default, "claude.json", &env))
+                .expect("JSON")
+        );
+        assert!(SITE.contains(&site), "site-fixtures.mjs has no {site}");
     }
 
     /// Doctor's text for `account` with `line` under it, the home folder being `home`.
