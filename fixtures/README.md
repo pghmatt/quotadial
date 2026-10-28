@@ -33,7 +33,7 @@ The example build's accounts (D-117): made up for pictures of the app, never a c
 
 | File | Source | Covers |
 | --- | --- | --- |
-| `fake/example.json` | Hand-written, the numbers of the site's pictures; built into `quotadial-provider-fake`, and the form of the file `QUOTADIAL_FAKE_ACCOUNTS` names | One account like a Claude Max 5x plan (Weekly, Weekly (Opus), Session) and one like a ChatGPT Pro plan (Weekly, Session), each window with its share used when the examples start, its reset and how fast it fills |
+| `fake/example.json` | Hand-written, the numbers of the site's pictures; built into `quotadial-provider-fake`, and the form of the file `QUOTADIAL_FAKE_ACCOUNTS` names | One account like a Claude Max 5x plan (Weekly, Session: the two windows Claude Code's status line hands over, D-145) and one like a ChatGPT Pro plan (Weekly, Session), each window with its share used when the examples start, its reset and how fast it fills |
 
 ## Status pages
 

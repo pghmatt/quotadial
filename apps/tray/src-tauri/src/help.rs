@@ -309,6 +309,88 @@ mod tests {
         );
     }
 
+    /// The window check's copies (`scripts/window-fixtures.mjs`) keep Help's text of what QuotaDial
+    /// reads and sends exactly as the app sends it, a block a line, so that their own test
+    /// (`scripts/whole-addresses.test.mjs`) can hold every copy's text to the app's words, the
+    /// website's too. When `docs/PRIVACY.md` changes, this fails and says the lines to put there.
+    #[test]
+    fn the_window_check_keeps_help_s_privacy_text_as_the_app_sends_it() {
+        const COPIES: &str = include_str!("../../scripts/window-fixtures.mjs");
+        let lines: String = blocks(quotadial_core::privacy::PRIVACY)
+            .iter()
+            .map(|block| format!("  {},\n", serde_json::to_string(block).expect("JSON")))
+            .collect();
+        let kept = format!("export const PRIVACY = [\n{lines}];\n");
+        assert!(
+            COPIES.contains(&kept),
+            "scripts/window-fixtures.mjs should keep the app's privacy text as\n{kept}"
+        );
+    }
+
+    /// The window check's copy of ten accounts shows lines of the real changelog in What's new and
+    /// in its update's notes, `CHANGES` in `scripts/window-fixtures.mjs`, a heading and its lines a
+    /// line, so that the check holds lines that name files and commands as the app shows them.
+    /// Each must be a line of the app's own What's new for the copies' version, under its heading
+    /// and in its order. When `CHANGELOG.md` changes one or drops it, this fails and says the lines
+    /// there are.
+    #[test]
+    fn the_window_check_s_changelog_lines_are_the_app_s_own() {
+        // A heading and its lines, as `CHANGES` keeps them.
+        #[derive(serde::Deserialize)]
+        struct Kept {
+            heading: String,
+            items: Vec<String>,
+        }
+        // The copies' version, which their Help and What's new name.
+        const VERSION: &str = "0.3.0";
+        const COPIES: &str = include_str!("../../scripts/window-fixtures.mjs");
+
+        assert!(COPIES.contains(&format!("version: \"{VERSION}\"")));
+        let kept: Vec<Kept> = COPIES
+            .split_once("export const CHANGES = [\n")
+            .and_then(|(_, rest)| rest.split_once("];\n"))
+            .expect(
+                "scripts/window-fixtures.mjs should keep CHANGES, a heading and its lines a line",
+            )
+            .0
+            .lines()
+            .map(|line| {
+                serde_json::from_str(line.trim().trim_end_matches(',')).expect("a line of JSON")
+            })
+            .collect();
+        assert!(
+            kept.iter().any(|section| !section.items.is_empty()),
+            "CHANGES keeps no line"
+        );
+        let shown = whats_new(CHANGELOG, VERSION);
+        let mut sections = shown.sections.iter();
+        let mut not_the_app_s = Vec::new();
+        for section in &kept {
+            let mut items = sections
+                .find(|own| own.heading == section.heading)
+                .map(|own| own.items.iter());
+            for item in &section.items {
+                if !items
+                    .as_mut()
+                    .is_some_and(|items| items.any(|own| own == item))
+                {
+                    not_the_app_s.push(format!("{}: {item}", section.heading));
+                }
+            }
+        }
+        let lines: String = shown
+            .sections
+            .iter()
+            .map(|section| format!("  {},\n", serde_json::to_string(section).expect("JSON")))
+            .collect();
+        assert!(
+            not_the_app_s.is_empty(),
+            "scripts/window-fixtures.mjs's CHANGES has lines that are not the app's What's new in \
+             {VERSION}, under their heading and in its order:\n{}\nIts lines are:\n{lines}",
+            not_the_app_s.join("\n")
+        );
+    }
+
     #[test]
     fn a_wrapped_line_joins_its_paragraph_or_its_item() {
         assert_eq!(

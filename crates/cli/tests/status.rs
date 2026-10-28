@@ -415,7 +415,7 @@ fn example_status_names_each_example_and_where_its_numbers_came_from() {
         "{text}"
     );
     let windows: Vec<&str> = text.lines().filter(|line| line.starts_with("  ")).collect();
-    assert_eq!(windows.len(), 5, "{text}");
+    assert_eq!(windows.len(), 4, "{text}");
     for window in windows {
         assert!(
             window.ends_with(", from the example build just now"),

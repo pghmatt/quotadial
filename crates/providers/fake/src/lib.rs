@@ -290,7 +290,7 @@ mod tests {
             .fetch(&accounts[0])
             .await
             .expect("a snapshot")
-            .windows[2]
+            .windows[1]
             .clone();
         assert_eq!(session.label, "Session");
         assert_eq!(
@@ -305,7 +305,7 @@ mod tests {
         let account = provider.discover_accounts().expect("examples")[0].clone();
         *now.lock().expect("the clock") = at("2099-01-01T00:00:31Z");
 
-        let session = provider.fetch(&account).await.expect("a snapshot").windows[2].clone();
+        let session = provider.fetch(&account).await.expect("a snapshot").windows[1].clone();
 
         assert_eq!(session.used_pct, 38.0);
         assert_eq!(
@@ -328,14 +328,14 @@ mod tests {
         for minutes in [0, 15, 30] {
             *now.lock().expect("the clock") =
                 at("2099-01-01T00:00:00Z") + TimeDelta::minutes(minutes);
-            let session = &provider.fetch(&account).await.expect("a snapshot").windows[2];
+            let session = &provider.fetch(&account).await.expect("a snapshot").windows[1];
             readings.push(Reading {
                 fetched_at: session.fetched_at,
                 used_pct: session.used_pct,
             });
         }
         *now.lock().expect("the clock") = at("2099-01-01T00:45:00Z");
-        let session = provider.fetch(&account).await.expect("a snapshot").windows[2].clone();
+        let session = provider.fetch(&account).await.expect("a snapshot").windows[1].clone();
 
         let pace = Pace::of(&session, &readings).expect("4 readings over 45 minutes");
 

@@ -760,6 +760,44 @@ export const DESTINATIONS = [
   "release-assets.githubusercontent.com",
 ];
 
+/**
+ * What QuotaDial reads and sends, as the app sends it to Help: `blocks` in `help.rs` of
+ * `docs/PRIVACY.md`, a block a line. A test in `help.rs` holds it to the app's own text and says the
+ * lines to put here when that text changes, and every copy's Help shows only parts of it, each
+ * paragraph and item whole or its first sentences, in its order (whole-addresses.test.mjs), so no
+ * copy says in words of its own what QuotaDial reads.
+ * @type {HelpView["privacy"]}
+ */
+export const PRIVACY = [
+  {"kind":"paragraph","text":"QuotaDial runs on your machine. It reads the sign-in that the Codex CLI already keeps, and never writes, refreshes, moves or logs it. From the CLIs' session logs it reads only numbers: token counts and model names for the week's cost, and the Codex CLI's own record of your limits. What you and the model wrote never leaves the machine, and QuotaDial never reads it."},
+  {"kind":"paragraph","text":"For Claude, QuotaDial reads no sign-in and asks no one. It reads only the account that Claude Code's own account file, .claude.json, names: its id, address, organisation and plan. Once you add quotadial claude status-line to Claude Code's status line, it keeps what the status line hands that command, each window's share used and its reset, with the time, in claude.json in QuotaDial's data folder, or in a file of its own for each folder CLAUDE_CONFIG_DIR names, readable only by you."},
+  {"kind":"paragraph","text":"For Gemini CLI, QuotaDial reads no sign-in. It only checks that Gemini CLI's sign-in file, oauth_creds.json in ~/.gemini, is there, without opening it, and reads one field of Gemini CLI's settings.json beside it: the one that says whether it signs in with Google, a Gemini API key or Vertex AI. It asks no one about Gemini CLI and sends nothing about it."},
+  {"kind":"paragraph","text":"For Antigravity, QuotaDial reads no sign-in and asks no one, and only checks whether Antigravity CLI's folder, ~/.gemini/antigravity-cli, is there, without opening anything in it; once you add quotadial antigravity status-line to Antigravity CLI's status line, it keeps what the status line hands that command, each limit's share or amount left and its reset, the plan and the account's address, with the time, in antigravity.json in QuotaDial's data folder, readable only by you."},
+  {"kind":"paragraph","text":"QuotaDial connects to these, and nothing else:"},
+  {"kind":"list","items":["chatgpt.com, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most once every 2 minutes.","status.claude.com and status.openai.com, the providers' public status pages, every 5 minutes while status_pages is on. These carry no sign-in.","github.com, where QuotaDial's releases are, once a day while the app's \"Check for updates\" is on, or when you check yourself; and release-assets.githubusercontent.com, where GitHub keeps the files, when you choose Update. These carry no sign-in and nothing about you or your usage. GitHub sees your IP address, as it does for any download.","The webhook and Slack addresses you add to config.json, if you add any. Each gets every alert: what fired and its numbers, never a token or where a sign-in is kept."]},
+  {"kind":"paragraph","text":"Help's links, to Send feedback, the changelog and the support address, open in your own browser or mail app, and only when you click them. Send feedback fills in a GitHub issue that you read before you send it."},
+  {"kind":"paragraph","text":"The local API answers only on this machine, at 127.0.0.1, and asks for QuotaDial's own token. The MCP server talks only to the agent that starts it. QuotaDial's history, settings and licence key stay on your machine, readable only by you. A picture made with History's Share image is drawn on your machine and saved in your Downloads folder, and QuotaDial sends it nowhere. There are no analytics, no crash reports and no account to make."},
+  {"kind":"paragraph","text":"QuotaDial Pro is sold through Lemon Squeezy, which keeps the order. The link in your receipt opens quotadial.com/key, which asks Lemon Squeezy whether the receipt's key is valid and gives you a QuotaDial key, keeping and logging nothing. QuotaDial checks that key on your machine, with no network call."},
+];
+
+/** Each place QuotaDial connects to, as the list in the app's privacy text writes it. */
+const PLACES = PRIVACY.flatMap((block) => (block.kind === "list" ? block.items : []));
+
+/**
+ * Lines of the real changelog, as the app's What's new shows them for the copies' version, 0.3.0
+ * (`whats_new` in `help.rs`, which reads `CHANGELOG.md`), a heading and its lines a line: lines
+ * that name files and commands, longer than a window's words, for the copy of ten accounts' What's
+ * new and its update's notes. A test in `help.rs` holds each line to the app's own, under its
+ * heading and in its order, and says the lines there are to choose from when `CHANGELOG.md` changes
+ * one or drops it; the copies' own test (whole-addresses.test.mjs) holds the ten accounts' lines to
+ * these.
+ * @type {HelpView["whats_new"]["sections"]}
+ */
+export const CHANGES = [
+  {"heading":"Added","items":["Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release."]},
+  {"heading":"Changed","items":["Claude's limits come from Claude Code's status line: add \"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" } to ~/.claude/settings.json, or put quotadial claude status-line and a space in front of the status line command already there, and start Claude Code again. Each Claude account then shows its five-hour and weekly windows while Claude Code runs, for Pro and Max plans; until the first numbers come, its card says what to add."]},
+];
+
 /** @type {HelpView} */
 const HELP = {
   version: "0.3.0",
@@ -791,13 +829,8 @@ const HELP = {
         "and never writes, refreshes, moves or logs it.",
     },
     { kind: "paragraph", text: "QuotaDial connects to these, and nothing else:" },
-    {
-      kind: "list",
-      items: [
-        "chatgpt.com, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most once every 2 minutes.",
-        "status.claude.com and status.openai.com, the providers' public status pages.",
-      ],
-    },
+    // OpenAI's and the status pages, each whole.
+    { kind: "list", items: PLACES.slice(0, 2) },
   ],
   hosts: DESTINATIONS,
 };
@@ -884,39 +917,20 @@ export const many = {
   },
   history: { 7: history(7, null, MANY_ACCOUNTS), 30: history(30, null, MANY_ACCOUNTS) },
   // What Help and an update on offer say that is longer than a window's words: lines of the real
-  // changelog, which name files and commands, and the real privacy text's longest host, in a copy
-  // whose update is on offer, so that the popover's card for it and About's notes carry them too.
+  // changelog, which name files and commands (CHANGES, each under its heading, held to CHANGELOG.md
+  // by help.rs), and the real privacy text's longest host, in a copy whose update is on offer, so
+  // that the popover's card for it and About's notes carry them too.
   help: {
     ...HELP,
-    whats_new: {
-      ...HELP.whats_new,
-      sections: [
-        ...HELP.whats_new.sections,
-        {
-          heading: "Changed",
-          items: [
-            "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
-            "The command that signs a Claude Code folder in again works when pasted, from doctor too: CLAUDE_CONFIG_DIR=~/'.claude-work' claude, as docs/INSTALL.md says.",
-          ],
-        },
-      ],
-    },
-    privacy: [
-      ...HELP.privacy,
-      {
-        kind: "list",
-        items: [
-          "release-assets.githubusercontent.com, GitHub's, where an update's files are fetched from, only when you choose Update.",
-        ],
-      },
-    ],
+    whats_new: { ...HELP.whats_new, sections: CHANGES },
+    // The list goes one place further, to GitHub's, which names the privacy text's longest host.
+    privacy: [...HELP.privacy.slice(0, -1), { kind: "list", items: PLACES.slice(0, 3) }],
   },
   update: {
     text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",
     available: "0.4.0",
-    notes: [
-      "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
-    ],
+    // The line that names a release's file.
+    notes: CHANGES[0].items,
     busy: false,
     progress: null,
   },

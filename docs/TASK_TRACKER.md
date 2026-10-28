@@ -114,7 +114,8 @@ with the manager's answers of 2026-10-26 (02:25 UTC) on #73 in it; then PR 2, Co
 held on its live check (#51).
 
 Claude through Claude Code's status line, never its sign-in (D-145): Matt's "Go" on 2026-10-28, and the
-manager's order on #73 (17:50 UTC): this PR first, then #116's six pictures taken again from `main`, then the
+manager's order on #73 (17:50 UTC): the Claude PR first, merged (PR #117); then #116's six pictures taken again
+from `main`, with the example build's weekly Opus window and the website copy's Help text (PR #116); then the
 0.3.0 bump, the tag and the pre-release; #81 and PR D held as before.
 
 Proposals:
@@ -257,8 +258,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | History's dates and heatmap follow the charts' period | Done (PR #114, D-144) | The manager's decision on #73 (2026-10-27, 19:35 UTC), with five holds, on the coordinator's proposal of 19:17 UTC, the item the review of #111 queued: `dates`, the heatmap's rows and the marks start on the day the charts start in; a row for each calendar day the period holds, eight in a week when now is not a midnight, a now at midnight holding none of its day; `cells` an `Option` a cell, `None` for an hour outside the period, which the window and the picture to share draw no square for, at either end, every other square kept in its hour's column; the first row's words name the hour it starts from. `rowVerdicts` (`heatmap-rows.mjs`) and the picture's `heatVerdicts` hold the rows, their count, the squares to a pixel, the words and the marks' days in every History view at 100% and 200% over 7 and 30 days; they failed 320 of 117,516 checks on `main`'s window and on each of eight broken ones. D-143's left-date sentence amended (hold 4); one sentence carried for D-136, Matt's "Keep the bar alone"; the website's History pictures captured again |
 | A host breaks before each dot, as an address does | Done (PR #115, D-141) | The manager's review of #107 (2026-10-27, 15:27 UTC): the hosts #107 left for later, the webhooks' and Help's privacy text's, "can take the same `<wbr>` before each dot" as a small follow-up, with D-141's rule extended to a host in a sentence and no new D; ordered on #73 (19:23 UTC) for whenever a builder has the slot. `Host` writes a host as `Address` writes an address; Settings' line names each of `alert_targets` with it, and Help's privacy text each place QuotaDial connects to, found only from a new `HelpView.hosts` (`privacy::HOSTS`) where one stands as a word of a sentence (`hostRuns`, `WithHosts`), never guessed from a word with a dot in it. `checkHosts` (`whole-addresses.mjs`) holds every host written whole and in order and none anywhere else, no word of one broken where it fits its line, and each line naming hosts byte for byte and heard whole; it failed 16 of 115,916 checks on `main`'s window (8 a host broken inside a word that fits its line, all at 200%, and 8 for want of the line's new class) and passes 115,936, 484 more than `main`'s 115,452. The window check's `CHROME` row below was folded in, on the manager's go |
 | Claude through Claude Code's status line, never its sign-in | Done (PR #117, D-145) | Matt's "Go" (2026-10-28, 17:13 UTC) and the manager's twelve rules on #73 (17:50 UTC, item 2): `quotadial claude status-line` keeps the five-hour and weekly windows Claude Code's status line hands it, and nothing else, in `claude.json` or a named folder's `claude-<8 hex>.json`; each folder's account from its `.claude.json` `oauthAccount`, so ids, History, aliases and rules carry on; the two windows keep `KNOWN_BUCKETS`' identity, from `status_line`, stale after 10 minutes, a window past its reset left out (D-126), none left `unsupported`; before any numbers the card says why it is empty and the line to add. Removed with it: the Keychain, `.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN`, the usage and profile requests, Claude Code's `User-Agent`, per-model weeklies and extra usage, and `api.anthropic.com` from `privacy::HOSTS`. The shared code lifted into `crates/status-line`, Antigravity's behaviour unchanged. Recorded at the manager's ask (his review of #117): a still account is read every 10 minutes, so after the line is added the first numbers can take that long to appear; that is the poller's adaptive interval, and if Matt's run shows it matters, it is a daemon change (a file-backed provider polled at its floor while its file is younger than a poll), not #117's. Notes below |
+| The website's six pictures, taken again from `main`'s window after #117 | Done (PR #116) | The manager's review of #116 on #73 (2026-10-28, 17:50 UTC, item 3): after the Claude PR, all six again from `main`, and the `alt` fixed, README and home page both. Taken from `main` at 35dd45f (#117) in Chrome 156.0.8078.49: the accounts and History pairs change with #117's card, Claude Work's Weekly (Opus) window and chart gone (accounts 720x1412 to 720x1300, History 720x2186 to 720x2044) and its line "From the CLI's status line 3 min ago"; Settings comes out byte for byte as the first take's capture of 5ca70aa's window, its difference from the committed pair #107's, #115's and #94's, as that take pinned them; the image manifest and the home page's `AppShot` height follow. The `alt` says "each window with its share used, its reset and, where there is one, its pace". With it: the example build's Opus window (the row below), the website copy's Help text held to the app's own (cherry-picked from `fix/site-copy-help`), and the window check's ten accounts' What's new held to `CHANGELOG.md`. No D, no CHANGELOG line. Notes below |
 | The window check stops waiting on Chrome's inherited stderr | Queued, for the next PR that touches the check | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone", for the next PR that touches the check, "not this one". Chrome's crash handlers keep the check's stderr open after Chrome has gone, so a run can sit after its last line. D-145's PR changes neither `scripts/check-window.mjs` nor `scripts/chrome.mjs`, so the row stays queued |
-| The example build's Claude-like account drops its weekly Opus window | Queued, for #116's retake | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still shows a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. It is dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product |
+| The example build's Claude-like account drops its weekly Opus window | Done (PR #116) | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still showed a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. Dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own: the account has Weekly and Session, as the website's copy has since #117. The fake provider's tests, the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md` and the website's content bible changed with it, and a new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product. The README's first-run recording still shows the window until it is recorded again on Matt's Mac |
 
 ## Kickoff
 
@@ -455,14 +457,19 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   the README shows `accounts-light` and `accounts-dark`: `node scripts/app-pictures.mjs` in `site/`, from
   the window check answering with the website's two example accounts (`site-fixtures.mjs`), each the whole
   of the window's content as tall as it needs, at 2x. Captured again when the window's drawing of those two
-  accounts changes (D-132 did; D-135 and D-136 did not change the two accounts pictures; D-141 did, by a fraction of a
-  pixel along each address, and all six were captured again).
+  accounts changes (D-132 did; D-135 did not; D-136 left the accounts pictures alone and moved three of
+  Settings' rounded corners by a few levels; D-141 did, by a fraction of a pixel along each address and, extended,
+  along each host, which #107 and #115 left out; D-145 did, taking Claude Work's weekly Opus window out of the
+  accounts pictures and its chart out of History's, and saying "From the CLI's status line"; so all six were taken
+  again together after #117, in a pictures PR of their own, PR #116).
 - **The README's first-run recording,** `docs/images/first-run.gif` (and the same as `first-run.mp4`): QuotaDial
   Example's first run, recorded through ScreenCaptureKit with Matt's menu bar set to stay visible, so it
   waits for a change worth his menu bar again (the manager's note on #91, 2026-10-26): it is captured again
   when the window next changes materially, not before. It shows the window as it was at #86, each window with
   its own source line, so #89's one line per card is not in it; D-136 would change nothing in it, since its
-  two example accounts do not reach the 640 px at which a window scrolls, and no toolbar is pinned.
+  two example accounts do not reach the 640 px at which a window scrolls, and no toolbar is pinned. Its Claude-like
+  account also still has the weekly Opus window that `fixtures/fake/example.json` dropped in PR #116 (D-145), so the
+  next recording shows Weekly and Session alone there.
 - **Pictures of the window as it is shown,** from `node scripts/check-window.mjs --window-pictures <folder>`
   (`--window-zoom 2` for 200%, `3` for 300%): each view no taller than 640 px, at its top and half way down what scrolls.
   Not kept in the repository: they are the before and after of a PR that changes how the window scrolls, such
@@ -471,6 +478,136 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the website's six pictures, taken again after #117, with the example build's Opus window and the Help copy (#116)
+
+- **The ask:** the manager's review of #116 on #73 (2026-10-28, 17:50 UTC, item 3): "after the Claude PR merges, take
+  all six again from `main`, push to `chore/site-pictures`, and fix the `alt` you found while there (two of the five
+  windows show no pace; say "its share used, its reset and, where there is one, its pace", README and home page both).
+  Then I approve it." Folded in: the manager's review of #117 (19:27 UTC, "Queued, not this PR"), the example build's
+  weekly Opus window, "the pictures are the reason"; and the website copy's Help text, which the coordinator found
+  after that review and kept out of #117 as code (#117, 19:41 UTC). `chore/site-pictures` was put on `main` at 35dd45f
+  (#117); the first take, 19c561f and 2b8c6c1 on 5ca70aa, is kept as the local branch `site-pictures-before-117`, and
+  its method stands.
+- **The commits, one concern each:** the Help copy, cherry-picked; the ten accounts' What's new held to
+  `CHANGELOG.md`; the example build's Opus window; the `alt`; the six pictures, with the image manifest and the home
+  page's `AppShot` height; and these records.
+- **The Help copy:** the coordinator's `2c0e666` from `fix/site-copy-help`, cherry-picked clean, since #117's branch
+  tip, which it was made on, and `main` hold the same tree. The website copy's Help paragraph is in the app's own
+  words; `PRIVACY` in `window-fixtures.mjs` keeps the app's privacy text a block a line, held there by a test in
+  `help.rs`, and a test in `whole-addresses.test.mjs` holds every copy's privacy text to it. Both failed first (the
+  coordinator's `claude-status-line/fail-first-help-rs.log` and `fail-first-site-copy-help.log` in the scratchpad). On
+  `main` alone, before anything else here, the tray's `npm test` passes 210 (208 and its 2) and the app's `help::`
+  tests 10 (9 and its 1). No website picture shows Help.
+- **The ten accounts' What's new:** the window check's copy of ten accounts says its What's new lines are the real
+  changelog's, but one, "The command that signs a Claude Code folder in again works when pasted, ...", was a line #117
+  removed with that command, and the other, the release files' line, stood under Changed where the changelog has it
+  under Added. `CHANGES` in `window-fixtures.mjs` keeps lines of the real changelog as the app's What's new shows them
+  for 0.3.0, a heading and its lines a line: the release files' line under Added, and in the gone line's place the
+  line #117 wrote for Claude Code's folders, under Changed, which names `~/.claude/settings.json` and the status line
+  command; its longest word, 24 characters, still needs breaking on a line at 200%. The ten accounts' What's new is
+  `CHANGES`, where it had the copies' own three short lines too, and its update's notes are the release files' line
+  from it; the other copies keep their own short lines. A new test in `help.rs` holds each of `CHANGES`' lines to the
+  app's own What's new for 0.3.0 (`whats_new` over `CHANGELOG.md`), under its heading and in its order, and when
+  `CHANGELOG.md` changes one or drops it, fails and lists the lines there are; a new one in `whole-addresses.test.mjs`
+  holds the ten accounts' lines to `CHANGES`. Both failed first: the `help.rs` test with `CHANGES` holding the copy's
+  two lines as they were, naming both, and the copies' test against the copy as it was, 1 of 39 (the scratchpad's
+  `site-pictures-117/logs/fail-first-whats-new-*.log`).
+- **The example build's Opus window:** `fixtures/fake/example.json`'s Claude Max 5x account loses its `model_weekly`
+  "Weekly (Opus)" window at 74%, keeping Weekly 91% and Session 38%, the two windows Claude Code's status line hands
+  over and the two the website's copy has had since #117; the ChatGPT Pro account is as it was. What read the file or
+  counted its windows changed with it: the fake provider's tests (the built-in labels, and three tests that took the
+  Claude-like account's Session as its third window, now its second; the four failed against the new file first, 4 of
+  19), the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md`'s line, and
+  the website's content bible, whose table of the example accounts kept the Opus row #117 took out of the website's
+  copy. A new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model, keeping
+  its kind and its model, since the built-in examples no longer have one. Looked at and left: the window check's own
+  three-window Claude Work card, layout data that five script tests hold, as the manager's review says, and its
+  example account, which has one window; D-117's row, the record of the examples as decided on 2026-10-25, as #117
+  left the D rows that name Claude's per-model windows; tests in core, the daemon and the app that build their own
+  "Weekly (Opus)" windows as made-up samples; `scripts/` and the website's pictures, which do not read the file; PR
+  D's figures (#80), measured on QuotaDial Example built at 0bd845f, the record of that build, whose first-run number,
+  91%, is the Weekly's; and the README's first-run recording (PR E, #91), which shows QuotaDial Example as built at
+  #86, Opus window and all, until it is recorded again on Matt's Mac (the setup note above says so).
+- **The `alt`:** the README's and the home page's (`Hero.tsx`) say "each window with its share used, its reset and,
+  where there is one, its pace", the manager's words, where they said "each window with its share used, reset and
+  pace"; no other copy of the old words was found, in a test or anywhere else. Since #117 the picture has four
+  windows, and one, Codex's 5-hour, shows no pace.
+- **The six pictures,** taken with `site/scripts/app-pictures.mjs` after `npm ci` and `npm run build` in `apps/tray`
+  (the window's JavaScript 40.6 KB of its 150; the contrast check's 30 pairs a theme), from `main`'s window at
+  35dd45f, in Chrome 156.0.8078.49 with this Mac's own scroll bars: the window check with the website's copy passed
+  14,514 checks over its 8 views (14,922 at 5ca70aa, with a window more) and wrote the six in 58 seconds, ending at
+  its last line. Lined up row by row against the committed files by a script of the builder's own, where a pixel
+  differs when any of its four channels does:
+  - `accounts-light.png` and `accounts-dark.png`, 720x1412 to 720x1300, 1,259 of 1,300 rows the same: Claude Work's
+    Weekly (Opus) window, 112 rows (56 CSS px), gone, and its line "From the API 3 min ago" now "From the CLI's status
+    line 3 min ago", 2,253 pixels (at most 161) and 2,236 (at most 123): #117. Above them the first card's address
+    line, from its @, 1,564 (at most 99) and 1,559 (at most 102): #107, the first take's.
+  - `settings-light.png` and `settings-dark.png`, 720x2172 as before: byte for byte the first take's capture of
+    5ca70aa's window, so #117 changes nothing in Settings; against the committed pair, the first take's 1,338 and
+    1,337 pixels: the two addresses under Names, 1,249 and 1,248 (#107); the end of "Also sent to hooks.slack.com.",
+    77 (#115); and three rounded corners, 12 (#94).
+  - `history-light.png` and `history-dark.png`, 720x2186 to 720x2044, 2,012 and 2,037 of 2,044 rows the same: Claude
+    Work's Weekly (Opus) chart, 140 rows (70 CSS px), gone: #117. Below it the content is the same, moved up, but for
+    three rounding steps of a CSS pixel each (the Codex card's heatmap a pixel higher between its heading and its
+    Share image button, and the content ending a pixel sooner, 71 CSS px shorter in all), and 117 pixels (light) and
+    38 (dark) by 1 of 255 at the rounded corners of cards and heatmap squares, as Chrome draws a card of a new height.
+    The first take's 218 dark pixels, Chrome's drawing, do not come back.
+  - **Pinned** against the first take's capture of 5ca70aa's window, in the same Chrome: the new accounts pair differs
+    from it only by #117's window and line, Settings not at all, and History only as above, so #117 is the only change
+    since 5ca70aa that the pictures show, and the rest is the first take's #94, #107 and #115, as its seven captures
+    pinned them.
+- **Sizes:** `site/docs/IMAGE-MANIFEST.md` gives accounts 720x1300 and History 720x2044, and the home page gives the
+  accounts picture's `AppShot` a height of 1300; Settings' 720x2172, which `/pro` and the alerts section give it,
+  stands, and the README gives the picture a width alone. No test, workflow or script reads the pictures' bytes, a
+  hash of them or their size; only `app-pictures.mjs` writes them.
+- **Looked at, each at full size** (Settings and History in two halves, at 1:1): nothing cut off at the top, the sides
+  or the foot, the toolbar and "Running the daemon, port 47115" whole in each; nothing but the website's copy: Claude
+  Work (Max 5x) on example.com at 91% and 38%, "From the CLI's status line 3 min ago", Codex (Pro) at 46% and 12%,
+  "From the API 1 min ago", the three alert rules, hooks.slack.com, licence 1042, and the example week, Tuesday 20 to
+  Tuesday 27 October, eight heatmap rows a card; both themes right, each share in its own theme's colour.
+- **Pictures for the PR,** in the scratchpad's `site-pictures-117/pairs/`: for each of the six, `<picture>.png`,
+  before (each stretch of rows the after has not boxed), after, and where they differ (the after faded, each differing
+  pixel magenta, each changed stretch boxed, a rule where rows were taken out); and `<picture>-detail-<n>.png` for
+  each stretch: a changed line enlarged four times, before over after over the after with its differing pixels
+  magenta, or rows taken out, the before around them over the after around their place.
+- **Counts,** `main` at 35dd45f (#117's note) and this branch: the workspace's tests 736 to 737 with none ignored (the
+  fake provider's new test); the example build's 733 to 734, with the 1 it always leaves out (the packaging test); the
+  app's `--lib` tests 109 to 111 in both builds (the Help copy's `help.rs` test and the What's new one); the tray's
+  `npm test` 208 to 211 (the Help copy's two and the What's new one); the website's 90, as on `main`; the repository
+  scripts' 40, 39 passing and one left out on macOS, needing GNU `sha256sum`, as on `main`; the window check 116,022
+  checks over 26 views to 116,026: the Help copy's commit alone gave 116,030 on `fix/site-copy-help`, and the ten
+  accounts' What's new, now two long lines where it had five, 4 checks fewer; the website's pictures run 14,922 checks
+  over 8 views at 5ca70aa to 14,514; the window's JavaScript 40.6 KB of its 150, and the contrast check's 30 pairs a
+  theme, as on `main`.
+- **Checks run,** at 546db65, through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the workspace
+  and the app; clippy with `-D warnings` in the default and example builds, for the workspace and the app; `cargo test
+  --workspace` in both builds; the app's `--lib` tests in both builds; the tray's `npm ci`, `npm run build`, `npm
+  test` and `npm run check:window`; the website's `npm ci`, `npm run check`, `npm run build` (its `out/` serves the
+  new six byte for byte, with the new `alt` and the accounts picture's height of 1300) and `npm test`;
+  `scripts/privacy.sh --check`, `scripts/public-prd.sh --check` and `node --test scripts/*.test.mjs`; and after the
+  records commit, `scripts/privacy.sh --check` and `scripts/public-prd.sh --check` again. **Not run:** the real app,
+  `tests/icon_press.rs` and any vendor CLI, as the brief says; Windows and Linux, which CI covers; `cargo deny` and
+  `cargo audit`, which are not installed here, and no dependency changed; `npm run cli`, since the app's tests do not
+  run the bundled command; and the home page in a browser.
+- **The window check's wait after its last line:** neither run here waited. The pictures run ended at its last line,
+  at 20:19:51 UTC, and the full check printed its last line at 20:37:20 and ended at 20:37:24, so none needed
+  stopping, and no Chrome of either run was left running. This PR changes the check's copies and their test, not
+  `scripts/check-window.mjs` or `scripts/chrome.mjs`, so the queued row above stays queued.
+- **#52's list, gone down:** *found and fixed:* the ten accounts' What's new carried a changelog line #117 removed,
+  and a real line under another heading, with nothing holding either, now held to `CHANGELOG.md` by a test that failed
+  first; the website's content bible kept the Opus row #117 took out of the copy; the example build's Opus window, and
+  the four tests and the count that held it; and the first take's setup-note correction (all six were not taken again
+  for D-141; D-136 moved three of Settings' corners), carried over. *Held:* Settings byte for byte as at 5ca70aa;
+  every change in the accounts and History pairs is #117's or the first take's; the manifest's and `AppShot`'s sizes
+  are the pictures' own; the window check's three-window Claude Work card; D-117's row; nothing a release carries
+  changes, so no CHANGELOG line. *Left for the manager:* the README's first-run recording still shows the Opus window
+  and needs Matt's menu bar to record again; the other copies' What's new keep their own short lines (two cut from
+  real ones, "A sudden 0% is held until the next fetch agrees." made up), as does the website copy's, none of them
+  said to be the changelog's and none held to it; the `help.rs` test reads 0.3.0, the copies' version, from a constant
+  it checks against the copies, so a new version for the copies moves it too; and the home page's hero, clipped at
+  large widths as before, now shows Weekly, Session and the line under them where it showed Weekly, Weekly (Opus) and
+  part of Session, not looked at in a browser.
 
 ### M6: Claude through Claude Code's status line, never its sign-in (D-145)
 

@@ -307,10 +307,8 @@ mod tests {
                 .map(|window| window.label.clone())
                 .collect()
         };
-        assert_eq!(
-            labels(&examples.accounts[0]),
-            ["Weekly", "Weekly (Opus)", "Session"]
-        );
+        // The two windows Claude Code's status line hands over (D-145), and Codex's two.
+        assert_eq!(labels(&examples.accounts[0]), ["Weekly", "Session"]);
         assert_eq!(labels(&examples.accounts[1]), ["Weekly", "Session"]);
         for window in examples
             .accounts
@@ -341,6 +339,27 @@ mod tests {
         assert_eq!(window.fetched_at, start);
         assert!(!window.unconfirmed);
         assert_eq!(window.pace, None);
+    }
+
+    /// The built-in examples have no window for one model since Claude's went (D-145), but a file
+    /// `QUOTADIAL_FAKE_ACCOUNTS` names may hold one, and it keeps its kind and its model.
+    #[test]
+    fn a_window_for_one_model_keeps_its_model() {
+        let start = at("2099-01-01T00:00:00Z");
+        let examples = parse(&file(
+            r#"{ "kind": "model_weekly", "label": "Weekly (Example model)",
+                "scope_model": "example-model", "window_seconds": 604800, "used_pct": 20,
+                "resets_in_seconds": 140400, "pct_per_hour": 0.5 }"#,
+        ))
+        .expect("parses");
+
+        let window = examples.accounts[0].windows[0].at(start, start);
+
+        assert_eq!(window.kind, WindowKind::ModelWeekly);
+        assert_eq!(window.label, "Weekly (Example model)");
+        assert_eq!(window.scope_model.as_deref(), Some("example-model"));
+        assert_eq!(window.used_pct, 20.0);
+        assert_eq!(window.window_seconds, 604_800);
     }
 
     #[test]

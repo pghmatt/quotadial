@@ -38,7 +38,8 @@ import {
   writtenVerdicts,
 } from "./whole-addresses.mjs";
 import { PAGE_TEXT, matchesIn } from "./whole-shares.mjs";
-import { DESTINATIONS, crowded, free, many, pro } from "./window-fixtures.mjs";
+import { site } from "./site-fixtures.mjs";
+import { CHANGES, DESTINATIONS, PRIVACY, crowded, free, many, pro } from "./window-fixtures.mjs";
 
 const LONG = "a.very.long.account.name.that.keeps.going@engineering.example.com";
 const LONG_WORDS = ["a", ".very", ".long", ".account", ".name", ".that", ".keeps", ".going", "@engineering", ".example", ".com"];
@@ -512,9 +513,78 @@ test("the copies' places QuotaDial connects to are the app's own, as crates/core
   const list = source.match(/pub const HOSTS: \[&str; \d+\] = \[([^\]]*)\];/);
   assert.ok(list, "privacy.rs lists no HOSTS");
   assert.deepEqual(DESTINATIONS, [...list[1].matchAll(/"([^"]+)"/g)].map((host) => host[1]));
-  for (const copy of [pro, free, many, crowded]) {
+  for (const copy of [pro, free, many, crowded, site]) {
     assert.deepEqual(copy.help.hosts, DESTINATIONS);
   }
+});
+
+/** Whether `line` is `own`, a line of the app's text, or its first sentences. */
+const quotes = (line, own) => line === own || (/[.:!?]$/.test(line) && own.startsWith(`${line} `));
+
+/**
+ * The blocks of `privacy`, a copy's Help text of what QuotaDial reads and sends, that are not the
+ * app's own. A paragraph must be one of `PRIVACY`'s, the app's text as `help.rs` holds it, or its
+ * first sentences; a list's items must be its list's, each whole or its first sentences, in their
+ * order; and the blocks must come in the app's order, none of the app's shown twice.
+ */
+function notTheAppsOwn(privacy) {
+  const wrong = [];
+  let after = -1;
+  for (const block of privacy) {
+    const lines = block.kind === "paragraph" ? [block.text] : block.items;
+    const at = PRIVACY.findIndex((own, index) => {
+      if (index <= after || own.kind !== block.kind) return false;
+      const owned = own.kind === "paragraph" ? [own.text] : own.items;
+      let from = 0;
+      return lines.every((line) => {
+        const found = owned.findIndex((mine, place) => place >= from && quotes(line, mine));
+        from = found + 1;
+        return found >= 0;
+      });
+    });
+    if (at < 0) wrong.push(block);
+    else after = at;
+  }
+  return wrong;
+}
+
+test("the app's text of what QuotaDial reads and sends is its own whole, or each paragraph's and item's first sentences, in its order", () => {
+  const [opening] = PRIVACY;
+  const list = PRIVACY.find((block) => block.kind === "list");
+  assert.ok(opening.kind === "paragraph" && list?.kind === "list" && list.items.length > 1, "the app's text has no opening or no list");
+  const firstSentence = opening.text.slice(0, opening.text.indexOf(". ") + 1);
+  assert.deepEqual(notTheAppsOwn(PRIVACY), []);
+  assert.deepEqual(notTheAppsOwn([{ kind: "paragraph", text: firstSentence }, { kind: "list", items: [list.items[1]] }]), []);
+  const cut = { kind: "paragraph", text: firstSentence.slice(0, -5) };
+  const ownWords = { kind: "paragraph", text: "QuotaDial reads every sign-in it finds." };
+  const itemAsParagraph = { kind: "paragraph", text: list.items[0] };
+  const secondList = { kind: "list", items: [list.items[1]] };
+  assert.deepEqual(notTheAppsOwn([cut, ownWords, itemAsParagraph]), [cut, ownWords, itemAsParagraph]);
+  assert.deepEqual(notTheAppsOwn([{ kind: "list", items: [list.items[0]] }, secondList]), [secondList], "two lists from its one");
+  assert.deepEqual(notTheAppsOwn([list, opening]), [opening], "out of its order");
+  assert.deepEqual(notTheAppsOwn([{ kind: "list", items: [list.items[1], list.items[0]] }]), [{ kind: "list", items: [list.items[1], list.items[0]] }]);
+});
+
+test("every copy's Help, the website's too, says what QuotaDial reads and sends only in the app's own words", () => {
+  const copies = Object.entries({ pro, free, many, crowded, site });
+  for (const [name, copy] of copies) {
+    assert.ok(copy.help.privacy.length > 0, `${name}'s Help says nothing of what QuotaDial reads and sends`);
+  }
+  const ofItsOwn = copies
+    .map(([name, copy]) => [name, notTheAppsOwn(copy.help.privacy)])
+    .filter(([, blocks]) => blocks.length > 0);
+  assert.deepEqual(Object.fromEntries(ofItsOwn), {}, "these copies' Help says what QuotaDial reads and sends in words of its own");
+});
+
+test("the ten accounts' What's new is the real changelog's lines that CHANGES keeps, and its update's notes are some of them", () => {
+  /** @param {{ heading: string, items: string[] }[]} sections */
+  const lines = (sections) => sections.flatMap(({ heading, items }) => items.map((item) => `${heading}: ${item}`));
+  const real = lines(CHANGES);
+  assert.ok(real.length > 0, "CHANGES keeps no line of the changelog");
+  assert.deepEqual(lines(many.help.whats_new.sections), real, "the ten accounts' What's new is not CHANGES' lines, each under its heading");
+  const items = CHANGES.flatMap((section) => section.items);
+  assert.ok(many.update.notes.length > 0, "the ten accounts' update on offer has no notes");
+  assert.deepEqual(many.update.notes.filter((note) => !items.includes(note)), [], "these notes are not the real changelog's");
 });
 
 test("the hosts written are the copy's, in order, or the verdict says which is not, as for an address", () => {

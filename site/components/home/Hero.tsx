@@ -76,9 +76,9 @@ export function Hero() {
             <div className="relative z-10 mx-auto w-full max-w-[18.5rem] lg:col-start-2 lg:row-start-3 lg:-mb-[18rem] lg:max-h-[20rem] lg:max-w-none lg:overflow-hidden lg:[mask-image:linear-gradient(to_bottom,black_82%,transparent)]">
               <AppShot
                 name="accounts"
-                alt="QuotaDial's window: Claude Work and Codex, each window with its share used, reset and pace"
+                alt="QuotaDial's window: Claude Work and Codex, each window with its share used, its reset and, where there is one, its pace"
                 width={720}
-                height={1412}
+                height={1300}
                 priority
                 className="block w-full"
               />
