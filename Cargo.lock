@@ -1553,17 +1553,13 @@ dependencies = [
  "chrono",
  "proptest",
  "quotadial-core",
- "quotadial-poll",
  "quotadial-status-line",
- "reqwest",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "tokio",
  "unicode-normalization",
- "wiremock",
- "zeroize",
 ]
 
 [[package]]

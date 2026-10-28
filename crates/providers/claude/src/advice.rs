@@ -1,42 +1,108 @@
-//! The one sentence QuotaDial shows when it has no numbers for a Claude account, naming the fix.
-//! A sign-in kept for another config folder gets the command for that folder (#34).
+//! What QuotaDial says of a Claude account, in #52's plain words (D-145): what it does with the
+//! sign-in, which is nothing, carrying the exact line to add to Claude Code's settings and where it
+//! keeps the numbers (the manager's rules 7 and 8 on #73, P-020's rule 2), and the one line under an
+//! account whose numbers are not current. Claude Code reads its settings when it starts, so each
+//! says to start it again, and the command must be on the `PATH` Claude Code starts with.
+//!
+//! A time is written as a person reads it, in UTC (D-142), never as "3 min ago", so a line stays
+//! the same while the numbers it is about do, and the daemon's history, which keeps a snapshot only
+//! when its time, status or line changes, keeps one for it rather than one a minute.
 
 use chrono::{DateTime, Utc};
-use quotadial_core::{Account, text};
+use quotadial_core::text;
 
-use crate::login::{Login, LoginSource};
+use crate::environment::Environment;
+use crate::folders::Folder;
+use crate::{ID, command};
 
-/// The sign-in where the account was found is gone.
-pub(crate) fn signed_out(login: &Login) -> String {
+/// The command Claude Code's settings name: `quotadial claude status-line`.
+pub(crate) fn command() -> String {
+    format!("quotadial {ID} {}", command::NAME)
+}
+
+/// The block to add to Claude Code's settings, as its docs write one ("Customize your status
+/// line"). QuotaDial never writes it.
+pub(crate) fn block() -> String {
     format!(
-        "QuotaDial no longer finds the Claude Code sign-in in {}. Run {} to sign in again.",
-        login.place,
-        login.sign_in_command()
+        r#""statusLine": {{ "type": "command", "command": "{}" }}"#,
+        command()
     )
 }
 
-/// The sign-in where the account was found now belongs to someone else.
-pub(crate) fn different_account(login: &Login) -> String {
+/// The settings file the block goes in: `settings.json` in the folder, as people write it.
+pub(crate) fn settings(folder: &Folder, env: &Environment) -> String {
+    match folder.path(env) {
+        Some(path) => env.tilde(&path.join("settings.json")),
+        None => "settings.json in Claude Code's folder".to_owned(),
+    }
+}
+
+/// What QuotaDial does with a Claude account's sign-in: nothing. It names `file`, the folder's file
+/// in QuotaDial's data folder, the block that hands it the numbers, where the block goes, and that
+/// Claude Code must start again with the command on its `PATH`.
+pub(crate) fn sign_in_use(folder: &Folder, file: &str, env: &Environment) -> String {
     format!(
-        "The Claude Code sign-in in {} is now for another account, so this one's usage cannot be \
-         read there. To keep tracking it, sign in to it again in another folder, or run {} and \
-         sign in to it with /login.",
-        login.place,
-        login.sign_in_command()
+        "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's \
+         status line hands it, in {file} in QuotaDial's data folder, once `{}` is in {} and Claude \
+         Code has started again with `quotadial` on its PATH.",
+        block(),
+        settings(folder, env)
     )
 }
 
-/// The Keychain could not be listed, so its items were looked up folder by folder. Like every
-/// warning, it leaves the provider out: the report shows it under the provider's own name (D-128).
-pub(crate) fn unlisted(reason: &str) -> String {
+/// Before any numbers, as for a person whose numbers came from Claude Code's sign-in before (the
+/// manager's rule 9): why there are none, what to add, as a new status line or in front of one
+/// already there, to start Claude Code again, and, in the docs' words, which sign-ins Claude Code
+/// hands numbers for (rule 5). One sentence.
+pub(crate) fn waiting(folder: &Folder, env: &Environment) -> String {
     format!(
-        "could not list the Claude Code items in the macOS Keychain: {reason}. Each folder's item \
-         was looked up by name instead, so a Keychain item whose folder QuotaDial does not know is \
-         left out until the listing works."
+        "QuotaDial reads Claude's limits only from what Claude Code's status line hands it, and \
+         none has come yet: add `{}` to {}, or put `{}` and a space in front of the command \
+         already there, then start Claude Code again; Claude Code hands them over only for \
+         claude.ai Pro and Max subscribers, and only after the first API response in the session.",
+        block(),
+        settings(folder, env),
+        command()
     )
 }
 
-/// An `extra_config_dirs` entry was left out because it is not a full path.
+/// Numbers handed over longer ago than two polls (#52, D-126).
+pub(crate) fn stale(handed_over: DateTime<Utc>) -> String {
+    format!(
+        "Claude Code last handed over its numbers on {}: they update when it runs again, and a \
+         window that has reset since is left out until then.",
+        text::date_and_time(handed_over)
+    )
+}
+
+/// Numbers whose every window has reset since they were handed over (the manager's rule 3): when
+/// Claude Code last handed them over, and that its next run brings them back.
+pub(crate) fn nothing(handed_over: DateTime<Utc>) -> String {
+    format!(
+        "Claude Code last handed over its numbers on {}, and each window has reset since: its next \
+         run brings them back.",
+        text::date_and_time(handed_over)
+    )
+}
+
+/// The folder the account was found in is now signed in to another account.
+pub(crate) fn another_account(folder: &Folder, env: &Environment) -> String {
+    let place = folder
+        .path(env)
+        .map_or_else(|| "its folder".to_owned(), |path| env.tilde(&path));
+    format!(
+        "Claude Code in {place} is now signed in to another account, which QuotaDial shows in this \
+         one's place at its next look."
+    )
+}
+
+/// No Claude Code folder on the machine names the account any more.
+pub(crate) const NOT_FOUND: &str = "QuotaDial no longer finds this account in any Claude Code \
+                                    folder on this machine, and shows it again once Claude Code is \
+                                    signed in to it.";
+
+/// An `extra_config_dirs` entry was left out because it is not a full path. Like every warning, it
+/// leaves the provider out: the report shows it under the provider's own name (D-128).
 pub(crate) fn skipped_dir(dir: &std::path::Path) -> String {
     format!(
         "the extra_config_dirs entry \"{}\" in config.json is not a full path, so QuotaDial left \
@@ -45,226 +111,177 @@ pub(crate) fn skipped_dir(dir: &std::path::Path) -> String {
     )
 }
 
-/// No sign-in for the account was found, and nothing is known about where it was.
-pub(crate) fn not_found(account: &Account) -> String {
-    match &account.sign_in {
-        Some(place) => format!(
-            "QuotaDial no longer finds the Claude Code sign-in in {place}. Run `claude` with the \
-             CLAUDE_CONFIG_DIR it was made with, and sign in again."
-        ),
-        None => "QuotaDial no longer finds this account's Claude Code sign-in on this machine. \
-                 Run `claude` with the CLAUDE_CONFIG_DIR it was made with, and sign in again."
-            .to_owned(),
-    }
-}
-
-/// The token's source holds only MCP server sign-ins.
-pub(crate) fn no_claude_login(login: &Login) -> String {
-    format!(
-        "The sign-in in {} holds no Claude account, only MCP server sign-ins. Run {} and sign in \
-         with /login.",
-        login.place,
-        login.sign_in_command()
-    )
-}
-
-/// The sign-in's token expired at `at`, written as a person reads it (D-142), and Claude Code
-/// refreshes it when it next runs.
-pub(crate) fn expired(login: &Login, at: DateTime<Utc>) -> String {
-    format!(
-        "This Claude Code sign-in expired on {}. Run {} once to refresh it.",
-        text::date_and_time(at),
-        login.sign_in_command()
-    )
-}
-
-/// Anthropic answered 401.
-pub(crate) fn rejected(login: &Login) -> String {
-    match login.source {
-        LoginSource::Environment(_) => "Anthropic rejected the token in CLAUDE_CODE_OAUTH_TOKEN. \
-             Replace it, or unset it to use Claude Code's own sign-in."
-            .to_owned(),
-        _ => format!(
-            "Anthropic rejected this Claude Code sign-in. Run {} to sign in again.",
-            login.sign_in_command()
-        ),
-    }
-}
-
-/// The token lacks the `user:profile` scope the usage endpoint requires.
-pub(crate) fn missing_scope(login: &Login) -> String {
-    match login.source {
-        LoginSource::Environment(_) => "The token in CLAUDE_CODE_OAUTH_TOKEN cannot read usage \
-             because it lacks the user:profile scope. Unset it to use Claude Code's own sign-in."
-            .to_owned(),
-        _ => format!(
-            "This Claude Code sign-in cannot read usage because it lacks the user:profile scope. \
-             Run {} and sign in again with /login.",
-            login.sign_in_command()
-        ),
-    }
-}
-
-/// Anthropic answered 403 because the token was revoked.
-pub(crate) fn revoked(login: &Login) -> String {
-    match login.source {
-        LoginSource::Environment(_) => "Anthropic says the token in CLAUDE_CODE_OAUTH_TOKEN was \
-             revoked. Replace it, or unset it to use Claude Code's own sign-in."
-            .to_owned(),
-        _ => format!(
-            "Anthropic says this Claude Code sign-in was revoked. Run {} to sign in again.",
-            login.sign_in_command()
-        ),
-    }
-}
-
-/// The response had no limits at all. The PRD: Free accounts report nothing since August 2026,
-/// and Enterprise returns no usage.
-pub(crate) fn no_limits(plan: Option<&str>) -> &'static str {
-    match plan {
-        Some(plan) if plan.contains("free") => {
-            "Claude Free plans have reported no usage limits since August 2026. Upgrade to Pro or \
-             Max on claude.ai to track them."
-        }
-        Some(plan) if plan.contains("enterprise") => {
-            "Claude Enterprise accounts report no usage limits to Claude Code's usage endpoint."
-        }
-        _ => "Anthropic reported no usage limits for this account.",
-    }
-}
-
-/// Anthropic answered with a status QuotaDial cannot use.
-pub(crate) fn failed(status: u16, message: Option<&str>) -> String {
-    match message {
-        Some(message) => format!(
-            "Anthropic's usage endpoint answered HTTP {status}: {}.",
-            message.trim_end_matches('.')
-        ),
-        None => format!("Anthropic's usage endpoint answered HTTP {status}."),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path, PathBuf};
+    use std::path::{MAIN_SEPARATOR_STR, Path, PathBuf};
 
-    use quotadial_core::{Diagnostics, Secret, Snapshot, Status, StatusReport};
+    use quotadial_core::{Account, Diagnostics, Snapshot, Status, StatusReport};
 
     use super::*;
-    use crate::environment::Environment;
-    use crate::login::{Folder, claude_in};
 
-    fn env() -> Environment {
+    fn at(rfc3339: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(rfc3339)
+            .expect("a time")
+            .with_timezone(&Utc)
+    }
+
+    fn env_in(home: &Path) -> Environment {
         Environment {
-            home: Some(PathBuf::from("/Users/example")),
+            home: Some(home.to_path_buf()),
             ..Environment::default()
         }
     }
 
-    fn login(source: LoginSource, folder: Folder) -> Login {
-        Login::new(&env(), source, None, None, folder)
+    fn home() -> PathBuf {
+        [MAIN_SEPARATOR_STR, "Users", "example"].iter().collect()
     }
 
-    fn keychain(service: &str, folder: Folder) -> Login {
-        login(
-            LoginSource::Keychain {
-                service: service.into(),
-                account: Some("example".into()),
-            },
-            folder,
-        )
-    }
-
-    fn default_keychain() -> Login {
-        keychain("Claude Code-credentials", Folder::Default)
-    }
-
-    fn environment() -> Login {
-        login(
-            LoginSource::Environment(Secret::new("sk-ant-oat01-QUOTADIAL-TEST-TOKEN")),
-            Folder::Default,
-        )
-    }
-
-    #[test]
-    fn every_sentence_names_a_fix() {
-        let sentences = [
-            signed_out(&default_keychain()),
-            different_account(&default_keychain()),
-            not_found(&default_keychain().account()),
-            no_claude_login(&default_keychain()),
-            expired(&default_keychain(), DateTime::<Utc>::UNIX_EPOCH),
-            rejected(&default_keychain()),
-            rejected(&environment()),
-            missing_scope(&default_keychain()),
-            missing_scope(&environment()),
-            revoked(&default_keychain()),
-            revoked(&environment()),
-            no_limits(Some("free")).to_owned(),
-        ];
-        for sentence in sentences {
-            assert!(
-                [
-                    "Run `claude`",
-                    "run `claude`",
-                    "Replace it",
-                    "Unset it",
-                    "Upgrade"
-                ]
-                .iter()
-                .any(|fix| sentence.contains(fix)),
-                "{sentence}"
-            );
-            assert!(!sentence.contains("sk-ant-"), "{sentence}");
+    /// `~` and the rest as `text::tilde` writes them, with the system's own separator (D-129).
+    fn in_home(parts: &[&str]) -> String {
+        let mut path = PathBuf::from("~");
+        for part in parts {
+            path.push(part);
         }
+        path.display().to_string()
     }
 
     #[test]
-    fn a_sign_in_from_another_folder_gets_that_folders_command() {
-        let work = keychain(
-            "Claude Code-credentials-1df4ed49",
-            Folder::Named(PathBuf::from("/Users/example/.claude-work")),
-        );
-        // PowerShell on Windows, where `~` would not be expanded, so the folder is written from
-        // `$HOME` there (D-131).
-        let command = if cfg!(windows) {
-            format!("`$env:CLAUDE_CONFIG_DIR = \"$HOME{MAIN_SEPARATOR}.claude-work\"; claude`")
-        } else {
-            "`CLAUDE_CONFIG_DIR=~/'.claude-work' claude`".to_owned()
-        };
-        assert_eq!(
-            rejected(&work),
-            format!("Anthropic rejected this Claude Code sign-in. Run {command} to sign in again.")
-        );
-        // The time as a person reads it, its seconds dropped (D-142).
-        let at: DateTime<Utc> = "2026-10-26T09:12:47Z".parse().expect("a time");
-        assert_eq!(
-            expired(&work, at),
-            format!(
-                "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run {command} once \
-                 to refresh it."
-            )
-        );
-        // The folder as `text::tilde` writes it: `~` and the system's own separator (D-129).
-        let folder = Path::new("~").join(".claude-work");
-        assert_eq!(
-            signed_out(&work),
-            format!(
-                "QuotaDial no longer finds the Claude Code sign-in in the macOS Keychain item \
-                 \"Claude Code-credentials-1df4ed49\" (CLAUDE_CONFIG_DIR {}). Run {command} to \
-                 sign in again.",
-                folder.display()
-            )
-        );
-        assert!(different_account(&work).contains(&format!("run {command} and sign in")));
+    fn the_block_is_the_one_claude_code_s_settings_take() {
+        let block = block();
 
-        let unknown = keychain("Claude Code-credentials-67f74348", Folder::Unknown);
         assert_eq!(
-            revoked(&unknown),
-            "Anthropic says this Claude Code sign-in was revoked. Run `claude` with the \
-             CLAUDE_CONFIG_DIR that made the Keychain item \"Claude Code-credentials-67f74348\" to \
-             sign in again."
+            block,
+            r#""statusLine": { "type": "command", "command": "quotadial claude status-line" }"#
         );
+        let parsed: serde_json::Value =
+            serde_json::from_str(&format!("{{ {block} }}")).expect("JSON");
+        assert_eq!(parsed["statusLine"]["type"], "command");
+        assert_eq!(
+            parsed["statusLine"]["command"],
+            "quotadial claude status-line"
+        );
+        let env = env_in(&home());
+        assert_eq!(
+            settings(&Folder::Default, &env),
+            in_home(&[".claude", "settings.json"])
+        );
+        let work = home().join(".claude-work").display().to_string();
+        assert_eq!(
+            settings(&Folder::Named(work), &env),
+            in_home(&[".claude-work", "settings.json"])
+        );
+    }
+
+    #[test]
+    fn the_sign_in_sentence_names_the_file_the_block_where_it_goes_a_restart_and_the_path() {
+        let env = env_in(&home());
+
+        let said = sign_in_use(&Folder::Default, "claude.json", &env);
+
+        assert_eq!(
+            said,
+            format!(
+                "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude \
+                 Code's status line hands it, in claude.json in QuotaDial's data folder, once \
+                 `\"statusLine\": {{ \"type\": \"command\", \"command\": \"quotadial claude \
+                 status-line\" }}` is in {} and Claude Code has started again with `quotadial` on \
+                 its PATH.",
+                in_home(&[".claude", "settings.json"])
+            )
+        );
+    }
+
+    #[test]
+    fn the_first_line_says_why_it_is_empty_what_to_add_and_which_sign_ins_get_numbers() {
+        let env = env_in(&home());
+
+        let said = waiting(&Folder::Default, &env);
+
+        assert!(
+            said.starts_with(
+                "QuotaDial reads Claude's limits only from what Claude Code's status line hands \
+                 it, and none has come yet: add `"
+            ),
+            "{said}"
+        );
+        assert!(said.contains(&format!("`{}`", block())), "{said}");
+        assert!(said.contains(&settings(&Folder::Default, &env)), "{said}");
+        assert!(
+            said.contains("`quotadial claude status-line` and a space in front of"),
+            "{said}"
+        );
+        assert!(said.contains("start Claude Code again"), "{said}");
+        // In the docs' words ("Customize your status line"): `rate_limits` "appears only for
+        // claude.ai Pro and Max subscribers ... and only after the first API response in the
+        // session" (the manager's rule 5).
+        assert!(
+            said.ends_with(
+                "only for claude.ai Pro and Max subscribers, and only after the first API \
+                 response in the session."
+            ),
+            "{said}"
+        );
+    }
+
+    #[test]
+    fn a_time_is_written_as_itself_so_a_line_stays_the_same() {
+        let handed_over = at("2026-10-28T17:30:00.5Z");
+
+        assert_eq!(
+            stale(handed_over),
+            "Claude Code last handed over its numbers on 28 Oct 2026 at 17:30 UTC: they update \
+             when it runs again, and a window that has reset since is left out until then."
+        );
+        assert_eq!(
+            nothing(handed_over),
+            "Claude Code last handed over its numbers on 28 Oct 2026 at 17:30 UTC, and each window \
+             has reset since: its next run brings them back."
+        );
+    }
+
+    /// Every line, for the default folder and a named one.
+    fn every_line() -> Vec<String> {
+        let env = env_in(&home());
+        let work = Folder::Named(home().join("My Claude").display().to_string());
+        let handed_over = at("2026-10-28T17:30:00Z");
+        let mut lines = vec![
+            stale(handed_over),
+            nothing(handed_over),
+            NOT_FOUND.to_owned(),
+            skipped_dir(Path::new("claude-work")),
+        ];
+        for folder in [Folder::Default, work] {
+            lines.push(sign_in_use(&folder, &folder.file_name(), &env));
+            lines.push(waiting(&folder, &env));
+            lines.push(another_account(&folder, &env));
+        }
+        lines
+    }
+
+    #[test]
+    fn every_line_is_in_plain_words_and_each_line_under_an_account_is_one_sentence() {
+        for said in every_line() {
+            assert!(!said.contains('\n') && said.ends_with('.'), "{said}");
+            assert!(
+                !said.contains('\u{2014}') && !said.contains('\u{2013}'),
+                "{said}"
+            );
+            // #52's plain words: never "quota", "auth" or "credential" outside a name.
+            assert_eq!(text::unplain_words(&said), Vec::<String>::new(), "{said}");
+        }
+        // The line a card shows in place of its windows is one sentence (the manager's rule 9):
+        // outside its code, no stop ends one sentence and starts another.
+        let env = env_in(&home());
+        for said in [
+            waiting(&Folder::Default, &env),
+            stale(at("2026-10-28T17:30:00Z")),
+            nothing(at("2026-10-28T17:30:00Z")),
+            another_account(&Folder::Default, &env),
+            NOT_FOUND.to_owned(),
+        ] {
+            let prose: String = said.split('`').step_by(2).collect();
+            assert!(!prose.trim_end_matches('.').contains(". "), "{said}");
+        }
     }
 
     /// Doctor's text for `account` with `line` under it, the home folder being `home`.
@@ -281,7 +298,7 @@ mod tests {
                     account,
                     windows: Vec::new(),
                     extra_usage: None,
-                    status: Status::AuthRequired,
+                    status: Status::Unsupported,
                     error: Some(line.to_owned()),
                 }],
                 ..StatusReport::default()
@@ -292,163 +309,42 @@ mod tests {
     }
 
     #[test]
-    fn doctor_shows_the_fix_command_as_written_in_both_shells() {
-        // Doctor writes the home folder `~` over its whole text (D-129), which turned the command
-        // `CLAUDE_CONFIG_DIR='/Users/ann/My Claude' claude`, which named the user, into
-        // `CLAUDE_CONFIG_DIR='~/My Claude' claude`, whose quoted `~` no shell expands (D-131). The
-        // sentence as this system writes it, and each shell's command, come through doctor as
-        // written.
-        let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", "ann"].iter().collect();
-        let env = Environment {
-            home: Some(home.clone()),
-            ..Environment::default()
-        };
-        let outside: PathBuf = [MAIN_SEPARATOR_STR, "Volumes", "Data", "O'Brien's Claude"]
-            .iter()
-            .collect();
-        for dir in [
-            home.join("My Claude"),
-            home.join("it's \"$HOME\" `Claude`"),
-            outside,
-        ] {
-            let login = Login::new(
-                &env,
-                LoginSource::File(dir.join(".credentials.json")),
-                None,
-                None,
-                Folder::Named(dir.clone()),
-            );
-            for line in [
-                signed_out(&login),
-                claude_in(&dir, Some(&home), false),
-                claude_in(&dir, Some(&home), true),
-            ] {
-                let text = doctor(login.account(), &line, &home);
-                assert!(text.contains(&format!("\n    {line}\n")), "{line}\n{text}");
-            }
-        }
-    }
-
-    #[test]
-    fn doctor_shows_the_command_and_places_as_written_for_a_user_called_claude_or_codex() {
-        // Doctor hid every whole word that was the user's name, so for a user called `claude` it
-        // wrote the command as `CLAUDE_CONFIG_DIR=~/'.[user]-work' [user]` and `~/.claude` as
-        // `~/.[user]`: a command that fails and a folder that is not there (D-134). In the home
-        // folder and in a command the words stay, whatever the user is called, and the name is
-        // still hidden in a place outside the home folder, the command's own words around it kept.
+    fn doctor_shows_the_line_to_add_and_the_file_as_written_for_a_user_called_claude_or_codex() {
+        // Doctor hides the user's name only in a place outside the home folder (D-134): for a user
+        // called `claude`, the block's `quotadial claude status-line` and `~/.claude` stay as they
+        // are written, in the account's sentence and in its line (the manager's rule 8).
         for name in ["ann", "claude", "codex"] {
             let home: PathBuf = [MAIN_SEPARATOR_STR, "Users", name].iter().collect();
-            let env = Environment {
-                home: Some(home.clone()),
-                ..Environment::default()
-            };
-            let login_for = |dir: &Path| {
-                Login::new(
-                    &env,
-                    LoginSource::File(dir.join(".credentials.json")),
-                    None,
-                    None,
-                    Folder::Named(dir.to_path_buf()),
-                )
-            };
-            for dir in [
-                home.join(".claude"),
-                home.join(".claude-work"),
-                home.join(".codex"),
-                home.join("My Claude"),
+            let env = env_in(&home);
+            for folder in [
+                Folder::Default,
+                Folder::Named(home.join(".claude-work").display().to_string()),
+                Folder::Named(home.join("My Claude").display().to_string()),
             ] {
-                let login = login_for(&dir);
-                for line in [
-                    signed_out(&login),
-                    claude_in(&dir, Some(&home), false),
-                    claude_in(&dir, Some(&home), true),
-                ] {
-                    let text = doctor(login.account(), &line, &home);
-                    assert!(
-                        text.contains(&format!("\n    {line}\n")),
-                        "{name}: {line}\n{text}"
-                    );
-                    // The account's own sentence, which names where its sign-in is.
-                    let sign_in = login.account().sign_in_use;
-                    assert!(
-                        text.contains(&format!("\n    sign-in: {sign_in}\n")),
-                        "{name}: {sign_in}\n{text}"
-                    );
-                }
-            }
-            let outside = |who: &str| -> PathBuf {
-                [MAIN_SEPARATOR_STR, "Volumes", "Data", who, "My Claude"]
-                    .iter()
-                    .collect()
-            };
-            let (shown, hidden) = (outside(name), outside("[user]"));
-            for windows in [false, true] {
-                let line = claude_in(&shown, Some(&home), windows);
-                let hidden_line = claude_in(&hidden, Some(&home), windows);
-                let text = doctor(login_for(&shown).account(), &line, &home);
+                let account = Account {
+                    provider: ID.into(),
+                    provider_name: crate::NAME.into(),
+                    account_id: "00000000-0000-0000-0000-000000000001".into(),
+                    display_name: String::new(),
+                    plan: None,
+                    org: None,
+                    sign_in: None,
+                    sign_in_use: sign_in_use(&folder, &folder.file_name(), &env),
+                };
+                let line = waiting(&folder, &env);
+
+                let text = doctor(account.clone(), &line, &home);
+
                 assert!(
-                    text.contains(&format!("\n    {hidden_line}\n")),
-                    "{name}: {hidden_line}\n{text}"
+                    text.contains(&format!("\n    sign-in: {}\n", account.sign_in_use)),
+                    "{name}: {}\n{text}",
+                    account.sign_in_use
                 );
-                assert!(!text.contains(&line), "{name}: {line}\n{text}");
+                assert!(
+                    text.contains(&format!("\n    {line}\n")),
+                    "{name}: {line}\n{text}"
+                );
             }
         }
-    }
-
-    #[test]
-    fn the_source_is_named_where_it_matters() {
-        assert_eq!(
-            no_claude_login(&default_keychain()),
-            "The sign-in in the macOS Keychain item \"Claude Code-credentials\" holds no Claude \
-             account, only MCP server sign-ins. Run `claude` and sign in with /login."
-        );
-        let file = Path::new("~").join(".claude/.credentials.json");
-        assert!(
-            no_claude_login(&login(
-                LoginSource::File(PathBuf::from("/Users/example/.claude/.credentials.json")),
-                Folder::Default
-            ))
-            .starts_with(&format!("The sign-in in {} holds", file.display()))
-        );
-    }
-
-    #[test]
-    fn plans_without_limits_get_their_own_reason() {
-        assert!(no_limits(Some("free")).starts_with("Claude Free"));
-        assert!(no_limits(Some("enterprise")).starts_with("Claude Enterprise"));
-        assert_eq!(
-            no_limits(None),
-            "Anthropic reported no usage limits for this account."
-        );
-    }
-
-    #[test]
-    fn what_discovery_could_not_look_at_is_said_in_plain_words_without_the_providers_id() {
-        let warnings = [
-            unlisted("/usr/bin/security exited with status 36"),
-            skipped_dir(std::path::Path::new("claude-work")),
-        ];
-        for warning in warnings {
-            // The report names the provider, by its own name (D-128).
-            assert!(!warning.starts_with(crate::ID), "{warning}");
-            // #52's plain words: never "quota", "auth" or "credential" outside a name.
-            assert_eq!(
-                quotadial_core::text::unplain_words(&warning),
-                Vec::<String>::new(),
-                "{warning}"
-            );
-        }
-    }
-
-    #[test]
-    fn failures_quote_anthropics_message_once() {
-        assert_eq!(
-            failed(503, Some("Overloaded.")),
-            "Anthropic's usage endpoint answered HTTP 503: Overloaded."
-        );
-        assert_eq!(
-            failed(500, None),
-            "Anthropic's usage endpoint answered HTTP 500."
-        );
     }
 }

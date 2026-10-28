@@ -15,11 +15,6 @@ shapes the live account does not show.
 
 | File | Source | Covers |
 | --- | --- | --- |
-| `oauth-usage.json` | Live `GET /api/oauth/usage`, 2026-10-23, committed as sent (it holds no identifiers) | Today's shape: `five_hour`, `seven_day`, `limits[]` with a scoped weekly limit, `extra_usage`, `spend`, `seven_day_breakdown`, null per-model buckets |
-| `oauth-usage.synthetic.json` | CodexBar's field names | Flat per-model buckets (`seven_day_opus`, `seven_day_sonnet`), a bucket with no reset time |
-| `oauth-usage-scoped.synthetic.json` | Hand-written | Enabled extra usage, the Cowork bucket, an unknown `seven_day_*` bucket, `limits[]` |
-| `oauth-profile.json` | Live `GET /api/oauth/profile`, 2026-10-23, redacted | The profile response QuotaDial reads identity from |
-| `oauth-profile.synthetic.json` | Claude Code's validation schema | The fields QuotaDial reads |
 | `status-line.synthetic.json` | The example in Claude Code's docs, "Customize your status line" (code.claude.com/docs/en/statusline), read on 2026-10-28, as written there | What Claude Code's status line hands `quotadial claude status-line`: `rate_limits.five_hour` and `seven_day`, each `used_percentage` and `resets_at` in Unix seconds, beside a gateway's `spend_limit` and every other field, none of which QuotaDial keeps (D-145) |
 | `status-line-api-key.synthetic.json` | The same, with no `rate_limits` | A sign-in with an API key, which the docs say gets none, and a session before its first answer: nothing to keep |
 | `status-line-one-window.synthetic.json` | The same, with only `rate_limits.seven_day` | A window Claude Code has dropped once its reset passed, as the docs say it does |
@@ -51,8 +46,9 @@ The example build's accounts (D-117): made up for pictures of the app, never a c
 
 1. Save the live response under `fixtures/<provider>/raw/`. That folder is gitignored. Use a tool
    that never prints the token, and keep response headers there too: they carry organization and
-   workspace IDs, and ChatGPT's set cookies. Leave at least 5 minutes between requests to Anthropic
-   and 2 minutes between requests to ChatGPT, as QuotaDial does.
+   workspace IDs, and ChatGPT's set cookies. Leave at least 2 minutes between requests to ChatGPT,
+   as QuotaDial does. Claude's numbers are never asked for: its fixtures are made up from Claude
+   Code's docs (D-145).
 2. Copy it up one level. Replace every token, cookie, API key, email address, account ID and
    organization ID with an obviously fake value of the same type, such as `user@example.com` or
    `00000000-0000-0000-0000-000000000000`. Keep field names, nesting and numbers, because those are

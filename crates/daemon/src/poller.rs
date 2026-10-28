@@ -2,17 +2,18 @@
 //! and every consumer (the CLI, the local API, the MCP server, later the tray app) reads what it
 //! last found.
 //!
-//! Each account is asked no more often than its provider's floor (5 minutes for Anthropic, 2 for
-//! ChatGPT), and providers enforce the floor themselves too, across every process, through the
-//! shared gate. The interval adapts to activity, as the PRD asks: an account whose numbers moved in
-//! the last 10 minutes is asked at its provider's floor, and a still one every 10 minutes. A change
-//! in usage is the activity, so no process watching is needed. The interval counts from when an
-//! account's answer came back, never from before its request went out, so the next poll cannot
-//! come before the gate allows a request. Accounts are rediscovered every minute, so a new sign-in
-//! appears and a removed one goes. Every answer goes to the history, and each window of an `ok`
-//! answer gets its pace from it (P-016). The alert rules are checked after every round of polls and
-//! every minute between, for a time before a reset (D-093). Every 10 minutes the CLIs' logs are
-//! read for the week's API-equivalent cost (D-097).
+//! Each account is asked no more often than its provider's floor (2 minutes for ChatGPT, and 5 for
+//! Claude's and Antigravity's files, which ask no one), and a provider that asks enforces the floor
+//! itself too, across every process, through the shared gate. The interval adapts to activity, as
+//! the PRD asks: an account whose numbers moved in the last 10 minutes is asked at its provider's
+//! floor, and a still one every 10 minutes. A change in usage is the activity, so no process
+//! watching is needed. The interval counts from when an account's answer came back, never from
+//! before its request went out, so the next poll cannot come before the gate allows a request.
+//! Accounts are rediscovered every minute, so a new sign-in appears and a removed one goes. Every
+//! answer goes to the history, and each window of an `ok` answer gets its pace from it (P-016). The
+//! alert rules are checked after every round of polls and every minute between, for a time before a
+//! reset (D-093). Every 10 minutes the CLIs' logs are read for the week's API-equivalent cost
+//! (D-097).
 //!
 //! What QuotaDial Pro adds is asked of the copy's licence at every round (D-100): the accounts each
 //! provider shows, the history kept, the kinds of rule checked, the webhooks sent to, and the cost

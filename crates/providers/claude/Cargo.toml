@@ -1,6 +1,6 @@
 [package]
 name = "quotadial-provider-claude"
-description = "Claude usage provider for QuotaDial."
+description = "Claude for QuotaDial: keeps the numbers Claude Code's status line hands over, and shows them. It never reads Claude Code's sign-in and sends nothing."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,26 +9,23 @@ repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 
+# No HTTP client, here or in a dev-dependency: this provider asks no one (D-145), which the
+# providers' list test holds this file to (P-021).
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
 quotadial-core.workspace = true
-quotadial-poll.workspace = true
 quotadial-status-line.workspace = true
-reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-tokio = { workspace = true, features = ["rt"] }
 unicode-normalization.workspace = true
-zeroize.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 quotadial-core = { workspace = true, features = ["testing"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
-wiremock.workspace = true
 
 [lints]
 workspace = true

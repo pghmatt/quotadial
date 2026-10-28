@@ -14,7 +14,7 @@ quotadial \- Track Claude, ChatGPT/Codex and Antigravity usage limits
 .SH DESCRIPTION
 Track Claude, ChatGPT/Codex and Antigravity usage limits.
 .PP
-QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. It reads the sign\-ins Claude Code and the Codex CLI already store, and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign\-in is never opened. Antigravity\*(Aqs limits come from what Antigravity CLI\*(Aqs status line hands `quotadial antigravity status\-line`, and its sign\-in is never read. `qd` is the same command, shorter.
+QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets, and how old every number is. Claude\*(Aqs limits come from what Claude Code\*(Aqs status line hands `quotadial claude status\-line`, and its sign\-in is never read. It reads the sign\-in the Codex CLI already stores, and never writes it. A Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign\-in is never opened. Antigravity\*(Aqs limits come from what Antigravity CLI\*(Aqs status line hands `quotadial antigravity status\-line`, and its sign\-in is never read. `qd` is the same command, shorter.
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH OPTIONS
@@ -82,11 +82,8 @@ The arguments were not understood.
 \fBQUOTADIAL_DATA_DIR\fR
 The folder QuotaDial keeps its history, settings, licence key and the local API\*(Aqs token in, in place of the system\*(Aqs own.
 .TP
-\fBCLAUDE_CODE_OAUTH_TOKEN\fR
-The Claude sign\-in to read first, as Claude Code does. QuotaDial only reads it.
-.TP
 \fBCLAUDE_CONFIG_DIR\fR
-The folder Claude Code keeps its sign\-in for, in place of ~/.claude. QuotaDial also finds every other Claude Code sign\-in on the machine.
+The folder Claude Code keeps its settings and account in, in place of ~/.claude. quotadial claude status\-line keeps that folder\*(Aqs numbers in a file of its own, and QuotaDial also looks in every other Claude Code folder on the machine. Claude Code\*(Aqs sign\-in is never read.
 .TP
 \fBCODEX_HOME\fR
 The folder the Codex CLI keeps auth.json in, in place of ~/.codex.

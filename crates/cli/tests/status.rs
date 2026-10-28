@@ -20,8 +20,7 @@ const EXAMPLE: bool = cfg!(feature = "fake");
 const ASKS: &str = if EXAMPLE {
     "It asks no one about Example."
 } else {
-    "It asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini \
-     CLI or Antigravity."
+    "It asks OpenAI at most every 2 min, and no one about Claude, Gemini CLI or Antigravity."
 };
 
 /// The providers each build asks, by id and as each names itself (P-020): a release has Gemini CLI

@@ -26,11 +26,12 @@ use quotadial_daemon::{
 /// Track Claude, ChatGPT/Codex and Antigravity usage limits.
 ///
 /// QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit is used, when each resets,
-/// and how old every number is. It reads the sign-ins Claude Code and the Codex CLI already store,
-/// and never writes them. A Gemini CLI account it finds signed in is listed too, with why it has no
-/// numbers, and its sign-in is never opened. Antigravity's limits come from what Antigravity CLI's
-/// status line hands `quotadial antigravity status-line`, and its sign-in is never read. `qd` is
-/// the same command, shorter.
+/// and how old every number is. Claude's limits come from what Claude Code's status line hands
+/// `quotadial claude status-line`, and its sign-in is never read. It reads the sign-in the Codex
+/// CLI already stores, and never writes it. A Gemini CLI account it finds signed in is listed too,
+/// with why it has no numbers, and its sign-in is never opened. Antigravity's limits come from what
+/// Antigravity CLI's status line hands `quotadial antigravity status-line`, and its sign-in is never
+/// read. `qd` is the same command, shorter.
 #[derive(Debug, Parser)]
 #[command(name = "quotadial", version, after_long_help = EXAMPLES)]
 struct Cli {
@@ -162,7 +163,7 @@ enum LicenceAction {
 }
 
 /// How often `watch` refreshes. A fetch inside a provider's floor replays its cache, so no provider
-/// is asked more often than its own limit (5 minutes for Anthropic).
+/// is asked more often than its own limit (2 minutes for OpenAI).
 const WATCH_EVERY: Duration = Duration::from_secs(60);
 
 /// Runs the CLI and returns the process exit code.

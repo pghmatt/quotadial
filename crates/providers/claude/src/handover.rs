@@ -73,6 +73,16 @@ pub(crate) fn from_status_line(payload: &[u8], now: DateTime<Utc>) -> Option<Han
     (!handover.windows.is_empty()).then_some(handover)
 }
 
+/// What QuotaDial's own file holds, or `None` when it is not one: not JSON, or with no time.
+pub(crate) fn from_file(file: &[u8]) -> Option<Handover> {
+    let fields = object(file)?;
+    let written_at = fields
+        .get(WRITTEN_AT)
+        .and_then(Value::as_str)
+        .and_then(time)?;
+    Some(read(&fields, written_at))
+}
+
 /// The file QuotaDial keeps for `handover`: `written_at` and each window under Claude Code's names,
 /// as JSON a person can read.
 pub(crate) fn to_file(handover: &Handover) -> Vec<u8> {
@@ -105,8 +115,8 @@ fn object(bytes: &[u8]) -> Option<Map<String, Value>> {
     }
 }
 
-/// The kept windows of `fields`, taken at `written_at`, each checked: one of the wrong kind or out of
-/// range is left out.
+/// The kept windows of `fields`, taken at `written_at`, each checked: one of the wrong kind or out
+/// of range is left out.
 fn read(fields: &Map<String, Value>, written_at: DateTime<Utc>) -> Handover {
     let windows = fields
         .get(RATE_LIMITS)
@@ -156,6 +166,13 @@ fn reset_time(value: &Value, written_at: DateTime<Utc>) -> Option<DateTime<Utc>>
     };
     let at = DateTime::from_timestamp(seconds, 0)?;
     (at <= written_at.checked_add_signed(MOST_RESET_AHEAD)?).then_some(at)
+}
+
+/// An RFC 3339 time, such as `2026-10-28T17:30:00Z`.
+fn time(text: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(text.trim())
+        .ok()
+        .map(|at| at.with_timezone(&Utc))
 }
 
 /// `at` as RFC 3339 in UTC, with as many digits of the second as it has.
@@ -338,6 +355,36 @@ mod tests {
         assert_eq!(from_status_line(large.as_bytes(), now()), None, "too large");
     }
 
+    #[test]
+    fn the_file_reads_back_as_it_was_written() {
+        let handover = Handover {
+            written_at: at("2026-10-28T17:30:00.123456789Z"),
+            ..from_status_line(DOCUMENTED.as_bytes(), then()).expect("a handover")
+        };
+
+        let file = to_file(&handover);
+
+        assert_eq!(from_file(&file), Some(handover));
+        assert!(file.ends_with(b"}\n"), "a text file");
+    }
+
+    #[test]
+    fn a_file_without_its_time_is_not_one() {
+        assert_eq!(from_file(br#"{ "rate_limits": {} }"#), None);
+        assert_eq!(
+            from_file(br#"{ "written_at": "yesterday", "rate_limits": {} }"#),
+            None
+        );
+        assert_eq!(
+            from_file(br#"{ "written_at": "2026-10-28T17:30:00Z" }"#),
+            Some(Handover {
+                written_at: now(),
+                windows: BTreeMap::new(),
+            }),
+            "a file with no window is still one"
+        );
+    }
+
     /// Values a window's fields can hold: what Claude Code sends, and anything.
     fn field() -> impl Strategy<Value = Value> {
         prop_oneof![
@@ -385,9 +432,27 @@ mod tests {
         ]
     }
 
+    /// Whether `read` is `written` read back from its file: the same but for the last digit of a
+    /// share, which serde_json's parser may round otherwise than its printer wrote it.
+    fn read_back(written: &Handover, read: &Handover) -> bool {
+        written.written_at == read.written_at
+            && written.windows.len() == read.windows.len()
+            && written
+                .windows
+                .iter()
+                .zip(&read.windows)
+                .all(|((name, a), (other, b))| {
+                    name == other
+                        && (a.used_percentage - b.used_percentage).abs()
+                            <= a.used_percentage.abs().max(b.used_percentage.abs()) * 1e-12
+                        && a.resets_at == b.resets_at
+                })
+    }
+
     proptest! {
         #[test]
-        fn no_payload_makes_the_reader_panic_and_what_it_keeps_is_written_whole(payload in payloads()) {
+        fn no_payload_makes_the_reader_panic_and_what_it_keeps_reads_back(payload in payloads()) {
+            let _ = from_file(&payload);
             if let Some(handover) = from_status_line(&payload, now()) {
                 prop_assert!(!handover.windows.is_empty() && handover.windows.len() <= WINDOWS.len());
                 for (name, limit) in &handover.windows {
@@ -396,9 +461,8 @@ mod tests {
                     prop_assert!(limit.used_percentage.is_sign_positive());
                     prop_assert!(limit.resets_at.is_none_or(|at| at <= now() + MOST_RESET_AHEAD));
                 }
-                let file: Value = serde_json::from_slice(&to_file(&handover)).expect("JSON");
-                let written = file["rate_limits"].as_object().expect("its windows");
-                prop_assert!(written.keys().map(String::as_str).eq(handover.windows.keys().copied()));
+                let read = from_file(&to_file(&handover));
+                prop_assert!(read.as_ref().is_some_and(|read| read_back(&handover, read)), "{:?}", read);
             }
         }
     }

@@ -4,7 +4,8 @@
 //!
 //! Each provider after Claude and Codex comes in behind a feature of its own (#73): `gemini`, on by
 //! default, adds Gemini CLI after them (D-118, D-124), and `antigravity`, on by default, Antigravity
-//! after it (D-119, D-126), keeping what its CLI's status line hands over in QuotaDial's data folder.
+//! after it (D-119, D-126), keeping what its CLI's status line hands over in QuotaDial's data
+//! folder, as Claude's provider keeps what Claude Code's status line hands over (D-145).
 //! The example build (the `fake` feature, D-117) lists the fake provider alone, whose made-up
 //! accounts are for pictures of the app: no sign-in is read and no provider is asked, whatever else
 //! is on. No release has `fake`, and the tests below hold each build's list.
@@ -189,7 +190,8 @@ mod tests {
 
     /// What a release ships: Claude, Codex, Gemini CLI, turned on in the PR after the one that
     /// merged it (D-121, D-122, D-124), and Antigravity, turned on in the PR that merges it, since
-    /// it needs no live check (D-121, D-126).
+    /// it needs no live check (D-121, D-126); and whom each asks: only Codex asks anyone, since
+    /// Claude's numbers come from Claude Code's status line, never its sign-in (D-145).
     #[cfg(not(feature = "fake"))]
     #[test]
     fn a_release_lists_exactly_claude_codex_gemini_then_antigravity() {
@@ -200,6 +202,20 @@ mod tests {
                 ("codex", "Codex"),
                 ("gemini", "Gemini CLI"),
                 ("antigravity", "Antigravity")
+            ]
+        );
+        let asks: Vec<(&str, Option<&str>)> =
+            with_config(&Config::default(), &Licensing::new(None))
+                .iter()
+                .map(|provider| (provider.id(), provider.asks()))
+                .collect();
+        assert_eq!(
+            asks,
+            [
+                ("claude", None),
+                ("codex", Some("OpenAI")),
+                ("gemini", None),
+                ("antigravity", None)
             ]
         );
         assert_eq!(

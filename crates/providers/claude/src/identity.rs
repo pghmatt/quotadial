@@ -1,14 +1,10 @@
-//! Who a Claude Code sign-in belongs to.
+//! Who a Claude Code folder is signed in to.
 //!
 //! Claude Code writes the signed-in account into the `oauthAccount` object of its account config
-//! (`.claude.json`) when it signs in. Reading that file costs no request against Anthropic's
-//! rate-limited API (decision D-024). `GET /api/oauth/profile` is the fallback for sign-ins with no
-//! account config, such as `CLAUDE_CODE_OAUTH_TOKEN`. Claude Code 2.1.286 validates that response
-//! as `{ account: { uuid, email }, organization: { uuid } }`. The live response (2026-10-23) also
-//! names the plan in `organization.organization_type` and `organization.rate_limit_tier`, the same
-//! values Claude Code copies into `oauthAccount`; Claude Code itself reads
-//! `organization.plan_display_name`. The flat spellings accepted here are the ones CodexBar's
-//! `OAuthProfileResponse` (`Providers/Claude/ClaudeOAuth/ClaudeOAuthUsageFetcher.swift`) accepts.
+//! (`.claude.json`) when it signs in: the account's id, address, organisation and plan. That file is
+//! Claude Code's own record of the account, not its sign-in, and reading it sends nothing (D-024,
+//! D-145). Nothing here asks Anthropic who an account is: the profile request is gone with the rest
+//! of the sign-in reading (the manager's rule 4 on #73).
 
 use std::path::Path;
 
@@ -17,7 +13,7 @@ use serde_json::Value;
 
 use crate::plan;
 
-/// The account behind a sign-in.
+/// The account a Claude Code folder is signed in to, as its account file names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Identity {
     pub(crate) account_uuid: String,
@@ -34,7 +30,7 @@ struct AccountConfig {
 }
 
 /// Reads `oauthAccount` from Claude Code's account config. A missing, unreadable or unexpected file
-/// yields `None`, and the profile endpoint is asked instead.
+/// yields `None`: the folder names no account.
 pub(crate) fn from_account_config(path: &Path) -> Option<Identity> {
     let file = std::fs::File::open(path).ok()?;
     let config: AccountConfig = serde_json::from_reader(std::io::BufReader::new(file)).ok()?;
@@ -51,29 +47,6 @@ pub(crate) fn from_account_config(path: &Path) -> Option<Identity> {
                     &["organizationRateLimitTier", "userRateLimitTier"],
                 )
             }),
-    })
-}
-
-/// Decodes `GET /api/oauth/profile`.
-pub(crate) fn from_profile(body: &Value) -> Option<Identity> {
-    let account = body.get("account").filter(|value| value.is_object());
-    let organization = body.get("organization").filter(|value| value.is_object());
-    let email_keys = ["email", "email_address", "emailAddress"];
-    Some(Identity {
-        account_uuid: account
-            .and_then(|account| text(account, &["uuid"]))
-            .or_else(|| text(body, &["accountUuid", "account_uuid"]))?,
-        email: account
-            .and_then(|account| text(account, &email_keys))
-            .or_else(|| text(body, &email_keys)),
-        org_uuid: organization
-            .and_then(|organization| text(organization, &["uuid"]))
-            .or_else(|| text(body, &["organizationUuid", "organization_uuid"])),
-        plan: organization.and_then(|organization| {
-            text(organization, &["organization_type"])
-                .and_then(|kind| plan::from_organization_type(&kind))
-                .or_else(|| tier_plan(organization, &["rate_limit_tier", "plan_display_name"]))
-        }),
     })
 }
 
@@ -100,12 +73,6 @@ fn text(object: &Value, keys: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    /// A live response from 2026-10-23 with names, email, IDs and dates replaced.
-    const LIVE_PROFILE_FIXTURE: &str =
-        include_str!("../../../../fixtures/claude/oauth-profile.json");
-    const PROFILE_FIXTURE: &str =
-        include_str!("../../../../fixtures/claude/oauth-profile.synthetic.json");
 
     fn write_config(contents: &Value) -> tempfile::NamedTempFile {
         let file = tempfile::NamedTempFile::new().expect("temp file");
@@ -170,85 +137,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn decodes_a_live_profile() {
-        let body: Value =
-            serde_json::from_str(LIVE_PROFILE_FIXTURE).expect("fixture is valid JSON");
-
-        assert_eq!(
-            from_profile(&body),
-            Some(Identity {
-                account_uuid: "00000000-0000-0000-0000-000000000001".into(),
-                email: Some("user@example.com".into()),
-                org_uuid: Some("00000000-0000-0000-0000-000000000002".into()),
-                plan: Some("max".into()),
-            })
-        );
-    }
-
-    #[test]
-    fn the_profile_plan_falls_back_to_the_tier_then_the_display_name() {
-        let profile = |organization: Value| {
-            from_profile(&json!({
-                "account": { "uuid": "00000000-0000-0000-0000-000000000001" },
-                "organization": organization
-            }))
-            .expect("identity")
-            .plan
-        };
-
-        assert_eq!(
-            profile(json!({ "rate_limit_tier": "default_claude_pro" })).as_deref(),
-            Some("pro")
-        );
-        assert_eq!(
-            profile(json!({ "plan_display_name": "Team" })).as_deref(),
-            Some("team")
-        );
-        assert_eq!(profile(json!({})), None);
-    }
-
-    #[test]
-    fn decodes_the_profile_fixture() {
-        let body: Value = serde_json::from_str(PROFILE_FIXTURE).expect("fixture is valid JSON");
-
-        assert_eq!(
-            from_profile(&body),
-            Some(Identity {
-                account_uuid: "00000000-0000-0000-0000-000000000001".into(),
-                email: Some("user@example.com".into()),
-                org_uuid: Some("00000000-0000-0000-0000-000000000002".into()),
-                plan: Some("max".into()),
-            })
-        );
-    }
-
-    #[test]
-    fn decodes_flat_profile_spellings() {
-        let body = json!({
-            "account_uuid": "00000000-0000-0000-0000-000000000001",
-            "email": "user@example.com",
-            "organization_uuid": "00000000-0000-0000-0000-000000000002"
-        });
-
-        let identity = from_profile(&body).expect("identity");
-        assert_eq!(
-            identity.account_uuid,
-            "00000000-0000-0000-0000-000000000001"
-        );
-        assert_eq!(identity.email.as_deref(), Some("user@example.com"));
-        assert_eq!(
-            identity.org_uuid.as_deref(),
-            Some("00000000-0000-0000-0000-000000000002")
-        );
-        assert_eq!(from_profile(&json!({ "account": null })), None);
-    }
-
     proptest::proptest! {
+        /// Claude Code's account file is text from outside: no `oauthAccount`, of any shape, makes
+        /// its reader panic, and an account it names always has an id.
         #[test]
-        fn no_profile_makes_the_reader_panic(body in quotadial_core::testing::json()) {
-            let _ = from_profile(&body);
-            let _ = from_profile(&json!({ "account": body.clone(), "organization": body }));
+        fn no_account_file_makes_the_reader_panic(account in quotadial_core::testing::json()) {
+            let file = write_config(&json!({ "numStartups": 1, "oauthAccount": account }));
+            if let Some(identity) = from_account_config(file.path()) {
+                proptest::prop_assert!(!identity.account_uuid.trim().is_empty());
+            }
+            let whole = write_config(&account);
+            let _ = from_account_config(whole.path());
         }
     }
 }
