@@ -336,7 +336,8 @@ test("the heading is the card's: the label in its title type, the period under i
     assert.ok(title.every((piece) => piece.weight === 600 && piece.fill === look.text), "semibold, in the text colour");
     assert.equal(title[0].x, CARD.x + CARD.padding);
     const period = pieces.filter((piece) => piece.size === 25 && piece.weight === 400);
-    assert.equal(period.map((piece) => piece.text).join(""), "The last 7 days, 21 to 27 October 2026");
+    // From the first of the heatmap's rows, the day the period starts in (D-144).
+    assert.equal(period.map((piece) => piece.text).join(""), "The last 7 days, 20 to 27 October 2026");
     assert.ok(period.every((piece) => piece.fill === look.secondary), "the period is the second line's colour");
     assert.equal(period[0].x, CARD.x + CARD.padding);
     assert.ok(period[0].y > title[0].y, "the period is under the title");

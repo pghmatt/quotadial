@@ -95,18 +95,21 @@ test("every copy's History has ticks and words over 7 and 30 days, so a check th
   }
 });
 
-test("the copies' marks: a week to Sunday 14:00 and a month to a Tuesday, and Crowded's to a Wednesday noon with a W at each end", () => {
-  // Pro, Free and Many: Sunday 19 April at 14:00 to Sunday 26: no initial in the first ten hours,
-  // and Sunday's fourteen have theirs.
-  const week = (hours) => hours / 168;
+test("the copies' marks: a week to Sunday 14:25 and a month to a Tuesday, and Crowded's to a Wednesday noon with a W at each end", () => {
+  // Pro, Free and Many: Sunday 19 April at 14:25 to Sunday 26: no initial in the first 9 h 35 min,
+  // and Sunday's 14 h 25 min have theirs, each place in minutes of the week's 10,080.
+  const minutes = (count) => count / 10_080;
   const sunday = [
-    [week(10), ""], [week(22), "M"], [week(34), ""], [week(46), "T"], [week(58), ""], [week(70), "W"], [week(82), ""], [week(94), "T"],
-    [week(106), ""], [week(118), "F"], [week(130), ""], [week(142), "S"], [week(154), ""], [week(161), "S"],
+    [minutes(575), ""], [minutes(1_295), "M"], [minutes(2_015), ""], [minutes(2_735), "T"], [minutes(3_455), ""], [minutes(4_175), "W"],
+    [minutes(4_895), ""], [minutes(5_615), "T"], [minutes(6_335), ""], [minutes(7_055), "F"], [minutes(7_775), ""], [minutes(8_495), "S"],
+    [minutes(9_215), ""], [minutes(9_647.5), "S"],
   ];
+  const month = (count) => count / 43_200;
   for (const copy of [pro, free, many]) {
     same(copy.history[7].marks, sunday);
-    same(copy.history[30].marks, [[0, "19 Apr"], [10 / 720, ""], [178 / 720, ""], [346 / 720, ""], [514 / 720, ""], [682 / 720, ""], [1, "19 May"]]);
+    same(copy.history[30].marks, [[0, "19 Apr"], [month(575), ""], [month(10_655), ""], [month(20_735), ""], [month(30_815), ""], [month(40_895), ""], [1, "19 May"]]);
   }
+  const week = (hours) => hours / 168;
   // Crowded: Wednesday 22 April at noon to Wednesday 29: eight initials, a W in the half day at each
   // end, a twenty-eighth of the chart from its edge; and over a month, from Monday 30 March at noon,
   // four ticks.
@@ -115,11 +118,12 @@ test("the copies' marks: a week to Sunday 14:00 and a month to a Tuesday, and Cr
     [week(96), "S"], [week(108), ""], [week(120), "M"], [week(132), ""], [week(144), "T"], [week(156), ""], [week(162), "W"],
   ]);
   same(crowded.history[30].marks, [[0, "30 Mar"], [156 / 720, ""], [324 / 720, ""], [492 / 720, ""], [660 / 720, ""], [1, "29 Apr"]]);
-  // The heatmap's days are the calendar's, in the same days as the marks.
-  assert.deepEqual([crowded.history[7].accounts[0].heatmap.days[0], crowded.history[7].accounts[0].heatmap.days.at(-1)], ["Thu 23", "Wed 29"]);
-  assert.equal(crowded.history[7].dates, "23 to 29 April 2026");
-  assert.deepEqual([pro.history[30].accounts[0].heatmap.days[11], pro.history[30].accounts[0].heatmap.days.at(-1)], ["Fri 1", "Tue 19"]);
-  assert.equal(pro.history[30].dates, "20 April to 19 May 2026");
+  // The heatmap's rows are the calendar's days the period holds, the first the day the marks begin
+  // in, and the dates name the first and last (D-144).
+  assert.deepEqual([crowded.history[7].accounts[0].heatmap.days[0], crowded.history[7].accounts[0].heatmap.days.at(-1)], ["Wed 22", "Wed 29"]);
+  assert.equal(crowded.history[7].dates, "22 to 29 April 2026");
+  assert.deepEqual([pro.history[30].accounts[0].heatmap.days[12], pro.history[30].accounts[0].heatmap.days.at(-1)], ["Fri 1", "Tue 19"]);
+  assert.equal(pro.history[30].dates, "19 April to 19 May 2026");
   // The website's: Tuesday 20 October at 14:10 to Tuesday 27.
   assert.deepEqual(expectedMarks(site, 7).words, ["W", "T", "F", "S", "S", "M", "T"]);
   assert.deepEqual(expectedMarks(site, 30).words, ["27 Sep", "27 Oct"]);
@@ -197,7 +201,7 @@ test("a tick off its place by more than half a pixel fails, and one more than th
   const off = (by) => ({ ...card, charts: [card.charts[0], { ...card.charts[1], ticks: card.charts[1].ticks.map((tick, index) => (index === 2 ? { ...tick, at: tick.at + by } : tick)) }] });
   assert.deepEqual(failed(markVerdicts([off(0.4)], expectedMarks(pro, 7), 1)), []);
   assert.deepEqual(failed(markVerdicts([off(-0.6)], expectedMarks(pro, 7), 1)), [
-    "Claude Work's chart 2's tick 3 is at 136.07, -0.60 px from 136.67, where its mark puts it (0.3452 along)",
+    "Claude Work's chart 2's tick 3 is at 135.37, -0.60 px from 135.97, where its mark puts it (0.3428 along)",
   ]);
   const extra = { ...card, charts: [{ ...card.charts[0], ticks: [...card.charts[0].ticks, { at: 200, length: 4 }] }, card.charts[1]] };
   assert.deepEqual(failed(markVerdicts([extra], expectedMarks(pro, 7), 1)), ["Claude Work's chart 1 has 8 ticks, where its marks put 7"]);
@@ -225,17 +229,17 @@ test("two words over each other, or one past the chart's left or right edge, fai
   });
   // "T" (Tuesday) moved 34 px left, over "M".
   assert.deepEqual(failed(markVerdicts([moved(1, -34)], expectedMarks(pro, 7), 1)), [
-    `"M" in Claude Work's row of words overlaps "T" after it, or is drawn after it (80.2, then 79.2)`,
+    `"M" in Claude Work's row of words overlaps "T" after it, or is drawn after it (79.5, then 78.5)`,
   ]);
   // The first word moved past the chart's left edge, the last past its right.
   assert.deepEqual(failed(markVerdicts([moved(0, -40)], expectedMarks(pro, 7), 1)), [
-    `"M" in Claude Work's row of words runs past the left edge of the chart above it (33.2 to 40.2, the chart 40.0 to 320.0)`,
+    `"M" in Claude Work's row of words runs past the left edge of the chart above it (32.5 to 39.5, the chart 40.0 to 320.0)`,
   ]);
   assert.deepEqual(failed(markVerdicts([moved(6, 10)], expectedMarks(pro, 7), 1)), [
-    `"S" in Claude Work's row of words runs past the right edge of the chart above it (314.8 to 321.8, the chart 40.0 to 320.0)`,
+    `"S" in Claude Work's row of words runs past the right edge of the chart above it (314.5 to 321.5, the chart 40.0 to 320.0)`,
   ]);
-  // Half a pixel is rounding: the last word 0.33 px past the edge.
-  assert.deepEqual(failed(markVerdicts([moved(6, 8.5)], expectedMarks(pro, 7), 1)), []);
+  // Half a pixel is rounding: the last word 0.39 px past the edge.
+  assert.deepEqual(failed(markVerdicts([moved(6, 8.9)], expectedMarks(pro, 7), 1)), []);
   // A date broken over two lines, and a word with no box.
   const month = drawn(pro.history[30].marks);
   const [date] = month.rows[0].words;

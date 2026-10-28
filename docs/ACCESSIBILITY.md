@@ -56,9 +56,11 @@ support@quotadial.com.
   limit says its own, after its reset.
 - Each chart in History is read as what it shows, such as "Session: latest 18%, highest 18% in the
   last 7 days", and when an account was used is read as a line a day, such as "Mon 20: used 9:00
-  to 12:00, most at 10:00 (12%)", in place of the grid of squares. The marks under the charts, a
-  tick where each day or week begins and the days' initials or the period's dates, are not read,
-  since each chart's summary already says its period and the heatmap's lines say each day.
+  to 12:00, most at 10:00 (12%)", in place of the grid of squares; the first day the period holds
+  only part of says the hour it starts from, such as "Sun 19 from 14:00: not used". The marks
+  under the charts, a tick where each day or week begins and the days' initials or the period's
+  dates, are not read, since each chart's summary already says its period and the heatmap's lines
+  say each day.
 - An update's progress is read a step at a time, and a problem in Settings, History or Help is
   read as soon as it appears.
 
@@ -110,7 +112,9 @@ support@quotadial.com.
   shown whole as code and selected by one click, that History's ticks are drawn where each day or
   week begins over 7 and 30 days, and its initials or dates under each account's last chart, none
   over another or past the chart's edge, at 100% and 200%, and that a screen reader is told none of
-  them,
+  them, that History's heatmap has a row for each day the period touches and a square for each hour
+  it holds and none outside it, every square under its hour, in the window and in the picture to
+  share,
   that what the window holds is as wide when it scrolls as when it does not, with the cards the
   same distance from each side and in line with the toolbar's labels, where a scroll bar takes room,
   that the toolbar stays inside the window and is what a click at its middle reaches at every

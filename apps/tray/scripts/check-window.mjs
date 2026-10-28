@@ -58,6 +58,12 @@
 //   others; each card has one row of the marks' words, under its last chart and its ticks and above
 //   its heatmap's caption, the copy's words in order, none over another or past the chart's edges, and
 //   a screen reader is told none of them (time-marks.mjs); and over 30 days no text is cut off either;
+// - History's heatmap follows the charts' period (the manager on #73, 2026-10-27, 19:35 UTC, D-144),
+//   over 7 days and over 30, at 100% and 200%: its rows are the copy's, in order, one for each calendar
+//   day the copy's period touches; a square is drawn for each hour the period holds and none for an
+//   hour outside it, at either end, each in its hour's column, under the squares of that hour in the
+//   other rows and the hours written below them, to a pixel; the first line of its words names the
+//   hour its first row starts from; and the marks' words name its rows' days (heatmap-rows.mjs);
 // - nothing moves when the system asks for less motion;
 // - nothing goes wrong on the page: no error, and nothing the app's content security policy refuses;
 // - on QuotaDial Pro, each account in History has a Share image button named by its label, which
@@ -72,7 +78,9 @@
 // - and each chart's 90% line in it is dashed 6/6 in --chart-limit along the whole of it, over the
 //   card and over the soft fill under a chart's line, read pixel by pixel but where the chart's own
 //   line covers it (the manager on #73, 2026-10-27, 11:26 UTC; share-picture.mjs), and the run says
-//   how much of the lines it read and how much it left out.
+//   how much of the lines it read and how much it left out;
+// - and its heatmap draws a square for each hour the period holds and none for an hour outside it, at
+//   either end, read from the middle of each hour's box (D-144, share-picture.mjs).
 //
 // Each check runs over the accounts, Settings, History and Help, in the light and dark themes, for a
 // QuotaDial Pro and a QuotaDial Free copy, and a Pro copy with ten accounts, and over History alone for
@@ -103,8 +111,8 @@ import { viewportAt, zoomOf } from "./viewport.mjs";
 
 // The picture's own list of what it draws, read straight from the window's source (Node strips its
 // types), so the check holds the drawing to it.
-import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, shareStrings } from "../src/share.ts";
-import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, pictureVerdicts } from "./share-picture.mjs";
+import { ACCOUNT_HEADER, CARD, HEIGHT as PICTURE_HEIGHT, WIDTH as PICTURE_WIDTH, chartBoxes, heatBoxes, shareStrings } from "../src/share.ts";
+import { MATERIAL, dashColours, dashPlaces, decodePng, fromHex, heatVerdicts, pictureVerdicts } from "./share-picture.mjs";
 import { PLACES, SHARES, expectedShares, isShare, lineVerdicts } from "./whole-shares.mjs";
 import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts } from "./whole-words.mjs";
 import {
@@ -119,6 +127,7 @@ import {
   visibly,
 } from "./whole-addresses.mjs";
 import { MARKS, expectedMarks, heardVerdicts, inkVerdicts, inkedTicks, markVerdicts } from "./time-marks.mjs";
+import { HEAT_ROWS, rowVerdicts } from "./heatmap-rows.mjs";
 
 /** The picture to share, in pixels: fixed, as the app checks it, whatever the window's source says. */
 const SHARED = { width: 2400, height: 1350 };
@@ -1001,7 +1010,7 @@ async function checkView(view, panel, operate, copy, light) {
       await checkSources(view, copy, zoom);
     }
     if (panel === "history") {
-      await checkMarks(view, copy, zoom);
+      await checkPeriods(view, copy, zoom);
     }
   }
   // A share is held whole past 200% too, which the other checks stop at.
@@ -1386,16 +1395,20 @@ const CHART_IN_VIEW = (card, chart) => `(() => {
 })()`;
 
 /**
- * History's time marks (the manager's decision on #73, 2026-10-27, 15:28 UTC, D-143), in each History
- * view, at 100% and 200%, over 7 days and then over 30, each chosen with its button as a person
- * chooses it: every chart's ticks are where the copy's marks put them, to half a pixel in the page and
- * to a pixel in what is drawn under its baseline, and no others; each card has one row of the marks'
- * words, under its last chart and above its heatmap's caption, the copy's words in order, none over
- * another or past the chart's edges (time-marks.mjs); and, at 100%, a screen reader is told none of it.
- * Over 30 days nothing in History is cut off either, as the check of cut-off text holds over 7. History
- * is left showing 7 days, as it opens, for the checks after this one.
+ * History over each of its periods, in each History view, at 100% and 200%, over 7 days and then over
+ * 30, each chosen with its button as a person chooses it. Its time marks (the manager's decision on
+ * #73, 2026-10-27, 15:28 UTC, D-143): every chart's ticks are where the copy's marks put them, to half
+ * a pixel in the page and to a pixel in what is drawn under its baseline, and no others; each card has
+ * one row of the marks' words, under its last chart and above its heatmap's caption, the copy's words
+ * in order, none over another or past the chart's edges (time-marks.mjs); and, at 100%, a screen
+ * reader is told none of it. Its heatmap's rows (the manager's decision on #73, 2026-10-27, 19:35
+ * UTC, D-144): the copy's, in order, one for each calendar day the period touches, a square for each
+ * hour the period holds and none outside it, each under its hour to a pixel, the first line of its
+ * words naming the hour the first row starts from, and the marks naming the rows' days
+ * (heatmap-rows.mjs). Over 30 days nothing in History is cut off either, as the check of cut-off text
+ * holds over 7. History is left showing 7 days, as it opens, for the checks after this one.
  */
-async function checkMarks(view, copy, zoom) {
+async function checkPeriods(view, copy, zoom) {
   for (const days of [7, 30]) {
     const label = `${view.label}, time marks over ${days} days at ${Math.round(zoom * 100)}%`;
     if (!copy.history[days]) {
@@ -1409,6 +1422,10 @@ async function checkMarks(view, copy, zoom) {
     const wanted = expectedMarks(copy, days);
     for (const verdict of markVerdicts(cards, wanted, copy.history[days].accounts.length)) {
       check(label, verdict);
+    }
+    // The heatmap's rows over the same period (D-144).
+    for (const verdict of rowVerdicts(await view.evaluate(HEAT_ROWS), copy, days)) {
+      check(`${view.label}, heatmap rows over ${days} days at ${Math.round(zoom * 100)}%`, verdict);
     }
     // What is drawn under each chart's baseline, read from the page's own pixels.
     for (const [index, card] of cards.entries()) {
@@ -2576,6 +2593,11 @@ function pixelVerdicts(bytes, account, look) {
       box,
       points: account.windows[index].points,
     })),
+    // The heatmap's squares, where the picture draws one (D-144), or none when it draws no heatmap.
+    heat:
+      account.heatmap.most > 0
+        ? { days: account.heatmap.days, cells: account.heatmap.cells, boxes: heatBoxes(account.heatmap.cells.length) }
+        : null,
   };
   for (const { box, points } of want.charts) {
     const { places, all, covered } = dashPlaces(box, points, want.scale);
@@ -2584,7 +2606,7 @@ function pixelVerdicts(bytes, account, look) {
     dashes.overFill += places.filter((place) => place.over === "fill").length;
     dashes.covered += covered.length;
   }
-  return pictureVerdicts(picture, want);
+  return [...pictureVerdicts(picture, want), ...heatVerdicts(picture, want)];
 }
 
 /**
@@ -2842,7 +2864,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks and its heatmap's rows, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +

@@ -250,6 +250,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | History's time marks: a tick where each day or week begins, and the days' initials or the period's dates | Done (PR #111, D-143) | The manager's decision on #73 (2026-10-27, 15:28 UTC), "Time marks: decided, with four holds", on the coordinator's proposal of 14:39 UTC: `HistoryView.marks`, one list a view, worked out in Rust from the period the charts span, in the zone the heatmap counts a day in: over 7 days a tick at each midnight inside the period and each day's initial in the part of it held, a partial day's only when the period holds half of it or more; over 30 days a tick at each Monday's midnight, four or five, and the dates of the days the period's ends are in, flush with the chart's edges. The window draws them and works nothing out: a tick hanging 4 px from every chart's baseline in `--chart-base`, its length the stylesheet's dash, and the words under each card's last chart and above the heatmap's caption, in the heatmap's hours' type (10 px, not the decision's 11, which is not the hours' size), hidden from screen readers, an initial kept inside the chart at 200%. `checkMarks` (`time-marks.mjs`) holds the ticks to half a pixel in the page and a pixel in what is drawn, and no others, and the words in order, none over another or past an edge, under the last chart and above the caption, none heard, in every History view at 100% and 200% over 7 and 30 days; it failed 2,756 of 23,834 checks on `main`'s window and on each of eight windows broken on purpose. The copies' days are named from the calendar, and the check's pictures show History over 30 days |
 | A currency is three capital letters or unknown | Done (PR #112) | The manager's review of #108 (2026-10-27, 15:27 UTC): "Keep a currency only when, trimmed, it is three ASCII letters (ISO 4217), upper-cased; anything else is treated as unknown, and the amounts are then written with no symbol and no code, "12.50 of 50.00 used (25%)", never as dollars". `ExtraUsage::currency_code` in core holds the rule; the Claude provider keeps Anthropic's `currency` to it where it reads it, so a snapshot carries three capitals or nothing; and `text::extra_usage`, the one writer of the line, writes an unknown currency with neither symbol nor code. A missing currency, which the provider had taken for dollars after CodexBar, is unknown too: the live answer names its currency "USD" beside an amount, so nothing a person sees changes for a real answer. A property test holds that no currency makes the reading panic or reaches the line as more than three letters. Rust only: no CHANGELOG line, no D |
 | Every other time and day a sentence writes, as a person reads it | Done (PR #113, D-142) | The manager's review of #109 (2026-10-27, 15:27 UTC), on its note's two proposals: `watch`'s "Updated …" takes D-142's form and `history`'s "Since …" and "No readings since …" stay RFC 3339, since `--since` takes them back; every other sentence on #109's list takes it too, the poll gate's four, Codex's session log and Antigravity's three; and a day alone takes the new `text::date`'s "24 Oct 2027", which `date_and_time` takes its day from: the licence's "until" and both "ended on" sentences, and the window's price-table day. D-142's row is extended, with one CHANGELOG line; each sentence's test holds its new words; the JSON, the API and the CSV's and picture's file names stay as they are |
+| History's dates and heatmap follow the charts' period | Done (PR #114, D-144) | The manager's decision on #73 (2026-10-27, 19:35 UTC), with five holds, on the coordinator's proposal of 19:17 UTC, the item the review of #111 queued: `dates`, the heatmap's rows and the marks start on the day the charts start in; a row for each calendar day the period holds, eight in a week when now is not a midnight, a now at midnight holding none of its day; `cells` an `Option` a cell, `None` for an hour outside the period, which the window and the picture to share draw no square for, at either end, every other square kept in its hour's column; the first row's words name the hour it starts from. `rowVerdicts` (`heatmap-rows.mjs`) and the picture's `heatVerdicts` hold the rows, their count, the squares to a pixel, the words and the marks' days in every History view at 100% and 200% over 7 and 30 days; they failed 320 of 117,516 checks on `main`'s window and on each of eight broken ones. D-143's left-date sentence amended (hold 4); one sentence carried for D-136, Matt's "Keep the bar alone"; the website's History pictures captured again |
 
 ## Kickoff
 
@@ -462,6 +463,115 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: History's dates and heatmap follow the charts' period (D-144)
+
+- **The ask:** the manager's decision on #73 (2026-10-27, 19:35 UTC), "decided, D-144, with five holds", on the coordinator's
+  proposal of 19:17 UTC, the item the manager's review of #111 queued (item 1, with the leaning that `dates` and the heatmap
+  should follow the charts' period unless the partial row's words would have to lie). Hold 1: no square for an hour outside the
+  period at either end, today's hours after `now` included; today's words as they are; the rows the calendar days the period
+  holds any part of, a `now` at midnight holding none of today; `dates` the first and last rows; eight rows over 7 days, and the
+  D says why. Hold 2: the view model says which hours a row holds, in the type, never a sentinel; the squares not drawn keep
+  their place; the window computes no dates. Hold 3: the hour the period starts in counts from the start and its words name it,
+  "Sun 19 from 14:00: ...", the same for a younger history. Hold 4: D-143's sentence on the left date amended in this PR, after
+  #113. Hold 5: the window check, the rows the copy's in order, no square outside the period, the first row's words, the first
+  mark's day the first row's, every row's squares under the same hour columns to a pixel, the row count the calendar days the
+  period touches, and the picture to share drawing no square outside the period, at 100% and 200%, every History view of every
+  copy, both themes, 7 and 30 days, failing first on `main`, the copies' rows from the rule written again with hand-worked cases.
+  Built to the coordinator's brief on `feat/history-period` from `main` at 42e880e (#112), moved onto 8aff2cc (#113) before
+  its first commit, in four commits of code and checks, one of the website's pictures, one carried for D-136 and these records.
+  In review as #114.
+- **The rows** (`held_days` in `src-tauri/src/history.rs`): from the day the period's start is in, `since` or a younger history's
+  first reading, to the day of its last moment, in the heatmap's zone; for each day, the hours any moment of its part of the
+  period is in, found from its first moment and from each quarter hour of UTC after it, every zone's offset and clock change
+  being whole quarter hours, so the hour the period starts in is held from the start, the hour `now` is in to `now`, a `now` on
+  the hour holds none of that hour, and an hour a clock change skips is held by no day. `Period` carries the start, now and
+  these days to each card's charts and heatmap. `cells` is `Vec<[Option<f64>; 24]>`, `None` where the period holds none of the
+  hour; use is counted in the hour of the reading that shows it, and use at an hour the period does not hold, such as a reading
+  at `now` itself, is not shown. `dates` names the first and last rows. The first row's words get " from H:00" when the period
+  starts after its day's start and that hour is not the day's first: "Tue 20 from 14:00: used 15:00 to 17:00, most at 16:00
+  (8%)"; a period from 00:30 holds the day's first hour from then, draws its square, and its words name no hour.
+- **The window and the picture to share** (`src/history.tsx`, `src/share.ts`, `src/meter.ts`): a null cell draws no square,
+  and every other square is put in its hour's column with `grid-column`, so a row whose first hours are missing keeps the rest
+  under their hours, where the grid's own placement would have moved them to the first columns; the picture's boxes come from one
+  function, `heatBoxes`, which the check reads too, and a week's heatmap of up to eight rows (`WEEK_ROWS`) keeps every row named
+  and 3 px between rows, 16.5 px apart when there are eight.
+- **The copies:** `scripts/fixture-period.mjs` writes the rule again in UTC, `rowsOf`, `fromOf` and `saidOf`, for
+  `window-fixtures.mjs` and `site-fixtures.mjs`, and `heatmap-rows.test.mjs` holds it to rows worked out by hand. The window
+  copies' week and month now end at 14:25, so both partial rows hold an hour from or to its middle; Crowded's at noon, on the
+  hour. Each copy carries `periods`, the start and now of each History view, which the check counts rows against. A day's use is
+  counted from Monday 20 April, so the days the copies had keep their cells. The marks' hand-worked copies' marks
+  (`time-marks.test.mjs`), the share picture's period line (`share.test.mjs`) and the website's period test
+  (`site/test/examples.test.ts`, a row for each day the period touches, one more than its days) follow.
+- **The check** (`scripts/heatmap-rows.mjs`, with `check-window.mjs`): `checkPeriods`, which was `checkMarks`, runs the rows'
+  verdicts beside the marks' over each period. `HEAT_ROWS` reads each card's rows, each with its label, its grid's columns from
+  the grid's own tracks and gap, and its squares, drawn when shown, with room and a colour that is not clear; the hours written
+  under them; the heatmap's first line of words; and the marks' words. `rowVerdicts` holds the rows to the copy's, in order, and
+  their count to the calendar days the copy's period touches, which `daysTouched` counts itself; in each row, a square for each
+  held hour and none for another, each in its column and under that hour's squares in every other row, to a pixel, and the
+  hours over their columns; the first line's opening, the row's day and " from H:00" when its first held hour is not the first;
+  and `markDaysVerdict`: over 30 days the left and right dates' days the first and last rows', over 7 the initials those of the
+  rows' days, from the first row or the next. The picture to share: `heatVerdicts` (`share-picture.mjs`) reads the middle of each
+  hour's box, the card's fill within 2 of 255 where the copy has no cell and a square, at least 4 from the fill, where it has one.
+- **Records carried for D-136,** in a commit of their own, at the coordinator's request: one sentence at the end of D-136's
+  decision, that Matt, asked through his Chief of Staff whether, with many accounts, to keep only the bottom bar fixed or also
+  pin the big number at the top, answered "Keep the bar alone" on 2026-10-27 at 20:15 UTC (the coordinator's note on #73,
+  20:20 UTC). Nothing else in D-136 changes.
+- **Proof, the window:**
+  - *Failed first on `main`'s window* (`main`'s source at 8aff2cc, built from a clean export, with this branch's check, copies and
+    scripts; `main`'s `share.ts` given, after the build, the one export the check reads, `heatBoxes`, its own heatmap geometry
+    as its `drawHeatmap` works it out): 320 of 117,516 checks fail, every one a square drawn outside the period, and nothing else:
+    at each partial end of each card's heatmap, in both themes, over 7 and 30 days, at 100% and 200% (304), and in each picture to
+    share, at the first row's 0:00 (16). `main` passes the rest, which it draws from the copy as given.
+  - *Windows broken on purpose,* each built from a clean export of this branch with one change, checked over the four light
+    History views: a square drawn for every hour, 152 of 55,496, at both ends; the squares placed one after another with no
+    column kept, 152, the first row's ten moved to its first hours, outside the period, and its own hours missing; the first row
+    left out, 323, the rows, their count and the squares; the hour left out of the first line's words, 76; the hours written a
+    column to the right, 304; the marks' first word left out, 114, with D-143's own verdicts; and the picture to share drawing a
+    square for every hour, or none for an hour with no use, 8 each.
+  - *This branch:* 115,452 of 115,452 checks over 26 views, where `main`'s own check on `main`'s window passes 33,728 over 26;
+    the website's eight views 14,858; and each History picture run below, 107,386 over the eight History views.
+- **Proof, the logic with no browser:** `src-tauri/src/history.rs`, four tests and four changed: a week to 14:25, eight rows,
+  the first from 14:00 and the last to 14:00's hour, "Tue 20 from 14:00: used 15:00 to 17:00, most at 16:00 (8%)", today's
+  words as they were, `dates` the first and last rows; to midnight, seven rows of every hour; to noon, none of noon's hour; a
+  minute after midnight, the first row from its first hour, naming none; a month of 31 rows and 30 at midnight, its left date the
+  first row's day; and an hour a clock change skips held by no day, in a zone of its own that puts its clocks forward on 29 March
+  2026; and the younger history's, the said lines', `dates`' and the zones' tests now on the period's rows. `scripts/heatmap-rows.test.mjs`,
+  15 tests: the copies' rule against rows worked out by hand, every copy's rows held to it and to the days its period touches,
+  `daysTouched`, the verdicts passing a card drawn right over a week and a month and failing each break above, the marks' days,
+  a heatmap with no use, the page's code, and the window's and the picture's source. `scripts/share-picture.test.mjs`, three more:
+  the picture's heatmap passing in both themes over a week, Crowded's week and its month, and failing a square outside the period
+  at either end, every hour drawn, and a square missing for an hour with no use.
+- **Pictures,** in the scratchpad's `period/pictures/`, from the window check's own options: `before-*` from `main`'s window with
+  `main`'s own copies and `after-*` from this branch's, each of the eight History views (Pro, Free, Many and Crowded, light and
+  dark) over 7 and 30 days: `*-100` and `*-200`, the window as shown at 100% and 200% with the system's own scroll bars, at its
+  top, half way and with the first card's marks in the middle, the heatmap under them; `*-whole`, each view whole at 100%; and
+  `before-site` and `after-site`, the website's copy, whole. Every copy's period ends part way through a day, so both partial
+  rows show.
+- **The website's pictures,** `history-light.png` and `history-dark.png`, captured again in a commit of their own (eight heatmap
+  rows a card, Tuesday 20 from 14:00 to Tuesday 27 to 14:00, 22 CSS px taller, 720x2186); the accounts and Settings pictures do
+  not change and are left alone, and the image manifest has the new size.
+- **Counts:** the tray's `npm test` 183, from 165 on `main` (15 in `heatmap-rows.test.mjs`, three in `share-picture.test.mjs`);
+  the app's `--lib` tests 108 in both builds, from 104; the workspace's tests as on `main`, which this branch does not touch, 811
+  and one ignored, and 808 and two ignored in the example build; the window check 115,452 checks over 26 views, from 33,728; the
+  website's eight views 14,858; the window's JavaScript 40.0 KB of its 150, from 39.8; the contrast check 30 pairs a theme.
+- **Checks run,** through the scratchpad's `safe.sh`, all passing: each commit's window from a clean export (types, build and the
+  tray's unit tests); `cargo fmt --check` for the workspace and the app; clippy with `-D warnings` for the workspace and the app in
+  the default and the example builds; `cargo test --workspace` in both builds; the app's `--lib` tests in both builds; the tray's
+  `npm run build`, `npm test` and `npm run check:window`; the website's `npm run check`, `npm test` (90, its period test now a
+  row for each day the period touches) and `npm run build`, which renders the changelog's new line; `scripts/privacy.sh --check`,
+  `scripts/public-prd.sh --check` and the release scripts' tests (40, one skipped on a Mac). **Not run:** the app's
+  `tests/icon_press.rs` and the real app; WebKit, which the window check does not drive, so neither VoiceOver nor WebKit's own
+  placement of a square by `grid-column` is seen; a zone that skips its midnight, which `day_start` looks past and no test holds.
+- **#52's list, gone down:** *found and fixed:* the charts' first part of a day had no heatmap row and `dates` named the day after
+  it; today's hours not yet come were drawn as squares that read "not used"; a row whose first hours are missing had its squares
+  moved to the first columns by the grid's own placement, which the window now keeps in their hours; and the picture to share
+  labelled only two of a week's eight rows and drew them a month's 1 px apart, now held to a week's of up to eight. *Held:* the
+  daemon's API, `openapi.json` and the skill, unchanged; the marks (D-143), the same; colours, 30 pairs a theme; nothing cut off
+  at 100% or 200% over 7 and 30 days; the bundle at 40.0 KB of 150; no dependency, no new address QuotaDial connects to. *Found
+  and left:* a week's eighth row makes History a row taller in every card, which the decision accepts; and a row's hours stay its
+  own day's, so a week whose period starts at 14:25 shows hour 14 in both its first and last rows, each a part of it, as the rule
+  says. *Left for later:* VoiceOver on WebKit.
 
 ### M6: every other time and day a sentence writes, as a person reads it (D-142)
 

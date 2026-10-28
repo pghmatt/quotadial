@@ -153,14 +153,20 @@ const LINE = 3;
 export const SHADING = 0.16;
 /**
  * The heatmap's words, its room for a day's label, where its rows begin, where its hours are
- * written, and the room between its last row and them. A week's rows are 18.9 px apart, room for
- * a day's name at 16 px to stand clear of the one above it.
+ * written, and the room between its last row and them. A week's rows are 18.9 px apart, or 16.5
+ * when it has eight, room for a day's name at 16 px to stand clear of the one above it.
  */
 const CAPTION_AT = 430;
 const DAY_ROOM = 92;
 const HEAT_TOP = 445;
 const HOURS_AT = 598;
 const HOURS_ROOM = 24;
+/**
+ * The most rows a week's heatmap has: eight, when the period starts part way through a day and
+ * ends part way through another (D-144). A heatmap of this many rows or fewer has each row named
+ * and 3 px between rows; a month's, every seventh named and 1 px between.
+ */
+const WEEK_ROWS = 8;
 /** How tall the heatmap's 16 px words stand above their baseline, to set them level with a row. */
 const WORD_RISE = 11.5;
 
@@ -225,7 +231,7 @@ export function heatmapWords({ most, window: label }: { most: number; window: st
 function words(view: HistoryView, account: AccountHistory): Words {
   const heatmap = account.heatmap;
   const used = heatmap.most > 0;
-  const step = heatmap.days.length <= 7 ? 1 : 7;
+  const step = heatmap.days.length <= WEEK_ROWS ? 1 : 7;
   return {
     brand: "QuotaDial",
     site: "quotadial.com",
@@ -443,7 +449,29 @@ function drawChart(
   context.restore();
 }
 
-/** The heatmap: a row a day, a square an hour, stronger for more use, as History draws it. */
+/**
+ * Where each hour of each of `rows` rows of the heatmap is drawn, in CSS pixels: a box for each of
+ * its 24 hours, left to right, the same columns in every row, under the hours written below them.
+ */
+export function heatBoxes(rows: number): Box[][] {
+  const gap = rows <= WEEK_ROWS ? 3 : 1;
+  const left = LEFT + DAY_ROOM;
+  const cell = (RIGHT - left - 23 * gap) / 24;
+  const pitch = (HOURS_AT - HOURS_ROOM - HEAT_TOP + gap) / Math.max(1, rows);
+  return Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: 24 }, (_, hour) => ({
+      x: left + hour * (cell + gap),
+      y: HEAT_TOP + row * pitch,
+      width: cell,
+      height: pitch - gap,
+    })),
+  );
+}
+
+/**
+ * The heatmap: a row a day, a square an hour, stronger for more use, as History draws it, and no
+ * square for an hour the period holds none of, the others kept in their columns (D-144).
+ */
 function drawHeatmap(
   context: CanvasRenderingContext2D,
   pen: Pen,
@@ -451,34 +479,32 @@ function drawHeatmap(
   said: Words,
   look: Look,
 ): void {
-  const rows = heatmap.cells.length;
-  const gap = rows <= 7 ? 3 : 1;
-  const left = LEFT + DAY_ROOM;
-  const cell = (RIGHT - left - 23 * gap) / 24;
-  const bottom = HOURS_AT - HOURS_ROOM;
-  const pitch = (bottom - HEAT_TOP + gap) / Math.max(1, rows);
-  const height = pitch - gap;
+  const boxes = heatBoxes(heatmap.cells.length);
   context.save();
   context.fillStyle = look.line;
   heatmap.cells.forEach((hours, row) => {
     hours.forEach((used, hour) => {
+      if (used === null) {
+        return;
+      }
       context.globalAlpha = used > 0 ? 0.15 + (0.85 * used) / heatmap.most : 0.06;
-      const x = left + hour * (cell + gap);
-      rounded(context, x, HEAT_TOP + row * pitch, cell, height, Math.min(3, height / 2));
+      const { x, y, width, height } = boxes[row][hour];
+      rounded(context, x, y, width, height, Math.min(3, height / 2));
       context.fill();
     });
   });
   context.restore();
   pen.use(400, 16, look.muted);
+  const bottom = HOURS_AT - HOURS_ROOM;
   for (const day of said.days) {
     // Each name sits level with the middle of its row, and inside the grid: a month's rows are
     // thinner than a name, and the first and last would otherwise stand out of it.
-    const middle = HEAT_TOP + day.row * pitch + height / 2;
-    const at = Math.min(bottom, Math.max(HEAT_TOP + WORD_RISE, middle + WORD_RISE / 2));
-    pen.write(day.text, left - 14, at, "right");
+    const { x, y, height } = boxes[day.row][0];
+    const at = Math.min(bottom, Math.max(HEAT_TOP + WORD_RISE, y + height / 2 + WORD_RISE / 2));
+    pen.write(day.text, x - 14, at, "right");
   }
   said.hours.forEach((hour, index) => {
-    pen.write(hour, left + index * 6 * (cell + gap), HOURS_AT, "left");
+    pen.write(hour, boxes[0][index * 6].x, HOURS_AT, "left");
   });
 }
 

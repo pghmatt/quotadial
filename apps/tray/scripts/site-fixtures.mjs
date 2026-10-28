@@ -7,6 +7,7 @@
 //   node scripts/check-window.mjs --fixtures ./scripts/site-fixtures.mjs --screenshots <folder>
 
 import { marksOf } from "./fixture-marks.mjs";
+import { fromOf, rowsOf, saidOf } from "./fixture-period.mjs";
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -199,8 +200,8 @@ function period(days) {
 }
 
 /**
- * The days a period covers, as the app writes them within a year (`dates` in history.rs): "21 to
- * 27 October 2026", or "28 September to 27 October 2026".
+ * The days a period covers, as the app writes them within a year (`dates` in history.rs): "20 to
+ * 27 October 2026", or "27 September to 27 October 2026".
  *
  * @param {Date[]} days
  */
@@ -257,33 +258,27 @@ function label(account) {
 }
 
 /**
- * One account's use over the days of a period: working days busy from 9:00 to 19:00, weekends
- * quiet, each day the same in every period that shows it and on every run.
+ * One account's use over a period of `days`, read four times a day, whose heatmap has `rows`,
+ * `rowsOf`'s days: working days busy from 9:00 to 19:00, weekends quiet, each day the same in every
+ * period that shows it and on every run, and no cell for an hour the period does not hold (D-144).
  *
  * @param {Meter["accounts"][number]} account
  * @param {Date[]} days
+ * @param {{ day: number, hours: boolean[] }[]} rows
  * @returns {AccountHistory}
  */
-function accountHistory(account, days) {
-  /** @type {number[][]} */
-  const cells = [];
-  /** @type {string[]} */
-  const said = [];
-  /** @type {string[]} */
-  const labels = [];
-  for (const date of days) {
-    // As the app labels a day (`day_label`): "Wed 21".
-    const label = `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()}`;
-    const weekend = label.startsWith("Sat") || label.startsWith("Sun");
-    const day = (date.getTime() - WEEK_BEGINS) / DAY;
-    const hours = Array.from({ length: 24 }, (_, hour) =>
-      !weekend && hour >= 9 && hour < 19 ? 2 + ((((day * 5 + hour * 3) % 7) + 7) % 7) : 0,
+function accountHistory(account, days, rows) {
+  const from = fromOf(rows);
+  // As the app labels a day (`day_label`): "Wed 21".
+  const labels = rows.map(({ day }) => `${WEEKDAYS[new Date(day).getUTCDay()]} ${new Date(day).getUTCDate()}`);
+  const cells = rows.map(({ day, hours }) => {
+    const weekend = new Date(day).getUTCDay() % 6 === 0;
+    const index = (day - WEEK_BEGINS) / DAY;
+    return hours.map((held, hour) =>
+      !held ? null : !weekend && hour >= 9 && hour < 19 ? 2 + ((((index * 5 + hour * 3) % 7) + 7) % 7) : 0,
     );
-    const most = hours.indexOf(Math.max(...hours));
-    labels.push(label);
-    cells.push(hours);
-    said.push(weekend ? `${label}: not used` : `${label}: used 9:00 to 19:00, most at ${most}:00 (${hours[most]}%)`);
-  }
+  });
+  const said = labels.map((label, row) => saidOf(row === 0 && from !== null ? `${label} from ${from}:00` : label, cells[row]));
   return {
     key: account.key,
     provider: account.provider,
@@ -305,22 +300,28 @@ function accountHistory(account, days) {
       window: account.windows[account.windows.length - 1]?.label ?? "Session",
       days: labels,
       cells,
-      most: Math.max(...cells.flat()),
+      most: Math.max(...cells.flat().map((cell) => cell ?? 0)),
       said,
     },
   };
 }
 
-/** @param {number} days @returns {HistoryView} */
+/**
+ * History over the `days` before now: the charts' readings over the days of the period, and the
+ * heatmap's rows and the dates, the calendar days the period holds any part of, from 14:10 that
+ * day to 14:10 today, as the app marks the period it charts (D-143, D-144).
+ *
+ * @param {number} days
+ * @returns {HistoryView}
+ */
 function history(days) {
-  const covered = period(days);
+  const rows = rowsOf(NOW - days * DAY, NOW);
   return {
     days,
     span: `The last ${days} days.`,
-    dates: dates(covered),
-    // As the app marks the period it charts (D-143).
+    dates: dates(rows.map(({ day }) => new Date(day))),
     marks: marksOf(days, NOW - days * DAY, NOW),
-    accounts: ACCOUNTS.map((account) => accountHistory(account, covered)),
+    accounts: ACCOUNTS.map((account) => accountHistory(account, period(days), rows)),
     share_left_out: null,
   };
 }
@@ -357,11 +358,13 @@ const HELP = {
   ],
 };
 
-/** @type {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, help: HelpView, update: UpdateView }} */
+/** @type {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, periods: Record<string, { start: number, now: number }>, help: HelpView, update: UpdateView }} */
 export const site = {
   meter: METER,
   settings: SETTINGS,
   history: { 7: history(7), 30: history(30) },
+  // The period each History view is of, which the window check counts the heatmap's rows against.
+  periods: { 7: { start: NOW - 7 * DAY, now: NOW }, 30: { start: NOW - 30 * DAY, now: NOW } },
   help: HELP,
   update: {
     text: "QuotaDial 0.3.0 is the newest version. Checked 5 min ago.",

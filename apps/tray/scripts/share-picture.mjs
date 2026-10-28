@@ -1,7 +1,8 @@
 // What a share picture's pixels must say (D-137), read from the PNG the window sends the app, as
 // the person who posts it gets it: the ground is the material of the theme, the card sits on it,
-// nothing is drawn as a plate behind a chart, and each chart's 90% line is dashed in its own colour
-// along the whole of it (the manager on #73, 2026-10-27, 11:26 UTC). check-window.mjs runs these
+// nothing is drawn as a plate behind a chart, each chart's 90% line is dashed in its own colour
+// along the whole of it (the manager on #73, 2026-10-27, 11:26 UTC), and the heatmap draws no square
+// for an hour the period holds none of (D-144). check-window.mjs runs these
 // over every picture it makes; share-picture.test.mjs proves each one fails on a picture broken on
 // purpose, with no browser. The PNG is read here with no library: a signature, chunks with their
 // checksums, one zlib stream, and the five filters of a scanline.
@@ -540,4 +541,56 @@ export function pictureVerdicts(picture, want) {
     );
   }
   return verdicts;
+}
+
+/**
+ * How near the card's fill the middle of an hour's box may be and still have no square: the faintest
+ * square, the chart line's colour at 6% for an hour the period holds with no use, is 11 or more away
+ * in a channel in both themes.
+ */
+const SQUARE = 4;
+
+/**
+ * Verdicts on the heatmap a picture draws (D-144), read from its own pixels in the middle of each
+ * hour's box: the card's fill where the copy has no cell, an hour the period holds none of, so that no
+ * square is drawn outside the period at either end; and a square where it has one, so that none is
+ * missing inside it. `want.heat` holds the rows' labels, `days`, their `cells`, and `boxes`, each
+ * row's 24 boxes in CSS pixels (`heatBoxes` in src/share.ts), or is null for a picture with no
+ * heatmap; `want.scale` and `want.fill` are as `pictureVerdicts` takes them. Each verdict names the
+ * first hour that is wrong and how many are.
+ */
+export function heatVerdicts(picture, want) {
+  const { scale, fill, heat } = want;
+  if (!heat) {
+    return [];
+  }
+  const clamp = (value, last) => Math.min(Math.max(Math.floor(value), 0), last);
+  const middle = ({ x, y, width, height }) =>
+    picture.pixel(clamp((x + width / 2) * scale, picture.width - 1), clamp((y + height / 2) * scale, picture.height - 1));
+  const outside = [];
+  const missing = [];
+  heat.cells.forEach((hours, row) => {
+    hours.forEach((cell, hour) => {
+      const box = heat.boxes[row]?.[hour];
+      if (!box) {
+        return;
+      }
+      const found = middle(box);
+      const where = { day: heat.days[row], hour, found };
+      if (cell === null && !near(found, fill, BLEND)) {
+        outside.push(where);
+      }
+      if (cell !== null && near(found, fill, SQUARE)) {
+        missing.push(where);
+      }
+    });
+  });
+  const name = ({ day, hour }) => `"${day}" at ${hour}:00`;
+  const count = (hours) => (hours.length === 1 ? "1 hour" : `${hours.length} hours`);
+  return [
+    outside.length > 0 &&
+      `draws a square for ${name(outside[0])}, an hour the period holds none of: ${show(outside[0].found)} where only the card's fill ${show(fill)} should be (${count(outside)} in all)`,
+    missing.length > 0 &&
+      `draws no square for ${name(missing[0])}, an hour the period holds: the card's fill ${show(missing[0].found)} there (${count(missing)} in all)`,
+  ];
 }
