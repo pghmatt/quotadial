@@ -5,10 +5,12 @@
 //!
 //! So the command keeps what QuotaDial needs (`handover`) in its file (`store`) first, so a slow or
 //! failing status line never costs the handover, then runs the status line the user already had,
-//! when one is named after it (`chain`). Nothing of its own is ever printed: with no command named
-//! it prints nothing and ends with 0, and when QuotaDial cannot keep its numbers, as with no data
-//! folder or a full disk, the named command still runs and its output and exit status come back
-//! unchanged (the manager on #73). The user's status line is never broken by QuotaDial's problem.
+//! when one is named after it (`quotadial_status_line::chain`). Nothing of its own is ever printed:
+//! with no command named it prints nothing and ends with 0, and when QuotaDial cannot keep its
+//! numbers, as with no data folder or a full disk, the named command still runs and its output and
+//! exit status come back unchanged (the manager on #73). The user's status line is never broken by
+//! QuotaDial's problem. The run itself is `quotadial_status_line::run`, which Claude's command
+//! shares (D-145); what to keep is this module's.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -16,7 +18,7 @@ use std::process::ExitCode;
 use chrono::{DateTime, Utc};
 use quotadial_core::Invocation;
 
-use crate::{chain, handover, store};
+use crate::{handover, store};
 
 /// The command's name: `quotadial antigravity status-line`.
 pub(crate) const NAME: &str = "status-line";
@@ -29,23 +31,7 @@ pub(crate) const ABOUT: &str = "Keeps the numbers Antigravity CLI's status line 
 /// Runs the command at `now`, keeping what it is handed in `file`, QuotaDial's file in its data
 /// folder, or nowhere when there is none.
 pub(crate) fn run(file: Option<&Path>, now: DateTime<Utc>, invocation: Invocation<'_>) -> ExitCode {
-    let Invocation {
-        args,
-        stdin,
-        stdout,
-        stderr,
-    } = invocation;
-    let mut payload = Vec::new();
-    // All of it, whatever it holds: a command named after this one gets the same bytes.
-    let _ = stdin.read_to_end(&mut payload);
-    keep(file, &payload, now);
-    let Some((program, args)) = args.split_first() else {
-        return ExitCode::SUCCESS;
-    };
-    let ran = chain::run(program, args, &payload, chain::WAIT);
-    let _ = stdout.write_all(&ran.stdout).and_then(|()| stdout.flush());
-    let _ = stderr.write_all(&ran.stderr).and_then(|()| stderr.flush());
-    ExitCode::from(ran.code)
+    quotadial_status_line::run(invocation, |payload| keep(file, payload, now))
 }
 
 /// Keeps what `payload` hands over in `file`, when it hands over a share or an amount. What goes

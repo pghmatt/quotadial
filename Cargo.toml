@@ -7,6 +7,7 @@ members = [
     "crates/core",
     "crates/cost",
     "crates/poll",
+    "crates/status-line",
     "crates/daemon",
     "crates/providers/claude",
     "crates/providers/codex",
@@ -32,6 +33,7 @@ publish = false
 quotadial-core = { path = "crates/core" }
 quotadial-cost = { path = "crates/cost" }
 quotadial-poll = { path = "crates/poll" }
+quotadial-status-line = { path = "crates/status-line" }
 quotadial-daemon = { path = "crates/daemon" }
 quotadial-api = { path = "crates/api" }
 quotadial-provider-claude = { path = "crates/providers/claude" }
