@@ -12,15 +12,6 @@
           "pct_per_hour": 2.0
         },
         {
-          "kind": "model_weekly",
-          "label": "Weekly (Opus)",
-          "scope_model": "opus",
-          "window_seconds": 604800,
-          "used_pct": 74,
-          "resets_in_seconds": 140400,
-          "pct_per_hour": 1.2
-        },
-        {
           "kind": "session",
           "label": "Session",
           "window_seconds": 18000,

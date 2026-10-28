@@ -35,7 +35,6 @@ Tuesday 14:10, QuotaDial Pro, two accounts on example.com, in `lib/data/examples
 | Account | Window | Used | Resets | Pace |
 | --- | --- | --- | --- | --- |
 | Claude, "Work", dev@example.com, Max 5x | Weekly | 91% | in 1 d 15 h (Thu 06:00) | 2.0%/h, runs out in 4 h 30 min (Tue 18:40), 1 d 11 h before it resets |
-| | Weekly (Opus) | 74% | in 1 d 15 h | |
 | | Session | 38% | in 2 h 10 min (16:20) | 8.5%/h, lasts until it resets |
 | Codex, you@example.com, Pro | Weekly | 46% | in 5 d 3 h (Sun 17:10) | 0.4%/h, lasts until it resets |
 | | 5-hour | 12% | in 3 h 41 min | |
