@@ -53,6 +53,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - A Codex CLI sign-in that has expired says when as people read it, such as "expired on 26 Oct 2026 at 09:12 UTC" where it said "expired at 2026-10-26T09:12:00Z", in `quotadial status`, `doctor` and the app's window.
 - Every other time QuotaDial writes in a sentence reads as people read it too, such as "QuotaDial will ask again after 27 Oct 2026 at 13:31 UTC" or `quotadial watch`'s "Updated 27 Oct 2026 at 13:26 UTC" where it wrote "2026-10-27T13:31:00Z", and a day alone as "24 Oct 2027", as in "QuotaDial Pro until 24 Oct 2027"; `quotadial history`'s lines and the JSON keep their RFC 3339 times.
 - History's heatmap now has a row for each day its charts show, so a week usually has eight: the first and last are each a part of a day, and no square is drawn for an hour before the period began or after now, where an empty square said it was not used. The dates History gives start on the same day as the charts, and a screen reader hears the hour the first day starts from.
+- QuotaDial's help, website and package descriptions no longer say it reads Claude's sign-in, since it reads Claude from Claude Code's status line: `quotadial doctor`'s help, manual page and tab completion, and Help's Send feedback, now give each account and what QuotaDial reads it from, where they said "where its sign-in is".
 
 ### Removed
 
