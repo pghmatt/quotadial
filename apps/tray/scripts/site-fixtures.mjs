@@ -342,8 +342,8 @@ const HELP = {
     {
       kind: "paragraph",
       text:
-        "QuotaDial runs on your machine. It reads the sign-ins that Claude Code and the Codex CLI " +
-        "already keep, and never writes, refreshes, moves or logs them.",
+        "QuotaDial runs on your machine. It reads the sign-in that the Codex CLI already keeps, " +
+        "and never writes, refreshes, moves or logs it.",
     },
   ],
   hosts: DESTINATIONS,

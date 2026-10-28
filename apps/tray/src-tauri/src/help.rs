@@ -309,6 +309,24 @@ mod tests {
         );
     }
 
+    /// The window check's copies (`scripts/window-fixtures.mjs`) keep Help's text of what QuotaDial
+    /// reads and sends exactly as the app sends it, a block a line, so that their own test
+    /// (`scripts/whole-addresses.test.mjs`) can hold every copy's text to the app's words, the
+    /// website's too. When `docs/PRIVACY.md` changes, this fails and says the lines to put there.
+    #[test]
+    fn the_window_check_keeps_help_s_privacy_text_as_the_app_sends_it() {
+        const COPIES: &str = include_str!("../../scripts/window-fixtures.mjs");
+        let lines: String = blocks(quotadial_core::privacy::PRIVACY)
+            .iter()
+            .map(|block| format!("  {},\n", serde_json::to_string(block).expect("JSON")))
+            .collect();
+        let kept = format!("export const PRIVACY = [\n{lines}];\n");
+        assert!(
+            COPIES.contains(&kept),
+            "scripts/window-fixtures.mjs should keep the app's privacy text as\n{kept}"
+        );
+    }
+
     #[test]
     fn a_wrapped_line_joins_its_paragraph_or_its_item() {
         assert_eq!(
