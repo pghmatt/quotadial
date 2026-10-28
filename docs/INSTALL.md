@@ -169,9 +169,11 @@ Updates.
 **History**, beside Settings, charts each account's windows over the last 7 or 30 days, shows when
 each account was used by hour of the day, and exports the readings as CSV to the Downloads folder.
 
-The popover lists every Claude subscription stored on the machine, not only the one Claude Code is
-signed in to now. Where QuotaDial looks for them, and the settings in `config.json` that add
-folders or limit how many accounts it shows, are in [`CLI.md`](CLI.md#accounts). A Gemini CLI
+The popover lists every Claude account Claude Code is signed in to on the machine, in its default
+folder and in each folder `CLAUDE_CONFIG_DIR` names, and shows each one's windows once you add
+QuotaDial to Claude Code's status line, as [Claude](#claude) below describes. Where QuotaDial looks
+for them, and the settings in `config.json` that add folders or limit how many accounts it shows,
+are in [`CLI.md`](CLI.md#accounts). A Gemini CLI
 account it finds signed in is listed too, with why it has no numbers; QuotaDial only checks that
 its sign-in is there and never opens it. An Antigravity account shows its windows once you add
 QuotaDial to Antigravity CLI's status line, as [Antigravity](#antigravity) below describes.
@@ -194,7 +196,7 @@ it. How releases are signed for the updater is in [`RELEASE.md`](RELEASE.md).
 ## The `quotadial` command
 
 The app carries the same `quotadial` command as a standalone build of the CLI. While the app runs,
-the command asks it for numbers instead of asking Claude or ChatGPT itself.
+the command asks it for numbers instead of reading Claude's files or asking ChatGPT itself.
 
 On macOS, the command is inside the app at
 `/Applications/QuotaDial.app/Contents/MacOS/quotadial`. To type it as `quotadial` or `qd`, link it
@@ -214,6 +216,50 @@ On Windows, the installer puts `quotadial.exe` beside the app, in `C:\Program Fi
 that folder to your `PATH` to type `quotadial`. On Linux, the deb installs `quotadial` in
 `/usr/bin`, so it is ready to use, with its manual pages and its completions for bash, zsh and
 fish. See [CLI.md](CLI.md) for what the command does.
+
+## Claude
+
+QuotaDial shows each Claude account's five-hour and weekly windows from what Claude Code's status
+line hands it. Anthropic's terms do not let other tools use a Claude plan's sign-in, so QuotaDial
+never reads Claude Code's sign-in, asks no one, and never changes Claude Code's settings itself: you
+add one line.
+
+1. Claude Code runs its status line in a shell with the `PATH` it was started with, so `quotadial`
+   must be on that `PATH`: install the command, or link the app's onto your `PATH` as
+   [The `quotadial` command](#the-quotadial-command) describes. Otherwise write the command's whole
+   path in place of `quotadial` below, such as
+   `/Applications/QuotaDial.app/Contents/MacOS/quotadial`.
+2. Add this to `~/.claude/settings.json`, inside its outer braces, with a comma after whatever comes
+   before it, or to `settings.json` in a folder `CLAUDE_CONFIG_DIR` names:
+
+   ```json
+   "statusLine": { "type": "command", "command": "quotadial claude status-line" }
+   ```
+
+   QuotaDial's command prints nothing, so Claude Code shows no status line of its own for it.
+3. If the file has a `statusLine` already, keep it as it is and put `quotadial claude status-line`
+   and a space in front of its `command`, such as
+   `"command": "quotadial claude status-line ~/.claude/statusline.sh"`. QuotaDial keeps its
+   numbers, then runs your command with the same input and passes its output and exit status back
+   unchanged, so your status line shows as before. A command that is more than a program and its
+   arguments, such as one with a `|` in it, goes in `sh -c '...'`:
+   `quotadial claude status-line sh -c 'your command'`.
+4. Start Claude Code again: it reads its settings when it starts.
+
+Claude Code hands its status line these numbers only for claude.ai Pro and Max subscribers, and only
+after the first answer in a session, so they come once you have sent Claude Code a message. The
+popover and `quotadial status` then show `Session` and `Weekly`, each from the CLI's status line
+with its age. They update while Claude Code runs. Once it stops, they are marked stale with the time
+they are from, and a window that resets meanwhile is left out until Claude Code runs again. Until
+the first numbers come, a Claude account shows the line to add, which `quotadial doctor` prints
+too, with the file the numbers are kept in.
+
+Each Claude Code folder keeps its own numbers: the default folder's in `claude.json` in QuotaDial's
+data folder, and a folder `CLAUDE_CONFIG_DIR` names in `claude-` and 8 letters and digits of its
+own, then `.json`. For several Claude accounts, add the line to each folder's `settings.json`.
+QuotaDial keeps only each window's share used and its reset, and the time
+([`PRIVACY.md`](PRIVACY.md)); nothing else Claude Code hands over, such as your folders, your
+conversation, the model or the session's cost, is kept.
 
 ## Antigravity
 

@@ -6,12 +6,13 @@ position can and cannot do. [`SECURITY.md`](../SECURITY.md) says how to report a
 
 ## What QuotaDial is trusted with
 
-- **The sign-ins Claude Code and the Codex CLI keep.** QuotaDial reads them from the macOS Keychain,
-  `~/.claude/.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN` and the Codex CLI's `auth.json`. It never
-  writes, refreshes or moves them, and never logs them. A token is held in memory only, in a type
-  that wipes it when dropped (`quotadial_core::Secret`), and sent only to the provider it belongs
-  to, over TLS. Every error and every text from outside goes through `redact_secrets` before it is
-  shown or saved, and a property test proves no token survives it.
+- **The sign-in the Codex CLI keeps.** QuotaDial reads it from the Codex CLI's `auth.json`. It never
+  writes, refreshes or moves it, and never logs it. A token is held in memory only, in a type that
+  wipes it when dropped (`quotadial_core::Secret`), and sent only to the provider it belongs to,
+  over TLS. Every error and every text from outside goes through `redact_secrets` before it is
+  shown or saved, and a property test proves no token survives it. Claude Code's sign-in is never
+  read: not the macOS Keychain item, not `.credentials.json`, not `CLAUDE_CODE_OAUTH_TOKEN`
+  (D-145).
 - **Usage numbers and history**, which are the user's, kept on the machine.
 - **Webhook and Slack addresses** in `config.json`, which work like passwords: never printed or
   logged, shown by their host only, and QuotaDial warns when other users can read the file.
@@ -22,7 +23,7 @@ position can and cannot do. [`SECURITY.md`](../SECURITY.md) says how to report a
 
 | Where | What | Protection |
 | --- | --- | --- |
-| The data folder (`~/Library/Application Support/quotadial`, `$XDG_DATA_HOME/quotadial`, `%APPDATA%\quotadial`) | `history.db` (readings, snapshots, alert rules, firings), `costs.db` (token counts from the logs, never their content), `token` (the local API's bearer token), `licence`, `daemon.json`, `daemon.lock`, and `antigravity.json` (what Antigravity CLI's status line last handed over: each limit's share or amount and reset, the plan, the account's address and the time, never a token) | The folder is the user's only (0700 on macOS and Linux; a per-user folder on Windows), and each file QuotaDial writes is 0600 |
+| The data folder (`~/Library/Application Support/quotadial`, `$XDG_DATA_HOME/quotadial`, `%APPDATA%\quotadial`) | `history.db` (readings, snapshots, alert rules, firings), `costs.db` (token counts from the logs, never their content), `token` (the local API's bearer token), `licence`, `daemon.json`, `daemon.lock`, `antigravity.json` (what Antigravity CLI's status line last handed over: each limit's share or amount and reset, the plan, the account's address and the time, never a token), and `claude.json` and a `claude-` file for each folder `CLAUDE_CONFIG_DIR` names (what Claude Code's status line last handed over: each window's share used and reset, and the time, never a token) | The folder is the user's only (0700 on macOS and Linux; a per-user folder on Windows), and each file QuotaDial writes is 0600 |
 | `config.json` in the data folder | Settings, including webhook addresses | Written by the user; QuotaDial warns when others can read it |
 | The app's config folder | `settings.json`, `alerts.json`, `updates.json` | 0600 |
 | The cache folder (`quotadial/` in the OS cache directory) | When each account may be asked next, and its last answer | Private permissions; derived data only, never a token |
@@ -33,13 +34,25 @@ A damaged history is moved aside under a dated name, never deleted, so it stays 
 
 ## What goes over the network
 
-Only what [`PRIVACY.md`](PRIVACY.md) lists, each over TLS: the two providers' usage endpoints, their
-public status pages, GitHub for updates, and the webhooks the user adds, which must be `https`,
-or `http` to the machine itself. Tests hold every address in the code to that list (D-106).
+Only what [`PRIVACY.md`](PRIVACY.md) lists, each over TLS: OpenAI's usage endpoint for Codex, the
+providers' public status pages, GitHub for updates, and the webhooks the user adds, which must be
+`https`, or `http` to the machine itself. Nothing goes to Anthropic (D-145). Tests hold every
+address in the code to that list (D-106).
 
 QuotaDial's example build (D-117), made with the `fake` feature for pictures of the app and never
-released, polls no provider and reads no sign-in, so the 5-minute floor for Anthropic is untouched;
-its accounts are made up, and it keeps folders, a lock, a token and a port of its own.
+released, polls no provider and reads no sign-in; its accounts are made up, and it keeps folders, a
+lock, a token and a port of its own.
+
+Its Claude provider (D-145) has no network client and sends nothing. It never reads Claude Code's
+sign-in, and reads only the `oauthAccount` object of Claude Code's own account file, `.claude.json`,
+for the account's id, address, organisation and plan, skipping the rest of that file without a
+copy. Its numbers come from `quotadial claude status-line`, which Claude Code runs with its
+session's state on standard input once the user adds it to Claude Code's settings, which QuotaDial
+never edits. The command keeps only the five-hour and weekly windows' share used and reset, each
+checked, and the time, in `claude.json` or a folder's own `claude-` file (0600, written through a
+temporary file and a rename), and prints nothing of its own. A program named after it, the status
+line the user already had, is run as the user with the same input and no shell of QuotaDial's, and
+stopped after 4.5 seconds, as Antigravity's is; the code both share is `quotadial-status-line`.
 
 Its Gemini CLI provider (D-118, D-122), on in the release binaries and the app (D-124), has no
 network client and sends nothing. It checks only that Gemini CLI's sign-in file is there, never
@@ -111,8 +124,8 @@ is; both were checked live (D-103). They can delay an update by blocking it.
 ### Anything outside that QuotaDial reads
 
 Provider answers, status pages, the CLIs' logs, `config.json`, licence keys, release notes, what
-Antigravity CLI's status line hands over, and what an agent sends the MCP server are all read as
-data, never run. A property test over each parser
+Claude Code's and Antigravity CLI's status lines hand over, Claude Code's account file, and what an
+agent sends the MCP server are all read as data, never run. A property test over each parser
 proves no input can make it panic, and found one overflow, now fixed (#52). Text from outside is
 cut to one line and redacted before it is shown. The app's window runs only its own code, under a
 content security policy (`default-src 'self'`), can call only the commands the app's own panels

@@ -1,9 +1,9 @@
 # QuotaDial
 
 QuotaDial shows how much of your Claude, ChatGPT/Codex and Antigravity plan limits you have used,
-and when they reset, so a long agent run does not stop halfway. It reads the login your Claude Code
-and Codex CLIs already store and asks each provider for your current usage, keeps the numbers
-Antigravity CLI's status line hands it, and puts the answer in your menu bar or system tray, in
+and when they reset, so a long agent run does not stop halfway. It keeps the numbers Claude Code's
+and Antigravity CLI's status lines hand it, reads the login your Codex CLI already stores and asks
+ChatGPT for your current usage, and puts the answer in your menu bar or system tray, in
 your terminal, behind a local HTTP API, and in front of your agents through an MCP server and a
 SKILL.md. It runs on macOS, Windows and Linux.
 
@@ -51,7 +51,7 @@ feature would be. See [docs/CLI.md](docs/CLI.md#quotadial-free-and-pro).
 
 | Provider | Reads the login from | Status |
 | --- | --- | --- |
-| Claude | Claude Code (the macOS Keychain, `~/.claude/.credentials.json`, or `CLAUDE_CODE_OAUTH_TOKEN`), for every `CLAUDE_CONFIG_DIR` it finds | Works, with every stored subscription |
+| Claude | No sign-in: what Claude Code's status line hands `quotadial claude status-line`, once you add it to Claude Code's settings, for every `CLAUDE_CONFIG_DIR` it finds | Works while Claude Code runs, for Pro and Max |
 | ChatGPT / Codex | Codex CLI (`auth.json` in `$CODEX_HOME` or `~/.codex`) | Works |
 | Gemini CLI | Nothing inside the sign-in: only that Gemini CLI's `oauth_creds.json` is in `.gemini` in `$GEMINI_CLI_HOME` or your home folder, and one field of its `settings.json` | Shown, with why it has no numbers |
 | Antigravity | No sign-in: what Antigravity CLI's status line hands `quotadial antigravity status-line`, once you add it to Antigravity CLI's settings | Works while Antigravity CLI runs |
@@ -65,17 +65,19 @@ Antigravity CLI hands each limit's share and reset to a command named in its set
 line [docs/INSTALL.md](docs/INSTALL.md#antigravity) gives, and its five-hour and weekly windows
 show while Antigravity CLI runs, marked stale with the time they are from once it stops.
 
-If you keep several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`,
-QuotaDial shows all of them, not only the one Claude Code uses now. See
+Claude's numbers come only from Claude Code's status line, never from Claude Code's sign-in, which
+QuotaDial never reads. Claude Code hands its status line each Pro or Max plan's five-hour and weekly
+windows: add the line [docs/INSTALL.md](docs/INSTALL.md#claude) gives to Claude Code's settings and
+start Claude Code again, and they show while Claude Code runs, marked stale with the time they are
+from once it stops. If you keep several Claude subscriptions, each signed in through its own
+`CLAUDE_CONFIG_DIR`, add the line in each folder and QuotaDial shows all of them. See
 [docs/CLI.md](docs/CLI.md#accounts) for where it looks.
 
-QuotaDial only reads these sign-ins. It never writes, refreshes or moves them, and it never logs
-them. When a sign-in has expired, run `claude` or `codex` once and QuotaDial picks up the refreshed
-one.
+QuotaDial only reads the Codex CLI's sign-in. It never writes, refreshes or moves it, and it never
+logs it. When it has expired, run `codex` once and QuotaDial picks up the refreshed one.
 
-Anthropic rate-limits its usage endpoint, so QuotaDial asks it at most once every 5 minutes per
-account, and OpenAI at most once every 2 minutes, and backs off when told to. In between, it shows
-the last numbers and says how old they are. When ChatGPT cannot be reached, QuotaDial shows the
+QuotaDial asks OpenAI at most once every 2 minutes, and backs off when told to. In between, it
+shows the last numbers and says how old they are. When ChatGPT cannot be reached, QuotaDial shows the
 newest numbers from the Codex CLI's own session logs, marked as coming from them.
 
 <!-- privacy: copied from docs/PRIVACY.md by scripts/privacy.sh; edit it there -->

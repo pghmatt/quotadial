@@ -36,8 +36,8 @@ support@quotadial.com.
   and the toolbar after it, and scrolls each control into view; each view opens at its top. If they
   hold nothing Tab reaches, they are a Tab stop of their own, named for a screen reader, so that
   the keys can scroll them, and they become one as soon as the last control in them goes.
-- A command QuotaDial asks you to run, such as the one that signs a Claude Code folder in again,
-  is shown as code, and one click selects all of it, ready to copy. An account's email address can
+- A command QuotaDial asks you to run, or a line it asks you to add, such as the one Claude Code's
+  settings take, is shown as code, and one click selects all of it, ready to copy. An account's email address can
   be selected and copied too, and what is copied is the address exactly as it is, wherever its line
   breaks.
 - Escape hides the window.

@@ -13,11 +13,16 @@ left.
 
 Claude Code runs on the `claude` accounts; the Codex CLI runs on the `codex` ones. A machine can
 hold several Claude subscriptions, each signed in through its own `CLAUDE_CONFIG_DIR`, and QuotaDial
-lists all of them. `account.sign_in` says where each one's sign-in is, such as
-`the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)`, and
-`account.provider_name` what the provider calls itself, such as `Claude`.
-The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or the plain
-`Claude Code-credentials` item (`~/.claude`) when that is not set.
+lists all of them, with `account.provider_name` what the provider calls itself, such as `Claude`.
+The one you run on is the one for your own `CLAUDE_CONFIG_DIR`, or `~/.claude` when that is not set:
+its `account.sign_in_use` names that folder's `settings.json`.
+
+A `claude` account's two windows, `Session` and `Weekly`, are what Claude Code's status line last
+handed `quotadial claude status-line` (`source` `status_line`), never anything read with Claude
+Code's sign-in, so they move only while Claude Code runs, and only for claude.ai Pro and Max
+subscribers. When they are older than 10 minutes its `status` is `stale` and its `error` says when
+they are from; a window that has reset since is left out. Before any numbers its `status` is
+`unsupported`, and its `error` says the line the user adds to Claude Code's settings.
 
 A `gemini` account, Gemini CLI's, has no numbers: its `status` is `unsupported`, and its `error`
 says why and, for a Google sign-in, that `/model` in Gemini CLI shows its limits.
@@ -46,8 +51,8 @@ Use the first of these that is available:
    the tightest window yourself, as "Headroom" below describes.
 3. **The HTTP API**, while the daemon runs (`quotadial daemon`). See below.
 
-Ask once before a job, not in a loop. QuotaDial asks Anthropic at most every 5 minutes per account
-and OpenAI at most every 2 minutes, so asking more often returns the same numbers.
+Ask once before a job, not in a loop. QuotaDial reads Claude's numbers at most every 5 minutes per
+account and asks OpenAI at most every 2 minutes, so asking more often returns the same numbers.
 
 ## The HTTP API
 
@@ -133,12 +138,12 @@ The report from `GET /v1/status`, `get_usage` and `quotadial status --json`:
 | --- | --- |
 | `snapshots[]` | One per account: a provider, its organization or workspace (`org`), and an account id |
 | `account.provider_name` | The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it; `account.provider` is its id. Empty for an account from an older QuotaDial until the next poll: then use the id |
-| `account.sign_in` | Where the account's sign-in is, such as a Keychain item and its `CLAUDE_CONFIG_DIR`, or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in` | Where the account's sign-in is, such as `~/.codex/auth.json`. Never a token. Left out when unknown, and for Claude and Antigravity, whose sign-ins QuotaDial never reads |
 | `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the sign-in. Never a token. Empty for an account from an older QuotaDial until the next poll |
 | `windows[].kind` | `session` (5 hours), `weekly`, `model_weekly` (one model's weekly limit, named in `scope_model`), `daily`, `credits`, or `other` for a limit QuotaDial does not know yet |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the Codex CLI's own logs), `status_line` (what Antigravity CLI's status line handed over; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build; a release never sends it) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the Codex CLI's own logs), `status_line` (what Claude Code's or Antigravity CLI's status line handed over; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build; a release never sends it) |
 | `windows[].fetched_at` | When the number was fetched, in UTC |
 | `windows[].unconfirmed` | `true` on a sudden 0% that a second fetch has not confirmed yet. Do not trust that 0% |
 | `windows[].pace` | How fast the window is filling, only while the daemon runs: `pct_per_hour`, the share used per hour since the window last reset, and `runs_out_at`, when it reaches 100% at that pace, given only if that comes before it resets. Left out until the daemon has half an hour of readings since the reset, and for a snapshot whose status is not `ok` |
@@ -181,7 +186,8 @@ The ranking from `GET /v1/headroom` and `get_account_headroom`:
 
 - Look at the account you run on. Trust `status: "ok"` most. Treat `stale` and `rate_limited` as a
   few minutes old. For `auth_required`, tell the user the fix in `error`, which names the command
-  that signs that folder in again.
+  that signs in again. For a `claude` account that is `unsupported` with no windows, tell the user
+  the line its `error` gives to add to Claude Code's settings.
 - If your account is nearly out and another of the user's subscriptions has room, say so: they can
   run `claude` with that account's `CLAUDE_CONFIG_DIR`. Do not switch accounts yourself.
 - Suppose the tightest window is above about 80% used and resets hours from now. Tell the user
@@ -192,5 +198,5 @@ The ranking from `GET /v1/headroom` and `get_account_headroom`:
   straight line through past use, not a promise: a long job usually fills a window faster than
   the window's average so far.
 - Say how old the numbers are when it matters. `fetched_at` can be minutes ago.
-- QuotaDial only reads. Never write to its files, and never touch the Claude Code or Codex sign-ins
-  it reads.
+- QuotaDial only reads. Never write to its files or to Claude Code's settings, and never touch the
+  Claude Code or Codex sign-ins.
