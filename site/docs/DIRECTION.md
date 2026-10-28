@@ -18,9 +18,9 @@ labels. Tables grouped in bands, never a rule under every row. Corners 2 px ever
 
 **STORY.** A developer who hit a limit mid-run sees, in the first screen, limits like theirs laid
 out the way an almanac lays out tides: the share used, the reset, and "at this pace it runs out
-Tue 18:40, before it resets". They learn it reads the sign-in they already have, and download it for
-their system. Lower down: alerts, agents, every system, every address it connects to, Free and Pro,
-questions.
+Tue 18:40, before it resets". They learn it reads Claude's numbers from Claude Code's status line
+and Codex's from the sign-in they already have, and download it for their system. Lower down:
+alerts, agents, every system, every address it connects to, Free and Pro, questions.
 
 **FIRST VIEWPORT.** From `docs/seo/blueprints/home.md`. Desktop 1440x900: the left five columns
 hold the H1 "Claude and Codex usage tracker for your menu bar or tray" (Sofia Sans Condensed 700,

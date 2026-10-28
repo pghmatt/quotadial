@@ -81,8 +81,8 @@ Nothing is named `usage`, the PRD's old working name.
   `redact_secrets` again.
 - Unredacted captures live under `fixtures/**/raw/`, which is gitignored. Only redacted or
   synthetic fixtures are committed. See `fixtures/README.md`.
-- Poll Anthropic usage endpoints no more than once every 5 minutes per account. Enforce the floor in
-  code.
+- Ask no provider more often than its floor, 2 minutes for OpenAI, and read Claude's and
+  Antigravity's files no more than every 5 minutes; enforce it in code.
 - QuotaDial's own cache lives in the OS cache directory under `quotadial/`, with private file
   permissions. It holds derived data only (snapshots, times, counters), never a token.
 - The local API listens on `127.0.0.1` only. Its bearer token is QuotaDial's own and lives only in
