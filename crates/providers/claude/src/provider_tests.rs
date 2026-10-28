@@ -927,7 +927,7 @@ fn debug_output_shows_no_token() {
 
 #[test]
 fn never_polls_anthropic_more_than_once_every_five_minutes() {
-    assert!(ClaudeProvider::new().min_poll_interval() >= std::time::Duration::from_secs(300));
+    assert!(ClaudeProvider::new(None).min_poll_interval() >= std::time::Duration::from_secs(300));
 }
 
 fn oversized_body() -> String {

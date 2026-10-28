@@ -162,7 +162,8 @@ fn var(name: &str) -> Option<String> {
     std::env::var_os(name).map(|value| value.to_string_lossy().into_owned())
 }
 
-fn nfc(text: &str) -> String {
+/// `text` in Unicode's composed form (NFC), as Claude Code writes a folder's path before it hashes it.
+pub(crate) fn nfc(text: &str) -> String {
     text.nfc().collect()
 }
 

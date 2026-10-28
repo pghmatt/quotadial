@@ -20,6 +20,9 @@ shapes the live account does not show.
 | `oauth-usage-scoped.synthetic.json` | Hand-written | Enabled extra usage, the Cowork bucket, an unknown `seven_day_*` bucket, `limits[]` |
 | `oauth-profile.json` | Live `GET /api/oauth/profile`, 2026-10-23, redacted | The profile response QuotaDial reads identity from |
 | `oauth-profile.synthetic.json` | Claude Code's validation schema | The fields QuotaDial reads |
+| `status-line.synthetic.json` | The example in Claude Code's docs, "Customize your status line" (code.claude.com/docs/en/statusline), read on 2026-10-28, as written there | What Claude Code's status line hands `quotadial claude status-line`: `rate_limits.five_hour` and `seven_day`, each `used_percentage` and `resets_at` in Unix seconds, beside a gateway's `spend_limit` and every other field, none of which QuotaDial keeps (D-145) |
+| `status-line-api-key.synthetic.json` | The same, with no `rate_limits` | A sign-in with an API key, which the docs say gets none, and a session before its first answer: nothing to keep |
+| `status-line-one-window.synthetic.json` | The same, with only `rate_limits.seven_day` | A window Claude Code has dropped once its reset passed, as the docs say it does |
 
 ## Codex
 

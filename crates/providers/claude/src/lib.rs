@@ -7,16 +7,24 @@
 //!
 //! Ported from CodexBar (`Sources/CodexBarCore/` in `../codexbar-ref`). Each module names the
 //! files it follows.
+//!
+//! `quotadial claude status-line` (`command`), through the provider's own commands (P-018), keeps
+//! the five-hour and weekly windows Claude Code's status line hands it (`handover`) in its folder's
+//! file in QuotaDial's data folder (`store`), then runs any status line command named after it
+//! (D-145).
 
 mod advice;
 mod api;
+mod command;
 mod credentials;
 mod environment;
+mod handover;
 mod identity;
 mod keychain;
 mod login;
 mod plan;
 mod process;
+mod store;
 mod usage;
 
 #[cfg(test)]
@@ -31,7 +39,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
-use quotadial_core::{Account, AccountLimit, Error, Provider, Result, Secret, Snapshot, Status};
+use quotadial_core::{
+    Account, AccountLimit, Error, Provider, ProviderCommand, Result, Secret, Snapshot, Status,
+};
 use quotadial_poll::{AccountState, Clock, Decision, Policy, StateStore, SystemClock};
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +78,8 @@ const POLICY: Policy = Policy {
 /// only the one this shell would use (#34).
 pub struct ClaudeProvider {
     env: Environment,
+    /// QuotaDial's data folder, where `quotadial claude status-line` keeps each folder's numbers.
+    data_folder: Option<PathBuf>,
     keychain: Arc<dyn Keychain>,
     clock: Arc<dyn Clock>,
     state_dir: Option<PathBuf>,
@@ -87,11 +99,13 @@ pub struct ClaudeProvider {
 }
 
 impl ClaudeProvider {
-    /// Creates the provider for this process's environment.
+    /// Creates the provider for this process's environment, keeping what Claude Code's status line
+    /// hands over in `data_folder`, QuotaDial's data folder. Nothing is read until it is asked.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(data_folder: Option<PathBuf>) -> Self {
         Self {
             env: Environment::from_process(),
+            data_folder,
             keychain: Arc::from(keychain::system()),
             clock: Arc::new(SystemClock),
             state_dir: StateStore::default_dir(ID),
@@ -120,6 +134,14 @@ impl ClaudeProvider {
     pub fn with_max_accounts(mut self, limit: AccountLimit) -> Self {
         self.max_accounts = limit;
         self
+    }
+
+    /// The file `quotadial claude status-line` keeps its numbers in, for the Claude Code folder this
+    /// process runs for: the one `CLAUDE_CONFIG_DIR` names, inherited from Claude Code, or its
+    /// default folder.
+    fn command_file(&self) -> Option<PathBuf> {
+        let data_folder = self.data_folder.as_ref()?;
+        Some(data_folder.join(store::file_name(self.env.config_dir.as_deref())))
     }
 
     fn locate_all(&self) -> Result<Vec<Login>> {
@@ -613,12 +635,6 @@ impl ClaudeProvider {
     }
 }
 
-impl Default for ClaudeProvider {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl fmt::Debug for ClaudeProvider {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -836,6 +852,18 @@ impl Provider for ClaudeProvider {
         }
         folders
     }
+
+    /// `quotadial claude status-line`, which keeps what Claude Code's status line hands over in this
+    /// folder's file (D-145).
+    fn commands(&self) -> Vec<ProviderCommand> {
+        let file = self.command_file();
+        let clock = Arc::clone(&self.clock);
+        vec![ProviderCommand {
+            name: command::NAME,
+            about: command::ABOUT,
+            run: Box::new(move |invocation| command::run(file.as_deref(), clock.now(), invocation)),
+        }]
+    }
 }
 
 /// Why a credentials file could not be read, and the fix.
@@ -976,6 +1004,7 @@ impl ClaudeProvider {
     ) -> Self {
         Self {
             env,
+            data_folder: None,
             keychain,
             clock,
             state_dir: Some(state_dir),
@@ -994,5 +1023,108 @@ impl ClaudeProvider {
     pub(crate) fn with_request_timeout(mut self, timeout: Duration) -> Self {
         self.request_timeout = timeout;
         self
+    }
+
+    /// The same, keeping what Claude Code's status line hands over in `data_folder`.
+    pub(crate) fn with_data_folder(mut self, data_folder: PathBuf) -> Self {
+        self.data_folder = Some(data_folder);
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::process::ExitCode;
+
+    use quotadial_core::Invocation;
+
+    use super::*;
+
+    const DOCUMENTED: &str = include_str!("../../../../fixtures/claude/status-line.synthetic.json");
+
+    /// The clock and Keychain no test here reads.
+    struct Untouched;
+
+    impl Clock for Untouched {
+        fn now(&self) -> DateTime<Utc> {
+            DateTime::from_timestamp(1_738_411_200, 0).expect("a time")
+        }
+    }
+
+    /// The provider as `quotadial claude status-line` finds it in a Claude Code session with
+    /// `config_dir` as its `CLAUDE_CONFIG_DIR`, keeping its numbers in `data`.
+    fn provider(config_dir: Option<&str>, data: &Path) -> ClaudeProvider {
+        let env = Environment {
+            home: Some(data.join("home")),
+            config_dir: config_dir.map(str::to_owned),
+            ..Environment::default()
+        };
+        ClaudeProvider::for_tests(
+            env,
+            Arc::new(keychain::NoKeychain),
+            Arc::new(Untouched),
+            data.join("cache"),
+            "http://127.0.0.1:9",
+        )
+        .with_data_folder(data.join("quotadial"))
+    }
+
+    /// Hands Claude Code's docs' example to the provider's own command, as Claude Code does.
+    fn hand_over(provider: &ClaudeProvider) -> ExitCode {
+        let command = provider.commands().pop().expect("a command");
+        assert_eq!(command.name, "status-line");
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+        let code = (command.run)(Invocation {
+            args: &[],
+            stdin: &mut DOCUMENTED.as_bytes(),
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+        });
+        assert!(stdout.is_empty() && stderr.is_empty(), "it prints nothing");
+        code
+    }
+
+    #[test]
+    fn its_command_keeps_each_claude_code_folder_s_numbers_in_a_file_of_its_own() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let data = temp.path().join("quotadial");
+
+        assert_eq!(hand_over(&provider(None, temp.path())), ExitCode::SUCCESS);
+        assert_eq!(
+            hand_over(&provider(Some("/Users/example/.claude-work"), temp.path())),
+            ExitCode::SUCCESS
+        );
+
+        let mut files: Vec<String> = std::fs::read_dir(&data)
+            .expect("the data folder is made")
+            .map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        files.sort();
+        assert_eq!(files, ["claude-dd1118a7.json", "claude.json"]);
+        for file in files {
+            let kept: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(data.join(&file)).expect("reads"))
+                    .expect("JSON");
+            assert_eq!(
+                kept["rate_limits"]["seven_day"]["used_percentage"], 41.2,
+                "{file}"
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_data_folder_its_command_keeps_nothing_and_still_prints_nothing() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let mut provider = provider(None, temp.path());
+        provider.data_folder = None;
+
+        assert_eq!(hand_over(&provider), ExitCode::SUCCESS);
+        assert!(!temp.path().join("quotadial").exists());
     }
 }

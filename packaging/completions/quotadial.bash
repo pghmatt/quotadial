@@ -22,6 +22,9 @@ _quotadial() {
             quotadial,antigravity)
                 cmd="quotadial__subcmd__antigravity"
                 ;;
+            quotadial,claude)
+                cmd="quotadial__subcmd__claude"
+                ;;
             quotadial,daemon)
                 cmd="quotadial__subcmd__daemon"
                 ;;
@@ -94,11 +97,26 @@ _quotadial() {
             quotadial__subcmd__antigravity__subcmd__help,status-line)
                 cmd="quotadial__subcmd__antigravity__subcmd__help__subcmd__status__subcmd__line"
                 ;;
+            quotadial__subcmd__claude,help)
+                cmd="quotadial__subcmd__claude__subcmd__help"
+                ;;
+            quotadial__subcmd__claude,status-line)
+                cmd="quotadial__subcmd__claude__subcmd__status__subcmd__line"
+                ;;
+            quotadial__subcmd__claude__subcmd__help,help)
+                cmd="quotadial__subcmd__claude__subcmd__help__subcmd__help"
+                ;;
+            quotadial__subcmd__claude__subcmd__help,status-line)
+                cmd="quotadial__subcmd__claude__subcmd__help__subcmd__status__subcmd__line"
+                ;;
             quotadial__subcmd__help,alerts)
                 cmd="quotadial__subcmd__help__subcmd__alerts"
                 ;;
             quotadial__subcmd__help,antigravity)
                 cmd="quotadial__subcmd__help__subcmd__antigravity"
+                ;;
+            quotadial__subcmd__help,claude)
+                cmd="quotadial__subcmd__help__subcmd__claude"
                 ;;
             quotadial__subcmd__help,daemon)
                 cmd="quotadial__subcmd__help__subcmd__daemon"
@@ -142,6 +160,9 @@ _quotadial() {
             quotadial__subcmd__help__subcmd__antigravity,status-line)
                 cmd="quotadial__subcmd__help__subcmd__antigravity__subcmd__status__subcmd__line"
                 ;;
+            quotadial__subcmd__help__subcmd__claude,status-line)
+                cmd="quotadial__subcmd__help__subcmd__claude__subcmd__status__subcmd__line"
+                ;;
             quotadial__subcmd__help__subcmd__licence,add)
                 cmd="quotadial__subcmd__help__subcmd__licence__subcmd__add"
                 ;;
@@ -182,7 +203,7 @@ _quotadial() {
 
     case "${cmd}" in
         quotadial)
-            opts="-h -V --help --version status watch daemon mcp alerts doctor licence history antigravity help"
+            opts="-h -V --help --version status watch daemon mcp alerts doctor licence history claude antigravity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -447,6 +468,76 @@ _quotadial() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        quotadial__subcmd__claude)
+            opts="-h --help status-line help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__claude__subcmd__help)
+            opts="status-line help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__claude__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__claude__subcmd__help__subcmd__status__subcmd__line)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__claude__subcmd__status__subcmd__line)
+            opts="-h --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         quotadial__subcmd__daemon)
             opts="-h --port --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -480,7 +571,7 @@ _quotadial() {
             return 0
             ;;
         quotadial__subcmd__help)
-            opts="status watch daemon mcp alerts doctor licence history antigravity help"
+            opts="status watch daemon mcp alerts doctor licence history claude antigravity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -592,6 +683,34 @@ _quotadial() {
             return 0
             ;;
         quotadial__subcmd__help__subcmd__antigravity__subcmd__status__subcmd__line)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__help__subcmd__claude)
+            opts="status-line"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        quotadial__subcmd__help__subcmd__claude__subcmd__status__subcmd__line)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

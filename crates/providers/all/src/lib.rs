@@ -35,9 +35,12 @@ pub fn with_config(config: &Config, licensing: &Licensing) -> Vec<Arc<dyn Provid
     use quotadial_provider_claude::ClaudeProvider;
     use quotadial_provider_codex::CodexProvider;
 
+    // Claude and Antigravity keep what their CLIs' status lines hand over in the data folder,
+    // found as every QuotaDial process finds it; making them reads nothing.
+    let data_folder = DataDir::from_env().map(|dir| dir.path().to_path_buf());
     vec![
         Arc::new(
-            ClaudeProvider::new()
+            ClaudeProvider::new(data_folder.clone())
                 .with_extra_config_dirs(
                     config.extra_config_dirs.iter().map(PathBuf::from).collect(),
                 )
@@ -46,11 +49,9 @@ pub fn with_config(config: &Config, licensing: &Licensing) -> Vec<Arc<dyn Provid
         Arc::new(CodexProvider::new()),
         #[cfg(feature = "gemini")]
         Arc::new(quotadial_provider_gemini::GeminiProvider::new()),
-        // It keeps Antigravity CLI's numbers in the data folder, found as every QuotaDial process
-        // finds it; making it reads nothing.
         #[cfg(feature = "antigravity")]
         Arc::new(quotadial_provider_antigravity::AntigravityProvider::new(
-            DataDir::from_env().map(|dir| dir.path().to_path_buf()),
+            data_folder,
         )),
     ]
 }

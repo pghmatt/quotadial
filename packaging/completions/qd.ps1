@@ -33,6 +33,7 @@ Register-ArgumentCompleter -Native -CommandName 'qd' -ScriptBlock {
             [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Print what support asks for, with nothing secret in it: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app''s Send feedback attaches the same')
             [CompletionResult]::new('licence', 'licence', [CompletionResultType]::ParameterValue, 'Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call')
             [CompletionResult]::new('history', 'history', [CompletionResultType]::ParameterValue, 'Show how each window was used over time, from the daemon''s history')
+            [CompletionResult]::new('claude', 'claude', [CompletionResultType]::ParameterValue, 'Commands the Claude provider adds')
             [CompletionResult]::new('antigravity', 'antigravity', [CompletionResultType]::ParameterValue, 'Commands the Antigravity provider adds')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -184,6 +185,29 @@ Register-ArgumentCompleter -Native -CommandName 'qd' -ScriptBlock {
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
             break
         }
+        'qd;claude' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('status-line', 'status-line', [CompletionResultType]::ParameterValue, 'Keeps the numbers Claude Code''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'qd;claude;status-line' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            break
+        }
+        'qd;claude;help' {
+            [CompletionResult]::new('status-line', 'status-line', [CompletionResultType]::ParameterValue, 'Keeps the numbers Claude Code''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'qd;claude;help;status-line' {
+            break
+        }
+        'qd;claude;help;help' {
+            break
+        }
         'qd;antigravity' {
             [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
@@ -216,6 +240,7 @@ Register-ArgumentCompleter -Native -CommandName 'qd' -ScriptBlock {
             [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Print what support asks for, with nothing secret in it: the version, the system, the licence, the daemon, every account and where its sign-in is, the problems and the settings. The app''s Send feedback attaches the same')
             [CompletionResult]::new('licence', 'licence', [CompletionResultType]::ParameterValue, 'Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key. A key is checked on this machine, with no network call')
             [CompletionResult]::new('history', 'history', [CompletionResultType]::ParameterValue, 'Show how each window was used over time, from the daemon''s history')
+            [CompletionResult]::new('claude', 'claude', [CompletionResultType]::ParameterValue, 'Commands the Claude provider adds')
             [CompletionResult]::new('antigravity', 'antigravity', [CompletionResultType]::ParameterValue, 'Commands the Antigravity provider adds')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -274,6 +299,13 @@ Register-ArgumentCompleter -Native -CommandName 'qd' -ScriptBlock {
             break
         }
         'qd;help;history' {
+            break
+        }
+        'qd;help;claude' {
+            [CompletionResult]::new('status-line', 'status-line', [CompletionResultType]::ParameterValue, 'Keeps the numbers Claude Code''s status line hands it on standard input, then runs the status line command named after it, if any, with the same input.')
+            break
+        }
+        'qd;help;claude;status-line' {
             break
         }
         'qd;help;antigravity' {
