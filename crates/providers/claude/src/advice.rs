@@ -284,6 +284,39 @@ mod tests {
         }
     }
 
+    /// The window check's copies hold Claude's sentences as this provider writes them, each whole on
+    /// its line, so the check covers the very line a person on 0.2.0 sees on a Claude card after
+    /// updating (the manager's rule 9): for Claude Code's default folder and for `~/.claude-work`,
+    /// the home folder being `/Users/someone`, as a Mac writes them.
+    #[cfg(unix)]
+    #[test]
+    fn the_window_check_shows_claude_s_lines_as_the_provider_writes_them() {
+        const WINDOW: &str = include_str!("../../../../apps/tray/scripts/window-fixtures.mjs");
+        let home = Path::new("/Users/someone");
+        let env = env_in(home);
+        let work = Folder::Named(home.join(".claude-work").display().to_string());
+        for (name, said) in [
+            (
+                "CLAUDE_SIGN_IN",
+                sign_in_use(&Folder::Default, "claude.json", &env),
+            ),
+            (
+                "CLAUDE_WORK_SIGN_IN",
+                sign_in_use(&work, &work.file_name(), &env),
+            ),
+            ("CLAUDE_WAITING", waiting(&work, &env)),
+        ] {
+            let written = format!(
+                "const {name} = {};",
+                serde_json::to_string(&said).expect("JSON")
+            );
+            assert!(
+                WINDOW.contains(&written),
+                "window-fixtures.mjs has no {written}"
+            );
+        }
+    }
+
     /// Doctor's text for `account` with `line` under it, the home folder being `home`.
     fn doctor(account: Account, line: &str, home: &Path) -> String {
         Diagnostics {
