@@ -255,9 +255,9 @@ test("a host has no @, so it breaks before each dot after its first character, a
 });
 
 test("a host stands in a sentence after a space, a bracket or a quotation mark, and before a space, a mark of punctuation or the stop that ends it", () => {
-  assert.deepEqual(hostRuns("api.anthropic.com, Anthropic's, with your Claude Code sign-in.", DESTINATIONS), [
-    { text: "api.anthropic.com", host: true },
-    { text: ", Anthropic's, with your Claude Code sign-in.", host: false },
+  assert.deepEqual(hostRuns("chatgpt.com, OpenAI's, with your Codex CLI sign-in.", DESTINATIONS), [
+    { text: "chatgpt.com", host: true },
+    { text: ", OpenAI's, with your Codex CLI sign-in.", host: false },
   ]);
   assert.deepEqual(hostRuns("status.claude.com and status.openai.com, the providers' public status pages.", DESTINATIONS), [
     { text: "status.claude.com", host: true },

@@ -7,11 +7,11 @@
 /// What QuotaDial reads and sends, as `docs/PRIVACY.md` says it.
 pub const PRIVACY: &str = include_str!("../../../docs/PRIVACY.md");
 
-/// Every host QuotaDial connects to on its own: the two providers' usage endpoints, their status
-/// pages, and GitHub for updates. The webhooks alerts go to are the user's own, set in
+/// Every host QuotaDial connects to on its own: OpenAI's usage endpoint for Codex, the providers'
+/// status pages, and GitHub for updates. Claude's numbers come from Claude Code's status line, so
+/// none of Anthropic's is here (D-145). The webhooks alerts go to are the user's own, set in
 /// `config.json`, and the text names them as such.
-pub const HOSTS: [&str; 6] = [
-    "api.anthropic.com",
+pub const HOSTS: [&str; 5] = [
     "chatgpt.com",
     "status.claude.com",
     "status.openai.com",
@@ -52,9 +52,19 @@ mod tests {
     }
 
     #[test]
+    fn quotadial_never_connects_to_anthropic() {
+        // Claude's numbers come only from what Claude Code's status line hands over, never with
+        // Claude Code's sign-in (D-145): no address of Anthropic's is one QuotaDial connects to,
+        // and the text names none.
+        assert!(!HOSTS.iter().any(|host| host.contains("anthropic")));
+        assert!(!named("https://api.anthropic.com/api/oauth/usage"));
+        assert!(!PRIVACY.contains("anthropic.com"), "{PRIVACY}");
+    }
+
+    #[test]
     fn an_address_is_named_by_its_host_alone() {
         assert!(named("https://chatgpt.com/backend-api/wham/usage"));
-        assert!(named("https://API.anthropic.com"));
+        assert!(named("https://STATUS.openai.com"));
         assert!(named(
             "https://github.com:443/pghmatt/quotadial/releases/latest/download/latest.json"
         ));

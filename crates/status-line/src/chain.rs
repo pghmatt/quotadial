@@ -1,14 +1,19 @@
-//! The status line the user already had, which `quotadial antigravity status-line` runs after it
+//! The status line the user already had, which a provider's `status-line` command runs after it
 //! keeps its numbers, so adding QuotaDial costs nothing the user had (the manager's rule (b)(3) on
 //! #73): the words after `status-line` are a program and its arguments, run as they are, with no
-//! shell of QuotaDial's own, since Antigravity CLI's shell has already read them. The program gets
-//! the same standard input, and its output, standard error and exit status come back unchanged.
+//! shell of QuotaDial's own, since the CLI's shell has already read them. The program gets the same
+//! standard input, and its output, standard error and exit status come back unchanged.
 //!
 //! Antigravity CLI stops any run of its status line that takes longer than 5 seconds (its docs,
 //! "Status line customization"), which would stop QuotaDial and leave the program running, so
 //! QuotaDial stops the program itself at [`WAIT`] and ends as a stopped run would, with nothing
-//! printed and a failure. A program that leaves another process holding its output open cannot hold
-//! QuotaDial past that either.
+//! printed and a failure. Claude Code shows a status line's output only once its run ends, and a
+//! slow run keeps the line from updating until it does (its docs, "Customize your status line"), so
+//! the same stop keeps a program that hangs from holding Claude Code's line past it. A program that
+//! leaves another process holding its output open cannot hold QuotaDial past that either.
+//!
+//! Lifted whole from `crates/providers/antigravity/src/chain.rs` (D-126), with its tests and its
+//! behaviour unchanged, so that Antigravity's command and Claude's chain alike (D-145).
 
 use std::io::{self, Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
@@ -18,7 +23,7 @@ use std::time::{Duration, Instant};
 
 /// How long the program may run: less than Antigravity CLI's 5 seconds, so the run ends with the
 /// program stopped rather than left running when Antigravity CLI stops QuotaDial.
-pub(crate) const WAIT: Duration = Duration::from_millis(4500);
+pub const WAIT: Duration = Duration::from_millis(4500);
 
 /// How often QuotaDial looks to see whether the program has ended.
 const LOOK_EVERY: Duration = Duration::from_millis(5);
@@ -33,14 +38,18 @@ const FAILED: u8 = 1;
 
 /// What the program printed, and how it ended.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct Ran {
-    pub(crate) stdout: Vec<u8>,
-    pub(crate) stderr: Vec<u8>,
-    pub(crate) code: u8,
+pub struct Ran {
+    /// What it printed on standard output.
+    pub stdout: Vec<u8>,
+    /// What it printed on standard error.
+    pub stderr: Vec<u8>,
+    /// The exit status it ended with, as a shell gives it.
+    pub code: u8,
 }
 
 /// Runs `program` with `args`, `input` on its standard input, for at most `wait`.
-pub(crate) fn run(program: &str, args: &[String], input: &[u8], wait: Duration) -> Ran {
+#[must_use]
+pub fn run(program: &str, args: &[String], input: &[u8], wait: Duration) -> Ran {
     let deadline = Instant::now() + wait;
     let mut child = match Command::new(program)
         .args(args)

@@ -157,13 +157,11 @@ fn about_the_command(roff: &mut Roff) {
              token in, in place of the system's own.",
         ),
         (
-            "CLAUDE_CODE_OAUTH_TOKEN",
-            "The Claude sign-in to read first, as Claude Code does. QuotaDial only reads it.",
-        ),
-        (
             "CLAUDE_CONFIG_DIR",
-            "The folder Claude Code keeps its sign-in for, in place of ~/.claude. QuotaDial also \
-             finds every other Claude Code sign-in on the machine.",
+            "The folder Claude Code keeps its settings and account in, in place of ~/.claude. \
+             quotadial claude status-line keeps that folder's numbers in a file of its own, and \
+             QuotaDial also looks in every other Claude Code folder on the machine. Claude Code's \
+             sign-in is never read.",
         ),
         (
             "CODEX_HOME",
@@ -294,10 +292,14 @@ fn there_is_a_manual_page_for_every_command() {
     ] {
         assert!(top.contains(section), "quotadial(1) has no {section}");
     }
-    // Each variable a shipped provider reads to find a sign-in, Gemini CLI's too (D-124).
+    // Each variable a shipped provider reads to find its folder or a sign-in, Gemini CLI's too
+    // (D-124), and none that only says where Claude Code's sign-in is, which is never read (D-145).
+    assert!(
+        !top.contains("CLAUDE_CODE_OAUTH_TOKEN"),
+        "quotadial(1) names a sign-in QuotaDial never reads"
+    );
     for variable in [
         "QUOTADIAL_DATA_DIR",
-        "CLAUDE_CODE_OAUTH_TOKEN",
         "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
         "GEMINI_CLI_HOME",

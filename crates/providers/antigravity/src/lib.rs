@@ -12,7 +12,8 @@
 //!   Antigravity CLI runs it with its session's state on standard input; it keeps only each limit's
 //!   share or amount and reset, the plan, the account's address and its own time (`handover`), in
 //!   `antigravity.json` in QuotaDial's data folder (`store`), then runs any status line command
-//!   named after it, with the same input (`chain`).
+//!   named after it, with the same input. The run, the chaining and the file written whole are
+//!   `quotadial-status-line`'s, lifted from this crate so Claude's command shares them (D-145).
 //! - Discovery looks at two things only: that file, and whether Antigravity CLI's folder
 //!   ([`FOLDER`]) is there, without opening anything in it. With the file, the account is the one
 //!   it names; with only the folder, an account whose line says what to add, so its sign-in panel
@@ -29,7 +30,6 @@
 //! numbers through Antigravity's sign-in, which QuotaDial does not.
 
 mod advice;
-mod chain;
 mod command;
 mod handover;
 mod store;

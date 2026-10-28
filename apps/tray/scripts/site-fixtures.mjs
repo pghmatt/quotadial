@@ -17,11 +17,9 @@ import { DESTINATIONS } from "./window-fixtures.mjs";
 /** @typedef {import("../src/meter").HelpView} HelpView */
 /** @typedef {import("../src/meter").UpdateView} UpdateView */
 
-const CLAUDE_SIGN_IN =
-  "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN environment " +
-  'variable when it is set, then the macOS Keychain item "Claude Code-credentials", then ' +
-  ".credentials.json in ~/.claude or the folder CLAUDE_CONFIG_DIR names. It only reads the " +
-  "sign-in and never changes it. If it stops working, run claude once.";
+// What Claude's provider says of an account in Claude Code's default folder, written whole on its
+// line as the provider writes it, which a test in crates/providers/claude holds (D-145).
+const CLAUDE_SIGN_IN = "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's status line hands it, in claude.json in QuotaDial's data folder, once `\"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" }` is in ~/.claude/settings.json and Claude Code has started again with `quotadial` on its PATH.";
 const CODEX_SIGN_IN =
   "QuotaDial reads the sign-in the Codex CLI keeps in auth.json, in ~/.codex or the folder " +
   "CODEX_HOME names. It only reads the sign-in and never changes it. If it stops working, run " +
@@ -38,8 +36,9 @@ const ACCOUNTS = [
     plan: "Max 5x",
     status: "ok",
     ok: true,
-    // Three windows of one answer: the card says where and when once, and no window does.
-    fetched: "from the API 3 min ago",
+    // The two windows Claude Code's status line hands over, of one handover: the card says where
+    // and when once, and no window does (D-135, D-145).
+    fetched: "from the CLI's status line 3 min ago",
     windows: [
       {
         label: "Weekly",
@@ -50,16 +49,6 @@ const ACCOUNTS = [
         unconfirmed: false,
         pace: "at 2.0%/h, runs out in 4 h 30 min, 1 d 11 h before it resets",
         runs_out: true,
-      },
-      {
-        label: "Weekly (Opus)",
-        used_pct: 74,
-        level: "warning",
-        resets: "resets in 1 d 15 h",
-        fetched: null,
-        unconfirmed: false,
-        pace: null,
-        runs_out: false,
       },
       {
         label: "Session",

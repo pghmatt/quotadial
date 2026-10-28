@@ -12,7 +12,7 @@ Study: private (the Brain's workspace, `quotadial-site-private/seo/intent/home/s
 
 1. H1: "Claude and Codex usage tracker for your menu bar or tray"
 2. Answer sentence: "See how much of each Claude and ChatGPT/Codex plan limit you have used,
-   and when it resets, from the sign-in Claude Code and the Codex CLI already keep."
+   and when it resets, from Claude Code's status line and the sign-in the Codex CLI already keeps."
 3. Primary action: "Download for macOS" (or Windows, or Linux, by the visitor's system; "Download
    QuotaDial" when it cannot tell), a link to `/download`, whose first screen names that system's
    file, marked `data-primary-action`, firing `download_click` with the system. Under it, one line:
@@ -26,12 +26,12 @@ Study: private (the Brain's workspace, `quotadial-site-private/seo/intent/home/s
 
 | # | Job | H2 | First-paragraph answer | Required elements | Evidence asset | Links out |
 |---|---|---|---|---|---|---|
-| 1 | What it tracks | Each limit, its reset and its pace | Claude's five-hour session, its weekly limits and per-model weeks, and each Codex window, each with the share used, when it resets, how old the number is, and whether it runs out before the reset | the real window (light or dark), a window row read aloud: "Weekly 91%, resets in 2 d 4 h, from the API 4 min ago; at 2.0%/h, runs out in 4 h 18 min" | app captures with example accounts | |
-| 2 | No sign-in | Uses the sign-in you already have | It reads the sign-in Claude Code and the Codex CLI keep, and only reads it: it never writes, refreshes, moves or logs it; every Claude subscription you keep under its own `CLAUDE_CONFIG_DIR` shows up | where it looks, per provider, in plain words | `README.md`, provider support | |
+| 1 | What it tracks | Each limit, its reset and its pace | Claude's five-hour session and its weekly limit, and each Codex window, each with the share used, when it resets, how old the number is, and whether it runs out before the reset | the real window (light or dark), a window row read aloud: "Weekly 91%, resets in 2 d 4 h, from the API 4 min ago; at 2.0%/h, runs out in 4 h 18 min" | app captures with example accounts | |
+| 2 | No sign-in | No new sign-in or API key | It reads the sign-in the Codex CLI keeps, and only reads it: it never writes, refreshes, moves or logs it; Claude's numbers come from Claude Code's status line, and Claude Code's sign-in is never read (D-145); every Claude subscription you keep under its own `CLAUDE_CONFIG_DIR` shows up | where it looks, per provider, in plain words | `README.md`, provider support | |
 | 3 | Alerts | A warning before a run stops | Rules in plain words, such as "warn me at 80%" or "tell me 30 minutes before the weekly window runs out", as the system's notifications | two example rules as typed, the notification they give | `docs/CLI.md` Alerts | |
 | 4 | Agents | Your agents can check before they start | The same numbers through `quotadial status`, a local API on 127.0.0.1 and an MCP server with a SKILL.md, so an agent can check its headroom first | a short terminal sample of `qd status` output with example accounts | `docs/CLI.md` | |
 | 5 | Systems | On macOS, Windows and Linux | One app for all three, in the menu bar, the notification area or the panel's tray | three systems named with their file types | `docs/INSTALL.md` | /download |
-| 6 | Privacy | Everything it connects to | Anthropic and ChatGPT for your limits, their public status pages, GitHub for updates, and webhooks you add: nothing else, no account, no analytics | the address list, in short | `docs/PRIVACY.md` | /privacy |
+| 6 | Privacy | Everything it connects to | ChatGPT for your Codex limits, the providers' public status pages, GitHub for updates, and webhooks you add: nothing else, no account, no analytics | the address list, in short | `docs/PRIVACY.md` | /privacy |
 | 7 | Free and Pro | QuotaDial Free and Pro | Free needs no key; Pro adds every account, a year of history, early warnings, webhooks and Slack, the week's cost and headroom for agents | the two lists, no price | `README.md` Free and Pro | /pro |
 | 8 | Questions | Questions before you install | (each question an H3 with its answer) | the demanded questions below | | /support |
 | 9 | Close | (no heading, or the action named) | the download action again | | | /download |
@@ -82,8 +82,8 @@ decision), so the adapter records to the page only.
 ## Title and meta
 
 Title: "Claude and Codex usage tracker for the menu bar | QuotaDial" (59) · Meta: "See how much of each
-Claude and ChatGPT/Codex plan limit you have used and when it resets, from the sign-in your CLI
-keeps. For macOS, Windows and Linux." (153)
+Claude and ChatGPT/Codex plan limit you have used and when it resets, from the CLIs you already
+run. For macOS, Windows and Linux." (151)
 
 ## Reviewer checks
 

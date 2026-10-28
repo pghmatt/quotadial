@@ -113,6 +113,10 @@ left open (#73, 2026-10-26): PR 1c, merged as #78, has each provider say whom it
 with the manager's answers of 2026-10-26 (02:25 UTC) on #73 in it; then PR 2, Copilot, its merge
 held on its live check (#51).
 
+Claude through Claude Code's status line, never its sign-in (D-145): Matt's "Go" on 2026-10-28, and the
+manager's order on #73 (17:50 UTC): this PR first, then #116's six pictures taken again from `main`, then the
+0.3.0 bump, the tag and the pre-release; #81 and PR D held as before.
+
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
 - P-010 is decided (D-034).
@@ -252,6 +256,9 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | Every other time and day a sentence writes, as a person reads it | Done (PR #113, D-142) | The manager's review of #109 (2026-10-27, 15:27 UTC), on its note's two proposals: `watch`'s "Updated …" takes D-142's form and `history`'s "Since …" and "No readings since …" stay RFC 3339, since `--since` takes them back; every other sentence on #109's list takes it too, the poll gate's four, Codex's session log and Antigravity's three; and a day alone takes the new `text::date`'s "24 Oct 2027", which `date_and_time` takes its day from: the licence's "until" and both "ended on" sentences, and the window's price-table day. D-142's row is extended, with one CHANGELOG line; each sentence's test holds its new words; the JSON, the API and the CSV's and picture's file names stay as they are |
 | History's dates and heatmap follow the charts' period | Done (PR #114, D-144) | The manager's decision on #73 (2026-10-27, 19:35 UTC), with five holds, on the coordinator's proposal of 19:17 UTC, the item the review of #111 queued: `dates`, the heatmap's rows and the marks start on the day the charts start in; a row for each calendar day the period holds, eight in a week when now is not a midnight, a now at midnight holding none of its day; `cells` an `Option` a cell, `None` for an hour outside the period, which the window and the picture to share draw no square for, at either end, every other square kept in its hour's column; the first row's words name the hour it starts from. `rowVerdicts` (`heatmap-rows.mjs`) and the picture's `heatVerdicts` hold the rows, their count, the squares to a pixel, the words and the marks' days in every History view at 100% and 200% over 7 and 30 days; they failed 320 of 117,516 checks on `main`'s window and on each of eight broken ones. D-143's left-date sentence amended (hold 4); one sentence carried for D-136, Matt's "Keep the bar alone"; the website's History pictures captured again |
 | A host breaks before each dot, as an address does | Done (PR #115, D-141) | The manager's review of #107 (2026-10-27, 15:27 UTC): the hosts #107 left for later, the webhooks' and Help's privacy text's, "can take the same `<wbr>` before each dot" as a small follow-up, with D-141's rule extended to a host in a sentence and no new D; ordered on #73 (19:23 UTC) for whenever a builder has the slot. `Host` writes a host as `Address` writes an address; Settings' line names each of `alert_targets` with it, and Help's privacy text each place QuotaDial connects to, found only from a new `HelpView.hosts` (`privacy::HOSTS`) where one stands as a word of a sentence (`hostRuns`, `WithHosts`), never guessed from a word with a dot in it. `checkHosts` (`whole-addresses.mjs`) holds every host written whole and in order and none anywhere else, no word of one broken where it fits its line, and each line naming hosts byte for byte and heard whole; it failed 16 of 115,916 checks on `main`'s window (8 a host broken inside a word that fits its line, all at 200%, and 8 for want of the line's new class) and passes 115,936, 484 more than `main`'s 115,452. The window check's `CHROME` row below was folded in, on the manager's go |
+| Claude through Claude Code's status line, never its sign-in | Done (PR #117, D-145) | Matt's "Go" (2026-10-28, 17:13 UTC) and the manager's twelve rules on #73 (17:50 UTC, item 2): `quotadial claude status-line` keeps the five-hour and weekly windows Claude Code's status line hands it, and nothing else, in `claude.json` or a named folder's `claude-<8 hex>.json`; each folder's account from its `.claude.json` `oauthAccount`, so ids, History, aliases and rules carry on; the two windows keep `KNOWN_BUCKETS`' identity, from `status_line`, stale after 10 minutes, a window past its reset left out (D-126), none left `unsupported`; before any numbers the card says why it is empty and the line to add. Removed with it: the Keychain, `.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN`, the usage and profile requests, Claude Code's `User-Agent`, per-model weeklies and extra usage, and `api.anthropic.com` from `privacy::HOSTS`. The shared code lifted into `crates/status-line`, Antigravity's behaviour unchanged. Recorded at the manager's ask (his review of #117): a still account is read every 10 minutes, so after the line is added the first numbers can take that long to appear; that is the poller's adaptive interval, and if Matt's run shows it matters, it is a daemon change (a file-backed provider polled at its floor while its file is younger than a poll), not #117's. Notes below |
+| The window check stops waiting on Chrome's inherited stderr | Queued, for the next PR that touches the check | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone", for the next PR that touches the check, "not this one". Chrome's crash handlers keep the check's stderr open after Chrome has gone, so a run can sit after its last line. D-145's PR changes neither `scripts/check-window.mjs` nor `scripts/chrome.mjs`, so the row stays queued |
+| The example build's Claude-like account drops its weekly Opus window | Queued, for #116's retake | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still shows a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. It is dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product |
 
 ## Kickoff
 
@@ -464,6 +471,149 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: Claude through Claude Code's status line, never its sign-in (D-145)
+
+- **The ask:** Matt's "Go" (2026-10-28, 17:13:46 UTC, relayed by the Chief of Staff) on the coordinator's proposal on
+  #73 (17:18 UTC): QuotaDial reads Claude only through Claude Code's status line, never through Claude Code's sign-in,
+  and the first full release and the first sale wait for it. The manager's decision on #73 (17:50 UTC, item 2), with
+  twelve rules, and the order: this PR first, then #116's pictures taken again, then the 0.3.0 bump, the tag and the
+  pre-release. Built on `feat/claude-status-line` from `main` at 5ca70aa (#115), in the antigravity worktree, to the
+  coordinator's brief.
+- **The commits, one concern each (rule 1):** the shared code lifted into `crates/status-line`; the command; the
+  provider's fetch from the file, which takes the reader it replaces with it (a commit between the two would hold dead
+  code or a Claude that reads nothing); the app's lockfile; `api.anthropic.com` out of `privacy::HOSTS` and the
+  privacy text; the window check's card before the first reading; the docs; the website's copy and home page; the home
+  page's sign-in heading and `AGENTS.md`'s first paragraph; D-145; `AGENTS.md`'s polling rule and the site's story,
+  from the review; this note.
+- **The shared crate (rule 6):** `quotadial-status-line`, lifted whole from the Antigravity provider: `chain` (from
+  `chain.rs`, its seven tests with it), `file` (the write through a temporary file and a rename, 0600 in a 0700
+  folder, no sync, and the plain-file read, from `store.rs`, with the four tests about files), and `run` (the
+  command's run, from `command.rs`). Each module's docs name where it came from; it knows files, processes and exit
+  codes, never what a status line hands over. Antigravity's other 53 tests pass from the lift's own commit, 64 with
+  the 11 that moved.
+- **The command (rules 4 to 6):** `quotadial claude status-line [COMMAND [ARGS...]]` keeps `rate_limits.five_hour` and
+  `rate_limits.seven_day`, each `used_percentage` from 0 to 100 (outside it, the window is left out) and `resets_at`
+  in whole Unix seconds, kept when at most a year after the handover, and its own `written_at`; nothing else. A
+  payload with no window to keep writes nothing. `claude.json` for the default folder, `claude-<8 hex>.json` for a
+  folder `CLAUDE_CONFIG_DIR` names (the 8 hex of Claude Code's own `Claude Code-credentials-` item). It prints nothing
+  of its own and chains as Antigravity's does, through the shared `run`.
+- **The provider (rules 2 to 4):** accounts from each folder's `.claude.json` `oauthAccount`, listed as the sign-ins
+  were, this shell's first, so the same ids, organisations, History, aliases and rules carry on; a folder with numbers
+  and no account named is `claude` or `claude-<8 hex>`. The two windows keep `KNOWN_BUCKETS`' identity, from
+  `status_line`; D-126's rule for a window past its reset; stale after 10 minutes; with none left, `unsupported`
+  saying when Claude Code last handed numbers over. Before any numbers, the line says why the card is empty, what to
+  add, to start Claude Code again, and, in the docs' words, which sign-ins get numbers (rule 5). The sign-in sentence
+  names the file, the line, where it goes, a restart and the `PATH` (rules 7 and 8), as doctor and the panel show it.
+  `asks()` is none, and Claude's crate has no HTTP client (P-021's test); D-117's list test holds whom each provider
+  asks.
+- **The removal (rule 8):** `api.rs`, `credentials.rs`, `keychain.rs`, `login.rs`, `process.rs`, `usage.rs` and the
+  old `provider_tests.rs` (moved to the scratchpad, never deleted with `rm`), the oauth fixtures and `usage.rs`'s
+  proptest seeds; `reqwest`, `quotadial-poll`, `tokio`, `zeroize` and `wiremock` out of Claude's manifest;
+  `api.anthropic.com` out of `privacy::HOSTS`, with a test that holds Anthropic out of the list and the text; the
+  manual page's `CLAUDE_CODE_OAUTH_TOKEN`; and every doc rule 8 lists, with `CLI.md`, the man page, `ACCESSIBILITY.md`
+  and `RELEASE.md`. The CHANGELOG's two lines (rule 9) are in, and three earlier Unreleased lines about Claude's
+  sign-in command, which 0.3.0 no longer has, say only what still holds.
+- **The window check (rule 9):** the copies' expired-sign-in Claude card, a state Claude no longer has, is the card
+  before its first reading, its line and sign-in sentence written whole as the provider writes them, which
+  `advice::tests::the_window_check_shows_claude_s_lines_as_the_provider_writes_them` holds, for the website's copy
+  too. The website's copy shows Claude Work from the status line, two windows and the new caption. Two share-picture
+  tests that drew the website's account as their three-window sample now draw the window check's own.
+- **The home page's sign-in heading:** "Uses the sign-in you already have", untrue for Claude once its sign-in is
+  never read, is "No new sign-in or API key": in the page (`SignIn.tsx`), in the route map
+  (`site/docs/seo/site.config.json`, which `site/AGENTS.md` holds a page's headings to) and in the blueprint's row 2,
+  which keeps its job, "No sign-in", and its question, "Does it need an API key or a new sign-in?". The blueprint's
+  answer sentence now reads as the hero's does: "from Claude Code's status line and the sign-in the Codex CLI already
+  keeps".
+- **`AGENTS.md`'s first paragraph:** it said QuotaDial "reads the OAuth credentials the official CLIs already store,
+  calls each provider's usage endpoint", which a builder reads first and could take as leave to put Claude's sign-in
+  reader back. It now says QuotaDial reads Claude's limits from what Claude Code's status line hands it (D-145) and
+  calls Codex's usage endpoint with the sign-in the Codex CLI keeps; nothing else in `AGENTS.md` changed.
+- **`AGENTS.md`'s polling rule and the site's story** (the manager's review of #117): `AGENTS.md`'s rule to poll
+  Anthropic's usage endpoints at most every 5 minutes, which nothing does now, is the rule that is true: ask no
+  provider more often than its floor, 2 minutes for OpenAI, and read Claude's and Antigravity's files no more than
+  every 5 minutes, enforced in code, as each provider's `MIN_POLL_INTERVAL` is. `site/docs/DIRECTION.md`'s story, in
+  which a visitor learned QuotaDial "reads the sign-in they already have", says it reads Claude's numbers from Claude
+  Code's status line and Codex's from the sign-in they already have.
+- **The example build's weekly Opus window:** the example build's Claude-like account still shows a weekly Opus window
+  (`fixtures/fake/example.json:16`), which Claude no longer has. Queued in a row of its own for #116's retake, where
+  it is dropped, as the manager decided, since the pictures are the reason; the window check's own three-window Claude
+  Work card stays, a shape for the check.
+- **Proof:** every new test failed first against a stub, in seven runs whose logs are in the scratchpad
+  (`claude-status-line/fail-first-*.log`): a stub that keeps, finds and says nothing failed 13 of the command's 19 and
+  34 of the fetch's; one that keeps too much (no range, no NFC, a file with no time, a path in Debug, a forbidden
+  word, an account for every folder, Anthropic asked) failed the rest; one that opens the sign-in failed the
+  never-opened test on its pipe; main's hosts and privacy text failed the two Anthropic guards; main's copies failed
+  the cross-check.
+- **Pictures,** in the scratchpad's `claude-status-line/pictures/`: `waiting-100/waiting-{light,dark}-accounts.png`,
+  the card before its first reading, whole, at 100%;
+  `waiting-200/waiting-{light,dark}-accounts-zoom200-{top,half}.png`, the same as the window shows it at 200%;
+  `before-site/site-{light,dark}-accounts.png`, `main`'s website copy, "From the API" with three windows;
+  `after-site/site-{light,dark}-*.png`, this branch's, "From the CLI's status line" with two.
+- **Counts,** `main` at 5ca70aa (its CI's macOS jobs) and this branch: the workspace's tests 811 with 1 ignored on
+  `main`, and 736 with none ignored here: Claude's crate 143 and its ignored real-Keychain test to 67, Antigravity's
+  64 to 53, the new crate's 11 (the 11 that moved), and core's 177 to 178 (the guard that holds Anthropic out of
+  `HOSTS` and the text); the example build's 808 with 2 ignored to 733 with 1 (the packaging test it always leaves
+  out); the app's `--lib` tests 109 in both builds, as on `main`; the tray's `npm test` 208, as on `main`; the
+  website's 90, as on `main`; the repository scripts' 40, 39 passing and one left out on macOS, needing GNU
+  `sha256sum`, as on `main`; the window check 115,936 checks over 26 views to 116,022; the window's JavaScript 40.6 KB
+  of its 150, and the contrast check's 30 pairs a theme, as on `main`.
+- **Checks run,** on this branch, through the scratchpad's `safe.sh`, one at a time: `cargo fmt --check` for the
+  workspace and the app; clippy with `-D warnings` in the default and example builds, for the workspace and the app;
+  `cargo test --workspace` in both builds; the app's `--lib` tests in both builds; the tray's `npm run build`, `npm
+  test` and `npm run check:window`, and the window check again over the website's copy and over a copy of the card
+  alone, for the pictures; the website's `npm run check`, `npm run build` and `npm test`; `scripts/privacy.sh
+  --check`, `scripts/public-prd.sh --check` and `node --test scripts/*.test.mjs`. And the real `quotadial` binary end
+  to end on a made-up machine in the scratchpad (its home, data folder and every variable pointed there, status pages
+  off, so nothing went over the network): `status` before any numbers shows the line to add; `quotadial claude
+  status-line` with the docs' shape prints nothing and ends with 0, for the default folder and for `~/.claude-work`,
+  writing `claude.json` and `claude-<8 hex>.json`, both 0600, each holding only `rate_limits` and `written_at`; a
+  status line named after it prints its own line; `status` then shows Weekly and Session from the CLI's status line;
+  and `doctor` shows the account, its age and the sentence with the file and the line to add. **Not run:** the real
+  app, `tests/icon_press.rs` and any vendor CLI, as the brief says; Windows and Linux, which CI covers; `cargo deny`
+  and `cargo audit`, which are not installed here, and no dependency was added, only removed; `npm run cli`, since the
+  app's tests do not run the bundled command; shellcheck and actionlint, since no script or workflow changed.
+- **The window check's wait after its last line:** this PR changes neither `scripts/check-window.mjs` nor
+  `scripts/chrome.mjs`, so the queued row above stays queued; the last run here ended within seconds of its last line
+  (116,022 checks, the line at 19:04:16 UTC and the exit by 19:04:19), as every run before it did, so none needed
+  stopping.
+- **#52's list, gone down:** *found and fixed:* a "sign-in required" Claude card in the window check's copies, a state
+  Claude no longer has, now the card before its first reading; the window check's copies, the website's copy and the
+  provider's sentences held together by a test, so the check covers the very line a person sees; three Unreleased
+  CHANGELOG lines that announced fixes to Claude's sign-in command, which 0.3.0 no longer has; the home page's address
+  table, sign-in table, hero line, answers, limits section and description, which said QuotaDial reads Claude Code's
+  sign-in and connects to `api.anthropic.com`; `Account.sign_in`'s description in core and `docs/openapi.json`, whose
+  example was Claude's Keychain item; the manual page's `CLAUDE_CODE_OAUTH_TOKEN`; `RELEASE.md`'s note on the
+  Keychain's "allow", and `ACCESSIBILITY.md`'s example command; the CLI's and the daemon's comments on Anthropic's
+  floor; the home page's sign-in heading, `AGENTS.md`'s first paragraph and its polling rule, and the site's story,
+  which still said QuotaDial reads the CLIs' sign-ins or polls Anthropic; and two share-picture tests that took the
+  website's Claude account as their three-window sample. *Held:* History, aliases and alert rules carry on, since the
+  account ids, organisations and window labels are the ones the usage address gave (rule 2); the command prints
+  nothing, chains, and stops a status line at 4.5 s exactly as Antigravity's, from one crate; the file is 0600 in a
+  0700 folder, written whole; nothing from the payload but two numbers a window is kept, so no text from outside
+  reaches a snapshot from it; Claude's crate has no HTTP client and QuotaDial no Keychain code at all; a pipe where
+  Claude Code keeps its sign-in is never opened. *Left for the manager:* the payload names no account, so after
+  `/login` to another account in one folder, that folder's file shows the old account's numbers under the new one
+  until its first answer; a waiting Claude card's line is drawn in the quiet colour #106 gives an `unsupported` note,
+  though it names a fix, as Antigravity's waiting line is; the daemon reads a still account every 10 minutes, so the
+  first numbers can take that long to appear after Claude Code's first answer, and then come at the 5-minute floor;
+  test samples and comments in core, the daemon, the API and the app still use Claude's old Keychain item or
+  `api.anthropic.com` as made-up text for code every provider shares; the example build's Claude-like account still
+  has a weekly Opus window (`fixtures/fake/example.json`), queued for #116's retake; the window check's own Claude
+  Work card keeps three windows, extra usage and "from the API" as layout data that five script tests hold; Claude's
+  old gate state files in the cache folder (`quotadial/claude/`, derived numbers and times, never a token) are left on
+  machines, unused; and `docs/PRD-public.md` is the manager's, with the sentence D-145 proposes.
+- **The review:** the manager's review of #117 at 5b6170b (2026-10-28, 19:27 UTC), FIX, THEN MERGE: the tracker's rows
+  and this note, `AGENTS.md`'s polling rule and the site's story come in this push, which changes no code, so it needs
+  no second review and merges when CI is green on all thirteen checks. He took each of the builder's calls (the fetch
+  commit taking the old reader with it, `claude-<8 hex>` for a named folder with no account, `resets_at` in whole
+  seconds, one test holding the copies to the provider's sentences, the home page's heading), wants the 10-minute
+  first reading recorded in the row, which it is, and leaves the test samples that use the Keychain item or
+  `api.anthropic.com` as made-up text, and Claude's old gate state files, as they are. The website copy's Help text of
+  what QuotaDial reads and sends, which still said QuotaDial reads the sign-ins Claude Code and the Codex CLI keep, is
+  fixed with a test holding every copy's privacy text to the app's own on a branch of its own, for #116's retake,
+  since a test is code and would need a second review. After the docs commit, the site's check, build and tests,
+  `scripts/privacy.sh --check` and `scripts/public-prd.sh --check` passed again.
 
 ### M6: a host breaks before each dot, as an address does (D-141, extended)
 

@@ -43,23 +43,25 @@ Pro is and how to get their key.
 
 ## Positioning
 
-- **No sign-in.** QuotaDial reads the sign-in Claude Code and the Codex CLI already keep, and only
-  reads it: it never writes, refreshes, moves or logs it.
-- **Honest numbers.** Every number says how old it is and where it came from (the API, the cache,
-  the Codex CLI's own logs); a sudden 0% is held until a second fetch agrees.
+- **No sign-in.** QuotaDial reads the sign-in the Codex CLI already keeps, and only reads it: it
+  never writes, refreshes, moves or logs it. Claude's numbers come from Claude Code's status line,
+  once you add one line to its settings, and Claude Code's sign-in is never read (D-145).
+- **Honest numbers.** Every number says how old it is and where it came from (Claude Code's status
+  line, the API, the cache, the Codex CLI's own logs); a sudden 0% is held until a second fetch
+  agrees.
 - **Pace.** Each window says how fast it is filling and whether it runs out before it resets.
 - **Built for agents too.** The same numbers through a command, a local API and MCP, so an agent can
   check headroom before starting.
 - **Every system.** macOS, Windows and Linux, from one codebase.
-- **On your machine.** It connects only to the providers' usage endpoints, their status pages,
+- **On your machine.** It connects only to ChatGPT's usage endpoint, the providers' status pages,
   GitHub for updates, and webhooks you add; no account, no analytics, no crash reports.
 
 ## Operating Context
 
 The menu bar or tray; a terminal beside Claude Code or Codex; agent runs that last an hour or a
 night; limits that reset every five hours and every week; several subscriptions on one machine.
-Providers rate-limit their usage endpoints: QuotaDial asks Anthropic at most once every 5 minutes
-per account and ChatGPT at most once every 2 minutes.
+ChatGPT rate-limits its usage endpoint, so QuotaDial asks it at most once every 2 minutes; Claude's
+numbers come from Claude Code's status line and ask no one.
 
 ## Capabilities and Constraints
 

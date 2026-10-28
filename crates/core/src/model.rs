@@ -48,8 +48,8 @@ pub struct Account {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
     /// Where the account's sign-in is, written for people, with `~` for the home folder, such as
-    /// `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR
-    /// ~/.claude-work)`. Never a token. Left out when unknown (P-015).
+    /// `~/.codex/auth.json`. Never a token. Left out when unknown, and where QuotaDial never looks
+    /// for a sign-in, as for Claude and Antigravity (P-015, D-145).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sign_in: Option<String>,
     /// One sentence, in the provider's words and as the provider gives it, saying what QuotaDial

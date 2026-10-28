@@ -106,7 +106,7 @@ export function addressRuns(text: string, addresses: readonly string[]): Run[] {
  * run of its own, the longest where two begin at one place, and the words between them as runs of
  * words. The runs joined are the text. A host stands with the line's start, a space, a bracket or a
  * quotation mark before it, and the line's end, a space, a mark of punctuation or the stop that
- * ends the sentence after it, so "api.anthropic.com, Anthropic's" and "Also sent to
+ * ends the sentence after it, so "chatgpt.com, OpenAI's" and "Also sent to
  * hooks.slack.com." name a host, and "api.github.com", "github.com.au", "github.com/pghmatt" and
  * "someone@github.com" do not name "github.com".
  */

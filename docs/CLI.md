@@ -1,11 +1,13 @@
 # The QuotaDial CLI
 
 `quotadial` (and its short alias `qd`) shows how much of each Claude and ChatGPT/Codex plan limit is
-used, when each resets, and how old every number is. It reads the sign-ins Claude Code and the Codex
-CLI already store and never writes them. A Gemini CLI account it finds signed in is listed too, with
-why it has no numbers, and its sign-in is never opened. Antigravity's limits come from what
-Antigravity CLI's status line hands `quotadial antigravity status-line` (see Antigravity's status
-line); Antigravity's sign-in is never read.
+used, when each resets, and how old every number is. Claude's limits come from what Claude Code's
+status line hands `quotadial claude status-line` (see Claude Code's status line); Claude Code's
+sign-in is never read. It reads the sign-in the Codex CLI already stores and never writes it. A
+Gemini CLI account it finds signed in is listed too, with why it has no numbers, and its sign-in is
+never opened. Antigravity's limits come from what Antigravity CLI's status line hands
+`quotadial antigravity status-line` (see Antigravity's status line); Antigravity's sign-in is never
+read.
 
 ## Commands
 
@@ -56,10 +58,10 @@ test -p quotadial packaging` writes them again).
 ## How often providers are asked
 
 No command asks a provider more often than its own limit, counted across every QuotaDial process on
-the machine: Anthropic at most once every 5 minutes per account, and OpenAI at most once every 2
-minutes. Nothing is asked about Gemini CLI or Antigravity: Antigravity's numbers are the ones its
-CLI's status line last handed over, read from QuotaDial's own file. In between, a command shows the
-last numbers again, marked as coming from the cache, with their age. `watch` refreshes every minute,
+the machine: OpenAI at most once every 2 minutes. Nothing is asked about Claude, Gemini CLI or
+Antigravity: Claude's and Antigravity's numbers are the ones their CLIs' status lines last handed
+over, read from QuotaDial's own files at most every 5 minutes per account. In between, a command
+shows ChatGPT's last numbers again, marked as coming from the cache, with their age. `watch` refreshes every minute,
 so most refreshes show cached numbers whose age keeps growing until the provider may be asked again.
 While the daemon runs, `status` and `watch` ask it instead of asking providers themselves.
 
@@ -70,24 +72,27 @@ session logs stand in, marked as coming from them.
 
 ## Accounts
 
-QuotaDial shows every subscription whose sign-in is stored on the machine, not only the one the
-current shell would use. Each account has its own floor, cache and history. QuotaDial Free shows
+QuotaDial shows every account on the machine, not only the one the current shell would use: every
+Claude Code folder signed in to a Claude account, and the Codex CLI's sign-in. Each account has its
+own floor and history. QuotaDial Free shows
 one account per provider, the one the current shell would use, and names how many more there are
 (see QuotaDial Free and Pro).
 
-- **Claude.** First the sign-in Claude Code would use here: `CLAUDE_CODE_OAUTH_TOKEN` when it is
-  set, or else the one for `CLAUDE_CONFIG_DIR`, or for `~/.claude` when that is not set. Then every
-  other Claude Code sign-in on the machine, including the one Claude Code keeps for this folder when
-  a token in the environment comes first:
-  - On macOS, every Keychain item named `Claude Code-credentials`, or that, a dash and 8 hex
-    characters, as Claude Code names them. QuotaDial lists them by name without reading them, and
-    reads an item's token only when it asks about that account. If the Keychain cannot be listed,
-    QuotaDial looks up each folder's item by its name instead and says so in `errors`. Only an
-    item whose folder it does not know is missing until the listing works.
-  - Claude Code names each item after the folder it was made for, so QuotaDial matches the items to
-    folders: other `~/.claude…` folders, the folders in `~/.codus/accounts`, and those in
-    `extra_config_dirs` (see Settings below). A link to a folder counts as the folder.
-  - On Linux and Windows, `.credentials.json` in those same folders.
+- **Claude.** One account for each Claude Code folder signed in to a Claude account: first the
+  folder `CLAUDE_CONFIG_DIR` names here, or `~/.claude` when it is not set; then `~/.claude`; then
+  the other `~/.claude…` folders, the folders in `~/.codus/accounts`, and those in
+  `extra_config_dirs` (see Settings below). A link to a folder counts as the folder. A folder's
+  account is the one Claude Code's own account file names, `.claude.json` in the folder, or in the
+  home folder for `~/.claude`: its id, address, organisation and plan. QuotaDial reads nothing else
+  there, and never Claude Code's sign-in. Its windows, `Session` and `Weekly`, are the ones Claude
+  Code's status line last handed `quotadial claude status-line` for that folder, from the CLI's
+  status line, with when they were handed over as their age (see Claude Code's status line). Before
+  any numbers come, the account shows `unsupported` with the line to add to the folder's
+  `settings.json`. Numbers handed over more than two polls (10 minutes) ago show `stale`, with the
+  time they are from; a window that has reset since is left out, and with none left the account is
+  `unsupported`, saying when Claude Code last handed numbers over. A folder whose account file names
+  no account, but which has numbers, is one account: `claude`, or `claude-` and its file's 8 hex
+  for a folder `CLAUDE_CONFIG_DIR` names.
 - **Codex.** The sign-in the Codex CLI keeps in `auth.json`, in `~/.codex` or the folder
   `CODEX_HOME` names.
 - **Gemini CLI.** One account when Gemini CLI is signed in, in `.gemini` in the folder
@@ -107,31 +112,57 @@ one account per provider, the one the current shell would use, and names how man
   the time they are from, and a window that has reset since is left out. A limit Antigravity CLI
   marks turned off is left out, and one it gives an amount left for and no share of is named in
   words with its amount and reset, never as a share. See Antigravity's status line.
-- **One row per subscription.** A subscription found in two places, such as two folders signed in
-  to the same account, shows once, and is asked about no more than once every 5 minutes, whichever
-  sign-in asks. A sign-in that does not say whose it is, such as `CLAUDE_CODE_OAUTH_TOKEN`, is
-  named by Anthropic's profile endpoint, once per token, before its usage is asked.
+- **One row per subscription.** A Claude subscription found in two folders signed in to the same
+  account shows once, with the newer numbers either folder's status line handed over.
 - **Where each sign-in is, and what QuotaDial does with it.** `account.sign_in` in the JSON says
-  where the sign-in is, such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4"
-  (CLAUDE_CONFIG_DIR ~/.claude-work)`, with `~\` on Windows, and `account.sign_in_use` says, in
-  the provider's words, what QuotaDial does with it, as `doctor` and the app's "What QuotaDial
-  does with this sign-in" show it.
-- **A sign-in that expired or was rejected** shows `sign-in required`, with the command that signs
-  that folder in again, such as "Run `CLAUDE_CONFIG_DIR=~/'.claude-work' claude` once to refresh
-  it." On Windows the command is for PowerShell, such as
-  `$env:CLAUDE_CONFIG_DIR = "$HOME\.claude-work"; claude`. A folder in your home folder is written
-  from `~`, or `$HOME` in PowerShell, so the command never holds your user name, and the rest is
-  quoted, so it works when pasted with a space or a quote in a name, as `status` and `doctor` show
-  it. Its last good numbers stay on show, marked as coming from the cache. QuotaDial never
+  where the sign-in is, such as `~/.codex/auth.json`, with `~\` on Windows, and is left out where
+  QuotaDial never looks for one, as for Claude and Antigravity. `account.sign_in_use` says, in the
+  provider's words, what QuotaDial does with it, as `doctor` and the app's "What QuotaDial does with
+  this sign-in" show it: for Claude, that it never reads Claude Code's sign-in, the file it keeps
+  the numbers in, and the line to add.
+- **A Codex CLI sign-in that expired or was rejected** shows `sign-in required`, with the command to
+  run. Its last good numbers stay on show, marked as coming from the cache. QuotaDial never
   refreshes or writes a sign-in itself.
-- **A Keychain item whose folder QuotaDial cannot find** still shows, named by its item. Its fix
-  asks for `claude` with the `CLAUDE_CONFIG_DIR` that made the item. If its sign-in holds no Claude
-  account, as when a folder only ever signed in to MCP servers, it is left out until the item
-  changes.
 - **Order.** Claude's accounts come first, then Codex's, then Gemini CLI's, then Antigravity's, each
   sorted by name.
 
-The daemon looks for new and removed sign-ins every minute.
+The daemon looks for new and removed accounts every minute.
+
+## Claude Code's status line
+
+Claude Code runs a command named in its settings when a session starts and as it goes on, such as
+when a new answer arrives, with the session's state as JSON on standard input, and shows what the
+command prints at the foot of its window, as its docs' "Customize your status line" page says. For
+claude.ai Pro and Max subscribers, after the session's first answer, that state holds
+`rate_limits.five_hour` and `rate_limits.seven_day`, each with its share used and its reset.
+`quotadial claude status-line` is that command. Add it to `~/.claude/settings.json`, or to
+`settings.json` in a folder `CLAUDE_CONFIG_DIR` names, as [`INSTALL.md`](INSTALL.md#claude) says,
+and start Claude Code again; QuotaDial never changes those files itself:
+
+```json
+"statusLine": { "type": "command", "command": "quotadial claude status-line" }
+```
+
+- **What it keeps:** each window's share used, from 0 to 100, its reset and the time, readable only
+  by you, in `claude.json` in the data directory for Claude Code's default folder, or for a folder
+  `CLAUDE_CONFIG_DIR` names, in `claude-`, the first 8 hex of the SHA-256 of the folder's path, and
+  `.json`: the same 8 hex Claude Code puts after `Claude Code-credentials-` for that folder. Nothing
+  else it is handed is kept, such as the folders, the conversation, the model, the cost or a spend
+  limit. It keeps them first, and only when the input holds a window; a session with no
+  `rate_limits`, as with an API key, leaves the file as it was. The account's windows are read from
+  that file at each poll.
+- **What it prints:** nothing of its own, ever, so Claude Code shows no status line for it, and never
+  a problem of QuotaDial's.
+- **A status line you already have:** the words after `status-line` are a program and its
+  arguments, such as `quotadial claude status-line ~/.claude/statusline.sh`. Once its numbers are
+  kept, QuotaDial runs it with the same input and passes on what it prints, on standard output and
+  standard error, unchanged. Claude Code's shell has already read the words, so QuotaDial runs them
+  with no shell of its own: a command with a `|` or `&&` in it goes in `sh -c '...'`.
+- **How it ends:** as Antigravity's does, below: with no command after it, with 0, whatever
+  happens; with one, as that command ends, or with 127 or 126 if it cannot be found or run, or with
+  1, and nothing printed, if it is still running after 4.5 seconds, when QuotaDial stops it, so a
+  status line that hangs never holds Claude Code's. The two commands share this code
+  (`quotadial-status-line`).
 
 ## Antigravity's status line
 
@@ -182,7 +213,7 @@ apply. A change applies the next time a command, the daemon or the app starts.
 
 | Setting | Meaning |
 | --- | --- |
-| `extra_config_dirs` | More folders where Claude Code keeps sign-ins, as `CLAUDE_CONFIG_DIR` would name them: full paths, or paths starting with `~` for the home folder. A folder ending in `/*` adds every folder inside it. An entry that is not a full path is left out, with a warning in `errors`. None by default |
+| `extra_config_dirs` | More Claude Code folders to look in, as `CLAUDE_CONFIG_DIR` would name them: full paths, or paths starting with `~` for the home folder. A folder ending in `/*` adds every folder inside it. An entry that is not a full path is left out, with a warning in `errors`. None by default |
 | `max_accounts` | At most this many accounts per provider, 1 or more, the current shell's own first. Two sign-ins of one subscription count once, once each is named. All of them by default on QuotaDial Pro, and one on QuotaDial Free |
 | `alert_webhooks` | Addresses the daemon sends each alert to as JSON (see Alerts), on QuotaDial Pro. Each must be `https`, or `http` on this machine for a local receiver; any other is left out with a warning. None by default |
 | `slack_webhook` | A Slack incoming webhook the daemon sends each alert to as a message, on QuotaDial Pro. None by default |
@@ -489,8 +520,8 @@ Daemon: running, process 4242, API on 127.0.0.1:47115, started 2 h ago
 Numbers: from the daemon
 
 Accounts (2):
-  Claude u***@e***.com (max): ok, fetched 3 min ago from the API
-    sign-in: QuotaDial reads this account's sign-in from the macOS Keychain item "Claude Code-credentials". It only reads it and never changes it.
+  Claude u***@e***.com (max): ok, fetched 3 min ago from the CLI's status line
+    sign-in: QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's status line hands it, in claude.json in QuotaDial's data folder, once `"statusLine": { "type": "command", "command": "quotadial claude status-line" }` is in ~/.claude/settings.json and Claude Code has started again with `quotadial` on its PATH.
   Codex u***@e***.com (pro): ok, fetched 1 min ago from the API
     sign-in: QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.
 Left out on QuotaDial Free:
@@ -680,11 +711,10 @@ and how, including the HTTP API's shape. Copy its folder into `~/.claude/skills/
 
 ```text
 Claude user@example.com (max): ok
-  Session: 72% used, resets in 2 h 10 min, from the API 4 min ago
+  Session: 72% used, resets in 2 h 10 min, from the CLI's status line 4 min ago
     at 18%/h, runs out in 1 h 29 min, 40 min before it resets
-  Weekly: 7% used, resets in 3 d 10 h, from the API 4 min ago
+  Weekly: 7% used, resets in 3 d 10 h, from the CLI's status line 4 min ago
     at 0.4%/h, lasts until it resets
-  Extra usage: $12.50 of $50.00 used (25%)
 Codex user@example.com (pro): stale
   Weekly: 54% used, resets in 6 d 5 h, from local logs 2 min ago
   Extra usage: on
@@ -717,7 +747,8 @@ Codex user@example.com (pro): stale
   Pace needs the daemon: with the QuotaDial app or `quotadial daemon` running, each window also shows how fast it fills, and each provider what the week would have cost at API prices.
   ```
 - A status other than `ok` is followed by one sentence that says why and names the fix, such as
-  "Run `claude` to sign in again."
+  "Run `codex` once to refresh it", or, for a Claude account before its first numbers, the line to
+  add to Claude Code's settings.
 - A provider that produced nothing at all shows as `error: <its own name>: <what happened>`, such
   as `error: Codex: could not read the sign-in from ~/.codex/auth.json: ...`, which also names the
   fix or when QuotaDial tries again, and writes your home folder as `~` (`~\` on Windows).
@@ -731,8 +762,8 @@ Codex user@example.com (pro): stale
 
 `watch` clears the terminal before each refresh and ends with when it was updated and, in one
 sentence, whom QuotaDial asks and how often, and which providers it asks no one about, such as "It
-asks Anthropic at most every 5 min and OpenAI at most every 2 min, and no one about Gemini CLI or
-Antigravity." The daemon says the same when it starts. Piped into another program, and on Windows,
+asks OpenAI at most every 2 min, and no one about Claude, Gemini CLI or Antigravity." The daemon
+says the same when it starts. Piped into another program, and on Windows,
 it prints each refresh after the last, without escape codes.
 
 ## JSON output
@@ -750,8 +781,7 @@ it prints each refresh after the last, without escape codes.
         "display_name": "user@example.com",
         "plan": "max",
         "org": "00000000-0000-0000-0000-000000000002",
-        "sign_in": "the macOS Keychain item \"Claude Code-credentials\"",
-        "sign_in_use": "QuotaDial reads this account's sign-in from the macOS Keychain item \"Claude Code-credentials\". It only reads it and never changes it."
+        "sign_in_use": "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's status line hands it, in claude.json in QuotaDial's data folder, once `\"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" }` is in ~/.claude/settings.json and Claude Code has started again with `quotadial` on its PATH."
       },
       "windows": [
         {
@@ -760,12 +790,11 @@ it prints each refresh after the last, without escape codes.
           "used_pct": 42.0,
           "resets_at": "2099-01-01T05:00:00Z",
           "window_seconds": 18000,
-          "source": "api",
+          "source": "status_line",
           "fetched_at": "2099-01-01T00:00:00Z",
           "pace": { "pct_per_hour": 12.0, "runs_out_at": "2099-01-01T04:50:00Z" }
         }
       ],
-      "extra_usage": { "enabled": false },
       "status": "ok"
     }
   ],
@@ -805,14 +834,14 @@ it prints each refresh after the last, without escape codes.
 | `snapshots[]` | One per account, Claude's first, each provider's sorted by name. An account is a provider, an organization or workspace (`org`) and an account id, so one person in two organizations is two accounts |
 | `account.provider_name` | The provider's own short name for itself, such as `Claude`, `Codex` or `Gemini CLI`, as the provider gives it; `provider` is its id, for scripts. Empty for an account read back from an older QuotaDial, which is shown by its id until the next poll |
 | `account.plan`, `account.org` | Left out when the provider does not say |
-| `account.sign_in` | Where the account's sign-in is, written for people with `~` for the home folder (`~\` on Windows), such as `the macOS Keychain item "Claude Code-credentials-a1b2c3d4" (CLAUDE_CONFIG_DIR ~/.claude-work)` or `~/.codex/auth.json`. Never a token. Left out when unknown |
+| `account.sign_in` | Where the account's sign-in is, written for people with `~` for the home folder (`~\` on Windows), such as `~/.codex/auth.json`. Never a token. Left out when unknown, and where QuotaDial never looks for one, as for Claude and Antigravity |
 | `account.sign_in_use` | One sentence, in the provider's words and as the provider gives it, saying what QuotaDial does with the account's sign-in, such as `QuotaDial reads this account's sign-in from ~/.codex/auth.json. It only reads it and never changes it.` Never a token; a place in it is written with `~` (`~\` on Windows). Empty for an account read back from an older QuotaDial until the next poll |
 | `windows[].kind` | `session`, `weekly`, `model_weekly`, `daily`, `credits`, or `other` for a limit QuotaDial does not know yet, shown by its provider's name with `window_seconds` 0 |
 | `windows[].used_pct` | The share of the limit used, from 0 to 100 |
 | `windows[].resets_at` | When the window resets, in UTC. Left out when the provider does not say |
 | `windows[].window_seconds` | The window's length, such as 18000 for five hours or 604800 for a week |
 | `windows[].scope_model` | For a per-model limit, the model it covers. Left out otherwise |
-| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the CLI's own logs), `status_line` (what the CLI's status line handed over, as Antigravity CLI's does; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build, which is never released) |
+| `windows[].source` | `api`, `cache` (an earlier answer shown again), `local_log` (the CLI's own logs), `status_line` (what the CLI's status line handed over, as Claude Code's and Antigravity CLI's do; nothing was asked for it), or `example` (made up for pictures of the app by QuotaDial's example build, which is never released) |
 | `windows[].fetched_at` | When the number was fetched, in UTC. Every number carries its age |
 | `windows[].unconfirmed` | `true` when the window reads 0% where it read more on the last fetch, before its reset, until a second fetch agrees. Left out otherwise |
 | `windows[].pace` | How fast the window is filling, from the daemon's history: `pct_per_hour`, the share used per hour, from a straight line fitted through the window's readings since it last reset; and `runs_out_at`, when it reaches 100% at that pace, given only when that comes before it resets. Left out with no daemon running, for a window with fewer than 3 readings over 30 minutes since it reset, for a full window or an unconfirmed 0%, and for a snapshot whose status is not `ok`. A window that is not filling has a `pct_per_hour` of 0 |

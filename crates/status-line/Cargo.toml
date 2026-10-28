@@ -1,0 +1,21 @@
+[package]
+name = "quotadial-status-line"
+description = "What QuotaDial's status line commands share: the file each keeps its numbers in, the status line the user already had, run after it, and a command that prints nothing of its own. It knows files, processes and exit codes, never what a status line hands over."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+# No HTTP client, here or in a dev-dependency: a status line command asks no one (D-126, D-145).
+[dependencies]
+chrono.workspace = true
+quotadial-core.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

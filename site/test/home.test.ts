@@ -69,7 +69,7 @@ test("the row read aloud is Claude Work's weekly window in the app", () => {
   assert.equal(READ_ALOUD.label, window.label);
   assert.equal(READ_ALOUD.used, window.used_pct);
   assert.equal(window.resets, `resets in ${READ_ALOUD.resets}`);
-  assert.equal(readFrom(site.meter.accounts[0], window), `from the API ${READ_ALOUD.fetched}`);
+  assert.equal(readFrom(site.meter.accounts[0], window), `from the CLI's status line ${READ_ALOUD.fetched}`);
   assert.equal(
     window.pace,
     `at ${READ_ALOUD.rate}, runs out in ${READ_ALOUD.runsOut}, ${READ_ALOUD.early} before it resets`,

@@ -228,7 +228,7 @@ export interface HelpView {
   /** What QuotaDial reads and sends, the same text as the README's and the website's. */
   privacy: Block[];
   /**
-   * Every place QuotaDial connects to, such as "api.anthropic.com", as the privacy text names them:
+   * Every place QuotaDial connects to, such as "chatgpt.com", as the privacy text names them:
    * the hosts Help writes as the window writes a host, breaking before a dot (D-141).
    */
   hosts: string[];

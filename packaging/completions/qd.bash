@@ -22,6 +22,9 @@ _qd() {
             qd,antigravity)
                 cmd="qd__subcmd__antigravity"
                 ;;
+            qd,claude)
+                cmd="qd__subcmd__claude"
+                ;;
             qd,daemon)
                 cmd="qd__subcmd__daemon"
                 ;;
@@ -94,11 +97,26 @@ _qd() {
             qd__subcmd__antigravity__subcmd__help,status-line)
                 cmd="qd__subcmd__antigravity__subcmd__help__subcmd__status__subcmd__line"
                 ;;
+            qd__subcmd__claude,help)
+                cmd="qd__subcmd__claude__subcmd__help"
+                ;;
+            qd__subcmd__claude,status-line)
+                cmd="qd__subcmd__claude__subcmd__status__subcmd__line"
+                ;;
+            qd__subcmd__claude__subcmd__help,help)
+                cmd="qd__subcmd__claude__subcmd__help__subcmd__help"
+                ;;
+            qd__subcmd__claude__subcmd__help,status-line)
+                cmd="qd__subcmd__claude__subcmd__help__subcmd__status__subcmd__line"
+                ;;
             qd__subcmd__help,alerts)
                 cmd="qd__subcmd__help__subcmd__alerts"
                 ;;
             qd__subcmd__help,antigravity)
                 cmd="qd__subcmd__help__subcmd__antigravity"
+                ;;
+            qd__subcmd__help,claude)
+                cmd="qd__subcmd__help__subcmd__claude"
                 ;;
             qd__subcmd__help,daemon)
                 cmd="qd__subcmd__help__subcmd__daemon"
@@ -142,6 +160,9 @@ _qd() {
             qd__subcmd__help__subcmd__antigravity,status-line)
                 cmd="qd__subcmd__help__subcmd__antigravity__subcmd__status__subcmd__line"
                 ;;
+            qd__subcmd__help__subcmd__claude,status-line)
+                cmd="qd__subcmd__help__subcmd__claude__subcmd__status__subcmd__line"
+                ;;
             qd__subcmd__help__subcmd__licence,add)
                 cmd="qd__subcmd__help__subcmd__licence__subcmd__add"
                 ;;
@@ -182,7 +203,7 @@ _qd() {
 
     case "${cmd}" in
         qd)
-            opts="-h -V --help --version status watch daemon mcp alerts doctor licence history antigravity help"
+            opts="-h -V --help --version status watch daemon mcp alerts doctor licence history claude antigravity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -447,6 +468,76 @@ _qd() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        qd__subcmd__claude)
+            opts="-h --help status-line help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__claude__subcmd__help)
+            opts="status-line help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__claude__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__claude__subcmd__help__subcmd__status__subcmd__line)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__claude__subcmd__status__subcmd__line)
+            opts="-h --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         qd__subcmd__daemon)
             opts="-h --port --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -480,7 +571,7 @@ _qd() {
             return 0
             ;;
         qd__subcmd__help)
-            opts="status watch daemon mcp alerts doctor licence history antigravity help"
+            opts="status watch daemon mcp alerts doctor licence history claude antigravity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -592,6 +683,34 @@ _qd() {
             return 0
             ;;
         qd__subcmd__help__subcmd__antigravity__subcmd__status__subcmd__line)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__help__subcmd__claude)
+            opts="status-line"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        qd__subcmd__help__subcmd__claude__subcmd__status__subcmd__line)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

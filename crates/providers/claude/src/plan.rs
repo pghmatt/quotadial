@@ -1,13 +1,7 @@
-//! Claude plan names, normalized to the ids Claude Code uses in its credentials: `max`, `pro`,
-//! `team`, `enterprise`.
+//! Claude plan names, from what Claude Code's account file records, normalized to `max`, `pro`,
+//! `team` and `enterprise`.
 //!
 //! Ported from CodexBar's `Providers/Claude/ClaudePlan.swift` (`fromRateLimitTier`).
-
-/// A `subscriptionType` from Claude Code's credentials, such as `max`.
-pub(crate) fn from_subscription_type(value: &str) -> Option<String> {
-    let plan = value.trim().to_lowercase();
-    (!plan.is_empty()).then_some(plan)
-}
 
 /// An `organizationType` from Claude Code's account config, such as `claude_max`.
 pub(crate) fn from_organization_type(value: &str) -> Option<String> {
@@ -29,12 +23,6 @@ pub(crate) fn from_tier(value: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn subscription_types_are_trimmed_and_lowercased() {
-        assert_eq!(from_subscription_type(" Max ").as_deref(), Some("max"));
-        assert_eq!(from_subscription_type("  "), None);
-    }
 
     #[test]
     fn organization_types_drop_the_claude_prefix() {

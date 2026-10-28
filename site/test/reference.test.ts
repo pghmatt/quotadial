@@ -24,7 +24,6 @@ test("every address in the privacy text is set as an address, and no word of the
   const set = setAddresses(original);
   assert.equal(wordsOf(set), wordsOf(original), "setting addresses changes tags only");
   for (const address of [
-    "api.anthropic.com",
     "chatgpt.com",
     "status.claude.com",
     "status.openai.com",
@@ -177,6 +176,7 @@ const GUIDE_SECTIONS = {
     "Settings",
     "Updates",
     "The quotadial command",
+    "Claude",
     "Antigravity",
     "Build it yourself",
   ],
@@ -185,6 +185,7 @@ const GUIDE_SECTIONS = {
     "Completions and manual pages",
     "How often providers are asked",
     "Accounts",
+    "Claude Code's status line",
     "Antigravity's status line",
     "Settings",
     "The daemon",

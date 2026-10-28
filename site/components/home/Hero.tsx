@@ -47,8 +47,8 @@ export function Hero() {
             Claude and Codex usage tracker for your menu bar or tray
           </h1>
           <p className="m-0 mt-6 max-w-[40ch] text-[1.1875rem] leading-[1.45] text-ink-2 md:text-[1.25rem]">
-            See how much of each Claude and ChatGPT/Codex plan limit you have used, and when it resets, from the
-            sign-in Claude Code and the Codex CLI already keep.
+            See how much of each Claude and ChatGPT/Codex plan limit you have used, and when it resets, from Claude
+            Code's status line and the sign-in the Codex CLI already keeps.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
             <DownloadButton />

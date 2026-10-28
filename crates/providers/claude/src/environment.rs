@@ -1,56 +1,40 @@
-//! Where Claude Code keeps its sign-in, worked out exactly as Claude Code does.
+//! Where Claude Code keeps its settings and its account file, worked out exactly as Claude Code
+//! does.
 //!
 //! Ported from CodexBar's `Providers/Claude/ClaudeConfigPaths.swift` and checked against Claude
 //! Code 2.1.286 itself:
 //!
 //! - The config directory is `$CLAUDE_CONFIG_DIR`, or `~/.claude` when that is unset or empty.
-//! - The credentials file is `.credentials.json` in `$CLAUDE_SECURESTORAGE_CONFIG_DIR` when that
-//!   is set (an empty value means `~/.claude`), otherwise in the config directory.
-//! - The macOS Keychain item is the generic password `Claude Code-credentials`, filed under the
-//!   user name. When `$CLAUDE_SECURESTORAGE_CONFIG_DIR` (not empty) or `$CLAUDE_CONFIG_DIR` is set,
-//!   the service name gains `-` and the first 8 hex characters of the SHA-256 of that directory,
-//!   NFC-normalized, so every config directory holds its own sign-in.
 //! - The account details are in `.config.json` in the config directory when that file exists,
 //!   otherwise in `.claude.json` in `$CLAUDE_CONFIG_DIR` or the home directory.
+//! - Claude Code names what it keeps for a config directory after the first 8 hex characters of the
+//!   SHA-256 of that directory, NFC-normalized, as its sign-in item `Claude Code-credentials-`
+//!   and those 8 hex; QuotaDial names its file of a folder's numbers the same way (D-145).
+//!
+//! Claude Code's sign-in, and `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_SECURESTORAGE_CONFIG_DIR`, which
+//! say where to find one, are never read (D-145).
 
 use std::path::{Path, PathBuf};
 
-use quotadial_core::Secret;
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
-pub(crate) const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
-
-/// Claude Code's Keychain account when the user name has characters it will not pass to
-/// `security`.
-const FALLBACK_KEYCHAIN_ACCOUNT: &str = "claude-code-user";
-
-/// The environment variables and home directory that decide which Claude Code sign-in is in use.
+/// The home directory and `CLAUDE_CONFIG_DIR`, which decide which Claude Code folder is in use.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Environment {
     /// The home directory, as Claude Code's `os.homedir()` sees it.
     pub(crate) home: Option<PathBuf>,
     /// `CLAUDE_CONFIG_DIR`, when set and not empty.
     pub(crate) config_dir: Option<String>,
-    /// `CLAUDE_SECURESTORAGE_CONFIG_DIR`, when set. Empty is meaningful: it selects the default.
-    pub(crate) secure_storage_dir: Option<String>,
-    /// `CLAUDE_CODE_OAUTH_TOKEN`, when set and not blank.
-    pub(crate) oauth_token: Option<Secret>,
-    /// `USER`, when set and not empty.
-    pub(crate) user: Option<String>,
 }
 
 impl Environment {
     pub(crate) fn from_process() -> Self {
         Self {
             home: std::env::home_dir(),
-            config_dir: var("CLAUDE_CONFIG_DIR").filter(|dir| !dir.is_empty()),
-            secure_storage_dir: var("CLAUDE_SECURESTORAGE_CONFIG_DIR"),
-            oauth_token: var("CLAUDE_CODE_OAUTH_TOKEN")
-                .map(|token| token.trim().to_owned())
-                .filter(|token| !token.is_empty())
-                .map(Secret::new),
-            user: var("USER").filter(|user| !user.is_empty()),
+            config_dir: std::env::var_os("CLAUDE_CONFIG_DIR")
+                .map(|dir| dir.to_string_lossy().into_owned())
+                .filter(|dir| !dir.is_empty()),
         }
     }
 
@@ -58,46 +42,19 @@ impl Environment {
         self.home.as_ref().map(|home| home.join(".claude"))
     }
 
-    /// What Claude Code would see with `CLAUDE_CONFIG_DIR` set to `dir` and no token in the
-    /// environment: the sign-in it keeps for that folder.
+    /// What Claude Code would see with `CLAUDE_CONFIG_DIR` set to `dir`.
     pub(crate) fn for_config_dir(&self, dir: &str) -> Self {
         Self {
             home: self.home.clone(),
             config_dir: Some(dir.to_owned()),
-            secure_storage_dir: None,
-            oauth_token: None,
-            user: self.user.clone(),
         }
     }
 
-    /// What Claude Code would see here without `CLAUDE_CODE_OAUTH_TOKEN`: the sign-in it keeps for
-    /// this shell's folder.
-    pub(crate) fn without_token(&self) -> Self {
-        Self {
-            oauth_token: None,
-            ..self.clone()
-        }
-    }
-
-    /// What Claude Code would see with none of its variables set: the sign-in in its default
-    /// folder.
+    /// What Claude Code would see with `CLAUDE_CONFIG_DIR` not set: its default folder.
     pub(crate) fn default_only(&self) -> Self {
         Self {
             home: self.home.clone(),
             config_dir: None,
-            secure_storage_dir: None,
-            oauth_token: None,
-            user: self.user.clone(),
-        }
-    }
-
-    /// Whether `CLAUDE_CONFIG_DIR` or `CLAUDE_SECURESTORAGE_CONFIG_DIR` moves this sign-in away from
-    /// Claude Code's default folder, and to which folder.
-    pub(crate) fn scoped_dir(&self) -> Option<String> {
-        match self.secure_storage_dir.as_deref() {
-            Some("") => None,
-            Some(dir) => Some(nfc(dir)),
-            None => self.config_dir.as_deref().map(nfc),
         }
     }
 
@@ -114,15 +71,6 @@ impl Environment {
         }
     }
 
-    pub(crate) fn credentials_file(&self) -> Option<PathBuf> {
-        let dir = match self.secure_storage_dir.as_deref() {
-            Some("") => self.default_config_dir(),
-            Some(dir) => Some(PathBuf::from(nfc(dir))),
-            None => self.config_dir(),
-        };
-        dir.map(|dir| dir.join(".credentials.json"))
-    }
-
     /// The file whose `oauthAccount` object says who is signed in.
     pub(crate) fn account_config_file(&self) -> Option<PathBuf> {
         let legacy = self.config_dir().map(|dir| dir.join(".config.json"));
@@ -134,35 +82,11 @@ impl Environment {
             None => self.home.as_ref().map(|home| home.join(".claude.json")),
         }
     }
-
-    pub(crate) fn keychain_service(&self) -> String {
-        match self.scoped_dir() {
-            Some(dir) => format!("{KEYCHAIN_SERVICE}-{}", &sha256_hex(&dir)[..8]),
-            None => KEYCHAIN_SERVICE.to_owned(),
-        }
-    }
-
-    /// The Keychain account Claude Code files its item under, when the user name is known.
-    pub(crate) fn keychain_account(&self) -> Option<String> {
-        self.user.as_deref().map(|user| {
-            let safe = user
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
-            if safe {
-                user
-            } else {
-                FALLBACK_KEYCHAIN_ACCOUNT
-            }
-            .to_owned()
-        })
-    }
 }
 
-fn var(name: &str) -> Option<String> {
-    std::env::var_os(name).map(|value| value.to_string_lossy().into_owned())
-}
-
-fn nfc(text: &str) -> String {
+/// `text` in Unicode's composed form (NFC), as Claude Code writes a folder's path before it hashes
+/// it.
+pub(crate) fn nfc(text: &str) -> String {
     text.nfc().collect()
 }
 
@@ -181,49 +105,12 @@ mod tests {
     fn env() -> Environment {
         Environment {
             home: Some(PathBuf::from("/Users/example")),
-            user: Some("example".into()),
             ..Environment::default()
         }
     }
 
     #[test]
-    fn the_default_login_uses_the_plain_keychain_item() {
-        assert_eq!(env().keychain_service(), "Claude Code-credentials");
-    }
-
-    #[test]
-    fn a_config_dir_gets_its_own_keychain_item() {
-        let env = Environment {
-            config_dir: Some("/Users/example/.claude-work".into()),
-            ..env()
-        };
-
-        // printf '%s' /Users/example/.claude-work | shasum -a 256 → dd1118a7…
-        assert_eq!(env.keychain_service(), "Claude Code-credentials-dd1118a7");
-    }
-
-    #[test]
-    fn secure_storage_dir_overrides_the_config_dir_for_the_keychain_item() {
-        let scoped = Environment {
-            config_dir: Some("/Users/example/.claude-work".into()),
-            secure_storage_dir: Some("/Users/example/secure".into()),
-            ..env()
-        };
-        let default = Environment {
-            config_dir: Some("/Users/example/.claude-work".into()),
-            secure_storage_dir: Some(String::new()),
-            ..env()
-        };
-
-        assert_eq!(
-            scoped.keychain_service(),
-            "Claude Code-credentials-4409e8d0"
-        );
-        assert_eq!(default.keychain_service(), "Claude Code-credentials");
-    }
-
-    #[test]
-    fn the_keychain_hash_uses_the_nfc_form_of_the_path() {
+    fn a_folder_s_file_is_named_after_its_path_in_composed_form_as_claude_code_names_its_item() {
         let decomposed = Environment {
             config_dir: Some("/Users/cafe\u{301}/.claude".into()),
             ..env()
@@ -234,61 +121,12 @@ mod tests {
         };
 
         assert_eq!(
-            decomposed.keychain_service(),
-            "Claude Code-credentials-da474c2a"
+            crate::store::file_name(decomposed.config_dir.as_deref()),
+            "claude-da474c2a.json"
         );
-        assert_eq!(composed.keychain_service(), decomposed.keychain_service());
-    }
-
-    #[test]
-    fn the_keychain_account_is_the_user_name_when_it_is_safe() {
-        assert_eq!(env().keychain_account().as_deref(), Some("example"));
-
-        let odd = Environment {
-            user: Some("first last".into()),
-            ..env()
-        };
-        assert_eq!(odd.keychain_account().as_deref(), Some("claude-code-user"));
-
-        let unknown = Environment {
-            user: None,
-            ..env()
-        };
-        assert_eq!(unknown.keychain_account(), None);
-    }
-
-    #[test]
-    fn the_credentials_file_follows_the_secure_storage_and_config_dirs() {
         assert_eq!(
-            env().credentials_file(),
-            Some(PathBuf::from("/Users/example/.claude/.credentials.json"))
-        );
-
-        let configured = Environment {
-            config_dir: Some("/work/claude".into()),
-            ..env()
-        };
-        assert_eq!(
-            configured.credentials_file(),
-            Some(PathBuf::from("/work/claude/.credentials.json"))
-        );
-
-        let secure = Environment {
-            secure_storage_dir: Some("/secure".into()),
-            ..configured.clone()
-        };
-        assert_eq!(
-            secure.credentials_file(),
-            Some(PathBuf::from("/secure/.credentials.json"))
-        );
-
-        let secure_default = Environment {
-            secure_storage_dir: Some(String::new()),
-            ..configured
-        };
-        assert_eq!(
-            secure_default.credentials_file(),
-            Some(PathBuf::from("/Users/example/.claude/.credentials.json"))
+            crate::store::file_name(composed.config_dir.as_deref()),
+            crate::store::file_name(decomposed.config_dir.as_deref())
         );
     }
 
@@ -327,8 +165,6 @@ mod tests {
         let env = Environment::default();
 
         assert_eq!(env.config_dir(), None);
-        assert_eq!(env.credentials_file(), None);
         assert_eq!(env.account_config_file(), None);
-        assert_eq!(env.keychain_service(), "Claude Code-credentials");
     }
 }

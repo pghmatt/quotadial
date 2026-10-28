@@ -8,9 +8,14 @@
 // from its CLI's status line and whose panel carries the block to add to Antigravity CLI's
 // settings and a limit with an amount and no share, the longest text the popover shows (D-126).
 // One is a Codex Pro account with a single window, whose picture to share has one column (D-137).
-// Commands sit between backticks, as QuotaDial writes them: Claude's sign-in command in an
-// account's note, Gemini CLI's `/model`, Antigravity's block in its sign-in panel and, in Free's
-// Settings, config.json's chmod; the window shows each as code (the manager's note on #85).
+// One is a Claude account before its first numbers from Claude Code's status line, as a person on
+// 0.2.0 finds it after updating: its note says why it is empty and what to add (D-145, the
+// manager's rule 9). Claude's sentences are the provider's own words, which a test in
+// crates/providers/claude holds this file to.
+// Commands sit between backticks, as QuotaDial writes them: the line to add to Claude Code's
+// settings in a Claude account's note and sign-in panel, Gemini CLI's `/model`, Antigravity's block
+// in its sign-in panel and, in Free's Settings, config.json's chmod; the window shows each as code
+// (the manager's note on #85).
 // Where and when the windows were read is said once for a card whose windows all agree (Claude Work's,
 // the stale Codex account's from the cache, Antigravity's, the example account's one window) and under
 // each window of the one card whose windows do not (a Codex account's, which no provider makes today),
@@ -73,11 +78,12 @@ const LONG_COMMAND = `chmod 600 '${LONG_FOLDER}'`;
 const LONG_INCIDENT = "ElevatedErrorsOnClaudeOpusAndSonnetAcrossAllRegionsPartialOutage";
 const LONG_HOST = "alerts.engineering.platform.internal.corp.example.co.uk";
 
-const CLAUDE_SIGN_IN =
-  "QuotaDial reads the sign-in Claude Code uses: the CLAUDE_CODE_OAUTH_TOKEN environment " +
-  'variable when it is set, then the macOS Keychain item "Claude Code-credentials", then ' +
-  ".credentials.json in ~/.claude or the folder CLAUDE_CONFIG_DIR names. It only reads the " +
-  "sign-in and never changes it. If it stops working, run claude once.";
+// What Claude's provider says of an account's sign-in and before its first numbers, for Claude
+// Code's default folder and for ~/.claude-work, each written whole on its line as the provider
+// writes it (D-145).
+const CLAUDE_SIGN_IN = "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's status line hands it, in claude.json in QuotaDial's data folder, once `\"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" }` is in ~/.claude/settings.json and Claude Code has started again with `quotadial` on its PATH.";
+const CLAUDE_WORK_SIGN_IN = "QuotaDial never reads Claude Code's sign-in. It keeps only the numbers Claude Code's status line hands it, in claude-18cc900a.json in QuotaDial's data folder, once `\"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" }` is in ~/.claude-work/settings.json and Claude Code has started again with `quotadial` on its PATH.";
+const CLAUDE_WAITING = "QuotaDial reads Claude's limits only from what Claude Code's status line hands it, and none has come yet: add `\"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" }` to ~/.claude-work/settings.json, or put `quotadial claude status-line` and a space in front of the command already there, then start Claude Code again; Claude Code hands them over only for claude.ai Pro and Max subscribers, and only after the first API response in the session.";
 const CODEX_SIGN_IN =
   "QuotaDial reads the sign-in the Codex CLI keeps in auth.json, in ~/.codex or the folder " +
   "CODEX_HOME names. It only reads the sign-in and never changes it. If it stops working, run " +
@@ -175,20 +181,19 @@ const ACCOUNTS = [
   {
     key: "claude:someone@example.org",
     alias: null,
-    summary: "Claude someone@example.org: sign-in required",
+    summary: "Claude someone@example.org: unsupported",
     provider: "Claude",
     name: "someone@example.org",
     plan: null,
-    status: "sign-in required",
+    status: "unsupported",
     ok: false,
     fetched: null,
     windows: [],
     extra_usage: null,
-    // Claude's sentence for a sign-in that expired, with the command for its folder (D-131).
-    note:
-      "This Claude Code sign-in expired on 26 Oct 2026 at 09:12 UTC. Run " +
-      "`CLAUDE_CONFIG_DIR=~/'My Claude' claude` once to refresh it.",
-    sign_in: CLAUDE_SIGN_IN,
+    // Before its first numbers from Claude Code's status line, in ~/.claude-work: why the card is
+    // empty and the line to add, in the provider's words (D-145, the manager's rule 9).
+    note: CLAUDE_WAITING,
+    sign_in: CLAUDE_WORK_SIGN_IN,
   },
   {
     key: "gemini:google",
@@ -748,7 +753,6 @@ function periodsOf(ends) {
  * host, breaking before a dot (D-141).
  */
 export const DESTINATIONS = [
-  "api.anthropic.com",
   "chatgpt.com",
   "status.claude.com",
   "status.openai.com",
@@ -783,14 +787,13 @@ const HELP = {
     {
       kind: "paragraph",
       text:
-        "QuotaDial runs on your machine. It reads the sign-ins that Claude Code and the Codex CLI " +
-        "already keep, and never writes, refreshes, moves or logs them.",
+        "QuotaDial runs on your machine. It reads the sign-in that the Codex CLI already keeps, " +
+        "and never writes, refreshes, moves or logs it.",
     },
     { kind: "paragraph", text: "QuotaDial connects to these, and nothing else:" },
     {
       kind: "list",
       items: [
-        "api.anthropic.com, Anthropic's, with your Claude Code sign-in, for each Claude account's limits, at most once every 5 minutes per account.",
         "chatgpt.com, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most once every 2 minutes.",
         "status.claude.com and status.openai.com, the providers' public status pages.",
       ],

@@ -1,10 +1,10 @@
 # QuotaDial agent guide
 
 QuotaDial tracks AI coding-subscription usage limits on macOS, Windows and Linux. Version 1 covers
-Claude and ChatGPT/Codex. It reads the OAuth credentials the official CLIs already store, calls each
-provider's usage endpoint, normalizes the result, and serves it through a tray app, a CLI
-(`quotadial`, alias `qd`), a local HTTP API, an MCP server and a SKILL.md. It is sold with a free
-and a Pro tier. Domains: quotadial.com and quotadial.app.
+Claude and ChatGPT/Codex. It reads Claude's limits from what Claude Code's status line hands it
+(D-145), calls Codex's usage endpoint with the sign-in the Codex CLI keeps, normalizes the result,
+and serves it through a tray app, a CLI (`quotadial`, alias `qd`), a local HTTP API, an MCP server
+and a SKILL.md. It is sold with a free and a Pro tier. Domains: quotadial.com and quotadial.app.
 
 Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScript/Preact tray app
 (D-070), and a thin CLI.
@@ -45,6 +45,7 @@ Nothing is named `usage`, the PRD's old working name.
 | --- | --- |
 | `crates/core` (`quotadial-core`) | Normalized model (`Account`, `Window`, `Snapshot`, `Status`, `Pace`), the `Provider` trait, the fit that gives a window its pace, the alert rules' grammar and conditions, licence keys and the public key they are checked against (`docs/LICENSING.md`), the tiers and their Pro features, and what a Free copy leaves out of a report |
 | `crates/poll` (`quotadial-poll`) | When a provider may be asked for usage (the floor, 429 backoff, replay from the cache) and the per-account state files, shared by every provider |
+| `crates/status-line` (`quotadial-status-line`) | What the status line commands share (D-145), lifted from Antigravity's: the command that reads a CLI's status line, keeps what its provider takes in a file of its own, and prints nothing of its own; the status line the user already had, run after it, unchanged; and that file, written whole and read back as a plain file. It knows files, processes and exit codes, never what a status line hands over |
 | `crates/daemon` (`quotadial-daemon`) | The daemon: the one poller every consumer shares, SQLite history of snapshots, window readings, and alert rules and their firings, the single-instance lock, and `Licensing`, the one switch every Pro feature asks, read from the licence key in the data folder |
 | `crates/cost` (`quotadial-cost`) | The week's API-equivalent cost: reads the usage fields of Claude Code's and the Codex CLI's session logs into `costs.db`, and prices them from the bundled table (`prices.json`, made by `scripts/update-prices.sh`) |
 | `crates/providers/claude` (`quotadial-provider-claude`) | Claude provider |
@@ -80,8 +81,8 @@ Nothing is named `usage`, the PRD's old working name.
   `redact_secrets` again.
 - Unredacted captures live under `fixtures/**/raw/`, which is gitignored. Only redacted or
   synthetic fixtures are committed. See `fixtures/README.md`.
-- Poll Anthropic usage endpoints no more than once every 5 minutes per account. Enforce the floor in
-  code.
+- Ask no provider more often than its floor, 2 minutes for OpenAI, and read Claude's and
+  Antigravity's files no more than every 5 minutes; enforce it in code.
 - QuotaDial's own cache lives in the OS cache directory under `quotadial/`, with private file
   permissions. It holds derived data only (snapshots, times, counters), never a token.
 - The local API listens on `127.0.0.1` only. Its bearer token is QuotaDial's own and lives only in

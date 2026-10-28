@@ -375,11 +375,11 @@ test("a host cut into nodes, as the window writes one with a <wbr> before each d
   assert.deepEqual(hosts[1].words.map((word) => word.text), ["alerts", ".engineering", ".platform", ".internal", ".corp", ".example", ".co", ".uk"]);
   assert.deepEqual(hosts[1].words.at(-1), { text: ".uk", from: { node: 0, offset: said.length - 4 }, to: { node: 0, offset: said.length - 1 } });
   // A bracket before it is in no word either.
-  assert.deepEqual(hostsIn(["(api.anthropic.com)"], DESTINATIONS)[0].words.map((word) => word.text), ["api", ".anthropic", ".com"]);
+  assert.deepEqual(hostsIn(["(status.openai.com)"], DESTINATIONS)[0].words.map((word) => word.text), ["status", ".openai", ".com"]);
 });
 
 test("a host stands after the line's start, a space, a bracket or a quotation mark, and before its end, a space, a mark or the stop that ends the sentence", () => {
-  assert.deepEqual(hostsOf(["api.anthropic.com, Anthropic's, with your Claude Code sign-in."]), ["api.anthropic.com"]);
+  assert.deepEqual(hostsOf(["chatgpt.com, OpenAI's, with your Codex CLI sign-in."]), ["chatgpt.com"]);
   assert.deepEqual(hostsOf(["status.claude.com and status.openai.com, the providers' public status pages."]), ["status.claude.com", "status.openai.com"]);
   assert.deepEqual(hostsOf(["Updates come from github.com."]), ["github.com"]);
   for (const [open, close] of [["(", ")"], ["[", "]"], ['"', '"'], ["'", "'"]]) {
@@ -403,9 +403,9 @@ test("a host is never found inside a longer name, an address or a link, nor with
     "someone@github.com",
     "mygithub.com",
     "github.com.",
-    "api\u200b.anthropic.com",
-    "api.anthropic.com\u200b",
-    "api.anthropic\u00ad.com",
+    "status\u200b.openai.com",
+    "status.openai.com\u200b",
+    "status.openai\u00ad.com",
   ]) {
     const found = hostsOf([`Not ${written} here`]);
     // "github.com." ends with the sentence's stop only when nothing follows on; here a space does.

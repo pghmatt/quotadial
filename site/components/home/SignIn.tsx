@@ -7,30 +7,29 @@ import { Body, Code, Lead } from "./Text.tsx";
 export function SignIn() {
   return (
     <Part id="sign-in" headingId="sign-in-title">
-      <SectionHeading id="sign-in-title">Uses the sign-in you already have</SectionHeading>
+      <SectionHeading id="sign-in-title">No new sign-in or API key</SectionHeading>
       <Lead>
-        QuotaDial reads the sign-in that Claude Code and the Codex CLI already keep, and only reads it: it never
-        writes, refreshes, moves or logs it. Every Claude subscription you keep under its own{" "}
-        <Code>CLAUDE_CONFIG_DIR</Code> is found too: QuotaDial Pro shows each one, and Free shows one and says how many
-        more it found.
+        QuotaDial reads the sign-in the Codex CLI already keeps, and only reads it: it never writes, refreshes, moves or
+        logs it. Claude's numbers come from Claude Code's status line once you add one line to its settings, and Claude
+        Code's sign-in is never read. Every Claude subscription you keep under its own <Code>CLAUDE_CONFIG_DIR</Code>{" "}
+        is found too: QuotaDial Pro shows each one, and Free shows one and says how many more it found.
       </Lead>
       <div className="mt-8">
         <BandedTable
           wholeFirst
-          caption="Where QuotaDial looks for each tool's sign-in, and what to do when it stops working"
-          columns={["Tool", "Where QuotaDial looks, in this order", "If it stops working"]}
+          caption="Where QuotaDial gets each tool's numbers, and what to do when they stop"
+          columns={["Tool", "Where QuotaDial gets the numbers", "If they stop"]}
           rows={[
             {
               key: "claude",
               cells: [
                 "Claude Code",
                 <>
-                  A sign-in set in the environment, then the one in the macOS Keychain, then the sign-in file in{" "}
-                  <Code>~/.claude</Code> or in the folder <Code>CLAUDE_CONFIG_DIR</Code> names.
+                  What Claude Code's status line hands <Code>quotadial claude status-line</Code>, once you add it to the
+                  settings in <Code>~/.claude</Code> or in the folder <Code>CLAUDE_CONFIG_DIR</Code> names. Its sign-in
+                  is never read.
                 </>,
-                <>
-                  Run <Code>claude</Code> once.
-                </>,
+                <>Start Claude Code again, and send it a message.</>,
               ],
             },
             {
@@ -49,8 +48,8 @@ export function SignIn() {
         />
       </div>
       <Body>
-        So there is no new sign-in to make, no API key to paste and no account to open. If a sign-in stops working,
-        QuotaDial says so and names the command to run.
+        So there is no new sign-in to make, no API key to paste and no account to open. When numbers stop coming,
+        QuotaDial says so and names what to do.
       </Body>
     </Part>
   );

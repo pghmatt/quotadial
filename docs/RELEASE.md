@@ -72,8 +72,8 @@ the app is notarized and stapled, so it opens with no warning.
 | `APPLE_TEAM_ID` | Secret | The team's id, from developer.apple.com under Membership |
 
 With the first three and not the last three, the app is signed but not notarized, and macOS still
-warns. A Developer ID also keeps the Keychain's "allow" for Claude Code's sign-in across updates:
-macOS ties it to the signature, and an ad hoc signature changes with every build.
+warns. QuotaDial reads nothing from the Keychain, so no Keychain "allow" rides on the signature
+(D-145).
 
 ### Windows: Azure Artifact Signing
 

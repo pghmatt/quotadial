@@ -14,8 +14,8 @@ except the example accounts, which are labelled wherever they appear.
 | Where downloads come from | QuotaDial's GitHub releases; every release so far is a pre-release, so links go to the releases page | GitHub | `DOWNLOAD_PAGE` |
 | Signing | Builds are not signed yet; each system warns on first open; `docs/INSTALL.md` has the steps | `docs/INSTALL.md`, #51 | /download copy |
 | Checksums, doctor, licence keys, updates | From the release after 0.2.0, which carries CHANGELOG's Unreleased section: `SHA256SUMS.txt`, `quotadial doctor`, Settings' Licence field and the daily update check. 0.1.0 and 0.2.0 have none of them, so the site goes live only after that release is published (the deploy workflow checks for `SHA256SUMS.txt`) | `CHANGELOG.md`, `docs/INSTALL.md` | /download, /support, /pro, /key, /changelog |
-| Sign-in | Reads the sign-in Claude Code and the Codex CLI keep; never writes, refreshes, moves or logs it | `README.md`, `docs/PRIVACY.md` | page copy |
-| How often it asks | Anthropic at most once every 5 minutes per account; ChatGPT at most once every 2 minutes | `README.md` | page copy |
+| Sign-in | Reads the sign-in the Codex CLI keeps; never writes, refreshes, moves or logs it. Claude's numbers come from Claude Code's status line, once its settings have one line, and Claude Code's sign-in is never read (D-145) | `README.md`, `docs/PRIVACY.md`, `docs/INSTALL.md` | page copy |
+| How often it asks | ChatGPT at most once every 2 minutes; Anthropic never, since Claude's numbers are read from QuotaDial's own files (D-145) | `README.md` | page copy |
 | Addresses it connects to | The list in `docs/PRIVACY.md`, and nothing else | `docs/PRIVACY.md` (D-106) | /privacy renders the file |
 | Free and Pro | The lists in `README.md` and `ProFeature::what` | `crates/core/src/tier.rs` | `lib/data/pro.ts` |
 | Price | Not on the site, not in the repository; Lemon Squeezy's checkout shows it | D-098 | none |

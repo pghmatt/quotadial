@@ -355,7 +355,8 @@ test("the heading is the card's: the label in its title type, the period under i
 });
 
 test("the figures are the largest thing drawn, semibold, and their colour follows how full the window is", () => {
-  const [view, account] = ACCOUNTS.find(([, one]) => one.label === "Claude Work");
+  // The window check's Claude account, of three windows: high, warning and normal.
+  const [view, account] = ACCOUNTS.find(([, one]) => one.label.startsWith("Claude Work,"));
   const look = LOOKS.light;
   const pieces = texts(draw(view, account, "light"));
   const biggest = Math.max(...pieces.map((piece) => piece.size));
