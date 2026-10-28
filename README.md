@@ -10,7 +10,7 @@ SKILL.md. It runs on macOS, Windows and Linux.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="site/public/images/app/accounts-dark.png">
-    <img src="site/public/images/app/accounts-light.png" width="360" alt="QuotaDial's window with example accounts: Claude Work and Codex, each window with its share used, reset and pace">
+    <img src="site/public/images/app/accounts-light.png" width="360" alt="QuotaDial's window with example accounts: Claude Work and Codex, each window with its share used, its reset and, where there is one, its pace">
   </picture>
 </p>
 
