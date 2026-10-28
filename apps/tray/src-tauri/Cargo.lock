@@ -3422,6 +3422,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "quotadial-core",
+ "quotadial-status-line",
  "serde_json",
 ]
 
@@ -3432,14 +3433,11 @@ dependencies = [
  "async-trait",
  "chrono",
  "quotadial-core",
- "quotadial-poll",
- "reqwest",
+ "quotadial-status-line",
  "serde",
  "serde_json",
  "sha2 0.11.1",
- "tokio",
  "unicode-normalization",
- "zeroize",
 ]
 
 [[package]]
@@ -3490,6 +3488,14 @@ dependencies = [
  "quotadial-provider-codex",
  "quotadial-provider-fake",
  "quotadial-provider-gemini",
+]
+
+[[package]]
+name = "quotadial-status-line"
+version = "0.2.0"
+dependencies = [
+ "chrono",
+ "quotadial-core",
 ]
 
 [[package]]
