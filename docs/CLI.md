@@ -390,7 +390,7 @@ accounts with, every 10 minutes, and makes no request to anyone. `"cost_scan": f
 
 - It reads only each log line's token counts, model, time and request ids: never a prompt, a reply
   or a file's content. Claude Code's logs are the `projects` folder of every folder QuotaDial looks
-  in for sign-ins, a folder linked from several places read once; the Codex CLI's are `sessions` and
+  in for accounts, a folder linked from several places read once; the Codex CLI's are `sessions` and
   `archived_sessions` in `$CODEX_HOME` or `~/.codex`.
 - A request counts once, however many times its logs repeat it: a streamed response is written in
   parts, and a resumed session copies earlier requests into its new log.
