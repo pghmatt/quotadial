@@ -78,7 +78,7 @@ export function Hero() {
                 name="accounts"
                 alt="QuotaDial's window: Claude Work and Codex, each window with its share used, its reset and, where there is one, its pace"
                 width={720}
-                height={1412}
+                height={1300}
                 priority
                 className="block w-full"
               />
