@@ -82,10 +82,17 @@ newest numbers from the Codex CLI's own session logs, marked as coming from them
 
 ## What QuotaDial reads and sends
 
-QuotaDial runs on your machine. It reads the sign-ins that Claude Code and the Codex CLI already
-keep, and never writes, refreshes, moves or logs them. From the CLIs' session logs it reads only
-numbers: token counts and model names for the week's cost, and the Codex CLI's own record of your
-limits. What you and the model wrote never leaves the machine, and QuotaDial never reads it.
+QuotaDial runs on your machine. It reads the sign-in that the Codex CLI already keeps, and never
+writes, refreshes, moves or logs it. From the CLIs' session logs it reads only numbers: token counts
+and model names for the week's cost, and the Codex CLI's own record of your limits. What you and the
+model wrote never leaves the machine, and QuotaDial never reads it.
+
+For Claude, QuotaDial reads no sign-in and asks no one. It reads only the account that Claude Code's
+own account file, `.claude.json`, names: its id, address, organisation and plan. Once you add
+`quotadial claude status-line` to Claude Code's status line, it keeps what the status line hands
+that command, each window's share used and its reset, with the time, in `claude.json` in
+QuotaDial's data folder, or in a file of its own for each folder `CLAUDE_CONFIG_DIR` names, readable
+only by you.
 
 For Gemini CLI, QuotaDial reads no sign-in. It only checks that Gemini CLI's sign-in file,
 `oauth_creds.json` in `~/.gemini`, is there, without opening it, and reads one field of Gemini CLI's
@@ -100,8 +107,6 @@ address, with the time, in `antigravity.json` in QuotaDial's data folder, readab
 
 QuotaDial connects to these, and nothing else:
 
-- **api.anthropic.com**, Anthropic's, with your Claude Code sign-in, for each Claude account's
-  limits, at most once every 5 minutes per account.
 - **chatgpt.com**, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most
   once every 2 minutes.
 - **status.claude.com** and **status.openai.com**, the providers' public status pages, every 5

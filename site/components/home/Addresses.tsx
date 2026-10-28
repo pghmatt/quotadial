@@ -8,13 +8,6 @@ import { Body, Lead } from "./Text.tsx";
 /** The addresses QuotaDial connects to, as docs/PRIVACY.md lists them. */
 const ADDRESSES = [
   {
-    key: "anthropic",
-    group: "limits",
-    address: ["api.anthropic.com"],
-    why: "Each Claude account's limits, with your Claude Code sign-in.",
-    often: "At most every 5 minutes per account",
-  },
-  {
     key: "chatgpt",
     group: "limits",
     address: ["chatgpt.com"],
@@ -57,8 +50,8 @@ export function Addresses() {
         <div>
           <SectionHeading id="addresses-title">Everything it connects to</SectionHeading>
           <Lead>
-            Anthropic and ChatGPT for your limits, their public status pages, GitHub for updates, and webhooks you add:
-            nothing else, no account, no analytics.
+            ChatGPT for your Codex limits, the providers' public status pages, GitHub for updates, and webhooks you
+            add: nothing else, no account, no analytics. Claude's limits come from Claude Code's status line.
           </Lead>
           <Body>
             What you and the model wrote never leaves your machine, and QuotaDial never reads it. From the CLIs' session

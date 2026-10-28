@@ -28,7 +28,7 @@ pub struct HelpView {
     pub hosts: Vec<String>,
 }
 
-/// Every place QuotaDial connects to (`quotadial_core::privacy::HOSTS`), such as `api.anthropic.com`,
+/// Every place QuotaDial connects to (`quotadial_core::privacy::HOSTS`), such as `chatgpt.com`,
 /// which the privacy text names: the hosts the window finds in that text and writes as it writes a
 /// host, breaking before a dot and never inside a word (D-141, extended to a host in a sentence). A
 /// list, so that a file's name with a dot in it, such as `config.json`, is never taken for one.
@@ -253,11 +253,8 @@ mod tests {
             })
             .collect();
         assert_eq!(lists.len(), 1, "{shown:?}");
-        assert_eq!(lists[0].len(), 5);
-        assert!(
-            lists[0][0]
-                .starts_with("api.anthropic.com, Anthropic's, with your Claude Code sign-in")
-        );
+        assert_eq!(lists[0].len(), 4);
+        assert!(lists[0][0].starts_with("chatgpt.com, OpenAI's, with your Codex CLI sign-in"));
         for host in quotadial_core::privacy::HOSTS {
             assert!(lists[0].iter().any(|item| item.contains(host)), "{host}");
         }

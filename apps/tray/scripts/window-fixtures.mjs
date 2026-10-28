@@ -748,7 +748,6 @@ function periodsOf(ends) {
  * host, breaking before a dot (D-141).
  */
 export const DESTINATIONS = [
-  "api.anthropic.com",
   "chatgpt.com",
   "status.claude.com",
   "status.openai.com",
@@ -783,14 +782,13 @@ const HELP = {
     {
       kind: "paragraph",
       text:
-        "QuotaDial runs on your machine. It reads the sign-ins that Claude Code and the Codex CLI " +
-        "already keep, and never writes, refreshes, moves or logs them.",
+        "QuotaDial runs on your machine. It reads the sign-in that the Codex CLI already keeps, " +
+        "and never writes, refreshes, moves or logs it.",
     },
     { kind: "paragraph", text: "QuotaDial connects to these, and nothing else:" },
     {
       kind: "list",
       items: [
-        "api.anthropic.com, Anthropic's, with your Claude Code sign-in, for each Claude account's limits, at most once every 5 minutes per account.",
         "chatgpt.com, OpenAI's, with your Codex CLI sign-in, for your ChatGPT/Codex limits, at most once every 2 minutes.",
         "status.claude.com and status.openai.com, the providers' public status pages.",
       ],

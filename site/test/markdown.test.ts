@@ -9,9 +9,11 @@ test("the privacy page carries docs/PRIVACY.md and every address in it", () => {
   const { title, body } = withoutTitle(repositoryFile("docs/PRIVACY.md"));
   assert.equal(title, "What QuotaDial reads and sends");
   const rendered = html(body);
-  for (const address of ["api.anthropic.com", "chatgpt.com", "status.claude.com", "status.openai.com", "github.com"]) {
+  for (const address of ["chatgpt.com", "status.claude.com", "status.openai.com", "github.com"]) {
     assert.ok(rendered.includes(address), `the page names ${address}`);
   }
+  // Claude's limits come from Claude Code's status line, never with its sign-in (D-145).
+  assert.ok(!rendered.includes("api.anthropic.com"), "the page names no address of Anthropic's");
   assert.ok(!rendered.includes("<h1"), "the file's own heading is the page's H1, set once");
 });
 

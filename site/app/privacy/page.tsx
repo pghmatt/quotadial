@@ -15,7 +15,7 @@ import { pageMetadata } from "../../lib/metadata.ts";
 export const metadata: Metadata = pageMetadata({
   title: "What QuotaDial reads and sends",
   description:
-    "Every address QuotaDial connects to, and nothing else: Anthropic and ChatGPT for your limits, their status pages, GitHub for updates, and webhooks you add.",
+    "Every address QuotaDial connects to, and nothing else: ChatGPT for your Codex limits, the providers' status pages, GitHub for updates, and webhooks you add. Claude's limits come from Claude Code's status line.",
   path: "/privacy",
 });
 
