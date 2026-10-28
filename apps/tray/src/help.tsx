@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "preact/hooks";
 
-import { Address } from "./account";
+import { Address, WithHosts } from "./account";
 import { usePanelFocus } from "./focus";
 import type { HelpView, UpdateView } from "./meter";
 import { UpdateStatus } from "./update";
@@ -87,13 +87,18 @@ export function HelpPanel({ update }: { update: UpdateView | null }) {
       </section>
       <section class="privacy card" aria-label="What QuotaDial reads and sends">
         <h3>What QuotaDial reads and sends</h3>
+        {/* Each place QuotaDial connects to, written as the window writes a host (D-141). */}
         {help.privacy.map((block, index) =>
           block.kind === "paragraph" ? (
-            <p key={index}>{block.text}</p>
+            <p key={index}>
+              <WithHosts text={block.text} hosts={help.hosts} />
+            </p>
           ) : (
             <ul key={index}>
               {block.items.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>
+                  <WithHosts text={item} hosts={help.hosts} />
+                </li>
               ))}
             </ul>
           ),

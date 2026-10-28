@@ -24,6 +24,20 @@ pub struct HelpView {
     pub credits: Vec<String>,
     /// What QuotaDial reads and sends, from `docs/PRIVACY.md`.
     pub privacy: Vec<Block>,
+    /// Every place QuotaDial connects to, as `privacy` names them ([`hosts`]).
+    pub hosts: Vec<String>,
+}
+
+/// Every place QuotaDial connects to (`quotadial_core::privacy::HOSTS`), such as `api.anthropic.com`,
+/// which the privacy text names: the hosts the window finds in that text and writes as it writes a
+/// host, breaking before a dot and never inside a word (D-141, extended to a host in a sentence). A
+/// list, so that a file's name with a dot in it, such as `config.json`, is never taken for one.
+#[must_use]
+pub fn hosts() -> Vec<String> {
+    quotadial_core::privacy::HOSTS
+        .iter()
+        .map(|host| (*host).to_owned())
+        .collect()
 }
 
 /// A paragraph or a list of a text Help shows, in plain words.
@@ -252,6 +266,50 @@ mod tests {
         );
         let text = format!("{shown:?}");
         assert!(!text.contains("**") && !text.contains('`') && !text.contains("# What"));
+    }
+
+    #[test]
+    fn every_host_help_is_given_stands_in_the_privacy_text_where_the_window_finds_one() {
+        // The window finds a host where it stands as a word of a sentence does (`hostRuns` in
+        // `src/address.ts`): after the line's start, a space, a bracket or a quotation mark, and
+        // before its end, a space, a mark or the stop that ends a sentence. It writes each one it
+        // finds breaking before a dot, so a host the text names any other way would not break so.
+        assert_eq!(hosts(), quotadial_core::privacy::HOSTS);
+        let lines: Vec<String> = blocks(quotadial_core::privacy::PRIVACY)
+            .into_iter()
+            .flat_map(|block| match block {
+                Block::Paragraph { text } => vec![text],
+                Block::List { items } => items,
+            })
+            .collect();
+        let starts = |before: Option<char>| {
+            before.is_none_or(|before| before.is_whitespace() || "([\"'".contains(before))
+        };
+        let ends = |rest: &str| {
+            let mut after = rest.chars();
+            match after.next() {
+                None => true,
+                Some('.') => after.next().is_none_or(char::is_whitespace),
+                Some(mark) => mark.is_whitespace() || ",;:!?)]\"'".contains(mark),
+            }
+        };
+        for host in hosts() {
+            let stands = lines.iter().any(|line| {
+                line.match_indices(host.as_str()).any(|(at, _)| {
+                    starts(line[..at].chars().next_back()) && ends(&line[at + host.len()..])
+                })
+            });
+            assert!(
+                stands,
+                "{host} does not stand in the privacy text where the window finds a host"
+            );
+        }
+        // Not where a longer name goes on from it, as "github.com" in "api.github.com" or
+        // "github.com.au", or a link from it, as "github.com/pghmatt".
+        assert!(!starts(Some('.')) && !starts(Some('@')));
+        assert!(
+            !ends(".au") && !ends("/pghmatt") && !ends("-mirror") && ends(". Next") && ends(", ")
+        );
     }
 
     #[test]

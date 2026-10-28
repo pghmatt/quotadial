@@ -29,8 +29,12 @@ export function wantsClassicScrollbars(flag, pictures) {
 
 /**
  * Starts Chrome headless with `profile` as its own profile. Gives the running process, which the
- * caller stops, and a promise of its DevTools address, which fails with what Chrome said when it
- * exits first or has not answered within `waitMs`.
+ * caller stops; a promise of its DevTools address, which fails with what Chrome said when it exits
+ * first or has not answered within `waitMs`, and with what stopped it when it will not start; and a
+ * promise that Chrome has gone, `gone`, kept when it exits or when it never started, after which its
+ * profile can be removed. A Chrome that will not start, such as a path that is a folder, is that
+ * failure and never Node's unhandled error (the manager's review of #103); one the system refuses at
+ * once throws it.
  *
  * Scroll bars take room, as they do on Windows and Linux and as they did on CI's Macs, unless
  * `classicScrollbars` is false. A Mac's own Chrome lets them lie over what they scroll, which hid a
@@ -66,7 +70,17 @@ export function launch(
   if (platform === "linux") {
     args.splice(-1, 0, "--no-sandbox");
   }
-  const browser = spawn(chrome, args, { stdio: ["ignore", "ignore", "pipe"] });
+  let browser;
+  try {
+    browser = spawn(chrome, args, { stdio: ["ignore", "ignore", "pipe"] });
+  } catch (error) {
+    throw new Error(`Chrome at ${chrome} would not start: ${error.message}`);
+  }
+  // A Chrome that never started sends `error` and no `exit`.
+  const gone = new Promise((done) => {
+    browser.once("exit", done);
+    browser.once("error", done);
+  });
   const address = new Promise((done, fail) => {
     let said = "";
     const timer = setTimeout(
@@ -85,6 +99,10 @@ export function launch(
       clearTimeout(timer);
       fail(new Error(`Chrome exited (${code}): ${said}`));
     });
+    browser.on("error", (error) => {
+      clearTimeout(timer);
+      fail(new Error(`Chrome at ${chrome} would not start: ${error.message}`));
+    });
   });
-  return { browser, address };
+  return { browser, address, gone };
 }

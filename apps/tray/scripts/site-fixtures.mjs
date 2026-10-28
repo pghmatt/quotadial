@@ -8,6 +8,7 @@
 
 import { marksOf } from "./fixture-marks.mjs";
 import { fromOf, rowsOf, saidOf } from "./fixture-period.mjs";
+import { DESTINATIONS } from "./window-fixtures.mjs";
 
 /** @typedef {import("../src/meter").Meter} Meter */
 /** @typedef {import("../src/meter").Settings} Settings */
@@ -356,6 +357,7 @@ const HELP = {
         "already keep, and never writes, refreshes, moves or logs them.",
     },
   ],
+  hosts: DESTINATIONS,
 };
 
 /** @type {{ meter: Meter, settings: Settings, history: Record<string, HistoryView>, periods: Record<string, { start: number, now: number }>, help: HelpView, update: UpdateView }} */

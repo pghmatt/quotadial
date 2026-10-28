@@ -52,6 +52,13 @@
 //   then no word of an address, the part between two places it may break, is drawn on two lines
 //   where it fits its line on its own (whole-addresses.mjs); and the address in a heading, its text
 //   and what a copy of it gives, is the address byte for byte, and a screen reader is told it whole;
+// - a host breaks before each dot, as an address does (D-141, extended to a host in a sentence by the
+//   manager's review of #107): the window writes exactly the hosts each copy has, whole and in order,
+//   each webhook's in Settings and each place QuotaDial connects to in Help's text of what it reads
+//   and sends, and no host anywhere else, at 100% and 200% zoom, before any line is judged; then no
+//   word of a host is drawn on two lines where it fits its line on its own; and the text of each line
+//   naming hosts is the copy's line byte for byte, and a screen reader reads it whole, in order
+//   (whole-addresses.mjs);
 // - History's time marks (the manager on #73, 2026-10-27, 15:28 UTC, D-143), over 7 days and over 30,
 //   each chosen with its button, at 100% and 200% zoom: every chart's ticks are where the copy's marks
 //   put them, to half a pixel in the page and to a pixel in what is drawn under its baseline, and no
@@ -87,7 +94,8 @@
 // a Pro copy with one account of seven windows, with the made-up accounts in window-fixtures.mjs
 // answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
-// CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
+// CHROME, and a CHROME that is not there, or a Chrome that will not start, is said in one line, with
+// no folder left behind (the manager's review of #103). `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
 // half way down what scrolls, and in History with its first card's time marks in the middle, each of
@@ -118,13 +126,18 @@ import { CAPTIONS, CAPTION_WORDS, captionVerdict, expectedCaptions, wordVerdicts
 import {
   ADDRESSES,
   COPIED,
+  HOSTS,
   addressVerdict,
   breakVerdicts,
   expectedAddresses,
+  expectedHosts,
   heardAt,
   knownAddresses,
+  knownHosts,
+  linesWithHosts,
   textVerdicts,
   visibly,
+  writtenVerdicts,
 } from "./whole-addresses.mjs";
 import { MARKS, expectedMarks, heardVerdicts, inkVerdicts, inkedTicks, markVerdicts } from "./time-marks.mjs";
 import { HEAT_ROWS, rowVerdicts } from "./heatmap-rows.mjs";
@@ -184,10 +197,19 @@ function check(view, problem) {
   }
 }
 
-/** Chrome: CHROME, or where each system usually has Chrome, Chromium or Edge. */
+/**
+ * Chrome, as `{ chrome }`: CHROME, or where each system usually has Chrome, Chromium or Edge. Or, as
+ * `{ problem }`, why there is none: a CHROME that is not there names the Chrome the person wants, so
+ * it is not looked past, and the check says it was not found at that path, as it says when it finds
+ * none, where starting it crashed the check with Node's unhandled `spawn ... ENOENT` (the manager's
+ * review of #103).
+ */
 function findChrome() {
-  if (process.env.CHROME) {
-    return process.env.CHROME;
+  const named = process.env.CHROME;
+  if (named) {
+    return existsSync(named)
+      ? { chrome: named }
+      : { problem: `Chrome was not found at ${named}, where CHROME says it is; set CHROME to Chrome's path, or leave it unset to look where Chrome usually is.` };
   }
   const candidates = [];
   if (process.platform === "darwin") {
@@ -212,7 +234,8 @@ function findChrome() {
       }
     }
   }
-  return candidates.find((candidate) => existsSync(candidate));
+  const chrome = candidates.find((candidate) => existsSync(candidate));
+  return chrome ? { chrome } : { problem: "Chrome was not found; install Chrome or Chromium, or set CHROME to its path." };
 }
 
 /** Serves dist/ on 127.0.0.1 under the app's own content security policy. */
@@ -1001,6 +1024,7 @@ async function checkView(view, panel, operate, copy, light) {
     await checkShares(view, copy, panel, zoom);
     await checkWords(view, copy, panel, zoom);
     await checkAddresses(view, copy, panel, zoom);
+    await checkHosts(view, copy, panel, zoom);
     if (panel === "accounts" || panel === "settings") {
       await checkCommands(view, copy, panel, zoom);
     }
@@ -1367,6 +1391,50 @@ async function checkAddresses(view, copy, panel, zoom) {
     );
     const called = index < 0 ? null : await view.called(".help-actions button", index);
     check(label, called !== `Write to ${support}` && `a screen reader calls the button that writes to support ${visibly(called ?? "")}, not ${visibly(`Write to ${support}`)}`);
+  }
+}
+
+/** In the page: the text of each line the window writes hosts in, in order (`linesWithHosts`):
+ * Settings' line saying where alerts are also sent, and each line of Help's text of what QuotaDial
+ * reads and sends. */
+const HOST_LINES = `[...document.querySelectorAll('main .settings p.alert-targets, main section.privacy p, main section.privacy li')].map((line) => line.textContent)`;
+
+/**
+ * A host breaks before each dot, as an address does (D-141, extended to a host in a sentence by the
+ * manager's review of #107): in each view, at 100% and 200%, the window writes exactly the hosts its
+ * copy has, whole and in order, each webhook's host in Settings' line saying where alerts are also
+ * sent and each place QuotaDial connects to where Help's text of what QuotaDial reads and sends names
+ * it, and no host anywhere else, before any line is judged, so that a check that finds none cannot
+ * pass, and a host with a character added to make a break, which is not found whole, fails. Then no
+ * word of a host, the part between its start and a dot or between two dots, is drawn on two lines
+ * where it fits its line on its own (whole-addresses.mjs). The text of each line that can name a
+ * host is the copy's line byte for byte, a <wbr> adding nothing, and at 100% a screen reader reads it
+ * whole, in order. A host needs less than an address in two ways: its lines cannot be selected, as
+ * no text in the window can but an address, a sign-in's text, a command and a field, so there is no
+ * copy of it to hold; and no host is written in a heading, a field or a button, whose name a screen
+ * reader is given from what it holds, where a <wbr> it could see would be heard as a space.
+ */
+async function checkHosts(view, copy, panel, zoom) {
+  const label = `${view.label}, hosts at ${Math.round(zoom * 100)}%`;
+  const found = await view.evaluate(HOSTS(knownHosts(copy)));
+  check(label, addressVerdict(found, expectedHosts(copy, panel), "host"));
+  for (const verdict of breakVerdicts(found, "host")) {
+    check(label, verdict);
+  }
+  const wanted = linesWithHosts(copy, panel);
+  const texts = await view.evaluate(HOST_LINES);
+  check(label, texts.length !== wanted.length && `the window writes ${texts.length} lines that can name a host in ${panel}, where its copy has ${wanted.length}`);
+  const heard = zoom === 1 && wanted.length > 0 ? await readOrder(view) : [];
+  for (const [index, { what, line }] of wanted.entries()) {
+    if (texts[index] === undefined) {
+      break;
+    }
+    for (const verdict of writtenVerdicts(line, { text: texts[index] }, what, "the line")) {
+      check(label, verdict);
+    }
+    if (zoom === 1) {
+      check(label, heardAt(heard, line) < 0 && `a screen reader does not read ${what} whole, in order, as ${visibly(line)}`);
+    }
   }
 }
 
@@ -2795,27 +2863,30 @@ async function main() {
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
   const barsAt = process.argv.indexOf("--scroll-bars");
   const classic = wantsClassicScrollbars(barsAt > 0 ? (process.argv[barsAt + 1] ?? "") : undefined, Boolean(pictures || windows));
-  for (const folder of [pictures, shares, windows]) {
-    if (folder) {
-      mkdirSync(folder, { recursive: true });
-    }
+  // Chrome is found, or refused, before a folder is made, as a zoom that is not one is.
+  const found = findChrome();
+  if (found.problem) {
+    console.error(found.problem);
+    process.exit(1);
   }
   if (!existsSync(join(DIST, "index.html"))) {
     console.error("There is no built window in dist/; run npm run build first.");
     process.exit(1);
   }
-  const chrome = findChrome();
-  if (!chrome) {
-    console.error("Chrome was not found; install Chrome or Chromium, or set CHROME to its path.");
-    process.exit(1);
+  for (const folder of [pictures, shares, windows]) {
+    if (folder) {
+      mkdirSync(folder, { recursive: true });
+    }
   }
   const server = await serve();
   const url = `http://127.0.0.1:${server.address().port}/`;
   const profile = mkdtempSync(join(tmpdir(), "quotadial-window-check-"));
-  const { browser, address } = launch(chrome, profile, { classicScrollbars: classic });
+  // Started inside the `try`, so that a Chrome that will not start still has its profile removed.
+  let started;
   let tools;
   try {
-    tools = await DevTools.connect(await address);
+    started = launch(found.chrome, profile, { classicScrollbars: classic });
+    tools = await DevTools.connect(await started.address);
     // Which browser, and which scroll bars it draws, so that a run on another machine can say what it was.
     const { product } = await tools.send("Browser.getVersion");
     console.log(`Window check in ${product}, ${classic ? "with scroll bars that take room" : "with the system's own scroll bars"}.`);
@@ -2864,7 +2935,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks and its heatmap's rows, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words, addresses and hosts kept whole, History's time marks and its heatmap's rows, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
@@ -2872,17 +2943,14 @@ async function main() {
       );
     }
   } finally {
-    // Chrome writes to its profile until it has exited, so the profile goes after it.
-    const exited = new Promise((done) => {
-      if (browser.exitCode !== null) {
-        done();
-      }
-      browser.once("exit", done);
-      setTimeout(done, 5000);
-    });
+    // Chrome writes to its profile until it has exited, so the profile goes after it; a Chrome that
+    // never started has gone already (`gone`), and one that did not get as far as `launch` has
+    // nothing to wait for.
     await tools?.send("Browser.close").catch(() => {});
-    await exited;
-    browser.kill();
+    if (started) {
+      await Promise.race([started.gone, new Promise((done) => setTimeout(done, 5000))]);
+      started.browser.kill();
+    }
     server.close();
     rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }

@@ -7,6 +7,13 @@
  * address byte for byte, and hides each from screen readers, so the address is heard whole (`Address`
  * in `account.tsx`). A part wider than the line still breaks where it must, by the stylesheet's
  * `overflow-wrap: anywhere` (D-139), its last resort.
+ *
+ * A host written in a sentence breaks the same way (D-141, extended to a host: the manager's
+ * review of #107): it has no `@`, so its parts are before each `.`, and
+ * "release-assets.githubusercontent.com" goes over two lines as "release-assets" over
+ * ".githubusercontent.com", never as "...githubuserco" over "ntent.com". The window finds a host
+ * only from a list the app gives it (`hostRuns`), never by guessing at a word with a dot in it, as
+ * a file's name has too.
  */
 
 /**
@@ -35,6 +42,48 @@ export interface Run {
   address: boolean;
 }
 
+/** A run of a line: words, or one of the hosts it names, which the window writes with breaks. */
+export interface HostRun {
+  text: string;
+  host: boolean;
+}
+
+/**
+ * `text` as runs, in order: each of `names` that stands in it, as `stands(at, length)` says of one
+ * found at `at`, as a run of its own, the longest where two begin at one place, and the words
+ * between them as runs of words, `named` false. The runs joined are the text.
+ */
+function namedRuns(
+  text: string,
+  names: readonly string[],
+  stands: (at: number, length: number) => boolean,
+): { text: string; named: boolean }[] {
+  const known = [...new Set(names.filter((name) => name.length > 0))].sort(
+    (a, b) => b.length - a.length,
+  );
+  const runs: { text: string; named: boolean }[] = [];
+  let words = "";
+  let at = 0;
+  while (at < text.length) {
+    const found = known.find((name) => text.startsWith(name, at) && stands(at, name.length));
+    if (found === undefined) {
+      words += text[at];
+      at += 1;
+      continue;
+    }
+    if (words) {
+      runs.push({ text: words, named: false });
+      words = "";
+    }
+    runs.push({ text: found, named: true });
+    at += found.length;
+  }
+  if (words) {
+    runs.push({ text: words, named: false });
+  }
+  return runs;
+}
+
 /**
  * `text` as runs, in order: each of `addresses` that stands in it, with a space or the line's start
  * or end on either side, as a run of its own, the longest where two begin at one place, and the
@@ -44,33 +93,31 @@ export interface Run {
  * "devops@example.com".
  */
 export function addressRuns(text: string, addresses: readonly string[]): Run[] {
-  const known = [...new Set(addresses.filter((address) => address.length > 0))].sort(
-    (a, b) => b.length - a.length,
-  );
   // Whether a space, or the line's start or end, is beside `at`: before it or at it.
   const spaceBefore = (at: number) => at === 0 || /\s/.test(text[at - 1]);
   const spaceAt = (at: number) => at === text.length || /\s/.test(text[at]);
-  const runs: Run[] = [];
-  let words = "";
-  let at = 0;
-  while (at < text.length) {
-    const found = spaceBefore(at)
-      ? known.find((address) => text.startsWith(address, at) && spaceAt(at + address.length))
-      : undefined;
-    if (found === undefined) {
-      words += text[at];
-      at += 1;
-      continue;
-    }
-    if (words) {
-      runs.push({ text: words, address: false });
-      words = "";
-    }
-    runs.push({ text: found, address: true });
-    at += found.length;
-  }
-  if (words) {
-    runs.push({ text: words, address: false });
-  }
-  return runs;
+  return namedRuns(text, addresses, (at, length) => spaceBefore(at) && spaceAt(at + length)).map(
+    ({ text, named }) => ({ text, address: named }),
+  );
+}
+
+/**
+ * `text` as runs, in order: each of `hosts` that stands in it as a word of a sentence does, as a
+ * run of its own, the longest where two begin at one place, and the words between them as runs of
+ * words. The runs joined are the text. A host stands with the line's start, a space, a bracket or a
+ * quotation mark before it, and the line's end, a space, a mark of punctuation or the stop that
+ * ends the sentence after it, so "api.anthropic.com, Anthropic's" and "Also sent to
+ * hooks.slack.com." name a host, and "api.github.com", "github.com.au", "github.com/pghmatt" and
+ * "someone@github.com" do not name "github.com".
+ */
+export function hostRuns(text: string, hosts: readonly string[]): HostRun[] {
+  const startsAt = (at: number) => at === 0 || /[\s(["']/.test(text[at - 1]);
+  const endsAt = (at: number) =>
+    at === text.length ||
+    /[\s,;:!?)\]"']/.test(text[at]) ||
+    // A stop that ends the sentence, not a dot that goes on into a longer host.
+    (text[at] === "." && (at + 1 === text.length || /\s/.test(text[at + 1])));
+  return namedRuns(text, hosts, (at, length) => startsAt(at) && endsAt(at + length)).map(
+    ({ text, named }) => ({ text, host: named }),
+  );
 }

@@ -241,7 +241,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | History's caption keeps a short label whole at 200% | Done (PR #102, D-139) | The manager's decision on #73 (2026-10-27, 08:30 UTC), on the review of #98 (06:24 UTC): at 200% History's caption broke a short label in the middle, "Wee" over "kly". The body's `overflow-wrap: anywhere` is gone: it is on fifteen selectors, the lines that can carry text from outside, or a file name or a host, with no spaces in it (an account's heading, a window's label, the summary's line, a provider's incident, a note, a problem, a sign-in panel, the week's cost, a command, what History says under its period and about each heatmap, Settings' cards, Help's cards and the update on offer), so QuotaDial's own words keep the browser's default and break between words; History's caption wraps, so its label, which can be a model's name, and the shares beside it are never squeezed together. The window check's new `checkWords` holds the captions the window draws to the ones each copy has, in order, with their words, and no word of four letters or more in one is drawn on two lines at 100% and 200% unless its run, the word with what is written against it up to a space, such as a model's name with its brackets, is wider than its caption (as Windows' CI found after the review); it failed first on `main`'s window (100 of 18,750 checks, all at 200% in History). The Many copy has text from outside as long as it gets, with no space to break at, in each place the window shows some, so the long-name rule is held at 100% and 200% in every place, each failing when taken off the list, and a command is held at 200% too. The manager's fallback, `break-word` on the caption's label alone, was tried and is not enough. The website's pictures are unchanged |
 | The window check's `--window-zoom 3` | Done (PR #100) | The manager's decision on #73 (2026-10-27, 08:30 UTC), queued by the review of #98: `--window-zoom 3` failed with "Invalid parameters", since `windowPictures` sent Chrome the popover's size over the zoom as it came, 640 / 3 = 213.33 CSS pixels, where `View.zoom` rounded it. One function, `viewportAt` in `scripts/viewport.mjs`, now gives the size at a zoom in whole pixels, and the four places that worked one out take it from there (`View.zoom`, `checkFrame`'s default height, and `windowPictures`' metrics and clip), with 4 tests that fail first on the unrounded size. The 52 pictures at 100% and the 52 at 200% are byte for byte the same from `main`'s check and from this one, and at 300% the check makes its 52, in both themes, which it could not (they are for the PR, not the site). Check tooling only: no CHANGELOG line, no D |
 | The window check's `--window-zoom` refuses what is not a zoom | Done (PR #103) | The manager's review of #100 (2026-10-27, 09:22 UTC): `--window-zoom abc` reaches Chrome as `NaN` and fails with "Invalid parameters", and `0` is no zoom either. Refuse both before Chrome is asked, with a message in `--scroll-bars`' form (`--scroll-bars is "classic" or "system", not "..."`), and a test that `abc` and `0` fail. Small; it comes after the pull request for History's caption (D-139), and on #73 (11:26 UTC) a negative is tested too. `zoomOf` in `scripts/viewport.mjs` refuses anything but a number above 0 with `--window-zoom is a number above 0, such as 2 for 200%, not "abc"`, and the check asks it before it makes a folder or looks for Chrome; a unit test and a run of the check itself with `abc`, `0`, `-2` and nothing after the flag hold it, the second failing first on `main`'s check. Check tooling only: no CHANGELOG line, no D |
-| Queued: the window check says a `CHROME` that is not there was not found | Queued | The manager's review of #103 (2026-10-27, 12:37 UTC), on what #103 found and left: a `CHROME` that is not there crashes the check with Node's unhandled `spawn ... ENOENT` and leaves its Chrome profile folder in the temporary folder. "Queue it as a tracker row, not its own PR. Fold it into the next PR that already touches Chrome's start in `check-window.mjs` or `chrome.mjs`: say Chrome was not found at that path, as the check does when it finds none, and remove the profile folder on the way out. Not before then." Queued in #104's records |
+| The window check says a `CHROME` that is not there was not found | Done (PR #115) | The manager's review of #103 (2026-10-27, 12:37 UTC), on what #103 found and left: a `CHROME` that is not there crashed the check with Node's unhandled `spawn ... ENOENT` and left its Chrome profile folder in the temporary folder. "Queue it as a tracker row, not its own PR. Fold it into the next PR that already touches Chrome's start in `check-window.mjs` or `chrome.mjs`: say Chrome was not found at that path, as the check does when it finds none, and remove the profile folder on the way out." Queued in #104's records, and folded into the hosts PR on the manager's go (#73, 2026-10-28, 13:50 UTC). `findChrome` gives what is wrong as well as where Chrome is, and the check says "Chrome was not found at <path>, where CHROME says it is" before any folder is made, as it says when it finds none; `launch` turns a Chrome that is there but will not start, such as a folder, into one line, "Chrome at <path> would not start: …", and its new `gone` is kept when Chrome exits or never started, so the check, which now starts Chrome inside its `try`, removes the profile on every way out. `chrome.test.mjs` holds the launcher with a folder for Chrome and runs the check with a `CHROME` that is not there and with one that is a folder, its temporary folder its own: one line, exit 1, no `quotadial-window-check-` folder left. All three failed first on `main`'s check and launcher, each with Node's unhandled `ENOENT` or `EACCES`, and `main`'s check left its profile folder behind |
 | History's heatmap caption names its window as written, and a note that only explains is not a warning | Done (PR #106) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 1 of the four the coordinator found going over every Pro view in both themes, with the smaller "unsupported" note folded in as he allowed. The caption said "When it was used, by hour (weekly (gemini))", lowercasing a model's name inside brackets of its own, while the figure's name said "from Weekly (Gemini) readings"; `heatmapWords` (`share.ts`) now writes one sentence, "When it was used, by hour, from Weekly (Gemini) readings" (or "No use from Weekly (Gemini) readings in this period."), for the caption, the figure's name and the picture to share. Gemini CLI's note, with nothing for the person to fix, takes the detail colour; `checkNotes` holds every note's colour. The website's History pictures are captured again. Copy and colour only: one CHANGELOG line, no D |
 | An address breaks before its `@` and each `.`, never inside a word | Done (PR #107, D-141) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 2, approving the coordinator's proposal with three holds: wherever the window writes an address, a `<wbr>` before its `@` and before each `.`, never a character, so "a.very.long.account.name.that.keeps.going" goes over "@engineering.example.com" where it broke inside "engineering", with D-139's `overflow-wrap: anywhere` the last resort for a part wider than the line; each `<wbr>` hidden from screen readers, since Chrome names a heading, a field or a button with a space at each `<wbr>` it can see; in each account's heading in the popover and History, Settings' names, the line under the number and Help's support address. `checkAddresses` (`whole-addresses.mjs`) holds every address written whole and in order, no word of one broken where it fits its line, the headings' text and copy byte for byte and the address heard whole; it failed 174 of 20,446 checks on `main`'s window, 128 on one with a bare `<wbr>` and 83 of 4,179 on one with a zero-width space; the website's pictures captured again, changed only along each address |
 | The extra-usage line in plain words | Done (PR #108) | The manager's decision on #73 (2026-10-27, 13:26 UTC), item 4, on the fourth shortfall the coordinator found reading every Pro view as a stranger would (13:17): "Extra usage: on, 12.50 of 50.00 USD used (25%)" read like data. `text::extra_usage`, which `quotadial status` and the app's window share, now says "off"; what is used when both amounts are known, "$12.50 of $50.00 used (25%)", both amounts in one form, to the cent with their thousands grouped (the coordinator's review), US dollars with the symbol before each and any other currency with its code after them as before; "25% used" when only the share is known, the call the decision left open, in the words a window's share is said in; and "on" when nothing is known of what is used, with ", 1056.44 credits left" after it as before. The JSON fields do not change, so `docs/openapi.json` and the skill do not; the CLI guide's example and one CHANGELOG line follow. No D |
@@ -251,6 +251,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A currency is three capital letters or unknown | Done (PR #112) | The manager's review of #108 (2026-10-27, 15:27 UTC): "Keep a currency only when, trimmed, it is three ASCII letters (ISO 4217), upper-cased; anything else is treated as unknown, and the amounts are then written with no symbol and no code, "12.50 of 50.00 used (25%)", never as dollars". `ExtraUsage::currency_code` in core holds the rule; the Claude provider keeps Anthropic's `currency` to it where it reads it, so a snapshot carries three capitals or nothing; and `text::extra_usage`, the one writer of the line, writes an unknown currency with neither symbol nor code. A missing currency, which the provider had taken for dollars after CodexBar, is unknown too: the live answer names its currency "USD" beside an amount, so nothing a person sees changes for a real answer. A property test holds that no currency makes the reading panic or reaches the line as more than three letters. Rust only: no CHANGELOG line, no D |
 | Every other time and day a sentence writes, as a person reads it | Done (PR #113, D-142) | The manager's review of #109 (2026-10-27, 15:27 UTC), on its note's two proposals: `watch`'s "Updated …" takes D-142's form and `history`'s "Since …" and "No readings since …" stay RFC 3339, since `--since` takes them back; every other sentence on #109's list takes it too, the poll gate's four, Codex's session log and Antigravity's three; and a day alone takes the new `text::date`'s "24 Oct 2027", which `date_and_time` takes its day from: the licence's "until" and both "ended on" sentences, and the window's price-table day. D-142's row is extended, with one CHANGELOG line; each sentence's test holds its new words; the JSON, the API and the CSV's and picture's file names stay as they are |
 | History's dates and heatmap follow the charts' period | Done (PR #114, D-144) | The manager's decision on #73 (2026-10-27, 19:35 UTC), with five holds, on the coordinator's proposal of 19:17 UTC, the item the review of #111 queued: `dates`, the heatmap's rows and the marks start on the day the charts start in; a row for each calendar day the period holds, eight in a week when now is not a midnight, a now at midnight holding none of its day; `cells` an `Option` a cell, `None` for an hour outside the period, which the window and the picture to share draw no square for, at either end, every other square kept in its hour's column; the first row's words name the hour it starts from. `rowVerdicts` (`heatmap-rows.mjs`) and the picture's `heatVerdicts` hold the rows, their count, the squares to a pixel, the words and the marks' days in every History view at 100% and 200% over 7 and 30 days; they failed 320 of 117,516 checks on `main`'s window and on each of eight broken ones. D-143's left-date sentence amended (hold 4); one sentence carried for D-136, Matt's "Keep the bar alone"; the website's History pictures captured again |
+| A host breaks before each dot, as an address does | Done (PR #115, D-141) | The manager's review of #107 (2026-10-27, 15:27 UTC): the hosts #107 left for later, the webhooks' and Help's privacy text's, "can take the same `<wbr>` before each dot" as a small follow-up, with D-141's rule extended to a host in a sentence and no new D; ordered on #73 (19:23 UTC) for whenever a builder has the slot. `Host` writes a host as `Address` writes an address; Settings' line names each of `alert_targets` with it, and Help's privacy text each place QuotaDial connects to, found only from a new `HelpView.hosts` (`privacy::HOSTS`) where one stands as a word of a sentence (`hostRuns`, `WithHosts`), never guessed from a word with a dot in it. `checkHosts` (`whole-addresses.mjs`) holds every host written whole and in order and none anywhere else, no word of one broken where it fits its line, and each line naming hosts byte for byte and heard whole; it failed 16 of 115,916 checks on `main`'s window (8 a host broken inside a word that fits its line, all at 200%, and 8 for want of the line's new class) and passes 115,936, 484 more than `main`'s 115,452. The window check's `CHROME` row below was folded in, on the manager's go |
 
 ## Kickoff
 
@@ -463,6 +464,125 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: a host breaks before each dot, as an address does (D-141, extended)
+
+- **The ask:** the manager's review of #107 (2026-10-27, 15:27 UTC): "Not a hold: the hosts you left for later
+  (webhooks, Help's privacy text) can take the same `<wbr>` before each dot as a small follow-up after the time marks;
+  propose it in the tracker when you get there, no D needed if D-141's rule is extended to a host in a sentence." And
+  his order on #73 (19:23 UTC): "then the hosts' `<wbr>` ... whenever a builder has the slot". Built on
+  `fix/host-breaks` from `main` at 8aff2cc (#113), and rebased onto 3cad757 once #114 merged, where the two copies'
+  modules and the tracker clashed, each side kept. The manager's go on #73 (2026-10-28, 13:50 UTC), item 2, approved it
+  as described and folded in the queued row below.
+- **The proposal,** which this PR makes for the manager's review: D-141's rule extended to a host in a sentence, with no
+  new D. Wherever the window writes a host in a sentence, it writes it as it writes an address: a `<wbr
+  aria-hidden="true">` before each `.` after its first character, never a character, so
+  "release-assets.githubusercontent.com" goes over two lines as "release-assets" over ".githubusercontent.com", and
+  D-139's `overflow-wrap: anywhere` stays the last resort for a part wider than the line. A host is found only from the
+  lists the app sends, never guessed from the text: the webhooks' hosts in Settings (`alert_targets`), and every place
+  QuotaDial connects to, `privacy::HOSTS`, now sent to Help as `HelpView.hosts`. A word with a dot in it is not a host:
+  a file's name, such as "config.json", "QuotaDial_universal.dmg" or "docs/ACCESSIBILITY.md", has one too.
+- **Every place a host is written,** going down the view model's strings, the providers' messages and the components:
+  - Written as a host now: Settings' "Also sent to …" (`settings.tsx`, a `Host` for each of `alert_targets`, its line
+    given the class `alert-targets`), and Help's "What QuotaDial reads and sends" (`help.tsx`, each paragraph and item
+    of `help.privacy` through `WithHosts` with `help.hosts`), whose real text names all six of `privacy::HOSTS`.
+  - Written as they are: About's link "quotadial.com", a button of its own; an update's problems, "Download it from
+    quotadial.com." (`updates.rs`); "quotadial.com/pro", a page's address, in Settings' "QuotaDial Pro, at
+    quotadial.com/pro, adds:", the licence's lines and the lines on what Free leaves out (`tier::PRO_URL`);
+    "quotadial.com/key" in the privacy text, a page, which is in no list; the credit to "models.dev" in About, whose
+    prices are built in, not a place QuotaDial connects to; and the changelog's lines in What's new, and an update's
+    notes, which are a release's section of `CHANGELOG.md`, since they name no host but in their links' targets, which
+    `plain` leaves out. This PR's own changelog line names no host, so that What's new does not write one as it is.
+  - Not in the window's text: the tray's menu and tooltip; notifications, such as an incident alert's "status.openai.com
+    says: Partial System Degradation."; the picture to share.
+- **The call, named for the PR:** a structured list, where the view model has one, over finding hosts in free text. Each
+  list is the app's own: `alert_targets` is what Settings already showed, and `HelpView.hosts` is `privacy::HOSTS`,
+  which `privacy.rs` holds the privacy text to name and a new test in `help.rs` holds to stand in Help's blocks exactly
+  where the window finds a host: after the line's start, a space, a bracket or a quotation mark, and before its end, a
+  space, a mark of punctuation or the stop that ends the sentence. So "github.com" is never found in "api.github.com",
+  "github.com.au", "someone@github.com" or "github.com/pghmatt" (`hostRuns`, beside `addressRuns`, both on one
+  `namedRuns`).
+- **The window check, extended rather than less:** `whole-addresses.mjs` finds hosts as it finds addresses, one
+  `namesIn` for both with a host's own edges (`hostsIn`), a host's words taken from its own text so the comma after it
+  is in none, and one page code for both (`ADDRESSES`, `HOSTS`); `knownHosts`, `expectedHosts` and `linesWithHosts` say
+  what each copy should write; `addressVerdict` and `breakVerdicts` name a host or an address; and `writtenVerdicts`
+  holds a line byte for byte, `textVerdicts` keeping its words for an address. `checkHosts` runs beside `checkAddresses`
+  in every view at 100% and 200%. A host needs less than an address in two ways, said in D-141: its lines cannot be
+  selected, so there is no copy to hold, and no host is in a heading, a field or a button, whose name a screen reader is
+  given from what it holds, so there is no such name to hold; the line is held to be read whole, in order, as the line
+  under the number is. The copies carry the app's six places (`DESTINATIONS`), held to `privacy.rs` by a test, and the
+  Many copy has a webhook's host of 55 characters and "release-assets.githubusercontent.com".
+- **Folded in, on the manager's go: a `CHROME` that is not there** (the queued row from the review of #103, 2026-10-27,
+  12:37 UTC, which asked for the next PR that touches the check). `CHROME=/no/such/chrome` crashed the check with Node's
+  unhandled `spawn ... ENOENT` and left its profile, a `quotadial-window-check-` folder, in the temporary folder:
+  `main`'s check, run so with its temporary folder its own, exits 1 with "Unhandled 'error' event" and leaves the
+  folder. Now `findChrome` gives what is wrong as well as where Chrome is: a `CHROME` that is not there is said in one
+  line, "Chrome was not found at <path>, where CHROME says it is; set CHROME to Chrome's path, or leave it unset to look
+  where Chrome usually is.", as none at all is, and the check refuses it right after a zoom that is not one, before it
+  looks for the built window, makes a folder or starts Chrome. A Chrome that is there but will not start, such as a
+  folder, is `launch`'s failure, "Chrome at <path> would not start: spawn <path> EACCES", where it was an unhandled
+  `error`, and `launch` gives a new `gone`, kept when Chrome exits or never started (Node sends `error` and no `exit`
+  then); the check starts Chrome inside its `try`, so its profile is removed on every way out, and waits on `gone`
+  rather than five seconds for a Chrome that never started. `chrome.test.mjs` holds the launcher with a folder for
+  Chrome, and runs the check with a `CHROME` that is not there (with a zoom that is one, on every system) and with one
+  that is a folder (where scripts run as programs, and once the window is built): one line, exit 1, no
+  `quotadial-window-check-` folder left. All three failed first on `main`'s check and launcher, each on Node's unhandled
+  `ENOENT` or `EACCES`; the launcher's other seven tests pass on both.
+- **Proof:** the new tests failed first, `address.test.mjs` on `hostRuns` not being there and `whole-addresses.test.mjs`
+  on `HOSTS` not being there, and two wrong versions of `hostsIn`, each put in and taken out again, fail them: one
+  finding a host as an address is found, between spaces alone, fails 9 of the 36, and one taking a host's words from the
+  whole line, as an address's were taken, fails 3: the comma after a host joined its last word, which was then left out.
+  The address tests pass with both, so the one `namesIn` changes nothing for an address. The window check, with `main`'s
+  four window files put back (`address.ts`, `account.tsx`, `settings.tsx` and `help.tsx`, a patch kept in the
+  scratchpad, applied and taken off with `git apply`), failed 16 of 115,916 checks: 8 a host broken inside a word that
+  fits its line, all at 200% in the Many copy and in both themes, Settings' webhook host inside ".engineering",
+  ".internal" and ".co" and Help's "release-assets.githubusercontent.com" inside ".com"; and 8 for `main`'s Settings
+  line in the Pro and Many copies, in both themes at 100% and 200%, not being marked as the one naming the webhooks'
+  hosts (`alert-targets`, which this PR adds). With the branch's window it passes 115,936; `main`'s own check on
+  `main`'s window passes 115,452, so `checkHosts` adds 484. The three `CHROME` tests failed first as the fold-in's
+  bullet says.
+- **Pictures,** for the PR, in the scratchpad's `host-breaks/` (`before-` and `after-`, `light-` and `dark-`,
+  `settings-200.png` and `help-200.png`): the Many copy at 200% with a Mac's own scroll bars, each with the line naming
+  its longest host in the middle of the window, by a picture place added to `windowPictures` for these alone and taken
+  out again with `git apply -R`. Settings: `main` broke "alerts.engineering.plat" over "form.internal.corp.exa" over
+  "mple.co.uk."; now "Also sent to hooks" over ".slack.com, alerts" over ".engineering.platform" over
+  ".internal.corp.example" over ".co.uk.". Help: `main` broke "release-" over "assets.githubuser" over "content.com,";
+  now "release-assets" stands whole on its line, and ".githubusercontent", wider than the list's line at 200%, is broken
+  by the last resort, as D-141 says of a part wider than its line, and as the check, which passes it, measures.
+- **The website's pictures:** captured from the branch's window and from `main`'s with the website's copy, in the same
+  Chrome, they differ only in Settings, by 77 pixels around the end of "Also sent to hooks.slack.com.", the fraction of
+  a pixel the `<wbr>`s add, as D-141 measured for an address; the accounts, History and Help are the same pixels. The
+  committed six already differ from `main`'s window before this PR (the accounts pair on the line under the number,
+  Settings on many lines, History's dark picture by 218 pixels), so they are left as they are here, for a pictures PR to
+  take again together.
+- **Counts,** on `main` at 3cad757: the workspace's tests 811 with 1 ignored, and 808 with 2 ignored in the example
+  build, as on `main`, since no workspace crate changes; the app's `--lib` tests 109 in both builds, 1 more than
+  `main`'s 108 (`help.rs`'s test of where each host stands); the tray's `npm test` 208, 25 more than `main`'s 183 (6 in
+  `address.test.mjs`, 16 in `whole-addresses.test.mjs` and 3 in `chrome.test.mjs`); the website's 90, as on `main`; the
+  window check 115,936 over 26 views, against `main`'s 115,452; the window's JavaScript 40.6 KB of its 150, against
+  `main`'s 40.0, and the contrast check's 30 pairs a theme.
+- **Checks run,** on the branch rebased onto 3cad757, through the scratchpad's `safe.sh`, one at a time: `cargo fmt
+  --check` for the workspace and the app; clippy with `-D warnings` in the default and example builds, for the workspace
+  and the app; `cargo test --workspace` in both builds; the app's `--lib` tests in both builds, which read
+  `CHANGELOG.md`; the tray's `npm run build`, `npm test` and `npm run check:window`; the website's `npm run check`, `npm
+  run build` (its built `/changelog` carries the new line) and `npm test`; `scripts/privacy.sh --check` and
+  `scripts/public-prd.sh --check`; and, for the changelog, the repository scripts' tests (39 pass, and one skips on
+  macOS, needing GNU `sha256sum`) and `scripts/release-notes.sh 0.2.0`. **Not run:** the real app,
+  `tests/icon_press.rs`, Windows and Linux (CI covers them), and `cargo deny`, `cargo audit`, shellcheck and actionlint,
+  since no dependency, script or workflow changed.
+- **For the manager:** #107's own changelog line names "a.very.long.account.name.that.keeps.going" and
+  "@engineering.example.com", which What's new writes as they are, as it writes every changelog line, so a line too
+  short for one breaks it where the line ends, by D-139's last resort, and not before a dot or its @. Writing the
+  changelog's lines through `WithHosts` and `WithAddresses` would need lists of the hosts and addresses they name; this
+  PR leaves them, and says so here. Seen once and left: the branch's full window check sat about four minutes after its
+  last line until two of Chrome's crashpad handlers, which outlive it holding its stderr, had gone; letting go of
+  Chrome's stderr on the way out would end that wait, a line for another PR if it comes back.
+- **#52's list, gone down:** *found and fixed:* a host broken inside a word where a dot would have let it fit, in
+  Settings' line of webhooks and Help's text of what QuotaDial reads and sends; and the window check dying of Node's
+  unhandled error on a `CHROME` that is not there or will not start, and leaving its profile behind. *Held:* a host
+  written as an address is, with nothing added to its text; one found only from the lists the app sends; no host written
+  anywhere else; the copies' places held to the app's; D-139's last resort for a part wider than its line. *Left for the
+  manager:* #107's changelog line in What's new, the website's pictures and the crashpad handlers' wait, above.
 
 ### M6: History's dates and heatmap follow the charts' period (D-144)
 

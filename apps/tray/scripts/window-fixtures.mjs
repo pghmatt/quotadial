@@ -742,6 +742,20 @@ function periodsOf(ends) {
   return Object.fromEntries(Object.entries(ends).map(([days, now]) => [days, { start: now - Number(days) * DAY, now }]));
 }
 
+/**
+ * Every place QuotaDial connects to, as the app sends them in Help (`hosts` in `help.rs`, from
+ * `quotadial_core::privacy::HOSTS`): the hosts the window writes in the privacy text as it writes a
+ * host, breaking before a dot (D-141).
+ */
+export const DESTINATIONS = [
+  "api.anthropic.com",
+  "chatgpt.com",
+  "status.claude.com",
+  "status.openai.com",
+  "github.com",
+  "release-assets.githubusercontent.com",
+];
+
 /** @type {HelpView} */
 const HELP = {
   version: "0.3.0",
@@ -782,6 +796,7 @@ const HELP = {
       ],
     },
   ],
+  hosts: DESTINATIONS,
 };
 
 /** @type {Copy} */

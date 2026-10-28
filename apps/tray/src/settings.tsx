@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { Fragment } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
-import { Address } from "./account";
+import { Address, Host } from "./account";
 import { usePanelFocus } from "./focus";
 import type { Settings } from "./meter";
 import { Said } from "./said";
@@ -128,7 +129,17 @@ export function SettingsPanel() {
             </div>
           ))}
           {settings.alert_targets.length > 0 && (
-            <p class="detail">Also sent to {settings.alert_targets.join(", ")}.</p>
+            // Each webhook's host as the window writes a host, breaking before a dot (D-141).
+            <p class="detail alert-targets">
+              Also sent to{" "}
+              {settings.alert_targets.map((host, index) => (
+                <Fragment key={index}>
+                  {index > 0 && ", "}
+                  <Host text={host} />
+                </Fragment>
+              ))}
+              .
+            </p>
           )}
           {settings.alert_problems.map((problem) => (
             <p class="note" key={problem}>
