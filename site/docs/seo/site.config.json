@@ -23,7 +23,7 @@
       "title": "Claude and Codex usage tracker for the menu bar | QuotaDial",
       "blueprint": "docs/seo/blueprints/home.md",
       "sections": [
-        "Uses the sign-in you already have",
+        "No new sign-in or API key",
         "A warning before a run stops",
         "Your agents can check before they start",
         "On macOS, Windows and Linux",

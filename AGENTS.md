@@ -1,10 +1,10 @@
 # QuotaDial agent guide
 
 QuotaDial tracks AI coding-subscription usage limits on macOS, Windows and Linux. Version 1 covers
-Claude and ChatGPT/Codex. It reads the OAuth credentials the official CLIs already store, calls each
-provider's usage endpoint, normalizes the result, and serves it through a tray app, a CLI
-(`quotadial`, alias `qd`), a local HTTP API, an MCP server and a SKILL.md. It is sold with a free
-and a Pro tier. Domains: quotadial.com and quotadial.app.
+Claude and ChatGPT/Codex. It reads Claude's limits from what Claude Code's status line hands it
+(D-145), calls Codex's usage endpoint with the sign-in the Codex CLI keeps, normalizes the result,
+and serves it through a tray app, a CLI (`quotadial`, alias `qd`), a local HTTP API, an MCP server
+and a SKILL.md. It is sold with a free and a Pro tier. Domains: quotadial.com and quotadial.app.
 
 Stack: Rust core (reqwest, tokio, rusqlite, axum, keyring), a Tauri 2 + TypeScript/Preact tray app
 (D-070), and a thin CLI.

@@ -7,7 +7,7 @@ import { Body, Code, Lead } from "./Text.tsx";
 export function SignIn() {
   return (
     <Part id="sign-in" headingId="sign-in-title">
-      <SectionHeading id="sign-in-title">Uses the sign-in you already have</SectionHeading>
+      <SectionHeading id="sign-in-title">No new sign-in or API key</SectionHeading>
       <Lead>
         QuotaDial reads the sign-in the Codex CLI already keeps, and only reads it: it never writes, refreshes, moves or
         logs it. Claude's numbers come from Claude Code's status line once you add one line to its settings, and Claude
