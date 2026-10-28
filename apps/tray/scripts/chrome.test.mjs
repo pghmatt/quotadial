@@ -1,12 +1,15 @@
 // The window check's Chrome launcher, with a script standing in for Chrome: what it gives when
-// Chrome answers, exits or keeps quiet, and how long it waits.
+// Chrome answers, exits, keeps quiet or will not start, and how long it waits. And the window check
+// run as a program with a CHROME that is not there, or one that will not start: it says so in one
+// line and leaves no folder behind (the manager's review of #103).
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { START_WAIT_MS, launch, wantsClassicScrollbars } from "./chrome.mjs";
 
@@ -173,3 +176,65 @@ test("Chrome runs without its sandbox on Linux and with it everywhere else", { s
     }
   }
 });
+
+test("a Chrome that is there but will not start, such as a folder, fails with what stopped it, and has gone at once", { skip }, async () => {
+  const folder = mkdtempSync(join(tmpdir(), "quotadial-chrome-test-"));
+  folders.push(folder);
+  // A folder is there, but it is no program: the system will not start it, and Node says so with an
+  // `error` and no `exit`, which nothing heard before, so the check died of an unhandled error.
+  const { address, gone } = launch(folder, join(folder, "profile"));
+  await assert.rejects(address, (error) => error.message.startsWith(`Chrome at ${folder} would not start: `));
+  await gone;
+});
+
+const CHECK = fileURLToPath(new URL("./check-window.mjs", import.meta.url));
+
+/**
+ * The window check run as a program with `args`, CHROME set to what `chrome(folder)` gives and a
+ * temporary folder of its own, `folder`: its exit status, what it wrote to stderr, and what it left
+ * in that folder that is its own, a `quotadial-window-check-` profile.
+ */
+function runCheck(args, chrome) {
+  const folder = mkdtempSync(join(tmpdir(), "quotadial-check-temporary-"));
+  folders.push(folder);
+  const CHROME = chrome(folder);
+  const run = spawnSync(process.execPath, [CHECK, ...args], {
+    encoding: "utf8",
+    // Each system's own name for its temporary folder, so that the check makes its profile here.
+    env: { ...process.env, CHROME, TMPDIR: folder, TMP: folder, TEMP: folder },
+    timeout: 120_000,
+  });
+  const left = readdirSync(folder).filter((name) => name.startsWith("quotadial-window-check-"));
+  return { CHROME, status: run.status, stderr: run.stderr, left };
+}
+
+test("with a zoom that is one, the window check says a CHROME that is not there was not found, in one line, and leaves no folder", () => {
+  const { CHROME, status, stderr, left } = runCheck(["--window-zoom", "2"], (folder) => join(folder, "no-chrome-here"));
+  assert.equal(status, 1, stderr);
+  assert.equal(
+    stderr.trim(),
+    `Chrome was not found at ${CHROME}, where CHROME says it is; set CHROME to Chrome's path, or leave it unset to look where Chrome usually is.`,
+  );
+  assert.deepEqual(left, [], "the check left its profile folder behind");
+});
+
+// The check gets as far as starting Chrome only with a built window to serve.
+const built = existsSync(fileURLToPath(new URL("../dist/index.html", import.meta.url)));
+
+test(
+  "the window check says a Chrome that will not start, in one line, and removes the profile it made for it",
+  { skip: skip || (!built && "the window is not built, so the check stops before it starts Chrome (npm run build)") },
+  () => {
+    const { CHROME, status, stderr, left } = runCheck([], (folder) => {
+      const chrome = join(folder, "a-folder-not-a-program");
+      mkdirSync(chrome);
+      return chrome;
+    });
+    assert.equal(status, 1, stderr);
+    const said = stderr.trim();
+    assert.ok(said.startsWith(`Chrome at ${CHROME} would not start: `), said);
+    assert.ok(!said.includes("\n"), `the check said more than one line: ${said}`);
+    assert.deepEqual(left, [], "the check left its profile folder behind");
+  },
+);
+

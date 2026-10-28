@@ -94,7 +94,8 @@
 // a Pro copy with one account of seven windows, with the made-up accounts in window-fixtures.mjs
 // answering in place of the app. It drives Chrome (Chromium is WebView2's engine on Windows) through the
 // DevTools protocol, with nothing to install: Chrome is found where it usually is, or named by
-// CHROME. `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
+// CHROME, and a CHROME that is not there, or a Chrome that will not start, is said in one line, with
+// no folder left behind (the manager's review of #103). `npm run build` first; then `npm run check:window`; `-- --screenshots <folder>` saves a
 // picture of the whole of each view, as tall as it needs, `-- --window-pictures <folder>` saves
 // pictures of each view as the window shows it, no taller than the app lets it be, at the top and
 // half way down what scrolls, and in History with its first card's time marks in the middle, each of
@@ -196,10 +197,19 @@ function check(view, problem) {
   }
 }
 
-/** Chrome: CHROME, or where each system usually has Chrome, Chromium or Edge. */
+/**
+ * Chrome, as `{ chrome }`: CHROME, or where each system usually has Chrome, Chromium or Edge. Or, as
+ * `{ problem }`, why there is none: a CHROME that is not there names the Chrome the person wants, so
+ * it is not looked past, and the check says it was not found at that path, as it says when it finds
+ * none, where starting it crashed the check with Node's unhandled `spawn ... ENOENT` (the manager's
+ * review of #103).
+ */
 function findChrome() {
-  if (process.env.CHROME) {
-    return process.env.CHROME;
+  const named = process.env.CHROME;
+  if (named) {
+    return existsSync(named)
+      ? { chrome: named }
+      : { problem: `Chrome was not found at ${named}, where CHROME says it is; set CHROME to Chrome's path, or leave it unset to look where Chrome usually is.` };
   }
   const candidates = [];
   if (process.platform === "darwin") {
@@ -224,7 +234,8 @@ function findChrome() {
       }
     }
   }
-  return candidates.find((candidate) => existsSync(candidate));
+  const chrome = candidates.find((candidate) => existsSync(candidate));
+  return chrome ? { chrome } : { problem: "Chrome was not found; install Chrome or Chromium, or set CHROME to its path." };
 }
 
 /** Serves dist/ on 127.0.0.1 under the app's own content security policy. */
@@ -2852,27 +2863,30 @@ async function main() {
   const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
   const barsAt = process.argv.indexOf("--scroll-bars");
   const classic = wantsClassicScrollbars(barsAt > 0 ? (process.argv[barsAt + 1] ?? "") : undefined, Boolean(pictures || windows));
-  for (const folder of [pictures, shares, windows]) {
-    if (folder) {
-      mkdirSync(folder, { recursive: true });
-    }
+  // Chrome is found, or refused, before a folder is made, as a zoom that is not one is.
+  const found = findChrome();
+  if (found.problem) {
+    console.error(found.problem);
+    process.exit(1);
   }
   if (!existsSync(join(DIST, "index.html"))) {
     console.error("There is no built window in dist/; run npm run build first.");
     process.exit(1);
   }
-  const chrome = findChrome();
-  if (!chrome) {
-    console.error("Chrome was not found; install Chrome or Chromium, or set CHROME to its path.");
-    process.exit(1);
+  for (const folder of [pictures, shares, windows]) {
+    if (folder) {
+      mkdirSync(folder, { recursive: true });
+    }
   }
   const server = await serve();
   const url = `http://127.0.0.1:${server.address().port}/`;
   const profile = mkdtempSync(join(tmpdir(), "quotadial-window-check-"));
-  const { browser, address } = launch(chrome, profile, { classicScrollbars: classic });
+  // Started inside the `try`, so that a Chrome that will not start still has its profile removed.
+  let started;
   let tools;
   try {
-    tools = await DevTools.connect(await address);
+    started = launch(found.chrome, profile, { classicScrollbars: classic });
+    tools = await DevTools.connect(await started.address);
     // Which browser, and which scroll bars it draws, so that a run on another machine can say what it was.
     const { product } = await tools.send("Browser.getVersion");
     console.log(`Window check in ${product}, ${classic ? "with scroll bars that take room" : "with the system's own scroll bars"}.`);
@@ -2921,7 +2935,7 @@ async function main() {
     } else {
       console.log(
         `The window passed ${checks} checks over ${views} views: Tab order, focus, names and roles, ` +
-          `keys, zoom to 200%, long names, shares, caption words and addresses kept whole, History's time marks and its heatmap's rows, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
+          `keys, zoom to 200%, long names, shares, caption words, addresses and hosts kept whole, History's time marks and its heatmap's rows, reduced motion, the toolbar kept at its foot, the same width with a scroll bar or ` +
           `without and the picture to share.` +
           (pictures ? ` Pictures are in ${pictures}.` : "") +
           (windows ? ` Pictures of the window as it is shown are in ${windows}.` : "") +
@@ -2929,17 +2943,14 @@ async function main() {
       );
     }
   } finally {
-    // Chrome writes to its profile until it has exited, so the profile goes after it.
-    const exited = new Promise((done) => {
-      if (browser.exitCode !== null) {
-        done();
-      }
-      browser.once("exit", done);
-      setTimeout(done, 5000);
-    });
+    // Chrome writes to its profile until it has exited, so the profile goes after it; a Chrome that
+    // never started has gone already (`gone`), and one that did not get as far as `launch` has
+    // nothing to wait for.
     await tools?.send("Browser.close").catch(() => {});
-    await exited;
-    browser.kill();
+    if (started) {
+      await Promise.race([started.gone, new Promise((done) => setTimeout(done, 5000))]);
+      started.browser.kill();
+    }
     server.close();
     rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
