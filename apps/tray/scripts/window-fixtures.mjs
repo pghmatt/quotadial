@@ -783,6 +783,21 @@ export const PRIVACY = [
 /** Each place QuotaDial connects to, as the list in the app's privacy text writes it. */
 const PLACES = PRIVACY.flatMap((block) => (block.kind === "list" ? block.items : []));
 
+/**
+ * Lines of the real changelog, as the app's What's new shows them for the copies' version, 0.3.0
+ * (`whats_new` in `help.rs`, which reads `CHANGELOG.md`), a heading and its lines a line: lines
+ * that name files and commands, longer than a window's words, for the copy of ten accounts' What's
+ * new and its update's notes. A test in `help.rs` holds each line to the app's own, under its
+ * heading and in its order, and says the lines there are to choose from when `CHANGELOG.md` changes
+ * one or drops it; the copies' own test (whole-addresses.test.mjs) holds the ten accounts' lines to
+ * these.
+ * @type {HelpView["whats_new"]["sections"]}
+ */
+export const CHANGES = [
+  {"heading":"Added","items":["Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release."]},
+  {"heading":"Changed","items":["Claude's limits come from Claude Code's status line: add \"statusLine\": { \"type\": \"command\", \"command\": \"quotadial claude status-line\" } to ~/.claude/settings.json, or put quotadial claude status-line and a space in front of the status line command already there, and start Claude Code again. Each Claude account then shows its five-hour and weekly windows while Claude Code runs, for Pro and Max plans; until the first numbers come, its card says what to add."]},
+];
+
 /** @type {HelpView} */
 const HELP = {
   version: "0.3.0",
@@ -902,32 +917,20 @@ export const many = {
   },
   history: { 7: history(7, null, MANY_ACCOUNTS), 30: history(30, null, MANY_ACCOUNTS) },
   // What Help and an update on offer say that is longer than a window's words: lines of the real
-  // changelog, which name files and commands, and the real privacy text's longest host, in a copy
-  // whose update is on offer, so that the popover's card for it and About's notes carry them too.
+  // changelog, which name files and commands (CHANGES, each under its heading, held to CHANGELOG.md
+  // by help.rs), and the real privacy text's longest host, in a copy whose update is on offer, so
+  // that the popover's card for it and About's notes carry them too.
   help: {
     ...HELP,
-    whats_new: {
-      ...HELP.whats_new,
-      sections: [
-        ...HELP.whats_new.sections,
-        {
-          heading: "Changed",
-          items: [
-            "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
-            "The command that signs a Claude Code folder in again works when pasted, from doctor too: CLAUDE_CONFIG_DIR=~/'.claude-work' claude, as docs/INSTALL.md says.",
-          ],
-        },
-      ],
-    },
+    whats_new: { ...HELP.whats_new, sections: CHANGES },
     // The list goes one place further, to GitHub's, which names the privacy text's longest host.
     privacy: [...HELP.privacy.slice(0, -1), { kind: "list", items: PLACES.slice(0, 3) }],
   },
   update: {
     text: "QuotaDial 0.4.0 is available. This copy is 0.3.0.",
     available: "0.4.0",
-    notes: [
-      "Each release's files also come under a name without the version, such as QuotaDial_universal.dmg, so one link always fetches the newest full release.",
-    ],
+    // The line that names a release's file.
+    notes: CHANGES[0].items,
     busy: false,
     progress: null,
   },

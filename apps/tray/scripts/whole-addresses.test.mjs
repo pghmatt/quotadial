@@ -39,7 +39,7 @@ import {
 } from "./whole-addresses.mjs";
 import { PAGE_TEXT, matchesIn } from "./whole-shares.mjs";
 import { site } from "./site-fixtures.mjs";
-import { DESTINATIONS, PRIVACY, crowded, free, many, pro } from "./window-fixtures.mjs";
+import { CHANGES, DESTINATIONS, PRIVACY, crowded, free, many, pro } from "./window-fixtures.mjs";
 
 const LONG = "a.very.long.account.name.that.keeps.going@engineering.example.com";
 const LONG_WORDS = ["a", ".very", ".long", ".account", ".name", ".that", ".keeps", ".going", "@engineering", ".example", ".com"];
@@ -574,6 +574,17 @@ test("every copy's Help, the website's too, says what QuotaDial reads and sends 
     .map(([name, copy]) => [name, notTheAppsOwn(copy.help.privacy)])
     .filter(([, blocks]) => blocks.length > 0);
   assert.deepEqual(Object.fromEntries(ofItsOwn), {}, "these copies' Help says what QuotaDial reads and sends in words of its own");
+});
+
+test("the ten accounts' What's new is the real changelog's lines that CHANGES keeps, and its update's notes are some of them", () => {
+  /** @param {{ heading: string, items: string[] }[]} sections */
+  const lines = (sections) => sections.flatMap(({ heading, items }) => items.map((item) => `${heading}: ${item}`));
+  const real = lines(CHANGES);
+  assert.ok(real.length > 0, "CHANGES keeps no line of the changelog");
+  assert.deepEqual(lines(many.help.whats_new.sections), real, "the ten accounts' What's new is not CHANGES' lines, each under its heading");
+  const items = CHANGES.flatMap((section) => section.items);
+  assert.ok(many.update.notes.length > 0, "the ten accounts' update on offer has no notes");
+  assert.deepEqual(many.update.notes.filter((note) => !items.includes(note)), [], "these notes are not the real changelog's");
 });
 
 test("the hosts written are the copy's, in order, or the verdict says which is not, as for an address", () => {
