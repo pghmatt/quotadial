@@ -275,6 +275,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The example build's Claude-like account drops its weekly Opus window | Done (PR #116) | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still showed a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. Dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own: the account has Weekly and Session, as the website's copy has since #117. The fake provider's tests, the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md` and the website's content bible changed with it, and a new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product. The README's first-run recording still shows the window until it is recorded again on Matt's Mac |
 | Doctor and Help say what QuotaDial reads each account from | Done (PR #118) | The manager on #73 (2026-10-28, 20:24 UTC, item 3), after #116 and before the 0.3.0 bump: `doctor`'s description and Help's sentence on Send feedback give each account "and what QuotaDial reads it from", where they said "and where its sign-in is", with the manual pages and completions written again. With them, by his yes on #73 (21:22 UTC, item 2), four more sentences that still said QuotaDial reads Claude's sign-in, found while searching for the phrase: the website's command guide page and its doctor sample's caption, winget's description and the CLI guide's line on Claude Code's logs. One CHANGELOG line for all six; wording, so no D |
 | #52's figures from the published v0.3.0 | The daemon and the bundle: done (PR #121); the app's three wait on Matt | The manager's review of #119 (2026-10-29, 01:22 UTC): from the published build, with the build they came from and any regression named. `quotadial-v0.3.0-aarch64-apple-darwin.tar.gz` (its SHA-256 starts `595a8f09`; in full in the note), its `quotadial daemon` alone with one made-up Claude account and the status pages on, as an install has them: 0.002% of one core and 4.82 MiB of footprint on average, 4.89 at most, over its hour, listening only on 127.0.0.1. No regression against PR D's example (0.002%, 3.98 MiB): the 0.84 MiB more is the status page reading, which the example never did, since with it off the same daemon has 3.46 MiB. The window's JavaScript 40.6 KB of 150 at bc9c8c6. The tray app idle, first run and the popover wait on Matt: his own copy of v0.3.0 read only, or QuotaDial Example built at bc9c8c6 with his yes |
+| The window check ends at its last line, its 5 s timer cleared | Done (PR #122) | The manager's review of #120 (2026-10-29, 03:23 UTC): "yes, clear it, and as a PR of its own now", one line in `check-window.mjs`'s `finally`. `main()` raced Chrome's going (`gone`) against a 5 s timer it never cleared, so a run whose Chrome had gone still sat 5 s after its last line, as #120's did (5.0 s). The timer is now cleared once the race is settled, and a Chrome that will not go still has 5 s at most. No new test, since none is cheap (notes below). The branch's `npm run check:window` passed 116,026 checks and ended 0.16 s after its last line. Check tooling only: no CHANGELOG line, no D |
 
 ## Kickoff
 
@@ -492,6 +493,32 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: the window check ends at its last line, its 5 s timer cleared
+
+- **The ask:** the manager's review of #120 (2026-10-29, 03:23 UTC), on what #120's self-review left for him: "yes,
+  clear it, and as a PR of its own now", one line in `check-window.mjs`'s `finally`, so that "the timer is cleared when
+  `gone` wins, so the check ends at its last line"; a stand-in test only if one is cheap; `npm run check:window` once on
+  the branch, with the gap between its last line and its exit, as the evidence; no CHANGELOG line, no D, and a tracker
+  row of its own. Built on `fix/window-check-timer` from `main` at af84777 (#120). In review as #122.
+- **The change:** `main()`'s `finally` raced Chrome's going (`gone`) against `setTimeout(done, 5000)` and never cleared
+  the timer, so when `gone` won, as it does whenever Chrome closes when asked, the timer held Node's event loop open for
+  the rest of the 5 s. It is now kept (`let timer`) and cleared once the race is settled, before Chrome is stopped:
+  three lines where there was one, in the shape of `within` in `chrome.test.mjs`. A Chrome that will not go still has
+  5 s at most. `clearTimeout`, not `unref()`, since the review asks for it cleared, and an unref'd timer keeps its 5 s
+  only while the server and Chrome's process keep the loop open. No new test, since none is cheap: the tests' runs of
+  the check as a program all end through `process.exit(1)`, which never waits on a timer, and a run that reaches its
+  last line needs a stand-in Chrome serving the DevTools protocol over a WebSocket, which Node has no server for.
+- **The run's gap:** `npm run check:window` once, on this change just before it was committed (the same bytes), in
+  Chrome 156.0.8078.49 at a load average of about 8: "The window passed 116026 checks over 26 views", as #120's run
+  did. Its last line at 03:35:54.802 UTC, npm's exit at 03:35:54.963 UTC: 0.16 s, where #120's run ended 5.0 s after
+  its last line. npm's own exit lines are stamped 136 ms after the last line, so within that the check had closed
+  Chrome, seen it go, removed its profile and exited. Nothing of the run was left running, and no profile folder.
+- **Checks,** through the scratchpad's `safe.sh`: `npm run build` (the window's JavaScript 40.6 KB of 150, 30 contrast
+  pairs a theme), `npm test` (212 tests, all passing, as on `main`) and `npm run check:window` once. **Not run:** cargo,
+  since nothing in Rust changes; `npm ci`, since the installed packages match the lockfile; the real app,
+  `tests/icon_press.rs` and any vendor CLI; Windows and Linux, which CI covers. Check tooling only: no CHANGELOG line
+  and no D.
 
 ### v0.3.0: #52's figures, from the published build
 

@@ -2948,7 +2948,9 @@ async function main() {
     // nothing to wait for.
     await tools?.send("Browser.close").catch(() => {});
     if (started) {
-      await Promise.race([started.gone, new Promise((done) => setTimeout(done, 5000))]);
+      let timer;
+      await Promise.race([started.gone, new Promise((done) => (timer = setTimeout(done, 5000)))]);
+      clearTimeout(timer);
       started.browser.kill();
     }
     server.close();
