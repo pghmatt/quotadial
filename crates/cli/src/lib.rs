@@ -79,8 +79,8 @@ enum Command {
         action: Option<AlertsAction>,
     },
     /// Print what support asks for, with nothing secret in it: the version, the system, the licence,
-    /// the daemon, every account and where its sign-in is, the problems and the settings. The app's
-    /// Send feedback attaches the same.
+    /// the daemon, every account and what QuotaDial reads it from, the problems and the settings.
+    /// The app's Send feedback attaches the same.
     Doctor,
     /// Say whether this copy is QuotaDial Free or QuotaDial Pro, or add or remove its licence key.
     /// A key is checked on this machine, with no network call.

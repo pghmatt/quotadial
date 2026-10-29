@@ -261,6 +261,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The website's six pictures, taken again from `main`'s window after #117 | Done (PR #116) | The manager's review of #116 on #73 (2026-10-28, 17:50 UTC, item 3): after the Claude PR, all six again from `main`, and the `alt` fixed, README and home page both. Taken from `main` at 35dd45f (#117) in Chrome 156.0.8078.49: the accounts and History pairs change with #117's card, Claude Work's Weekly (Opus) window and chart gone (accounts 720x1412 to 720x1300, History 720x2186 to 720x2044) and its line "From the CLI's status line 3 min ago"; Settings comes out byte for byte as the first take's capture of 5ca70aa's window, its difference from the committed pair #107's, #115's and #94's, as that take pinned them; the image manifest and the home page's `AppShot` height follow. The `alt` says "each window with its share used, its reset and, where there is one, its pace". With it: the example build's Opus window (the row below), the website copy's Help text held to the app's own (cherry-picked from `fix/site-copy-help`), and the window check's ten accounts' What's new held to `CHANGELOG.md`. No D, no CHANGELOG line. Notes below |
 | The window check stops waiting on Chrome's inherited stderr | Queued, for the next PR that touches the check | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone", for the next PR that touches the check, "not this one". Chrome's crash handlers keep the check's stderr open after Chrome has gone, so a run can sit after its last line. D-145's PR changes neither `scripts/check-window.mjs` nor `scripts/chrome.mjs`, so the row stays queued |
 | The example build's Claude-like account drops its weekly Opus window | Done (PR #116) | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still showed a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. Dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own: the account has Weekly and Session, as the website's copy has since #117. The fake provider's tests, the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md` and the website's content bible changed with it, and a new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product. The README's first-run recording still shows the window until it is recorded again on Matt's Mac |
+| Doctor and Help say what QuotaDial reads each account from | Done (PR #118) | The manager on #73 (2026-10-28, 20:24 UTC, item 3), after #116 and before the 0.3.0 bump: `doctor`'s description and Help's sentence on Send feedback give each account "and what QuotaDial reads it from", where they said "and where its sign-in is", with the manual pages and completions written again. With them, by his yes on #73 (21:22 UTC, item 2), four more sentences that still said QuotaDial reads Claude's sign-in, found while searching for the phrase: the website's command guide page and its doctor sample's caption, winget's description and the CLI guide's line on Claude Code's logs. One CHANGELOG line for all six; wording, so no D |
 
 ## Kickoff
 
@@ -478,6 +479,16 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### M6: doctor and Help say what QuotaDial reads each account from
+
+- The manager on #73 (2026-10-28, 20:24 UTC, item 3): `doctor`'s description and Help's sentence on Send feedback
+  give each account "and what QuotaDial reads it from", where they said "and where its sign-in is", which is not what
+  Claude or Antigravity are read from since D-145; the manual pages and completions follow. Four more sentences that
+  still said QuotaDial reads Claude's sign-in were found while searching for the phrase, and come with it by the
+  manager's yes on #73 (21:22 UTC, item 2): the website's command guide page and its doctor sample's caption, winget's
+  description and the CLI guide's line on Claude Code's logs. One CHANGELOG line for all six, and no D, since it is
+  wording. In review as #118.
 
 ### M6: the website's six pictures, taken again after #117, with the example build's Opus window and the Help copy (#116)
 

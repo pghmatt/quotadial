@@ -212,8 +212,8 @@ export function winget(version, sums, productCode) {
       `License: MIT\nLicenseUrl: ${REPOSITORY}/blob/main/LICENSE\n` +
       `ShortDescription: Claude and ChatGPT/Codex usage limits in the notification area.\n` +
       `Description: QuotaDial shows how much of each Claude and ChatGPT/Codex plan limit you have used, ` +
-      `when each resets and how old every number is, from the sign-ins Claude Code and the Codex CLI ` +
-      `already keep. It carries the quotadial command, a local API and an MCP server for agents.\n` +
+      `when each resets and how old every number is, from Claude Code's status line and the sign-in the ` +
+      `Codex CLI already keeps. It carries the quotadial command, a local API and an MCP server for agents.\n` +
       `Tags:\n- claude\n- codex\n- chatgpt\n- usage\n- limits\n` +
       `ReleaseNotesUrl: ${REPOSITORY}/releases/tag/v${version}\n${tail("defaultLocale")}`,
   };

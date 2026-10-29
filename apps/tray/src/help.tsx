@@ -57,7 +57,7 @@ export function HelpPanel({ update }: { update: UpdateView | null }) {
         <h3>Feedback and support</h3>
         <p class="detail">
           Send feedback opens a new GitHub issue in your browser, with what support asks for
-          filled in: the version, the system, each account and where its sign-in is, and the
+          filled in: the version, the system, each account and what QuotaDial reads it from, and the
           settings. It holds no token, no whole email address and no licence id, and nothing is
           sent until you send it.
         </p>

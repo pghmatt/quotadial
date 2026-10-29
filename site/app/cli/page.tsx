@@ -21,7 +21,7 @@ export default function Cli() {
       other={{ href: "/install", label: "Read the install guide" }}
       closing={{
         heading: "Download QuotaDial",
-        text: "The command comes inside the app. QuotaDial Free reads the sign-ins Claude Code and the Codex CLI already keep, so there is nothing to set up first.",
+        text: "The command comes inside the app. QuotaDial Free reads the sign-in the Codex CLI already keeps, and for Claude needs one line in Claude Code's settings, as the install guide says.",
       }}
     />
   );
