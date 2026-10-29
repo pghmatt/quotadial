@@ -1,5 +1,6 @@
 // The window check's Chrome launcher, with a script standing in for Chrome: what it gives when
-// Chrome answers, exits, keeps quiet or will not start, and how long it waits. And the window check
+// Chrome answers, exits, keeps quiet or will not start, how long it waits, and that a run ends once
+// Chrome has gone, though a crash handler Chrome started still holds its stderr. And the window check
 // run as a program with a CHROME that is not there, or one that will not start: it says so in one
 // line and leaves no folder behind (the manager's review of #103).
 
@@ -185,6 +186,114 @@ test("a Chrome that is there but will not start, such as a folder, fails with wh
   const { address, gone } = launch(folder, join(folder, "profile"));
   await assert.rejects(address, (error) => error.message.startsWith(`Chrome at ${folder} would not start: `));
   await gone;
+});
+
+/**
+ * How long a run may go on after its last line. One with nothing left to do ends at once, 1 to 4 ms
+ * after it in ten runs on a Mac with a load average of 13 to 16; 10 s leaves a loaded runner room,
+ * and fails long before the crash handler below would have gone and let a run that waits for it end.
+ */
+const ENDS_WITHIN_MS = 10_000;
+
+/**
+ * How long the stand-in's crash handler lives unless the test stops it first: well past a run's
+ * time limit, and short enough that a test stopped before its own clean-up leaves nothing running
+ * for long.
+ */
+const HANDLER_LIVES_MS = 120_000;
+
+/**
+ * The end of a window check's run, as a program of its own: it starts the program it is given for
+ * Chrome with this launcher, stops it once it has its address, as the check does when it is done,
+ * waits until it has gone and says so in its last line, after which it has nothing left to do.
+ */
+const RUN = `
+  import { launch } from ${JSON.stringify(new URL("./chrome.mjs", import.meta.url).href)};
+  const [program, profile] = process.argv.slice(1);
+  const { browser, address, gone } = launch(program, profile);
+  await address;
+  browser.kill();
+  await gone;
+  console.log("Chrome has gone");
+`;
+
+/** Whether `promise` is kept within `ms`, waiting no longer than it takes. */
+async function within(promise, ms) {
+  let timer;
+  const late = new Promise((done) => {
+    timer = setTimeout(() => done(false), ms);
+  });
+  try {
+    return await Promise.race([promise.then(() => true), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Whether the process `pid` is still running. */
+function running(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === "ESRCH") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+test("a run ends once Chrome has gone, though a crash handler Chrome started still holds its stderr", { skip }, async (t) => {
+  // Chrome's crash handler, and those of Google's updater, inherit Chrome's stderr and outlive it, so
+  // the window check sat after its last line until they had gone, for 3 to 17 minutes (#115, and
+  // twice on #116). The stand-in starts such a handler, which keeps the pipe open after the stand-in
+  // has exited, and writes down its PID, since nothing else will stop it.
+  const { program, profile, folder } = standIn(`
+    const handler = require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, ${HANDLER_LIVES_MS})"], {
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+    require("node:fs").writeFileSync(require("node:path").join(__dirname, "handler.pid"), String(handler.pid));
+    process.stderr.write("DevTools listening on ws://127.0.0.1:9/devtools/browser/abc\\n");
+    setInterval(() => {}, 1000);
+  `);
+  const run = spawn(process.execPath, ["--input-type=module", "-e", RUN, program, profile], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  // Kept once the run has exited and everything it said has been read.
+  const ended = new Promise((done) => run.once("close", done));
+  let said = "";
+  const lastLine = new Promise((done) => {
+    for (const stream of [run.stdout, run.stderr]) {
+      stream.on("data", (chunk) => {
+        said += chunk;
+        if (said.includes("Chrome has gone\n")) {
+          done();
+        }
+      });
+    }
+  });
+  const pidFile = join(folder, "handler.pid");
+  try {
+    await Promise.race([lastLine, ended]);
+    assert.ok(said.includes("Chrome has gone\n"), `the run ended before Chrome had gone: ${said}`);
+    const heard = performance.now();
+    assert.ok(
+      await within(ended, ENDS_WITHIN_MS),
+      `the run had not ended ${ENDS_WITHIN_MS / 1000} s after its last line, waiting on the stderr the stand-in's crash handler still holds`,
+    );
+    t.diagnostic(`the run ended ${Math.round(performance.now() - heard)} ms after its last line`);
+    assert.equal(run.exitCode, 0, said);
+    // Held only while the handler is there to hold the pipe: one that had gone would let any run end.
+    assert.ok(running(Number(readFileSync(pidFile, "utf8"))), "the stand-in's crash handler had gone before the run ended");
+  } finally {
+    await stop(run);
+    // The handler outlives the stand-in, as Chrome's do, so the test stops it, by its own PID and
+    // only by one: a PID of 0 would stop every process in the test's own group.
+    const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, "utf8")) : NaN;
+    if (Number.isInteger(pid) && pid > 0 && running(pid)) {
+      process.kill(pid);
+    }
+  }
 });
 
 const CHECK = fileURLToPath(new URL("./check-window.mjs", import.meta.url));
