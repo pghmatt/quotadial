@@ -118,6 +118,18 @@ manager's order on #73 (17:50 UTC): the Claude PR first, merged (PR #117); then 
 from `main`, with the example build's weekly Opus window and the website copy's Help text (PR #116); then the
 0.3.0 bump, the tag and the pre-release; #81 and PR D held as before.
 
+`v0.3.0` (M5, and M6 but Copilot), on Matt's answer "Pre-release" (2026-10-28, 16:59:56 UTC),
+relayed on #73 at 17:04 UTC, after the manager's note of 13:50 UTC and the release-cut proposal of
+16:30 UTC, and in the manager's order on #73 after #117, #116 and #118: the version is raised from
+0.2.0 to 0.3.0 in the workspace, the app's `Cargo.toml`, `package.json` and `tauri.conf.json`, and
+the three lockfiles, where only QuotaDial's own entries change; `CHANGELOG.md`'s Unreleased section
+is renamed `## [0.3.0] - 2026-10-29`, under a new empty Unreleased; the price table was refreshed
+from models.dev as `docs/RELEASE.md` asks before a tag (one model added, none removed or repriced);
+the manual pages are written again, since each names its version; and `docs/SECURITY.md`'s line on
+the MCP report takes #118's words, as the manager's review of #118 asked, in PR #119. `main` is tagged
+once that merges, and the draft is published as a pre-release with the 0.3.0 section as its notes,
+as v0.2.0 was.
+
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
 - P-010 is decided (D-034).
@@ -479,6 +491,162 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### v0.3.0: the version bump, for a pre-release
+
+- **The ask:** the manager on #73 (2026-10-28, 13:50 UTC), item 4: "Do not bump the version yet: a bump PR left open
+  goes stale under every merge", with the release-cut proposal first, and "The bump PR goes up on his answer." The
+  coordinator's proposal went up at 16:30 UTC, and Matt's answer, passed on by the Chief of Staff word for word, was
+  "Pre-release" (16:59:56 UTC); the coordinator's note on #73 at 17:04 UTC put the bump PR up after the website's
+  pictures PR, rebased onto it. The manager's order on #73 then put the Claude PR (#117) first and #116 taken again
+  after it (17:50 UTC), and the phrase PR, #118, after #116 and before this bump (20:24 UTC, item 3), then the tag and
+  the pre-release; his review of #118 (2026-10-29, 00:25 UTC) asked for `docs/SECURITY.md`'s line on the MCP report in
+  this PR, in #118's words. In #53's form for 0.2.0 and by `docs/RELEASE.md`'s step 1, which since then also names
+  `CHANGELOG.md` and the manual pages. No D and no changelog line of its own: the bump renames the section.
+- **The rebases:** first built on `chore/release-0.3.0` from `main` at 5ca70aa (#115), whose six commits are kept as
+  the local branch `release-0.3.0-before-rebase`; put on `main` at 0e3bb89 (#116) once #117 and #116 had merged, kept
+  as `release-0.3.0-before-118`; and put on `main` at 7c70352 (#118) once #118 had, each time a commit at a time. Only
+  this tracker clashed, but what a clean merge would have carried was done again on each new `main` rather than
+  trusted: the Cargo lockfiles taken from `main` and updated by `cargo update --workspace --offline`, the manual pages
+  written by the packaging test, and the changelog's rename checked line by line against `main`'s Unreleased. The
+  price table's commit is the first round's, unchanged. Six commits: the version files and lockfiles; the changelog;
+  the price table; the manual pages; `docs/SECURITY.md`'s line; and these records.
+- **What v0.3.0 holds:** every line under Unreleased since v0.2.0 (2026-10-24), which is all of M5 and of M6 but
+  Copilot: QuotaDial Free and Pro, with licence keys checked on the machine and the website's key page; Help, with
+  Send feedback, What's new and About, and `quotadial doctor`; updates once a day, installed only on Update; each
+  release's checksums, software bills of materials and names without the version; the keyboard, screen reader and 200%
+  work, with `docs/ACCESSIBILITY.md`; the local API's OpenAPI description, shell completion and manual pages; Gemini
+  CLI and Antigravity; the redesigned window, each account a card with its address; History's time marks, its period
+  and Pro's Share image; the times, amounts and addresses written as people read them; #117's Claude, read only from
+  what Claude Code's status line hands over and never from its sign-in, so the Keychain prompt is gone, and with it
+  Claude's extra usage and its per-model weekly windows (D-145); and #118's words for it: `quotadial doctor`'s help,
+  manual page and tab completion and Help's Send feedback give each account and what QuotaDial reads it from, where
+  they said where its sign-in is, and the website's command guide and doctor sample, winget's description and the CLI
+  guide no longer say QuotaDial reads Claude's sign-in. With them, from this PR, `docs/SECURITY.md` says the MCP
+  server's report names what QuotaDial reads each account from, never what a sign-in holds. #116 adds no line, since
+  nothing a release carries changes: the website's six pictures of the window and their `alt`, taken again from `main`
+  after #117, and the example build's Claude-like account without its weekly Opus window. 58 lines: 29 Added, 13
+  Changed, 1 Removed and 15 Fixed, where 5ca70aa had 56: #117 added two, under Changed and Removed, wrote four again
+  and took one out, the command that signs a Claude Code folder in again, and #118 added one, under Changed.
+- **The version places:** `version` in the workspace's `Cargo.toml`, which all 14 crates take, so `quotadial
+  --version`, doctor's first line, the MCP server's `serverInfo`, the User-Agent the daemon sends webhooks and status
+  pages and the manual pages follow it; the app's `src-tauri/Cargo.toml`, which Help's version and What's new read;
+  `tauri.conf.json`, the version the updater compares and the bundles are named by, such as
+  `QuotaDial_0.3.0_universal.dmg`; and `package.json`. In the lockfiles only QuotaDial's own entries change: 14 in
+  `Cargo.lock` and 13 in the app's (the 12 crates of the core workspace it builds from, 4 named by path and the rest
+  through them, and `quotadial-tray`), `quotadial-status-line` from #117 among them in both, written from `main`'s
+  lockfiles by `cargo update --workspace --offline`, which resolves and compiles nothing, and 2 in
+  `package-lock.json`. Others' crates at 0.2.0 stay so: `foldhash`, `option-ext` and
+  `rustls-platform-verifier-android` in both, and `core-graphics-types`, `is-docker` and `ordered-stream` in the
+  app's. `cargo metadata --locked --offline` passes in both workspaces, and `npm ls --package-lock-only` reads
+  `quotadial-tray@0.3.0`.
+- **The manual pages:** written again by `QUOTADIAL_WRITE_PACKAGING=1 cargo test -p quotadial packaging` on `main` at
+  7c70352, where they came out as the merge of the manual pages' commit with #118's had them, `quotadial-doctor.1`'s
+  and `quotadial.1`'s new lines on doctor included. Against `main`'s pages they differ only in their version:
+  "QuotaDial 0.3.0" in each of the 21 pages' `.TH` line, `quotadial-claude.1` and `quotadial-claude-status-line.1`
+  from #117 among them, and `v0.3.0` under `quotadial.1`'s VERSION, 22 lines; the completions name no version and are
+  as they were.
+- **`docs/SECURITY.md`:** the manager's review of #118 (2026-10-29, 00:25 UTC), since `docs/SECURITY.md` is kept true
+  with each change: its paragraph on agents through MCP said the report names "where a sign-in is kept", which since
+  D-145 is not what Claude and Antigravity are read from, the file their status line keeps. It now says the report
+  names what QuotaDial reads each account from, #118's words, as `quotadial status` does, and never what a sign-in
+  holds; nothing else in the file changes. `docs/CLI.md`, the README and `docs/PRIVACY.md`, which say an alert never
+  sends where a sign-in is kept, stay as they are, as he said. No CHANGELOG line: #118's covers the wording.
+- **Every other "0.2.0",** of the 228 lines `git grep -n "0\.2\.0"` finds on `main` at 7c70352: 5ca70aa's 221, each as
+  it was, and 7 that #117 added; #116 and #118 added none and changed none.
+  - *Bumped:* the 33 lines above, and `CHANGELOG.md`'s `[Unreleased]` link, which compares from `v0.3.0` now, under a
+    new `[0.3.0]` link from `v0.2.0` in `[0.2.0]`'s form; and the manual pages' 22 lines above.
+  - *Others' crates:* the 9 lockfile lines above.
+  - *History, left as written:* `CHANGELOG.md`'s 0.2.0 section and its link; D-098, D-101, D-113, D-128 and D-145; 33
+    lines of this tracker; 13 that name 0.2.0 as the last release without checksums, copies without the version or the
+    daily check for updates, which stays true after 0.3.0: "the release after 0.2.0" in `docs/INSTALL.md` (3),
+    `docs/RELEASE.md`, `site-deploy.yml` (2), `packages.test.mjs`'s comment, `site/PRODUCT.md` and
+    `site/docs/CONTENT-BIBLE.md`, and the website's /download (2: its checksum paragraph and `SystemDownload.tsx`) and
+    /changelog (2: "Versions 0.1.0 and 0.2.0 do not check"); and 2 that name a person on 0.2.0 who updates, the
+    comment in `window-fixtures.mjs` on the Claude card before its first numbers and the doc comment in the Claude
+    provider's `advice.rs` on the test that holds the window check's copies to Claude's sentences, since 0.2.0 stays
+    the last release that read Claude's sign-in. Saying "from 0.3.0" in any of them would be a change of words, not a
+    version.
+  - *Fixtures and examples, left:* v0.2.0's real file names in `latest-names.test.mjs` (29) and `workflows.test.mjs`
+    (30), and `updater-manifest.test.mjs`'s file signed for 0.2.0; the app's tests that give a version of their own,
+    `help.rs`'s changelog (3) and `updates.rs` (17, one a doc comment); an example in `meter.ts`,
+    `site/lib/breaks.ts`, `site/lib/markdown.ts`, `site/DESIGN.md` and `site/.impeccable/design.json`; and the
+    website's tests, `breaks.test.ts` (2), `changelogs.ts` (2), `markdown.test.ts` (7) and `reference.test.ts` (12),
+    whose changelogs are their own or the real 0.2.0 section, "in a shape no release changes".
+  - *The 7 #117 added, each called:* `quotadial-status-line`'s entry in each lockfile, bumped, QuotaDial's own crate;
+    the `.TH` lines of `quotadial-claude.1` and `quotadial-claude-status-line.1`, bumped by the packaging test; and
+    D-145's row, the comment in `window-fixtures.mjs` and the doc comment in `advice.rs`, history, as above.
+  - *For the manager:* `site/docs/CONTENT-BIBLE.md`'s row for checksums, doctor, licence keys and updates says the
+    release after 0.2.0 "carries CHANGELOG's Unreleased section", which after this rename is its 0.3.0 section; #117,
+    #116 and #118 left that row as it was. Its 0.2.0 is history; the clause is a word to change, not a version, and is
+    left for the manager to call.
+- **The prices:** the first round's table, kept as it was and not fetched again: `scripts/update-prices.sh`, run on
+  2026-10-28 at 17:09 UTC and again from a saved copy of models.dev's `api.json`, which wrote the same bytes; its
+  commit is put on each new `main` unchanged, and `crates/cost` is the same at 7c70352 as at 5ca70aa. Against the
+  table v0.2.0 shipped (2026-10-24), one model is added and none is removed or repriced: OpenAI's `gpt-6.1-terra`
+  (GPT-6.1 Terra, released 2026-10-26), at $1 input, $5 output, $0.05 cache read and $1.25 cache write per million
+  tokens, and $2, $7.50, $0.10 and $2.50 above 272,000 tokens. The table holds 17 Anthropic and 48 OpenAI prices;
+  models.dev's `gpt-image-1-mini`, `chatgpt-image-latest` and `gpt-image-1.5` have no input price and are left out.
+  Nothing the cost scan prices today loses its price: the eight models
+  `the_bundled_table_prices_the_models_in_use_today` names keep theirs, as does every other, and a Codex log naming
+  `gpt-6.1-terra`, which had no price, has one now. The table keeps the date it was fetched, 2026-10-28, a day before
+  the release's.
+- **What's new and About, for 0.3.0:** Help's About reads "QuotaDial 0.3.0." and What's new is headed "What's new in
+  0.3.0", over the 0.3.0 section's 58 lines in plain words, under Added, Changed, Removed and Fixed. On `main`, at
+  0.2.0, the app finds 0.2.0's own section and shows its 6 additions under "What's new in 0.2.0", so this is the first
+  build whose What's new shows M5's and M6's lines; the empty Unreleased is never shown, since a version with a
+  section of its own shows that one (`whats_new`). The update line takes "QuotaDial 0.3.0" from `tauri.conf.json`,
+  doctor's first line is "QuotaDial 0.3.0 on ...", and the e-mail Write to opens has "QuotaDial 0.3.0" as its subject.
+  The website's /changelog shows 0.3.0 dated 29 October 2026 with its counts, and no Unreleased plate while Unreleased
+  is empty (`versionsShown`). The app's test `the_changelog_built_in_has_this_version_or_unreleased` reads 0.3.0's 58
+  lines now, where it read 0.2.0's 6: none has a `](` link, and `plain` takes every backtick out. #116's
+  `the_window_check_s_changelog_lines_are_the_app_s_own` holds the window check's copies' `CHANGES` to
+  `whats_new(CHANGELOG, "0.3.0")`: on `main`, with no 0.3.0 section, that is Unreleased's lines, and here it is the
+  0.3.0 section's, the same lines under the same headings, so it passes in both builds with nothing changed, and the
+  copies already name 0.3.0 as their version.
+- **The changelog:** `scripts/release-notes.sh 0.3.0` prints `main`'s Unreleased section at 7c70352 byte for byte, as
+  `main`'s own script prints it from `main`'s file (69 lines, 58 of them changes): #117's Changed and Removed lines
+  and #118's Changed line are in it, #118's last under Changed, and the line #117 took out is not; 0.2.0's and 0.1.0's
+  notes are as they were; and `scripts/release-notes.sh Unreleased` fails, saying there are none, as it should for an
+  empty section. The website's changelog tests already run over the shapes the bump makes (`changelogCases`, from the
+  review of #68): with this file as it is, the bump they make next is 0.4.0, dated 2026-10-30.
+- **Counts,** `main` at 7c70352, run here on `main` itself, and this branch, each the same: the workspace's tests 737
+  with none ignored; the example build's 734, with the 1 it always leaves out (the packaging test); the app's `--lib`
+  tests 111 in both builds; the tray's `npm test` 211; the website's 90; the repository scripts' 40, 39 passing and
+  one left out on macOS, needing GNU `sha256sum`; the window check 116,026 checks over 26 views; and the window's
+  JavaScript 40.6 KB of its 150, and the contrast check's 30 pairs a theme.
+- **Checks run,** on this branch before these records, through the scratchpad's `safe.sh`, one at a time: the manual
+  pages written again (the packaging test's 5 pass); `cargo fmt --check` for the workspace and the app; clippy with
+  `-D warnings` in the default and example builds, for the workspace and the app; `cargo test --workspace` in both
+  builds; the app's `--lib` tests in both builds, which read `CHANGELOG.md` and now find 0.3.0's section; the tray's
+  `npm ci`, `npm run build`, `npm test` and `npm run check:window`; the website's `npm ci`, `npm run check`, `npm run
+  build`, whose built /changelog shows 0.3.0 dated 29 October 2026, with 29, 13, 1 and 15 under Added, Changed,
+  Removed and Fixed, #118's line among them, and no Unreleased, and `npm test`; the repository scripts' tests;
+  `scripts/release-notes.sh 0.3.0`, and CI's own form of that check, which takes the version from `Cargo.toml`;
+  `scripts/privacy.sh --check` and `scripts/public-prd.sh --check`; `cargo metadata --locked --offline` in both
+  workspaces and `npm ls --package-lock-only`; and the app's own `help.rs`, compiled as it is outside the repository
+  and asked what Help shows for the app's version: "QuotaDial 0.3.0." and "What's new in 0.3.0", over 29 lines Added,
+  13 Changed, 1 Removed and 15 Fixed, with no backtick or link left. On `main` at 7c70352, checked out in the same
+  worktree, the counting ones: both builds' workspace tests, the tray's build and tests, the app's `--lib` tests in
+  both builds, the window check, the website's build and tests and the repository scripts' tests. **Not run:** the
+  real app, `tests/icon_press.rs` and any vendor CLI, as the brief says, so the app's tests ran as `--lib`; Windows
+  and Linux, which CI covers; CI's release-build test of core's test key, which no version touches; `cargo deny` and
+  `cargo audit`, which are not installed here, and `npm audit`, since no dependency changes, only QuotaDial's own
+  versions in its lockfiles; and shellcheck and actionlint, since no script or workflow changes.
+- **The window check's wait after its last line:** none, on this branch or on `main`. The branch's run had its last
+  line, "The window passed 116026 checks over 26 views", by 00:42:43 UTC on 2026-10-29 and ended at 00:42:45, 233
+  seconds in all, and `main`'s had it by 00:37:13 and ended at 00:37:18, so nothing needed stopping, and no Chrome of
+  either run was left. This PR changes neither `scripts/check-window.mjs` nor `scripts/chrome.mjs`, so the queued row
+  above stays queued.
+- **#52's list, gone down:** *fast and light:* #52 asks for the figures with each release, and for its notes to name
+  any regression. This PR measures nothing, since it starts no app; the newest are #80's, from QuotaDial Example at
+  0bd845f, and #99's day of the daemon, both from before D-145, and the window's JavaScript is 40.6 KB of its 150, as
+  on `main`. Whether v0.3.0 takes fresh figures before the tag is left for the manager. *Supportable:* the release's
+  notes are its changelog section (D-101); doctor, About and the support e-mail name 0.3.0; and the threat model says
+  what the MCP report names in the words doctor and Help now use. *Trustworthy:* only QuotaDial's own lockfile lines
+  move, the status line crate's with them, and the price table's one change comes from its one source. *Usable by
+  everyone:* What's new's 58 lines are plain words in Help's card, which breaks a long word only where it does not
+  fit. Nothing else on the list is touched by a version bump.
 
 ### M6: doctor and Help say what QuotaDial reads each account from
 

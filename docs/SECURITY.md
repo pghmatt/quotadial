@@ -138,8 +138,8 @@ account, never over another file.
 
 The MCP server answers three questions: usage, headroom and alert rules. On QuotaDial Free it
 answers only the first. None of them writes a file or sends a request anywhere, and none answers
-with a token: the report names where a sign-in is kept, as `quotadial status` does, never what it
-holds.
+with a token: the report names what QuotaDial reads each account from, as `quotadial status` does,
+never what a sign-in holds.
 
 ## Supply chain
 

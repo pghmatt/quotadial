@@ -360,6 +360,19 @@
       "input": 2,
       "output": 10
     },
+    "gpt-6.1-terra": {
+      "above": {
+        "cache_read": 0.1,
+        "cache_write": 2.5,
+        "input": 2,
+        "output": 7.5,
+        "tokens": 272000
+      },
+      "cache_read": 0.05,
+      "cache_write": 1.25,
+      "input": 1,
+      "output": 5
+    },
     "gpt-daybreak-blue-latest": {
       "above": {
         "cache_read": 0.8,
@@ -431,5 +444,5 @@
     }
   },
   "source": "https://models.dev/api.json",
-  "updated": "2026-10-24"
+  "updated": "2026-10-28"
 }

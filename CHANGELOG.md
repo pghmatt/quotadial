@@ -7,6 +7,8 @@ app's Help shows the version it is, and a release's notes come from its section 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
 ### Added
 
 - Licence keys for QuotaDial Pro, checked on your machine with no network call: `quotadial licence add`, or the Licence field in Settings.
@@ -99,6 +101,7 @@ app's Help shows the version it is, and a release's notes come from its section 
 - `quotadial mcp`, an MCP server for agents, and a SKILL.md that tells them how to check their usage.
 - The tray app for macOS, Windows and Linux: the tightest limit in the menu bar or tray, a popover with every account and window, Settings, and notifications when a limit passes 90% or a sign-in needs renewing.
 
-[Unreleased]: https://github.com/pghmatt/quotadial/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pghmatt/quotadial/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pghmatt/quotadial/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pghmatt/quotadial/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pghmatt/quotadial/releases/tag/v0.1.0
