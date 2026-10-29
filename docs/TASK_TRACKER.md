@@ -271,7 +271,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | A host breaks before each dot, as an address does | Done (PR #115, D-141) | The manager's review of #107 (2026-10-27, 15:27 UTC): the hosts #107 left for later, the webhooks' and Help's privacy text's, "can take the same `<wbr>` before each dot" as a small follow-up, with D-141's rule extended to a host in a sentence and no new D; ordered on #73 (19:23 UTC) for whenever a builder has the slot. `Host` writes a host as `Address` writes an address; Settings' line names each of `alert_targets` with it, and Help's privacy text each place QuotaDial connects to, found only from a new `HelpView.hosts` (`privacy::HOSTS`) where one stands as a word of a sentence (`hostRuns`, `WithHosts`), never guessed from a word with a dot in it. `checkHosts` (`whole-addresses.mjs`) holds every host written whole and in order and none anywhere else, no word of one broken where it fits its line, and each line naming hosts byte for byte and heard whole; it failed 16 of 115,916 checks on `main`'s window (8 a host broken inside a word that fits its line, all at 200%, and 8 for want of the line's new class) and passes 115,936, 484 more than `main`'s 115,452. The window check's `CHROME` row below was folded in, on the manager's go |
 | Claude through Claude Code's status line, never its sign-in | Done (PR #117, D-145) | Matt's "Go" (2026-10-28, 17:13 UTC) and the manager's twelve rules on #73 (17:50 UTC, item 2): `quotadial claude status-line` keeps the five-hour and weekly windows Claude Code's status line hands it, and nothing else, in `claude.json` or a named folder's `claude-<8 hex>.json`; each folder's account from its `.claude.json` `oauthAccount`, so ids, History, aliases and rules carry on; the two windows keep `KNOWN_BUCKETS`' identity, from `status_line`, stale after 10 minutes, a window past its reset left out (D-126), none left `unsupported`; before any numbers the card says why it is empty and the line to add. Removed with it: the Keychain, `.credentials.json`, `CLAUDE_CODE_OAUTH_TOKEN`, the usage and profile requests, Claude Code's `User-Agent`, per-model weeklies and extra usage, and `api.anthropic.com` from `privacy::HOSTS`. The shared code lifted into `crates/status-line`, Antigravity's behaviour unchanged. Recorded at the manager's ask (his review of #117): a still account is read every 10 minutes, so after the line is added the first numbers can take that long to appear; that is the poller's adaptive interval, and if Matt's run shows it matters, it is a daemon change (a file-backed provider polled at its floor while its file is younger than a poll), not #117's. Notes below |
 | The website's six pictures, taken again from `main`'s window after #117 | Done (PR #116) | The manager's review of #116 on #73 (2026-10-28, 17:50 UTC, item 3): after the Claude PR, all six again from `main`, and the `alt` fixed, README and home page both. Taken from `main` at 35dd45f (#117) in Chrome 156.0.8078.49: the accounts and History pairs change with #117's card, Claude Work's Weekly (Opus) window and chart gone (accounts 720x1412 to 720x1300, History 720x2186 to 720x2044) and its line "From the CLI's status line 3 min ago"; Settings comes out byte for byte as the first take's capture of 5ca70aa's window, its difference from the committed pair #107's, #115's and #94's, as that take pinned them; the image manifest and the home page's `AppShot` height follow. The `alt` says "each window with its share used, its reset and, where there is one, its pace". With it: the example build's Opus window (the row below), the website copy's Help text held to the app's own (cherry-picked from `fix/site-copy-help`), and the window check's ten accounts' What's new held to `CHANGELOG.md`. No D, no CHANGELOG line. Notes below |
-| The window check stops waiting on Chrome's inherited stderr | Queued, for the next PR that touches the check | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone", for the next PR that touches the check, "not this one". Chrome's crash handlers keep the check's stderr open after Chrome has gone, so a run can sit after its last line. D-145's PR changes neither `scripts/check-window.mjs` nor `scripts/chrome.mjs`, so the row stays queued |
+| The window check stops waiting on Chrome's inherited stderr | Done (PR #120) | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone"; a PR of its own on #73 (2026-10-29, 02:22 UTC, item 1). `launch` read Chrome's stderr through a pipe and never let go of it. The processes Chrome starts inherit it, and Chrome's crash handler and Google's updater's two can outlive Chrome, so Node, still reading the pipe, held the check open after its last line until they had gone, 3 to 17 minutes. `launch` now destroys Chrome's stderr stream once Chrome itself has exited; what Chrome said before is read as before, and `check-window.mjs` does not change. A new test in `chrome.test.mjs` runs a check's end as a program of its own, with a stand-in for Chrome whose child holds its stderr and outlives it, as a crash handler does: on `main`'s launcher the run had not ended 10 s after its last line, the test's own limit, and with the fix it ends 1 to 4 ms after it; the test stops the child by its own PID. The branch's `npm run check:window` passed 116,026 checks and ended 5.0 s after its last line, the 5 s its `finally` gives Chrome to go. Check tooling only: no CHANGELOG line, no D |
 | The example build's Claude-like account drops its weekly Opus window | Done (PR #116) | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still showed a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. Dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own: the account has Weekly and Session, as the website's copy has since #117. The fake provider's tests, the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md` and the website's content bible changed with it, and a new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product. The README's first-run recording still shows the window until it is recorded again on Matt's Mac |
 | Doctor and Help say what QuotaDial reads each account from | Done (PR #118) | The manager on #73 (2026-10-28, 20:24 UTC, item 3), after #116 and before the 0.3.0 bump: `doctor`'s description and Help's sentence on Send feedback give each account "and what QuotaDial reads it from", where they said "and where its sign-in is", with the manual pages and completions written again. With them, by his yes on #73 (21:22 UTC, item 2), four more sentences that still said QuotaDial reads Claude's sign-in, found while searching for the phrase: the website's command guide page and its doctor sample's caption, winget's description and the CLI guide's line on Claude Code's logs. One CHANGELOG line for all six; wording, so no D |
 | #52's figures from the published v0.3.0 | The daemon and the bundle: done (PR #121); the app's three wait on Matt | The manager's review of #119 (2026-10-29, 01:22 UTC): from the published build, with the build they came from and any regression named. `quotadial-v0.3.0-aarch64-apple-darwin.tar.gz` (its SHA-256 starts `595a8f09`; in full in the note), its `quotadial daemon` alone with one made-up Claude account and the status pages on, as an install has them: 0.002% of one core and 4.82 MiB of footprint on average, 4.89 at most, over its hour, listening only on 127.0.0.1. No regression against PR D's example (0.002%, 3.98 MiB): the 0.84 MiB more is the status page reading, which the example never did, since with it off the same daemon has 3.46 MiB. The window's JavaScript 40.6 KB of 150 at bc9c8c6. The tray app idle, first run and the popover wait on Matt: his own copy of v0.3.0 read only, or QuotaDial Example built at bc9c8c6 with his yes |
@@ -598,6 +598,68 @@ The notes below run newest first; the setup notes above them are the oldest.
   line passes as written on the release's own files; its fetch lines take the newest full release, which a
   pre-release is not (`releases/latest` still answers 404), so the files came by `gh release download`. Nothing else
   on the list is touched by records.
+
+### M6: the window check stops waiting on Chrome's inherited stderr
+
+- **The ask:** the manager on #73 (2026-10-29, 02:22 UTC, item 1): "The window check's wait: yes, a PR of its own,
+  now", changing `apps/tray/scripts/chrome.mjs` "(and `check-window.mjs` only if the wait is there)" and nothing else,
+  "so the check stops waiting on Chrome's inherited stderr once Chrome has gone, with a test in `chrome.test.mjs` that
+  fails first against a stand-in that keeps the pipe open after it exits, as the crash handlers do"; no CHANGELOG line
+  and no D; `npm run check:window` once on the branch, saying whether it ended at its last line. The row was queued on
+  #73 (2026-10-28, 17:50 UTC, item 3), after the check sat 3 to 17 minutes after its last line on #115 and twice on
+  #116. Built on `fix/window-check-stderr` from `main` at bc9c8c6 (v0.3.0). In review as #120.
+- **The cause:** `launch` spawns Chrome with its stderr piped to Node, reads it for Chrome's DevTools address and what
+  it said, and never let go of it. The processes Chrome starts inherit that stderr and some outlive Chrome, so the pipe
+  still had a writer after Chrome had exited, and Node, reading a stream that never ended, kept its event loop alive.
+  The check's `finally` waits for Chrome's `exit` (`gone`) or 5 s, closes its server and removes the profile, and once
+  that 5 s timer had fired the stream was all that was left. Nothing waits on `close`, and `check-window.mjs` holds
+  nothing else open, so the fix is in `chrome.mjs` alone. Seen three ways:
+  - *The branch's run, in Chrome 156.0.8078.49 on this Mac:* `lsof`, every 15 s, found 32 processes holding the far
+    end of Node's socket for Chrome's stderr (on macOS, Node's pipe to a child is a socket pair): Chrome and its
+    helpers; Chrome's `chrome_crashpad_handler`, whose parent is PID 1; and `GoogleUpdater --wake-all`, which Chrome
+    itself started 23 s into the run, with its `--wake` and two `GoogleUpdater --crash-handler` processes, also under
+    PID 1. That is what #94's `lsof` showed: Chrome's crash handler and two of the updater's.
+  - *A stand-in on `main`'s launcher:* after the run's last line, `process.getActiveResourcesInfo()` gave `PipeWrap`
+    and the closing `ProcessWrap`; `lsof` showed the run's socket and the stand-in's child's stderr as the two ends of
+    one pair, the child's parent PID 1; and the run was still there 11 s later, until stopped by its PID.
+  - *The same stand-in on the fixed launcher:* the run ended 1 ms after its last line, while the child still held its
+    end of the pair.
+- **The fix:** in `launch`, `browser.once("exit", () => browser.stderr.destroy())`, with a comment on why, and a
+  sentence in `launch`'s description. What Chrome said before it exited is read as before: `address` is settled by
+  Chrome's exit either way, kept with its address or failed with what Chrome said, so no message changes, and the
+  launcher's tests of both pass unchanged. Destroying the stream, rather than `unref()`, lets go of the descriptor as
+  well as the loop, so a caller that starts Chrome again does not gather open pipes.
+- **The test:** "a run ends once Chrome has gone, though a crash handler Chrome started still holds its stderr".
+  `RUN` is the end of a check as a program of its own (`node --input-type=module -e`): it launches a stand-in with
+  this launcher, stops it once it has its address, waits for `gone` and prints its last line. The stand-in starts a
+  child that inherits its stderr and lives two minutes, as a crash handler outlives Chrome, and writes down its PID.
+  The run must end within 10 s of its last line (`ENDS_WITHIN_MS`), with status 0, while the child is still running.
+  The test then stops the run and the child by their own PIDs in a `finally`, passed or not, and never PID 0. It is
+  skipped on Windows, as every stand-in test is, since a script runs as a program only where a shebang line is
+  honoured, and nothing it asserts depends on the runner's platform. Each run says how long after its last line the
+  run ended.
+- **Fail-first:** with `main`'s `chrome.mjs` (bc9c8c6) and this test, `node --test scripts/chrome.test.mjs` passed 10
+  of 11 and failed the new test at 10,143 ms: "the run had not ended 10 s after its last line, waiting on the stderr
+  the stand-in's crash handler still holds", leaving no process behind. With the fix, 11 of 11, the new test in under
+  170 ms; ten runs of it alone at a load average of 13 to 16 all passed, each run ending 1 to 4 ms after its last line.
+- **The check's run:** `npm run check:window` once, at 0267a32: "The window passed 116026 checks over 26 views", as
+  on `main` for #119, its last line at 02:44:57.412 UTC and its exit at 02:45:02.427 UTC, 5.0 s later. Those 5 s are
+  the check's own: its `finally` races `gone` against a 5 s timer it does not clear when Chrome goes sooner. Every
+  holder of Chrome's stderr, the crash handlers too, had gone by then in this run, so it would not have waited on
+  `main` either; the wait comes and goes from run to run. Nothing needed stopping, and no process or profile folder of
+  the run was left.
+- **Counts:** the tray's `npm test`, 212 tests, all passing, one more than `main`'s 211; `chrome.test.mjs`, 11.
+- **Checks run,** through the scratchpad's `safe.sh`: `npm run build` (the window's JavaScript 40.6 KB of 150, 30
+  contrast pairs a theme), `npm test`, `node --test scripts/chrome.test.mjs` with and without the fix, and
+  `npm run check:window` once. **Not run:** cargo, since nothing in Rust changes; `npm ci`,
+  since the installed packages match the lockfile; the real app, `tests/icon_press.rs` and any vendor CLI, as the
+  brief says; Windows and Linux, which CI covers.
+- **#52's list, gone down:** *found and fixed:* a check that sits for minutes after saying it passed costs each
+  builder the wait, or a guess that it hung and a kill that can take the wrong process with it, and could hold a CI
+  job the same way. *Held:* what Chrome says before it exits, its address and both failure messages; the check's
+  verdicts; no process or folder left by the test. *Unchanged:* nothing a person sees. *Left for the manager:* the
+  check still ends 5 s after its last line, as it has since #65, from its `finally`'s uncleared 5 s timer; clearing it
+  is a line in `check-window.mjs`, which this PR leaves, since the stderr wait is not there.
 
 ### v0.3.0: the version bump, for a pre-release
 

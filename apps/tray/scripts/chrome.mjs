@@ -32,7 +32,9 @@ export function wantsClassicScrollbars(flag, pictures) {
  * caller stops; a promise of its DevTools address, which fails with what Chrome said when it exits
  * first or has not answered within `waitMs`, and with what stopped it when it will not start; and a
  * promise that Chrome has gone, `gone`, kept when it exits or when it never started, after which its
- * profile can be removed. A Chrome that will not start, such as a path that is a folder, is that
+ * profile can be removed. Once Chrome has exited its stderr is let go, though the crash handlers it
+ * started may hold the pipe for minutes more, so that nothing waits on them (the manager on #73,
+ * 2026-10-29). A Chrome that will not start, such as a path that is a folder, is that
  * failure and never Node's unhandled error (the manager's review of #103); one the system refuses at
  * once throws it.
  *
@@ -104,5 +106,11 @@ export function launch(
       fail(new Error(`Chrome at ${chrome} would not start: ${error.message}`));
     });
   });
+  // Chrome's crash handler, and those of Google's updater, which Chrome starts, inherit its stderr
+  // and outlive it, so the pipe stays open until the last of them has gone, and Node, still reading
+  // it, kept the window check running after its last line for 3 to 17 minutes (#115, and twice on
+  // #116). So once Chrome has exited, its stderr is let go. What Chrome said before it exited is read
+  // as before: `address` is settled by then, with its address or with what it said.
+  browser.once("exit", () => browser.stderr.destroy());
   return { browser, address, gone };
 }
