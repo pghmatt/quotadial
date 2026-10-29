@@ -274,6 +274,7 @@ The manager's instructions arrive as GitHub issues, PR reviews and comments, che
 | The window check stops waiting on Chrome's inherited stderr | Done (PR #120) | The manager on #73 (2026-10-28, 17:50 UTC, item 3), after the wait recurred on #115 and twice on #116: "the check closes Chrome's inherited stderr, or stops waiting on it, once Chrome has gone"; a PR of its own on #73 (2026-10-29, 02:22 UTC, item 1). `launch` read Chrome's stderr through a pipe and never let go of it. The processes Chrome starts inherit it, and Chrome's crash handler and Google's updater's two can outlive Chrome, so Node, still reading the pipe, held the check open after its last line until they had gone, 3 to 17 minutes. `launch` now destroys Chrome's stderr stream once Chrome itself has exited; what Chrome said before is read as before, and `check-window.mjs` does not change. A new test in `chrome.test.mjs` runs a check's end as a program of its own, with a stand-in for Chrome whose child holds its stderr and outlives it, as a crash handler does: on `main`'s launcher the run had not ended 10 s after its last line, the test's own limit, and with the fix it ends 1 to 4 ms after it; the test stops the child by its own PID. The branch's `npm run check:window` passed 116,026 checks and ended 5.0 s after its last line, the 5 s its `finally` gives Chrome to go. Check tooling only: no CHANGELOG line, no D |
 | The example build's Claude-like account drops its weekly Opus window | Done (PR #116) | The manager's review of #117 (2026-10-28, 19:27 UTC): the example build's Claude-like account still showed a weekly Opus window (`fixtures/fake/example.json:16`), a window Claude no longer has. Dropped in #116's retake, since the pictures are the reason, rather than in a PR of its own: the account has Weekly and Session, as the website's copy has since #117. The fake provider's tests, the CLI's example-build `status` test (4 window lines, where it counted 5), `fixtures/README.md` and the website's content bible changed with it, and a new test holds that a file `QUOTADIAL_FAKE_ACCOUNTS` names may still have a window for one model. The window check's own three-window Claude Work card stays: a shape for the check, not a picture of the product. The README's first-run recording still shows the window until it is recorded again on Matt's Mac |
 | Doctor and Help say what QuotaDial reads each account from | Done (PR #118) | The manager on #73 (2026-10-28, 20:24 UTC, item 3), after #116 and before the 0.3.0 bump: `doctor`'s description and Help's sentence on Send feedback give each account "and what QuotaDial reads it from", where they said "and where its sign-in is", with the manual pages and completions written again. With them, by his yes on #73 (21:22 UTC, item 2), four more sentences that still said QuotaDial reads Claude's sign-in, found while searching for the phrase: the website's command guide page and its doctor sample's caption, winget's description and the CLI guide's line on Claude Code's logs. One CHANGELOG line for all six; wording, so no D |
+| #52's figures from the published v0.3.0 | The daemon and the bundle: done (PR #121); the app's three wait on Matt | The manager's review of #119 (2026-10-29, 01:22 UTC): from the published build, with the build they came from and any regression named. `quotadial-v0.3.0-aarch64-apple-darwin.tar.gz` (its SHA-256 starts `595a8f09`; in full in the note), its `quotadial daemon` alone with one made-up Claude account and the status pages on, as an install has them: 0.002% of one core and 4.82 MiB of footprint on average, 4.89 at most, over its hour, listening only on 127.0.0.1. No regression against PR D's example (0.002%, 3.98 MiB): the 0.84 MiB more is the status page reading, which the example never did, since with it off the same daemon has 3.46 MiB. The window's JavaScript 40.6 KB of 150 at bc9c8c6. The tray app idle, first run and the popover wait on Matt: his own copy of v0.3.0 read only, or QuotaDial Example built at bc9c8c6 with his yes |
 
 ## Kickoff
 
@@ -491,6 +492,112 @@ as it was, as D-136 left the accounts pictures, leaves the file alone.
   window check itself runs in.
 
 The notes below run newest first; the setup notes above them are the oldest.
+
+### v0.3.0: #52's figures, from the published build
+
+- **The ask:** the manager's review of #119 (2026-10-29, 01:22 UTC), the second of his two calls: "#52's figures: do not
+  hold the tag for them. Take the fast-and-light figures from the published v0.3.0 build after it is out, record them
+  in the tracker with the build they came from, and name any regression there." His note on #73 (01:30 UTC), item 3,
+  set it after the pre-release, and the coordinator's note there (01:43 UTC) said which figures are taken now and which
+  wait on Matt. Records only: no code, no D and no CHANGELOG line, since the release's notes are its changelog section
+  (D-101) and stay as they are. On `docs/fast-and-light-0.3.0` from `main` at bc9c8c6, the tagged commit.
+- **The machine:** Matt's Mac, as for PR D's figures: macOS 26.7.1 (25G241), a Mac16,5 with 16 cores and 128 GB, busy
+  with other work throughout (load averages from 6.6 to 28.7 at the readings taken as each run started and ended).
+  Measured on 2026-10-29 from 01:56 to 02:58 UTC.
+- **The build:** the published pre-release's command for Apple silicon, `quotadial-v0.3.0-aarch64-apple-darwin.tar.gz`,
+  SHA-256 `595a8f09aa47b705151b4b0a8b60d26faa24f30d5dddd3c4fbfc18c1ba12133e`, from v0.3.0's release
+  (https://github.com/pghmatt/quotadial/releases/tag/v0.3.0, published at 01:40:59 UTC). Fetched with `gh release
+  download` beside the release's `SHA256SUMS.txt`, which it passes by the install guide's own check (`shasum -a 256 -c
+  SHA256SUMS.txt --ignore-missing`); GitHub gives the asset the same digest. Unpacked in the scratchpad and run from
+  there, not installed: its `quotadial` says `quotadial 0.3.0`, is an arm64 binary signed ad hoc, as the notes' "not
+  signed yet" says, and carries no trace of the example build's data folder variable.
+- **The method:** PR D's, with the published command in place of QuotaDial Example's. `quotadial daemon --port 0`, as
+  the command-line install runs it, started through the scratchpad's `safe.sh` and then `env -i`, so it saw only
+  `PATH`, `TMPDIR`, and `HOME`, `QUOTADIAL_DATA_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME` and
+  `XDG_CONFIG_HOME`, all in a run folder of its own: no token, and no way to a real `~/.claude`, `~/.codex` or anything
+  else of Matt's. A sample a minute for 60 minutes, 61 in all: `ps -o time=,rss=` and the physical footprint from
+  `proc_pid_rusage`, with what it listened on and was connected to; `vmmap --summary` and `quotadial status` before
+  the first sample and after the last; then the daemon stopped by its own PID.
+  - *Its one account,* made up, read the offline way v0.3.0 reads Claude (D-145): a Claude Code folder in the run's
+    home, the one `CLAUDE_CONFIG_DIR` names, whose `.claude.json` has an `oauthAccount` on example.com, on Max; and the
+    file of numbers the published `quotadial claude status-line` wrote itself from
+    `fixtures/claude/status-line.synthetic.json`, every `resets_at` moved forward by the same amount, the five-hour
+    window's to four hours past the next whole hour. The command printed nothing, ended with 0, and wrote
+    `claude-<8 hex>.json`, 0600, in a data folder it made 0700, holding only the two windows and its own time.
+    `quotadial status` then showed "Claude example@example.com (max): ok", Weekly 41% and Session 24% "from the CLI's
+    status line just now". The file was written once, as a Claude Code session left alone leaves it, so from the tenth
+    minute the numbers were stale, and `status` said so at the end: "Claude Code last handed over its numbers on 29 Oct
+    2026 at 01:56 UTC: they update when it runs again, and a window that has reset since is left out until then."
+  - *No Codex sign-in,* so nothing asked OpenAI. *No `config.json`,* so `status_pages` was at its default, on, as an
+    install has it: with a Claude account, the daemon read status.claude.com every 5 minutes. PR D's example build read
+    none, since its fake provider has no status page. *No licence,* so QuotaDial Free, whose daemon reads no session
+    logs for the week's cost, as on a new install.
+- **Listening:** only on 127.0.0.1, on port 52209, which the system chose for `--port 0`: `lsof` found that socket and
+  no other listening in all 61 samples. Its only other connections, in 25 of them, were to status.claude.com on 443, at
+  the addresses the name gave at the start and the end; none to chatgpt.com or status.openai.com.
+- **Matt's QuotaDial,** checked read only before and after each run, as PR D did: none of his was running at any check
+  (no process, nothing on the release daemon's port, 47115), and his data folder's `daemon.lock` was the same each
+  time, 0 bytes, 0600, unchanged since 2026-10-23, the same inode, held by no process. That was read by `stat` and
+  `lsof` alone: the lock was never opened, and the folder was never listed or read.
+- **The daemon alone** (#52: under 0.5% of one core averaged over an hour, and under 40 MB, judged on its footprint,
+  D-123): over 60.1 minutes, 0.06 s of CPU, 0.002% of one core; footprint 4.82 MiB on average, 4.52 to 4.89; resident
+  17.22 MiB, 16.91 to 17.30. At most 5.13 MB, about an eighth of #52's 40 MB.
+- **Against PR D's** (QuotaDial Example's daemon at 0bd845f, from its own samples: 0.07 s of CPU, 0.002% of one core;
+  footprint 3.98 MiB on average, 3.67 to 4.14; resident 10.98 MiB): the CPU is the same, the footprint 0.84 MiB higher
+  on average and the resident 6.24 MiB.
+- **The control,** to say why: the same published command, account and file of numbers, run beside it over the same
+  hour (01:58 to 02:58 UTC) with one difference, a `config.json` holding `{"status_pages": false}`. It made no
+  connection at all: 0.05 s of CPU, 0.001% of one core; footprint 3.46 MiB on average, 3.19 to 3.52; resident 11.83
+  MiB. So the status page reading, which an install does and the example never did, costs about 1.4 MiB of footprint
+  (`vmmap` at the end: 1,425 KiB more dirty memory, 928 KiB of it the small-allocation heap, where the HTTPS client and
+  its connections live), 5.4 MiB of resident, mostly shared system code it pages in, which the footprint does not
+  count, and a hundredth of a second of CPU at most in the hour, 0.06 s against 0.05. Without it, the published
+  daemon is lighter than PR D's example on the footprint #52 is judged on, 3.46 MiB against 3.98, with 0.85 MiB more
+  resident, 11.83 against 10.98.
+- **Regressions: none.** Both figures are far inside #52's. Against PR D's, the CPU is the same, and the higher
+  footprint is the status page reading, measured here for the first time, since PR D's example build had no status
+  page to read; it is not the daemon doing PR D's work for more.
+- **Growth:** both footprints levelled off within the hour, at 4.86 to 4.89 MiB from the 20th minute, and 3.48 to 3.52
+  in the control, and the heap's allocated bytes held: 811 KiB at the start and 803 at the end, and 499 and 494 in the
+  control. PR D's example rose all hour, 3.67 to 4.14 MiB, as SQLite's page cache filled with its history: 122
+  snapshots in its hour, two accounts polled every minute, where each run here kept two, the account's first reading
+  and the same numbers gone stale. A Claude account whose numbers move grows the history, and the cache with it, as the
+  example's did over its day (#99: it levels off at 6.84 MiB); this hour does not measure that.
+- **The window bundle** (#52: within the 150 KB budget `npm run build` enforces): 40.6 KB of 150 (41,568 bytes, one
+  file), from `npm run build` in `apps/tray` at bc9c8c6, taken again here with the `node_modules` the tag's lockfile
+  names (the lockfile differs from their install only in the root's version); the same as #119's checks at 23c1bb3,
+  whose tree is the tag's. The type check and the contrast check (30 pairs a theme) passed with it. PR C (#74)
+  recorded 33.9 KB; the 6.7 KB since is M6's changes to the window, and 40.6 KB is 27% of the budget: no regression.
+- **What waits on Matt, and why:** the tray app idle with the popover closed, first run to the number, and the popover
+  (open and drawn from a warm daemon, and the tray's number changed within a second of a poll) need the app running in
+  Matt's menu bar. The published app is the real app, which would read his real Claude Code folders, his Codex sign-in
+  and his data folder the moment it started, so no builder starts it here. They come one of two ways, and neither is
+  done in this PR:
+  - *(a) Matt's own copy, once he installs v0.3.0,* read only, as PR C took its figures: the dmg, opened past Gatekeeper
+    as `docs/INSTALL.md` says, since it is not signed yet, then left running with the popover closed for an hour while
+    a builder reads its process and its helpers once a minute, `ps` and the footprint, sending them nothing. It gives
+    the tray app idle and nothing more (the manager's rule 4 on #49): no first run, since his data folder is not new,
+    and no popover time, since timing it means pressing his icon. It can share a sitting with his #51 status-line run,
+    which gives his Claude cards their numbers under v0.3.0.
+  - *(b) QuotaDial Example built at bc9c8c6 on his Mac, with his yes,* as PR D: the example built here (its command
+    bundled by `npm run cli -- --fake`, then `npx tauri build --config src-tauri/tauri.example.conf.json`), then PR D's
+    first-run, popover and idle scripts. That puts a second QuotaDial icon in his menu bar for a little over an hour,
+    the first run and five presses of the popover, then the idle hour; needs his menu bar set to stay visible while the
+    timings run, since it hides itself; and his Mac left alone as far as QuotaDial Example goes for the idle hour. The
+    example reads only its made-up accounts, in a data folder of its own. It gives all three, from v0.3.0's code in the
+    example build rather than the published app.
+- **The scripts and the samples** stay outside the repository, in the scratchpad's `fast-and-light-030/`, as the brief
+  asked: `daemon-alone.sh`, PR D's with the release's command, which checks the archive against its checksum before
+  each run and refuses the example build's command; `daemon-alone-control.sh`, the same with `status_pages` off;
+  `matts-quotadial.sh`, the read-only check; `analyse.sh`, which reads every figure above from a run's own files; PR
+  D's footprint helper; and each run's samples, logs, `vmmap` and `status`. Two one-minute dry runs came first.
+- **#52's list, gone down:** *fast and light:* as above; #52 asks for the figures with each release, and v0.3.0's
+  daemon and window bundle are recorded here with the build they came from, the app's three named as waiting and why.
+  *Trustworthy:* the published archive passed its checksums before it ran, and the daemon listened only on 127.0.0.1
+  and connected only to status.claude.com, a host the privacy text names. *Installable:* the install guide's check
+  line passes as written on the release's own files; its fetch lines take the newest full release, which a
+  pre-release is not (`releases/latest` still answers 404), so the files came by `gh release download`. Nothing else
+  on the list is touched by records.
 
 ### M6: the window check stops waiting on Chrome's inherited stderr
 
