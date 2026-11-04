@@ -7,6 +7,10 @@ app's Help shows the version it is, and a release's notes come from its section 
 
 ## [Unreleased]
 
+### Security
+
+- The updater's zip library is version 9.3.0, which fixes RUSTSEC-2026-0429: a zip archive with a crafted symlink entry could make the program unpacking it stop at once.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added
