@@ -126,9 +126,20 @@ the three lockfiles, where only QuotaDial's own entries change; `CHANGELOG.md`'s
 is renamed `## [0.3.0] - 2026-10-29`, under a new empty Unreleased; the price table was refreshed
 from models.dev as `docs/RELEASE.md` asks before a tag (one model added, none removed or repriced);
 the manual pages are written again, since each names its version; and `docs/SECURITY.md`'s line on
-the MCP report takes #118's words, as the manager's review of #118 asked, in PR #119. `main` is tagged
-once that merges, and the draft is published as a pre-release with the 0.3.0 section as its notes,
-as v0.2.0 was.
+the MCP report takes #118's words, as the manager's review of #118 asked, in PR #119. `main` was
+tagged `v0.3.0` at `bc9c8c6` once that merged. The draft, with its 19 files, `SHA256SUMS.txt` among
+them and no `latest.json` or `.sig` since #51's updater secrets are not set, was published as a
+pre-release on 2026-10-29 at 01:40:59 UTC. Its notes are a line saying the builds are not signed yet,
+then the 0.3.0 section.
+
+After v0.3.0, in the manager's plan on #73 (2026-10-29, 02:22 UTC): the window check stops waiting
+on Chrome's stderr (PR #120), #52's figures from the published build (PR #121), and the check ends at
+its last line (PR #122), all merged. Until Matt answers, nothing else is built. What waits on him
+(#51): the Claude status-line run with v0.3.0 (D-145), which he chose to do first ("Claude run
+first", 2026-10-29, 16:08:13 UTC, relayed on #73 at 16:13 UTC); Copilot's live check, before #81
+merges; the Antigravity capture, for P-023; QuotaDial Example built at `bc9c8c6`, for #52's three app
+figures and the README's first-run recording; and Cursor's written yes (D-120). The PRD sentence from
+D-145's row and `Account`'s P-020 lines are the manager's, still to come.
 
 Proposals:
 - P-001 to P-009 are accepted and in the PRD.
