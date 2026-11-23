@@ -7,10 +7,6 @@ all-features = true
 
 [advisories]
 ignore = [
-    # zip 4, which tauri-plugin-updater uses on Windows only, to unpack a zipped update. QuotaDial's
-    # releases never make one: the updater installs a signed .msi, and only after its signature and
-    # version check out (D-103). Ends when the plugin takes zip 9.
-    { id = "RUSTSEC-2026-0368", reason = "zip: only zipped updates, which QuotaDial never ships, and only after the signature checks out" },
     # Unmaintained, not vulnerable: reached only through Tauri's Linux toolkit (gtk-rs's macros at
     # build time) and zbus 5, which notify-rust and Tauri's notification, opener and single-instance
     # plugins use on Linux. Each ends when those move on (zbus 6 takes in zvariant).
